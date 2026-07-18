@@ -12,6 +12,7 @@ from sklearn.neighbors import KNeighborsRegressor as skKNN
 from sklearn.utils.validation import check_random_state
 
 from cuml.neighbors import KNeighborsRegressor as cuKNN
+from cuml.neighbors.weights import compute_weights
 from cuml.testing.utils import array_equal
 
 
@@ -202,6 +203,58 @@ def test_callable_weights_non_c_contiguous_cupy_view():
     pred_cu = knn_cu.predict(cp.asarray(X_test))
 
     knn_sk = skKNN(n_neighbors=5, weights=non_c_contiguous_weights)
+    knn_sk.fit(X_train, y_train)
+    pred_sk = knn_sk.predict(X_test)
+
+    cp.testing.assert_allclose(pred_cu, pred_sk, rtol=1e-4, atol=1e-4)
+
+
+def test_callable_weights_unaligned_c_contiguous_cupy_view():
+    float32_alignment = np.dtype(np.float32).alignment
+
+    def unaligned_weights(distances):
+        values = cp.asarray(1.0 / (1.0 + distances), dtype=cp.float32)
+        storage = cp.empty(values.nbytes + 1, dtype=cp.uint8)
+        result = storage[1:].view(cp.float32).reshape(values.shape)
+        cp.cuda.runtime.memcpyAsync(
+            result.data.ptr,
+            values.data.ptr,
+            values.nbytes,
+            cp.cuda.runtime.memcpyDeviceToDevice,
+            cp.cuda.get_current_stream().ptr,
+        )
+        cp.cuda.get_current_stream().synchronize()
+        assert result.flags.c_contiguous
+        assert result.data.ptr % float32_alignment != 0
+        return result
+
+    distances = cp.arange(15, dtype=cp.float32).reshape(3, 5)
+    computed_weights = compute_weights(distances, unaligned_weights)
+
+    assert computed_weights.dtype == cp.float32
+    assert computed_weights.flags.c_contiguous
+    assert computed_weights.data.ptr % float32_alignment == 0
+    assert computed_weights.flags.owndata
+    cp.testing.assert_allclose(
+        computed_weights, 1.0 / (1.0 + distances), rtol=1e-6
+    )
+
+    X, y = make_regression(
+        n_samples=64,
+        n_features=6,
+        n_informative=4,
+        random_state=42,
+    )
+    X = X.astype(np.float32)
+    y = y.astype(np.float32)
+    X_train, X_test = X[:48], X[48:]
+    y_train = y[:48]
+
+    knn_cu = cuKNN(n_neighbors=5, weights=unaligned_weights)
+    knn_cu.fit(X_train, y_train)
+    pred_cu = knn_cu.predict(cp.asarray(X_test))
+
+    knn_sk = skKNN(n_neighbors=5, weights=lambda d: 1.0 / (1.0 + d))
     knn_sk.fit(X_train, y_train)
     pred_sk = knn_sk.predict(X_test)
 

@@ -56,11 +56,26 @@ def compute_weights(distances, weights):
         return raw_weights
     elif callable(weights):
         # Custom callable weights (raw, not normalized)
-        raw_weights = cp.ascontiguousarray(
-            cp.asarray(weights(distances), dtype=cp.float32)
+        raw_weights = cp.asarray(weights(distances), dtype=cp.float32)
+
+        # Copy as bytes so an unaligned float32 view is never dereferenced.
+        # The destination is a CuPy-owned, aligned C-contiguous allocation.
+        aligned_weights = cp.empty(
+            raw_weights.shape, dtype=cp.float32, order="C"
         )
+        byte_shape = raw_weights.shape + (raw_weights.itemsize,)
+        raw_weight_bytes = cp.ndarray(
+            byte_shape,
+            dtype=cp.uint8,
+            memptr=raw_weights.data,
+            strides=raw_weights.strides + (1,),
+        )
+        aligned_weight_bytes = aligned_weights.view(cp.uint8).reshape(
+            byte_shape
+        )
+        cp.copyto(aligned_weight_bytes, raw_weight_bytes)
         # Return raw weights - normalization will be done in C++ kernel
-        return raw_weights
+        return aligned_weights
     else:
         raise ValueError(
             f"weights must be 'uniform', 'distance', or a callable, got {weights}"
