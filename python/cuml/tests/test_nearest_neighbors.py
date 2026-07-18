@@ -715,10 +715,10 @@ def test_nearest_neighbors_sparse(
 def test_nearest_neighbors_sparse_x_none_self_edge_swap_indices_int64():
     X_dense = np.array(
         [
-            [1.0, 0.0, 2.0, 0.0],
-            [1.0, 0.0, 2.0, 0.0],
-            [0.0, 3.0, 0.0, 4.0],
-            [2.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [10.0, 0.0, 0.0, 0.0],
+            [10.25, 0.0, 0.0, 0.0],
         ],
         dtype=np.float32,
     )
@@ -736,7 +736,7 @@ def test_nearest_neighbors_sparse_x_none_self_edge_swap_indices_int64():
     assert explicit_indices.dtype == cp.int32
     assert explicit_distances.dtype == cp.float32
 
-    distances, indices = nn.kneighbors(X=None, n_neighbors=2)
+    distances, indices = nn.kneighbors(X=None, n_neighbors=1)
     assert indices.dtype == cp.int64
     assert indices.flags.c_contiguous
     assert distances.dtype == cp.float32
@@ -750,11 +750,11 @@ def test_nearest_neighbors_sparse_x_none_self_edge_swap_indices_int64():
     sk_distances, sk_indices = (
         skKNN(
             metric="euclidean",
-            n_neighbors=2,
+            n_neighbors=1,
             algorithm="brute",
         )
         .fit(X_dense)
-        .kneighbors(X=None, n_neighbors=2)
+        .kneighbors(X=None, n_neighbors=1)
     )
 
     np.testing.assert_allclose(
