@@ -192,6 +192,7 @@ void swap_kernel(long long int* I, float* D, int n_rows, int n_cols) {
 
 def _drop_self_edges(distances, indices):
     """Drop edges between a point and itself in the knn graph"""
+    indices = cp.ascontiguousarray(indices, dtype=cp.int64)
     rows, cols = indices.shape
 
     # Launch config
