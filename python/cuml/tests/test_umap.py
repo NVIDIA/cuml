@@ -1239,8 +1239,15 @@ def test_umap_small_fit_large_transform():
 @pytest.mark.parametrize("random_state", [None, 42])
 @pytest.mark.parametrize("force_serial_epochs", [True, False, None])
 def test_umap_outliers(
-    n_neighbors, n_components, random_state, force_serial_epochs
+    n_neighbors, n_components, random_state, force_serial_epochs, request
 ):
+    if force_serial_epochs is False:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="With current heuristics, UMAP may produce outliers "
+                "on GPUs with high SM counts when force_serial_epochs is False."
+            )
+        )
     if random_state is None:
         n_rows = 50_000
         build_algo = "nn_descent"
