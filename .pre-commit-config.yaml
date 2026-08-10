@@ -163,7 +163,7 @@ repos:
           )
       - id: verify-alpha-spec
       - id: verify-codeowners
-        args: [--fix, --project-prefix=cuml]
+        args: [--fix, --org=NVIDIA, --project-prefix=cuml]
       - id: verify-pyproject-license
         # ignore the top-level pyproject.toml, which doesn't
         # have or need a [project] table
