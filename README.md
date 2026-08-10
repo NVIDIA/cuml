@@ -9,7 +9,7 @@ programming. In most cases, cuML's Python API matches the API from
 
 For large datasets, these GPU-based implementations can complete 10-50x faster
 than their CPU equivalents. For details on performance, see the [cuML Benchmarks
-Notebook](https://github.com/rapidsai/cuml/tree/main/notebooks/tools).
+Notebook](https://github.com/NVIDIA/cuml/tree/main/notebooks/tools).
 
 As an example, the following Python snippet loads input and computes DBSCAN clusters, all on GPU, using cuDF:
 ```python
@@ -72,9 +72,9 @@ neighbors = nn.kneighbors(df)
 ```
 
 For additional examples, browse our complete [API
-documentation](https://docs.rapids.ai/api/cuml/stable/), or check out our
+documentation](https://docs.nvidia.com/cuml/), or check out our
 example [walkthrough
-notebooks](https://github.com/rapidsai/cuml/tree/main/notebooks). Finally, you
+notebooks](https://github.com/NVIDIA/cuml/tree/main/notebooks). Finally, you
 can find complete end-to-end examples in the [notebooks-contrib
 repo](https://github.com/rapidsai/notebooks-contrib).
 
@@ -113,7 +113,6 @@ repo](https://github.com/rapidsai/notebooks-contrib).
 |  | Auto-regressive Integrated Moving Average (ARIMA) | Supports seasonality (SARIMA) |
 | **Model Explanation** | SHAP Kernel Explainer | [Based on SHAP](https://shap.readthedocs.io/en/latest/) |
 |  | SHAP Permutation Explainer | [Based on SHAP](https://shap.readthedocs.io/en/latest/) |
-| **Execution device interoperability** | | Run estimators interchangeably from host/cpu or device/gpu with minimal code change [demo](https://docs.rapids.ai/api/cuml/stable/execution_device_interoperability.html) |
 | **Other**                                             | K-Nearest Neighbors (KNN) Search                                                                                                          | Multi-node multi-GPU via Dask+[UCXX](https://github.com/rapidsai/ucxx), uses [Faiss](https://github.com/facebookresearch/faiss) for Nearest Neighbors Query. |
 
 ---
