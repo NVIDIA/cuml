@@ -4,42 +4,19 @@ NVIDIA cuML is an open-source CUDA-X Data Science library for
 GPU-accelerated machine learning. It provides two ways to run machine learning
 workloads on NVIDIA GPUs:
 
+- The `cuml` Python API provides GPU-native estimators with familiar
+  scikit-learn-style APIs and direct control over machine learning workflows.
 - `cuml.accel` accelerates existing scikit-learn, UMAP, and HDBSCAN code without
   changing the Python code that uses those libraries.
-- The cuML Python API provides GPU-native estimators with an interface similar
-  to scikit-learn for users who want direct control over their workflows.
 
 On representative benchmarks, cuML can accelerate scikit-learn workflows by
 up to 50x. Performance depends on the algorithm, dataset, and hardware. See the
 [cuML benchmarks](https://docs.nvidia.com/cuml/26.08/cuml-accel/benchmarks/) for
 results and methodology.
 
-## Accelerate existing code with `cuml.accel`
+## Use the GPU-native `cuml` API
 
-Run an existing Python script through `cuml.accel`:
-
-```console
-python -m cuml.accel script.py
-```
-
-Or load the extension in a Jupyter notebook before importing scikit-learn,
-UMAP, or HDBSCAN:
-
-```python
-%load_ext cuml.accel
-```
-
-Supported operations run on the GPU. When an estimator or configuration cannot
-be accelerated, `cuml.accel` uses the original CPU implementation so the rest
-of the workflow can continue. See the [`cuml.accel` compatibility
-documentation](https://docs.nvidia.com/cuml/26.08/cuml-accel/compatibility/) for
-current coverage and fallback conditions. Use the [logging and profiling
-tools](https://docs.nvidia.com/cuml/26.08/cuml-accel/logging-and-profiling/) to check
-which operations ran on the GPU.
-
-## Use the GPU-native cuML API
-
-The cuML Python API follows the familiar scikit-learn fit-predict-transform
+The `cuml` Python API follows the familiar scikit-learn fit-predict-transform
 pattern while keeping data and computation on the GPU. The following example
 creates a cuDF DataFrame and computes DBSCAN clusters on the GPU:
 
@@ -70,11 +47,34 @@ Output:
 dtype: int32
 ```
 
-cuML supports clustering, dimensionality reduction, regression,
+`cuml` supports clustering, dimensionality reduction, regression,
 classification, preprocessing, model selection, time series, model
 explanation, and nearest-neighbor workflows. Browse the [API
 reference](https://docs.nvidia.com/cuml/26.08/api/) for the current list of
 estimators and functions.
+
+## Accelerate existing code with `cuml.accel`
+
+Run an existing Python script through `cuml.accel`:
+
+```console
+python -m cuml.accel script.py
+```
+
+Or load the extension in a Jupyter notebook before importing scikit-learn,
+UMAP, or HDBSCAN:
+
+```python
+%load_ext cuml.accel
+```
+
+Supported operations run on the GPU. When an estimator or configuration cannot
+be accelerated, `cuml.accel` uses the original CPU implementation so the rest
+of the workflow can continue. See the [`cuml.accel` compatibility
+documentation](https://docs.nvidia.com/cuml/26.08/cuml-accel/compatibility/) for
+current coverage and fallback conditions. Use the [logging and profiling
+tools](https://docs.nvidia.com/cuml/26.08/cuml-accel/logging-and-profiling/) to check
+which operations ran on the GPU.
 
 ## Scale beyond one GPU
 
