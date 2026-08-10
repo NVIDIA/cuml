@@ -16,35 +16,19 @@ results and methodology.
 
 ## Use the GPU-native `cuml` API
 
-The `cuml` Python API follows the familiar scikit-learn fit-predict-transform
-pattern while keeping data and computation on the GPU. The following example
-creates a cuDF DataFrame and computes DBSCAN clusters on the GPU:
+The `cuml` Python API follows the familiar scikit-learn fit-predict-transform pattern while keeping data and computation on the GPU. The following example generates sample data and computes DBSCAN clusters on the GPU:
 
 ```python
-import cudf
+from cuml.datasets import make_blobs
 from cuml.cluster import DBSCAN
 
-X = cudf.DataFrame(
-    {
-        "0": [1.0, 2.0, 5.0],
-        "1": [4.0, 2.0, 1.0],
-        "2": [4.0, 2.0, 1.0],
-    }
-)
+# Create sample data
+X, y = make_blobs(n_samples=100, centers=3, n_features=2, random_state=42)
 
-model = DBSCAN(eps=1.0, min_samples=1)
-model.fit(X)
-
-print(model.labels_)
-```
-
-Output:
-
-```text
-0    0
-1    1
-2    2
-dtype: int32
+# Fit clustering model
+dbscan = DBSCAN(eps=1.0, min_samples=5)
+dbscan.fit(X)
+print(dbscan.labels_)
 ```
 
 `cuml` supports clustering, dimensionality reduction, regression,
