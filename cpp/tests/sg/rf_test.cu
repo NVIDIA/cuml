@@ -4,6 +4,7 @@
  */
 #include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/common/logger.hpp>
+#include <cuml/common/utils.hpp>
 #include <cuml/datasets/make_blobs.hpp>
 #include <cuml/ensemble/randomforest.hpp>
 #include <cuml/tree/algo_helper.h>
@@ -1313,14 +1314,14 @@ class RFSampledQuantileDeterminismTest : public ::testing::TestWithParam<Quantil
 };
 
 template <typename ObjectiveT, typename BinT, typename DataT>
-__global__ void objectiveGainKernel(BinT const* hist,
-                                    DataT const* quantiles,
-                                    DT::Split<DataT>* out,
-                                    int* mutex,
-                                    ObjectiveT objective,
-                                    std::int64_t col,
-                                    std::int64_t len,
-                                    std::int64_t n_bins)
+CUML_KERNEL void objectiveGainKernel(BinT const* hist,
+                                     DataT const* quantiles,
+                                     DT::Split<DataT>* out,
+                                     int* mutex,
+                                     ObjectiveT objective,
+                                     std::int64_t col,
+                                     std::int64_t len,
+                                     std::int64_t n_bins)
 {
   __shared__ __align__(
     alignof(DT::Split<DataT>)) unsigned char split_scratch_storage[sizeof(DT::Split<DataT>)];

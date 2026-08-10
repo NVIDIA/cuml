@@ -9,6 +9,7 @@
 
 #include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/common/export.hpp>
+#include <cuml/common/utils.hpp>
 
 #include <raft/core/error.hpp>
 #include <raft/core/handle.hpp>
@@ -38,17 +39,17 @@ namespace detail {
 
 // Draw global sample rows and copy values owned by this rank into a column-major sample buffer.
 template <typename T>
-static __global__ void sampleOwnedColumnsKernel(T* out,
-                                                const T* data,
-                                                const std::uint64_t* rank_row_offsets,
-                                                int comm_size,
-                                                std::uint64_t global_rows,
-                                                int sample_count,
-                                                int rank,
-                                                int n_rows,
-                                                int n_cols,
-                                                bool row_major,
-                                                std::uint64_t seed)
+CUML_KERNEL void sampleOwnedColumnsKernel(T* out,
+                                          const T* data,
+                                          const std::uint64_t* rank_row_offsets,
+                                          int comm_size,
+                                          std::uint64_t global_rows,
+                                          int sample_count,
+                                          int rank,
+                                          int n_rows,
+                                          int n_cols,
+                                          bool row_major,
+                                          std::uint64_t seed)
 {
   int col        = blockIdx.x;
   int sample_idx = blockIdx.y * blockDim.x + threadIdx.x;
@@ -81,7 +82,7 @@ static __global__ void sampleOwnedColumnsKernel(T* out,
 
 // Convert sorted per-column samples into quantile candidates and compact duplicate candidates.
 template <typename T>
-static __global__ void computeQuantilesBatchedKernel(
+CUML_KERNEL void computeQuantilesBatchedKernel(
   T* quantiles, int* n_bins, const T* sorted_data, const int max_n_bins, const int sample_count)
 {
   int col           = blockIdx.x;

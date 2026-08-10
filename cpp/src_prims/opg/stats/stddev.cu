@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <cuml/common/utils.hpp>
 #include <cuml/prims/opg/comm_utils.h>
 #include <cuml/prims/opg/stats/stddev.hpp>
 
@@ -18,7 +19,7 @@ namespace Stats {
 namespace opg {
 
 template <typename Type, typename IdxType, int TPB>
-static __global__ void varsPartitionKernelColMajor(
+CUML_KERNEL void varsPartitionKernelColMajor(
   Type* var, const Type* data, const Type* mu, IdxType D, IdxType N, IdxType K)
 {
   typedef cub::BlockReduce<Type, TPB> BlockReduce;
