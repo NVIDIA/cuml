@@ -1,10 +1,11 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import hdbscan
 import numpy as np
 import pytest
 import umap
+from packaging.version import Version
 from sklearn.cluster import DBSCAN, KMeans
 from sklearn.datasets import make_classification, make_regression
 from sklearn.decomposition import PCA, TruncatedSVD
@@ -22,6 +23,8 @@ from sklearn.svm import SVC, SVR, LinearSVC, LinearSVR
 
 ort = pytest.importorskip("onnxruntime")
 skl2onnx = pytest.importorskip("skl2onnx")
+ORT_VERSION = Version(ort.__version__)
+
 convert_sklearn = skl2onnx.convert_sklearn
 FloatTensorType = skl2onnx.common.data_types.FloatTensorType
 
@@ -63,7 +66,7 @@ def regression_data():
 classifiers = [
     pytest.param(
         RandomForestClassifier(n_estimators=20, max_depth=8, random_state=42),
-        marks=xfail_skl2onnx_bug,
+        marks=(xfail_skl2onnx_bug if ORT_VERSION < Version("1.28.0") else ()),
         id="RandomForestClassifier",
     ),
     pytest.param(KNeighborsClassifier(), id="KNeighborsClassifier"),
