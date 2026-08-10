@@ -55,7 +55,7 @@ estimators and functions.
 
 ## Accelerate existing code with `cuml.accel`
 
-Run an existing Python script through `cuml.accel`:
+Run an existing Python script through the [`cuml.accel` module](https://docs.nvidia.com/cuml/26.08/cuml-accel/):
 
 ```console
 python -m cuml.accel script.py
