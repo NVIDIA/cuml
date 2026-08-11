@@ -209,7 +209,7 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    "cudf": ("https://docs.rapids.ai/api/cudf/stable/", None),
+    "cudf": ("https://docs.nvidia.com/cudf/latest/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "python": ("https://docs.python.org/3", None),
     # TODO: re-enable once scipy docs are more reliable
@@ -220,7 +220,7 @@ intersphinx_mapping = {
         "https://nvidia.github.io/cuda-python/cuda-core/latest/",
         None,
     ),
-    "rmm": ("https://docs.rapids.ai/api/rmm/stable/", None),
+    "rmm": ("https://docs.nvidia.com/rmm/latest/", None),
 }
 
 # Config numpydoc

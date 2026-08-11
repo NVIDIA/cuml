@@ -108,9 +108,8 @@ Performance gains vary by algorithm and dataset size:
    enough data to keep the GPU busy. Expect larger performance gains as dataset
    size grows.
 
-The `cuml.benchmark
-<https://docs.rapids.ai/api/cuml/nightly/api.html#benchmarking>`_ module
-provides an easy interface to benchmark your own hardware.
+The :doc:`cuml.benchmark <api/cuml.benchmark>` module provides an easy interface
+to benchmark your own hardware.
 
 
 What's Next
