@@ -419,6 +419,9 @@ class BaseRandomForestModel(InteropMixin, Base):
         )
         cdef int n_rows = X.shape[0]
         cdef int n_cols = X.shape[1]
+        cdef int parameter_n_rows = getattr(
+            self, "_distributed_n_rows", n_rows
+        )
         cdef level_enum verbose = <level_enum> self._verbose_level
         cdef int n_classes = self.n_classes_ if is_classifier else 0
         cdef bool input_row_major = not X.flags.f_contiguous
@@ -469,19 +472,19 @@ class BaseRandomForestModel(InteropMixin, Base):
         )
         cdef int min_samples_leaf = (
             self.min_samples_leaf if isinstance(self.min_samples_leaf, int)
-            else math.ceil(self.min_samples_leaf * n_rows)
+            else math.ceil(self.min_samples_leaf * parameter_n_rows)
         )
         cdef int min_samples_split = (
             self.min_samples_split if isinstance(self.min_samples_split, int)
-            else max(2, math.ceil(self.min_samples_split * n_rows))
+            else max(2, math.ceil(self.min_samples_split * parameter_n_rows))
         )
 
         cdef int n_bins
-        if self.n_bins > n_rows:
+        if self.n_bins > parameter_n_rows:
             warnings.warn("The number of bins, `n_bins` is greater than "
                           "the number of samples used for training. "
                           "Changing `n_bins` to number of training samples.")
-            n_bins = n_rows
+            n_bins = parameter_n_rows
         else:
             n_bins = self.n_bins
 
@@ -503,7 +506,9 @@ class BaseRandomForestModel(InteropMixin, Base):
         )
 
         cdef TreeliteModelHandle tl_handle
-        handle = get_handle(n_streams=n_streams_c)
+        handle = getattr(self, "_raft_handle", None)
+        if handle is None:
+            handle = get_handle(n_streams=n_streams_c)
         cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
 
         # Store oob_score in C variable for nogil block
@@ -604,7 +609,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             TreeliteFreeModel(tl_handle), "Failed to free Treelite model:"
         )
 
-        self._n_samples = y.shape[0]
+        self._n_samples = parameter_n_rows
         self._n_samples_bootstrap = (
             self._n_samples if self.max_samples is None
             else max(round(self._n_samples * self.max_samples), 1)

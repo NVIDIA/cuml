@@ -259,6 +259,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         """
         Perform Random Forest Classification on the input data
         """
+        classes = getattr(self, "_distributed_classes", True)
         X, y, sample_weight, classes = check_inputs(
             self,
             X,
@@ -268,7 +269,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
             order="A",
             y_dtype="int32",
             sample_weight_dtype="float64",
-            return_classes=True,
+            return_classes=classes,
             reset=True,
         )
         self.classes_ = classes

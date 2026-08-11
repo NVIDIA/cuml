@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import json
@@ -40,6 +40,10 @@ def _prep_training_data(c, X_train, y_train, partitions_per_worker):
     return X_train_df, y_train_df
 
 
+def _get_treelite_bytes(model):
+    return model._treelite_model_bytes
+
+
 @pytest.mark.parametrize("partitions_per_worker", [3])
 def test_rf_classification_multi_class(partitions_per_worker, cluster):
     # Use CUDA_VISIBLE_DEVICES to control the number of workers
@@ -65,7 +69,7 @@ def test_rf_classification_multi_class(partitions_per_worker, cluster):
         )
 
         cu_rf_params = {
-            "n_estimators": n_workers * 25,
+            "n_estimators": 25,
             "max_depth": 16,
             "n_bins": 256,
             "random_state": 10,
@@ -75,7 +79,7 @@ def test_rf_classification_multi_class(partitions_per_worker, cluster):
             c, X_train, y_train, partitions_per_worker
         )
 
-        cuml_mod = cuRFC_mg(**cu_rf_params, ignore_empty_partitions=True)
+        cuml_mod = cuRFC_mg(**cu_rf_params)
         cuml_mod.fit(X_train_df, y_train_df)
         X_test_dask_array = from_array(X_test)
         cuml_preds_gpu = cuml_mod.predict(X_test_dask_array).compute()
@@ -101,7 +105,7 @@ def test_rf_classification_multi_class(partitions_per_worker, cluster):
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 @pytest.mark.parametrize("partitions_per_worker", [5])
-def test_rf_regression_dask_fil(partitions_per_worker, dtype, client):
+def test_rf_regression_dask_nvforest(partitions_per_worker, dtype, client):
     n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
 
     # Use CUDA_VISIBLE_DEVICES to control the number of workers
@@ -136,7 +140,7 @@ def test_rf_regression_dask_fil(partitions_per_worker, dtype, client):
     X_cudf_test = cudf.DataFrame(pd.DataFrame(X_test))
     X_test_df = dask_cudf.from_cudf(X_cudf_test, npartitions=n_partitions)
 
-    cuml_mod = cuRFR_mg(**cu_rf_params, ignore_empty_partitions=True)
+    cuml_mod = cuRFR_mg(**cu_rf_params)
     cuml_mod.fit(X_train_df, y_train_df)
 
     cuml_mod_predict = cuml_mod.predict(X_test_df)
@@ -187,7 +191,7 @@ def test_rf_classification_dask_array(partitions_per_worker, client):
 
 
 @pytest.mark.parametrize("partitions_per_worker", [5])
-def test_rf_classification_dask_fil_predict_proba(
+def test_rf_classification_dask_nvforest_predict_proba(
     partitions_per_worker, client
 ):
     n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
@@ -224,16 +228,18 @@ def test_rf_classification_dask_fil_predict_proba(
     cu_rf_mg = cuRFC_mg(**cu_rf_params)
     cu_rf_mg.fit(X_train_df, y_train_df)
 
-    fil_preds = cu_rf_mg.predict(X_test_df).compute()
-    fil_preds = fil_preds.to_numpy()
-    fil_preds_proba = cu_rf_mg.predict_proba(X_test_df).compute()
-    fil_preds_proba = fil_preds_proba.to_numpy()
-    np.testing.assert_equal(fil_preds, np.argmax(fil_preds_proba, axis=1))
+    nvforest_preds = cu_rf_mg.predict(X_test_df).compute()
+    nvforest_preds = nvforest_preds.to_numpy()
+    nvforest_preds_proba = cu_rf_mg.predict_proba(X_test_df).compute()
+    nvforest_preds_proba = nvforest_preds_proba.to_numpy()
+    np.testing.assert_equal(
+        nvforest_preds, np.argmax(nvforest_preds_proba, axis=1)
+    )
 
-    y_proba = np.zeros(np.shape(fil_preds_proba))
+    y_proba = np.zeros(np.shape(nvforest_preds_proba))
     y_proba[:, 1] = y_test
     y_proba[:, 0] = 1.0 - y_test
-    fil_mse = mean_squared_error(y_proba, fil_preds_proba)
+    nvforest_mse = mean_squared_error(y_proba, nvforest_preds_proba)
     sk_model = skrfc(
         n_estimators=cu_rf_params["n_estimators"],
         max_depth=cu_rf_params["max_depth"],
@@ -245,11 +251,11 @@ def test_rf_classification_dask_fil_predict_proba(
 
     # The threshold is required as the test would intermitently
     # fail with a max difference of 0.029 between the two mse values
-    assert fil_mse <= sk_mse + 0.029
+    assert nvforest_mse <= sk_mse + 0.029
 
 
 @pytest.mark.parametrize("model_type", ["classification", "regression"])
-def test_rf_concatenation_dask(client, model_type):
+def test_rf_distributed_model(client, model_type):
     n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
 
     X, y = make_classification(
@@ -272,49 +278,60 @@ def test_rf_concatenation_dask(client, model_type):
         cu_rf_mg = cuRFR_mg(**cu_rf_params)
 
     cu_rf_mg.fit(X_df, y_df)
-    res1 = cu_rf_mg.predict(X_df)
-    res1.compute()
-    if cu_rf_mg.internal_model:
-        treelite_bytes = cu_rf_mg.internal_model._treelite_model_bytes
-        local_tl = treelite.Model.deserialize_bytes(treelite_bytes)
-        assert local_tl.num_tree == n_estimators
+    model = cu_rf_mg.get_combined_model()
+    treelite_bytes = model._treelite_model_bytes
+    local_tl = treelite.Model.deserialize_bytes(treelite_bytes)
+    assert local_tl.num_tree == n_estimators
+    worker_model_bytes = client.gather(
+        [
+            client.submit(_get_treelite_bytes, model, workers=[worker])
+            for worker, model in cu_rf_mg.rfs.items()
+        ]
+    )
+    assert all(data == worker_model_bytes[0] for data in worker_model_bytes)
 
 
-@pytest.mark.parametrize("ignore_empty_partitions", [True, False])
-def test_single_input_regression(client, ignore_empty_partitions):
+def test_rf_classification_uses_global_classes(client):
+    n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
+    if n_workers < 2:
+        pytest.skip("This test requires at least two workers")
+
+    rows_per_worker = 100
+    y = np.repeat(np.arange(n_workers), rows_per_worker).astype(np.int32)
+    X = np.column_stack((y, np.arange(y.size))).astype(np.float32)
+    X_dask, y_dask = _prep_training_data(client, X, y, partitions_per_worker=1)
+
+    model = cuRFC_mg(
+        n_estimators=1,
+        bootstrap=False,
+        max_depth=4,
+        n_bins=max(2, n_workers),
+        random_state=42,
+    ).fit(X_dask, y_dask)
+
+    np.testing.assert_array_equal(
+        model.get_combined_model().classes_, np.arange(n_workers)
+    )
+
+
+def test_single_input_regression(client):
     X, y = make_classification(n_samples=1, n_classes=1)
     X = X.astype(np.float32)
     y = y.astype(np.float32)
 
     X, y = _prep_training_data(client, X, y, partitions_per_worker=2)
-    cu_rf_mg = cuRFR_mg(
-        n_bins=1,
-        ignore_empty_partitions=ignore_empty_partitions,
-    )
-
-    if (
-        ignore_empty_partitions
-        or len(client.scheduler_info(n_workers=-1)["workers"].keys()) == 1
-    ):
-        cu_rf_mg.fit(X, y)
-        cuml_mod_predict = cu_rf_mg.predict(X)
-        cuml_mod_predict = cp.asnumpy(cp.array(cuml_mod_predict.compute()))
-        y = cp.asnumpy(cp.array(y.compute()))
-        assert y[0] == cuml_mod_predict[0]
-
-    else:
-        with pytest.raises(ValueError):
-            cu_rf_mg.fit(X, y)
+    cu_rf_mg = cuRFR_mg(n_bins=1)
+    cu_rf_mg.fit(X, y)
+    cuml_mod_predict = cu_rf_mg.predict(X)
+    cuml_mod_predict = cp.asnumpy(cp.array(cuml_mod_predict.compute()))
+    y = cp.asnumpy(cp.array(y.compute()))
+    assert y[0] == cuml_mod_predict[0]
 
 
 @pytest.mark.parametrize("max_depth", [1, 2, 3, 5, 10, 15, 20])
-@pytest.mark.parametrize("n_estimators", [5, 10, 20])
+@pytest.mark.parametrize("n_estimators", [1, 5, 10, 20])
 def test_rf_data_count(client, max_depth, n_estimators):
     n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
-    if n_estimators < n_workers:
-        err_msg = "n_estimators cannot be lower than number of dask workers"
-        pytest.xfail(err_msg)
-
     n_samples_per_worker = 350
 
     X, y = make_classification(
@@ -355,8 +372,8 @@ def test_rf_data_count(client, max_depth, n_estimators):
 
     for tree in json_obj["trees"]:
         nodes = tree["nodes"]
-        # The root's count should be equal to the number of rows in the data
-        assert nodes[0]["data_count"] == n_samples_per_worker
+        # The root contains rows from the complete distributed dataset.
+        assert nodes[0]["data_count"] == n_samples_per_worker * n_workers
         # Check that the data_count accumulates properly as you move up the tree
         for node in nodes:
             check_count(node, nodes)
@@ -371,7 +388,7 @@ def test_unlimited_max_depth_classifier(client):
     y = y.astype(np.int32)
 
     X_dask, y_dask = _prep_training_data(client, X, y, partitions_per_worker=1)
-    clf = cuRFC_mg(n_estimators=n_workers * 5, max_depth=None)
+    clf = cuRFC_mg(n_estimators=5, max_depth=None)
     clf.fit(X_dask, y_dask)
     preds = cp.asnumpy(cp.array(clf.predict(X_dask).compute()))
     assert len(preds) == len(y)
@@ -386,21 +403,16 @@ def test_unlimited_max_depth_regressor(client):
     y = y.astype(np.float32)
 
     X_dask, y_dask = _prep_training_data(client, X, y, partitions_per_worker=1)
-    reg = cuRFR_mg(n_estimators=n_workers * 5, max_depth=None)
+    reg = cuRFR_mg(n_estimators=5, max_depth=None)
     reg.fit(X_dask, y_dask)
     preds = cp.asnumpy(cp.array(reg.predict(X_dask).compute()))
     assert len(preds) == len(y)
 
 
 @pytest.mark.parametrize("estimator_type", ["regression", "classification"])
-def test_rf_get_combined_model_right_aftter_fit(client, estimator_type):
+def test_rf_get_model_right_after_fit(client, estimator_type):
     max_depth = 3
     n_estimators = 5
-
-    n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
-    if n_estimators < n_workers:
-        err_msg = "n_estimators cannot be lower than number of dask workers"
-        pytest.xfail(err_msg)
 
     X, y = make_classification()
     X = X.astype(np.float32)
@@ -437,78 +449,3 @@ def test_rf_get_combined_model_right_aftter_fit(client, estimator_type):
         assert isinstance(single_gpu_model, cuRFR_sg)
     else:
         assert False
-
-
-@pytest.mark.parametrize("model_type", ["classification", "regression"])
-@pytest.mark.parametrize("fit_broadcast", [True, False])
-@pytest.mark.parametrize("transform_broadcast", [True, False])
-def test_rf_broadcast(model_type, fit_broadcast, transform_broadcast, client):
-    # Use CUDA_VISIBLE_DEVICES to control the number of workers
-    workers = list(client.scheduler_info(n_workers=-1)["workers"].keys())
-    n_workers = len(workers)
-
-    if model_type == "classification":
-        X, y = make_classification(
-            n_samples=n_workers * 10000,
-            n_features=20,
-            n_informative=15,
-            n_classes=4,
-            n_clusters_per_class=1,
-            random_state=999,
-        )
-        y = y.astype(np.int32)
-    else:
-        X, y = make_regression(
-            n_samples=n_workers * 10000,
-            n_features=20,
-            n_informative=5,
-            random_state=123,
-        )
-        y = y.astype(np.float32)
-    X = X.astype(np.float32)
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=n_workers * 100, random_state=123
-    )
-
-    X_train_df, y_train_df = _prep_training_data(client, X_train, y_train, 1)
-    X_test_dask_array = from_array(X_test)
-
-    n_estimators = n_workers * 8
-
-    if model_type == "classification":
-        cuml_mod = cuRFC_mg(
-            n_estimators=n_estimators,
-            max_depth=8,
-            n_bins=16,
-            ignore_empty_partitions=True,
-        )
-        cuml_mod.fit(X_train_df, y_train_df, broadcast_data=fit_broadcast)
-        cuml_mod_predict = cuml_mod.predict(
-            X_test_dask_array, broadcast_data=transform_broadcast
-        )
-
-        cuml_mod_predict = cuml_mod_predict.compute()
-        cuml_mod_predict = cp.asnumpy(cuml_mod_predict)
-        acc_score = accuracy_score(cuml_mod_predict, y_test, normalize=True)
-        assert acc_score >= 0.68
-
-    else:
-        cuml_mod = cuRFR_mg(
-            n_estimators=n_estimators,
-            max_depth=8,
-            n_bins=16,
-            ignore_empty_partitions=True,
-        )
-        cuml_mod.fit(X_train_df, y_train_df, broadcast_data=fit_broadcast)
-        cuml_mod_predict = cuml_mod.predict(
-            X_test_dask_array, broadcast_data=transform_broadcast
-        )
-
-        cuml_mod_predict = cuml_mod_predict.compute()
-        cuml_mod_predict = cp.asnumpy(cuml_mod_predict)
-        acc_score = r2_score(y_test, cuml_mod_predict)
-        assert acc_score >= 0.72
-
-    if transform_broadcast:
-        assert cuml_mod.internal_model is None
