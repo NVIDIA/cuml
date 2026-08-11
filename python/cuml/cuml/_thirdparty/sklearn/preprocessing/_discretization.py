@@ -31,10 +31,6 @@ from ..utils.skl_dependencies import BaseEstimator, TransformerMixin
 from ..utils.validation import FLOAT_DTYPES
 
 
-def digitize(x, bins):
-    return np.searchsorted(bins, x, side='left')
-
-
 class KBinsDiscretizer(TransformerMixin,
                        BaseEstimator,
                        SparseInputTagMixin):
@@ -198,7 +194,7 @@ class KBinsDiscretizer(TransformerMixin,
                 continue
 
             if self.strategy == 'uniform':
-                bin_edges[jj] = np.linspace(col_min, col_max, n_bins[jj] + 1)
+                bin_edges[jj] = np.linspace(col_min, col_max, int(n_bins[jj]) + 1)
 
             elif self.strategy == 'quantile':
                 quantiles = np.linspace(0, 100, n_bins[jj] + 1)
@@ -297,16 +293,9 @@ class KBinsDiscretizer(TransformerMixin,
 
         bin_edges = self.bin_edges_
         for jj in range(Xt.shape[1]):
-            # Values which are close to a bin edge are susceptible to numeric
-            # instability. Add eps to X so these values are binned correctly
-            # with respect to their decimal truncation. See documentation of
-            # numpy.isclose for an explanation of ``rtol`` and ``atol``.
-            rtol = 1.e-5
-            atol = 1.e-8
-            eps = atol + rtol * np.abs(Xt[:, jj])
-            Xt[:, jj] = digitize(Xt[:, jj] + eps, bin_edges[jj][1:])
-        self.n_bins_ = np.asarray(self.n_bins_)
-        np.clip(Xt, 0, self.n_bins_ - 1, out=Xt)
+            Xt[:, jj] = np.searchsorted(
+                bin_edges[jj][1:-1], Xt[:, jj], side='right'
+            )
 
         Xt = Xt.astype(np.int32)
         if self.encode == 'ordinal':
