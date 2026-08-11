@@ -951,6 +951,21 @@ TEST(RfTests, IntegerOverflow)
   handle.sync_stream_pool();
 }
 
+TEST(RfTests, EmptyGlobalRowsRejected)
+{
+  thrust::device_vector<float> X(1);
+  thrust::device_vector<float> y(1);
+  auto forest      = std::make_shared<RandomForestMetaData<float, float>>();
+  auto forest_ptr  = forest.get();
+  auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(1);
+  raft::handle_t handle(rmm::cuda_stream_per_thread, stream_pool);
+  RF_params rf_params =
+    set_rf_params(3, 100, 1.0, 16, 1, 2, 0.0, false, 1, 1.0, 0, CRITERION::MSE, 1, 128);
+
+  EXPECT_THROW(fit(handle, forest_ptr, X.data().get(), 0, 1, y.data().get(), rf_params),
+               raft::exception);
+}
+
 TEST(RfTests, HighClassCountSplitHistogramFallsBackToGlobalMemory)
 {
   constexpr std::size_t n_rows = 640;

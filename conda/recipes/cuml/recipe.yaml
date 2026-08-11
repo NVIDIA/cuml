@@ -87,7 +87,7 @@ requirements:
     - python =${{ py_abi_min }}
     - python-abi3 ${{ py_abi_min }}.*
     - rapids-build-backend >=0.4.0,<0.5.0
-    - rapids-logger =0.2
+    - rapids-logger =0.3
     - scikit-build-core>=0.11.0
     - treelite ${{ treelite_version }}
     - cuda-cudart-dev
@@ -109,7 +109,7 @@ requirements:
     - packaging
     - pylibraft =${{ minor_version }}
     - python
-    - rapids-logger =0.2
+    - rapids-logger =0.3
     - rich
     - treelite ${{ treelite_version }}
     - if: cuda_major == "12"

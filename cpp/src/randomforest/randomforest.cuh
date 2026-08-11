@@ -10,6 +10,7 @@
 
 #include <raft/core/handle.hpp>
 #include <raft/core/nvtx.hpp>
+#include <raft/core/resource/comms.hpp>
 #include <raft/core/resource/cuda_stream.hpp>
 #include <raft/random/permute.cuh>
 #include <raft/random/rng.cuh>
@@ -90,7 +91,9 @@ class RowSampler {
                              sample_weight_cdf_.begin());
     }
 
-    if (sample_weight_ != nullptr) {
+    // Empty distributed partitions still pass a non-null pointer so every rank selects the same
+    // weighted objective type, but they have no local weight sum to validate.
+    if (sample_weight_ != nullptr && n_rows_ > 0) {
       sample_weight_sum_ = compute_sample_weight_sum(handle);
       ASSERT(sample_weight_sum_ > 0.0,
              "sample_weight values must contain at least one positive value");
@@ -114,6 +117,7 @@ class RowSampler {
     raft::common::nvtx::range fun_scope("bootstrapping row IDs @randomforest.cuh");
 
     auto& selected_rows = selected_rows_[stream_id];
+    if (n_rows_ == 0) { return selected_rows; }
 
     raft::resources stream_resources;
     raft::resource::set_cuda_stream(stream_resources, stream);
@@ -234,13 +238,20 @@ class RandomForest {
   RF_params rf_params;  // structure containing RF hyperparameters
   int rf_type;          // 0 for classification 1 for regression
 
-  void error_checking(const T* input, L* predictions, int n_rows, int n_cols, bool predict) const
+  void error_checking(const T* input,
+                      L* predictions,
+                      int n_rows,
+                      int n_cols,
+                      bool predict,
+                      bool allow_empty_local_rows = false) const
   {
     if (predict) {
       ASSERT(predictions != nullptr, "Error! User has not allocated memory for predictions.");
     }
-    ASSERT((n_rows > 0), "Invalid n_rows %d", n_rows);
+    ASSERT(allow_empty_local_rows ? (n_rows >= 0) : (n_rows > 0), "Invalid n_rows %d", n_rows);
     ASSERT((n_cols > 0), "Invalid n_cols %d", n_cols);
+
+    if (n_rows == 0) { return; }
 
     bool input_is_dev_ptr = DT::is_dev_ptr(input);
     bool preds_is_dev_ptr = DT::is_dev_ptr(predictions);
@@ -297,8 +308,10 @@ class RandomForest {
            bool input_row_major        = false)
   {
     raft::common::nvtx::range fun_scope("RandomForest::fit @randomforest.cuh");
-    this->error_checking(input, labels, n_rows, n_cols, false);
-    const raft::handle_t& handle  = user_handle;
+    const raft::handle_t& handle = user_handle;
+    bool distributed =
+      raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1;
+    this->error_checking(input, labels, n_rows, n_cols, false, distributed);
     std::int64_t const n_rows_i64 = n_rows;
     std::int64_t n_sampled_rows   = 0;
     if (this->rf_params.bootstrap) {
@@ -314,8 +327,11 @@ class RandomForest {
       n_sampled_rows = n_rows_i64;
     }
     int n_streams = this->rf_params.n_streams;
+    // Distributed tree builders issue collectives independently, so train them serially until
+    // the forest-level scheduler can impose a global collective order across concurrent trees.
+    if (distributed) { n_streams = 1; }
     ASSERT(static_cast<std::size_t>(n_streams) <= handle.get_stream_pool_size(),
-           "rf_params.n_streams (=%d) should be <= raft::handle_t.n_streams (=%lu)",
+           "effective RF n_streams (=%d) should be <= raft::handle_t.n_streams (=%lu)",
            n_streams,
            handle.get_stream_pool_size());
 
