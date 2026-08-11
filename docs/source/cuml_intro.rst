@@ -123,4 +123,4 @@ Here are some suggestions on what to explore next:
 3. **Check out notebooks**: Try examples in the `notebooks <https://github.com/NVIDIA/cuml/tree/main/notebooks>`_ directory
 4. **Learn advanced topics**: Read the `cuML blogs <cuml_blogs.rst>`_ for deeper insights
 5. **Get help**: Visit our `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_
-   or `RAPIDS Community <https://rapids.ai/community.html>`_
+   or join the `CUDA-X Data Science Community <https://developer.nvidia.com/topics/ai/data-science/cuda-x-for-data-science#join-the-community>`_
