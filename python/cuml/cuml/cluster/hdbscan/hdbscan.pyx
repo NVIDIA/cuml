@@ -924,6 +924,7 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
             X,
             dtype="float32",
             mem_type=mem_type,
+            order="C",
             ensure_min_samples=2,
             return_index=True,
             reset=True,
