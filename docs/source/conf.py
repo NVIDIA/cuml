@@ -127,7 +127,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/rapidsai/cuml",
+            "url": "https://github.com/NVIDIA/cuml",
             "icon": "fa-brands fa-github",
             "type": "fontawesome",
         },
@@ -275,7 +275,7 @@ def setup(app):
 # The following is used by sphinx.ext.linkcode to provide links to github
 linkcode_resolve = make_linkcode_resolve(
     "cuml",
-    "https://github.com/rapidsai/"
+    "https://github.com/NVIDIA/"
     "cuml/blob/{revision}/python/cuml/"
     "{package}/{path}#L{lineno}",
 )

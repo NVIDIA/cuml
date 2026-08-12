@@ -643,5 +643,5 @@ HDBSCAN
    - ONNX export via ``skl2onnx`` is not supported for this estimator.
 
 
-.. _open an issue: https://github.com/rapidsai/cuml/issues
+.. _open an issue: https://github.com/NVIDIA/cuml/issues
 .. _Array API: https://scikit-learn.org/stable/modules/array_api.html
