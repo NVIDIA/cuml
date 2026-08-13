@@ -18,6 +18,7 @@ import cupy as cp
 import numpy as np
 import nvforest
 import treelite
+from sklearn.exceptions import NotFittedError
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import (
@@ -797,7 +798,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         treelite.Model
         """
         if self._treelite_model_bytes is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+            raise NotFittedError("Model has not been fitted. Call fit() first.")
 
         return treelite.Model.deserialize_bytes(self._treelite_model_bytes)
 
@@ -813,7 +814,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             A forest inference model that predicts average path length.
         """
         if self._treelite_model_bytes is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+            raise NotFittedError("Model has not been fitted. Call fit() first.")
 
         return nvforest.load_from_treelite_model(
             tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
@@ -859,7 +860,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         scoring path.
         """
         if self._treelite_model_bytes is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+            raise NotFittedError("Model has not been fitted. Call fit() first.")
 
         X_m = check_inputs(
             self,
@@ -913,7 +914,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         """
         cdef _IsolationForestModel model = self._model
         if model is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+            raise NotFittedError("Model has not been fitted. Call fit() first.")
 
         # Convert input to a row-major device array for inference.
         X_m = check_inputs(
@@ -1003,7 +1004,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         """
         cdef _IsolationForestModel model = self._model
         if model is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+            raise NotFittedError("Model has not been fitted. Call fit() first.")
 
         # Convert input to a row-major device array for inference.
         X_m = check_inputs(

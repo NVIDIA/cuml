@@ -18,6 +18,7 @@ import pytest
 import treelite
 from sklearn.datasets import make_blobs
 from sklearn.ensemble import IsolationForest as skIsolationForest
+from sklearn.exceptions import NotFittedError
 
 from cuml import IsolationForest as cuIsolationForest
 from cuml.internals.interop import UnsupportedOnCPU, UnsupportedOnGPU
@@ -615,13 +616,13 @@ def test_treelite_export_before_fit_raises(blobs_data):
     """Treelite and nvForest export should require a fitted model."""
     clf = cuIsolationForest()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not been fitted"):
         clf.as_treelite()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not been fitted"):
         clf.as_nvforest()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not been fitted"):
         clf._score_samples_nvforest(blobs_data)
 
 
@@ -739,7 +740,7 @@ def test_predict_before_fit_raises():
     clf = cuIsolationForest()
     X = np.random.randn(10, 3).astype(np.float32)
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not been fitted"):
         clf.predict(X)
 
 
@@ -748,7 +749,7 @@ def test_score_samples_before_fit_raises():
     clf = cuIsolationForest()
     X = np.random.randn(10, 3).astype(np.float32)
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not been fitted"):
         clf.score_samples(X)
 
 

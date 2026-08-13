@@ -187,9 +187,6 @@ EXCLUDED = {
 
 XFAILS = {
     IsolationForest: {
-        "check_estimators_unfitted": (
-            "Unfitted methods raise RuntimeError instead of NotFittedError"
-        ),
         "check_sample_weights_pandas_series": "Sample weights are not supported",
         "check_sample_weights_not_an_array": "Sample weights are not supported",
         "check_sample_weights_list": "Sample weights are not supported",
