@@ -29,7 +29,11 @@ from cuml.internals.interop import (
 from cuml.internals.mixins import CMajorInputTagMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.treelite import safe_treelite_call
-from cuml.internals.validation import check_inputs, check_random_seed
+from cuml.internals.validation import (
+    check_inputs,
+    check_is_fitted,
+    check_random_seed,
+)
 
 from libc.stddef cimport size_t
 from libc.stdint cimport uint64_t, uintptr_t
@@ -570,6 +574,12 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         self.__dict__.update(state)
 
     @mlfunc(set_input_type=True)
+    def __sklearn_check_is_fitted__(self):
+        """Fitted means the native model is present: public attributes
+        survive unpickling, but the native model does not, and inference
+        requires it."""
+        return self._model is not None
+
     def fit(self, X, y=None, sample_weight=None):
         """
         Fit the Isolation Forest model.
@@ -912,9 +922,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             Typical range is approximately [-1.0, 0.0], where values below
             ``offset_`` are predicted as anomalies.
         """
+        check_is_fitted(self)
         cdef _IsolationForestModel model = self._model
-        if model is None:
-            raise NotFittedError("Model has not been fitted. Call fit() first.")
 
         # Convert input to a row-major device array for inference.
         X_m = check_inputs(
@@ -1002,9 +1011,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         labels : ndarray of shape (n_samples,)
             1 for inliers, -1 for outliers.
         """
+        check_is_fitted(self)
         cdef _IsolationForestModel model = self._model
-        if model is None:
-            raise NotFittedError("Model has not been fitted. Call fit() first.")
 
         # Convert input to a row-major device array for inference.
         X_m = check_inputs(

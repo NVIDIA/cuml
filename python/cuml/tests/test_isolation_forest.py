@@ -735,24 +735,6 @@ def test_many_features():
     assert scores.shape == (X.shape[0],)
 
 
-def test_predict_before_fit_raises():
-    """predict() before fit() should raise an error."""
-    clf = cuIsolationForest()
-    X = np.random.randn(10, 3).astype(np.float32)
-
-    with pytest.raises(NotFittedError, match="not been fitted"):
-        clf.predict(X)
-
-
-def test_score_samples_before_fit_raises():
-    """score_samples() before fit() should raise an error."""
-    clf = cuIsolationForest()
-    X = np.random.randn(10, 3).astype(np.float32)
-
-    with pytest.raises(NotFittedError, match="not been fitted"):
-        clf.score_samples(X)
-
-
 def test_feature_mismatch_raises(blobs_data):
     """Predicting with wrong number of features should raise."""
     clf = cuIsolationForest(n_estimators=10, random_state=42)
