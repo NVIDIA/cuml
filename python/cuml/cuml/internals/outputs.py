@@ -447,13 +447,12 @@ def convert_arrays(
     Parameters
     ----------
     obj : object
-        The object to convert. Any cupy arrays, numpy arrays, cupyx sparse
-        matrices, scipy sparse matrices, or cuml-specific output types
-        (`ClassLabels`, `ArrayIndexPair`) will be converted to the specified
-        `output_type`. Some builtin collections (dict, list, tuple) are
-        traversed recursively to find array-likes. Other array-likes (pandas,
-        ...) will error as unsupported. Any other type is passed through
-        unchanged.
+        The object to convert. Any cupy arrays, numpy arrays, cudf
+        Series/DataFrame, pandas Series/DataFrames, cupyx sparse matrices,
+        scipy sparse matrices, or cuml-specific output types (`ClassLabels`,
+        `ArrayIndexPair`) will be converted to the specified `output_type`.
+        Some builtin collections (dict, list, tuple) are traversed recursively
+        to find array-likes. Any other type is passed through unchanged.
     output_type : {'cupy', 'numpy', 'cudf', 'pandas'}
         The output type to convert to.
     index : pandas.Index, cudf.Index, or None, default=None
@@ -476,6 +475,40 @@ def convert_arrays(
 
     if isinstance(obj, ClassLabels):
         return obj.to_output(output_type, index=index)
+
+    if isinstance(obj, (cudf.Series, cudf.DataFrame, pd.Series, pd.DataFrame)):
+        is_pandas = isinstance(obj, (pd.Series, pd.DataFrame))
+        if output_type == "numpy":
+            return obj.to_numpy()
+        elif output_type in ("cudf", "pandas"):
+            if index is not None:
+                if is_pandas and hasattr(index, "to_pandas"):
+                    index = index.to_pandas()
+                obj = obj.copy(deep=False)
+                obj.index = index
+            if is_pandas:
+                return (
+                    obj if output_type == "pandas" else cudf.from_pandas(obj)
+                )
+            else:
+                if output_type == "cudf":
+                    return obj
+                return (
+                    cudf.pandas.as_proxy_object(obj)
+                    if cudf.pandas.LOADED
+                    else obj.to_pandas()
+                )
+        else:
+            assert output_type in ("cuml", "cupy")
+            if not (
+                obj.dtype.kind in "iufb"
+                if isinstance(obj, (pd.Series, cudf.Series))
+                else all(dt.kind in "iufb" for dt in obj.dtypes)
+            ):
+                raise TypeError(
+                    f"{output_type=!r} doesn't support non-numeric dtypes"
+                )
+            return cp.asarray(obj.to_numpy()) if is_pandas else obj.to_cupy()
 
     if isinstance(obj, np.ndarray):
         if output_type == "numpy":
@@ -530,17 +563,6 @@ def convert_arrays(
         else:
             # Use coo for coo and all other formats
             return cp_sp.coo_matrix(obj)
-
-    elif isinstance(
-        obj, (cudf.Series, cudf.DataFrame, pd.Series, pd.DataFrame)
-    ):
-        raise TypeError(
-            f"Cannot return objects of type {type(obj).__name__} directly "
-            f"from an `mlfunc`-decorated function. Please return a "
-            f"`cupy.ndarray`, `numpy.ndarray`, `cupyx.scipy.sparse.spmatrix`, "
-            f"`scipy.sparse.spmatrix`, `ArrayIndexPair`, "
-            f"or `ClassLabels` instead."
-        )
 
     elif isinstance(obj, list):
         return [
