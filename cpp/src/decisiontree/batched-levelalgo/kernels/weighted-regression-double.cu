@@ -17,15 +17,21 @@ using DatasetT   = Dataset<DataT, LabelT>;
 using NodeT      = SparseTreeNode<DataT, LabelT>;
 
 // Explicit instantiations are split across separate .cu files to increase compilation parallelism.
-template void launchLeafKernel<DatasetT, NodeT, ObjectiveT, DataT>(
+template void launchBuildLeafHistogramsKernel<DatasetT, NodeT, ObjectiveT>(
   ObjectiveT objective,
   DatasetT& dataset,
   const NodeT* tree,
   const InstanceRange* instance_ranges,
-  DataT* leaves,
+  BinT* leaf_histograms,
   int batch_size,
   size_t smem_size,
   cudaStream_t builder_stream);
+
+template void launchFinalizeLeafKernel<ObjectiveT, DataT>(const BinT* leaf_histograms,
+                                                          DataT* leaves,
+                                                          int num_outputs,
+                                                          int batch_size,
+                                                          cudaStream_t builder_stream);
 
 // Explicit instantiations are split across separate .cu files to increase compilation parallelism.
 template void launchBuildHistogramsKernel<DataT, LabelT, TPB_DEFAULT, ObjectiveT>(

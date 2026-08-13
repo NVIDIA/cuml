@@ -141,7 +141,7 @@ Once dependencies are present, follow the steps below:
 
 1. Clone the repository:
 ```bash
-$ git clone https://github.com/rapidsai/cuml.git
+$ git clone https://github.com/NVIDIA/cuml.git
 ```
 
 2. Build and install `libcuml` (C++/CUDA library containing the cuML algorithms), starting from the repository root folder:

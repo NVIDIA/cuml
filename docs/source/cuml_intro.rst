@@ -121,7 +121,7 @@ Here are some suggestions on what to explore next:
 1. **Try the examples**: Walk through the `Introductory Notebook
    <estimator_intro.ipynb>`_ for hands-on learning
 2. **Explore the API**: Browse the `API Reference <api>`_ for specific algorithms
-3. **Check out notebooks**: Try examples in the `notebooks <https://github.com/rapidsai/cuml/tree/HEAD/notebooks>`_ directory
+3. **Check out notebooks**: Try examples in the `notebooks <https://github.com/NVIDIA/cuml/tree/HEAD/notebooks>`_ directory
 4. **Learn advanced topics**: Read the `cuML blogs <cuml_blogs.rst>`_ for deeper insights
-5. **Get help**: Visit our `GitHub Issues <https://github.com/rapidsai/cuml/issues>`_
+5. **Get help**: Visit our `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_
    or `RAPIDS Community <https://rapids.ai/community.html>`_
