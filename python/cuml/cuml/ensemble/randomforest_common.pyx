@@ -417,9 +417,9 @@ class BaseRandomForestModel(InteropMixin, Base):
         cdef uintptr_t sample_weight_ptr = (
             0 if sample_weight is None else sample_weight.data.ptr
         )
-        cdef int n_rows = X.shape[0]
-        cdef int n_cols = X.shape[1]
-        cdef int parameter_n_rows = getattr(
+        cdef uint64_t n_rows = X.shape[0]
+        cdef uint64_t n_cols = X.shape[1]
+        cdef uint64_t parameter_n_rows = getattr(
             self, "_distributed_n_rows", n_rows
         )
         cdef level_enum verbose = <level_enum> self._verbose_level
