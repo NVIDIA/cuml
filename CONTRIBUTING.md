@@ -3,7 +3,7 @@
 If you are interested in contributing to cuML, your contributions will fall
 into three categories:
 1. You want to report a bug, feature request, or documentation issue
-    - File an [issue](https://github.com/rapidsai/cuml/issues/new/choose)
+    - File an [issue](https://github.com/NVIDIA/cuml/issues/new/choose)
     describing what you encountered or what you want to see changed.
     - Please run and paste the output of the `cuml/print_env.sh` script while
     reporting a bug to gather and report relevant environment details.
@@ -24,16 +24,16 @@ into three categories:
 
 ### Your first issue
 
-1. Read the project's [README.md](https://github.com/rapidsai/cuml/blob/main/README.md)
+1. Read the project's [README.md](https://github.com/NVIDIA/cuml/blob/main/README.md)
     to learn how to setup the development environment.
-2. Find an issue to work on. The best way is to look for the [good first issue](https://github.com/rapidsai/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-    or [help wanted](https://github.com/rapidsai/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) labels
+2. Find an issue to work on. The best way is to look for the [good first issue](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+    or [help wanted](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) labels
 3. Comment on the issue saying you are going to work on it.
 4. Get familiar with the developer guide relevant for you:
     * For C++ developers it is available here [DEVELOPER_GUIDE.md](wiki/cpp/DEVELOPER_GUIDE.md)
     * For Python developers, a [Python DEVELOPER_GUIDE.md](wiki/python/DEVELOPER_GUIDE.md) is available as well.
 5. Code! Make sure to update unit tests!
-6. When done, [create your pull request](https://github.com/rapidsai/cuml/compare).
+6. When done, [create your pull request](https://github.com/NVIDIA/cuml/compare).
 7. Verify that CI passes all [status checks](https://help.github.com/articles/about-status-checks/), or fix if needed.
 8. Wait for other developers to review your code and update code as needed.
 9. Once reviewed and approved, a RAPIDS developer will merge your pull request.
@@ -170,7 +170,7 @@ Additional labels must be applied to indicate whether the change is a feature, i
 ### Seasoned developers
 
 Once you have gotten your feet wet and are more comfortable with the code, you
-can look at the prioritized issues of our next release in our [project boards](https://github.com/rapidsai/cuml/projects).
+can look at the prioritized issues of our next release in our [project boards](https://github.com/NVIDIA/cuml/projects).
 
 > **Pro Tip:** Always look at the release board with the highest number for
 issues to work on. This is where RAPIDS developers also focus their efforts.
