@@ -47,7 +47,7 @@ cuML estimators look and feel just like `scikit-learn estimators
    print(f"R² score: {model.score(X_test, y_test):.3f}")
 
 You can find many more complete examples in the `Introductory Notebook
-<estimator_intro.ipynb>`_ and in the cuML API documentation.
+<estimator_intro.ipynb>`__ and in the cuML API documentation.
 
 .. note::
 
@@ -118,7 +118,7 @@ What's Next
 Here are some suggestions on what to explore next:
 
 1. **Try the examples**: Walk through the `Introductory Notebook
-   <estimator_intro.ipynb>`_ for hands-on learning
+   <estimator_intro.ipynb>`__ for hands-on learning
 2. **Explore the API**: Browse the `API Reference <api>`_ for specific algorithms
 3. **Check out notebooks**: Try examples in the `notebooks <https://github.com/NVIDIA/cuml/tree/main/notebooks>`_ directory
 4. **Learn advanced topics**: Read the `cuML blogs <cuml_blogs.rst>`_ for deeper insights

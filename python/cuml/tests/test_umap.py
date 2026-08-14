@@ -64,12 +64,7 @@ def test_blobs_cluster(nrows, n_feats, build_algo):
     [
         pytest.param(
             500,
-            marks=[
-                pytest.mark.unit,
-                pytest.mark.xfail(
-                    reason="https://github.com/rapidsai/cuvs/issues/184"
-                ),
-            ],
+            marks=pytest.mark.unit,
         ),
         quality_param(5000),
         stress_param(500000),
