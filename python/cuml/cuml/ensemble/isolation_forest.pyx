@@ -573,13 +573,13 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         """Pickle support - restore state."""
         self.__dict__.update(state)
 
-    @mlfunc(set_input_type=True)
-    def __sklearn_check_is_fitted__(self):
+    def __sklearn_is_fitted__(self):
         """Fitted means the native model is present: public attributes
         survive unpickling, but the native model does not, and inference
         requires it."""
         return self._model is not None
 
+    @mlfunc(set_input_type=True)
     def fit(self, X, y=None, sample_weight=None):
         """
         Fit the Isolation Forest model.
