@@ -5,7 +5,7 @@
 
 import cuml.ensemble
 from cuml.accel.estimator_proxy import ProxyBase
-from cuml.internals.interop import UnsupportedOnCPU, UnsupportedOnGPU
+from cuml.internals.interop import UnsupportedOnGPU
 from cuml.internals.validation import check_array
 
 __all__ = ("RandomForestRegressor", "RandomForestClassifier", "IsolationForest")
@@ -92,24 +92,6 @@ class RandomForestClassifier(ProxyBase, _RandomForestMixin):
 
 class IsolationForest(ProxyBase):
     _gpu_class = cuml.ensemble.IsolationForest
-    # Conversion of a fitted cuML IsolationForest to CPU is not yet
-    # supported (tracked in #8420). These attributes stay inaccessible
-    # until that lands, rather than crashing on any *_ access.
-    _not_implemented_attributes = frozenset(
-        (
-            "offset_",
-            "max_samples_",
-            "estimators_",
-            "estimators_features_",
-            "estimators_samples_",
-        )
-    )
-
-    def _sync_attrs_to_cpu(self) -> None:
-        try:
-            super()._sync_attrs_to_cpu()
-        except UnsupportedOnCPU:
-            self._synced = True
 
     @staticmethod
     def _validate_input(X):

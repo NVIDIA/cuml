@@ -238,10 +238,11 @@ To compare results between estimators, we recommend comparing scores like
    Additional notes:
 
    - Conversion of a fitted GPU ``IsolationForest`` back to a CPU estimator
-     is not yet supported. Accessing ``offset_``, ``max_samples_``,
-     ``estimators_``, ``estimators_features_``, or ``estimators_samples_``
-     on a GPU-fitted model raises an ``AttributeError`` explaining this,
-     rather than the value silently differing from scikit-learn's.
+     is not yet supported. Accessing fit attributes (``offset_``,
+     ``max_samples_``, ``estimators_``, and others) or pickling a
+     GPU-fitted model raises a clear ``ValueError`` explaining this,
+     rather than silently returning results from an unfitted CPU
+     estimator.
 
 
 sklearn.kernel_ridge
