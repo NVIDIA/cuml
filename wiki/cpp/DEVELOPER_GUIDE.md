@@ -1,5 +1,5 @@
 # cuML developer guide
-This document summarizes rules and best practices for contributions to the cuML C++ component of rapidsai/cuml. This is a living document and contributions for clarifications or fixes and issue reports are highly welcome.
+This document summarizes rules and best practices for contributions to the cuML C++ component of NVIDIA/cuml. This is a living document and contributions for clarifications or fixes and issue reports are highly welcome.
 
 ## General
 Please start by reading [CONTRIBUTING.md](../../CONTRIBUTING.md).
@@ -122,7 +122,7 @@ void loadTree(TreeNodeD *&root, std::istream &is);
 It is also worth noting that for algorithms such as the members of GLM, where models consist of an array of weights and are therefore easy to manipulate directly by the users, such custom load/store methods might not be explicitly needed.
 
 ### Stateful C++ API
-This scikit-learn-esq C++ API should always be a wrapper around the stateless C++ API, NEVER the other way around. The design discussion about the right way to expose such a wrapper around `libcuml.so` is [still going on](https://github.com/rapidsai/cuml/issues/456)  So, stay tuned for more details.
+This scikit-learn-esq C++ API should always be a wrapper around the stateless C++ API, NEVER the other way around. The design discussion about the right way to expose such a wrapper around `libcuml.so` is [still going on](https://github.com/NVIDIA/cuml/issues/456)  So, stay tuned for more details.
 
 ### File naming convention
 1. An ML algorithm `<algo>` is to be contained inside the folder named `src/<algo>`.
@@ -190,7 +190,7 @@ pre-commit run -a verify-copyright
 Keep in mind that this only applies to files tracked by git that have been modified.
 
 ## Error handling
-Call CUDA APIs via the provided helper macros `RAFT_CUDA_TRY`, `RAFT_CUBLAS_TRY` and `RAFT_CUSOLVER_TRY`. These macros take care of checking the return values of the used API calls and generate an exception when the command is not successful. If you need to avoid an exception, e.g. inside a destructor, use `RAFT_CUDA_TRY_NO_THROW`, `RAFT_CUBLAS_TRY_NO_THROW ` and `RAFT_CUSOLVER_TRY_NO_THROW ` (currently not available, see https://github.com/rapidsai/cuml/issues/229). These macros log the error but do not throw an exception.
+Call CUDA APIs via the provided helper macros `RAFT_CUDA_TRY`, `RAFT_CUBLAS_TRY` and `RAFT_CUSOLVER_TRY`. These macros take care of checking the return values of the used API calls and generate an exception when the command is not successful. If you need to avoid an exception, e.g. inside a destructor, use `RAFT_CUDA_TRY_NO_THROW`, `RAFT_CUBLAS_TRY_NO_THROW ` and `RAFT_CUSOLVER_TRY_NO_THROW ` (currently not available, see https://github.com/NVIDIA/cuml/issues/229). These macros log the error but do not throw an exception.
 
 ## Logging
 ### Introduction
@@ -378,7 +378,7 @@ void foo(const raft::handle_t& h, ...)
 }
 ```
 
-The example below shows one way to create `nStreams` number of internal cuda streams which can later be used by the algos inside cuML. For a full working example of how to use internal streams to schedule work on a single GPU, the reader is further referred to [this PR](https://github.com/rapidsai/cuml/pull/1015). In this PR, the internal streams inside `raft::handle_t` are used to schedule more work onto a GPU for Random Forest building.
+The example below shows one way to create `nStreams` number of internal cuda streams which can later be used by the algos inside cuML. For a full working example of how to use internal streams to schedule work on a single GPU, the reader is further referred to [this PR](https://github.com/NVIDIA/cuml/pull/1015). In this PR, the internal streams inside `raft::handle_t` are used to schedule more work onto a GPU for Random Forest building.
 ```cpp
 int main(int argc, char** argv)
 {
