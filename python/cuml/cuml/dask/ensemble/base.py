@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+import warnings
 
 from dask.distributed import get_worker
 from raft_dask.common.comms import Comms, get_raft_comm_state
@@ -27,6 +28,7 @@ class BaseRandomForestModel(object):
         workers,
         n_estimators,
         base_seed,
+        ignore_empty_partitions,
         **kwargs,
     ):
         self.client = get_client(client)
@@ -39,7 +41,23 @@ class BaseRandomForestModel(object):
         self.workers = workers
         self._set_internal_model(None)
         self.n_estimators = n_estimators
-        self.n_streams = kwargs.get("n_streams", 4)
+
+        if "n_streams" in kwargs:
+            warnings.warn(
+                (
+                    "n_streams has no effect on distributed training and "
+                    "will be removed in release 26.10."
+                ),
+                FutureWarning,
+            )
+        if ignore_empty_partitions is not None:
+            warnings.warn(
+                (
+                    "ignore_empty_partitions parameter is no longer valid "
+                    "and will be removed in release 26.10."
+                ),
+                FutureWarning,
+            )
 
         self.rfs = {
             worker: self.client.submit(
@@ -70,7 +88,7 @@ class BaseRandomForestModel(object):
         comms = Comms(
             comms_p2p=False,
             client=self.client,
-            streams_per_handle=self.n_streams,
+            streams_per_handle=1,
         )
         comms.init(workers=data.workers)
 
@@ -118,7 +136,13 @@ class BaseRandomForestModel(object):
 
     def _set_params(self, **params):
         if "n_streams" in params:
-            self.n_streams = params["n_streams"]
+            warnings.warn(
+                (
+                    "n_streams has no effect on distributed training and "
+                    "will be removed in release 26.10."
+                ),
+                FutureWarning,
+            )
         model_params = list()
         for worker in self.workers:
             model_params.append(

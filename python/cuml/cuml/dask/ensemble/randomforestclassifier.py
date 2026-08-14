@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+import warnings
+
 import cupy as cp
 import dask.array
 
@@ -89,15 +91,17 @@ class RandomForestClassifier(
          * If type ``float``, then ``min_samples_split`` represents a fraction
            and ``ceil(min_samples_split * n_rows)`` is the minimum number of
            samples for each split.
-
-    n_streams : int (default = 4)
-        Number of parallel streams requested for forest building. Distributed
-        training currently builds trees serially to preserve collective order.
+    n_streams : int
+        Deprecated. Distributed training currently builds trees serially to
+        preserve collective order.
     workers : optional, list of strings
         Dask addresses of workers to use for computation.
         If None, all available Dask workers will be used.
     random_state : int (default = None)
         Seed for the random number generator. Unseeded by default.
+    ignore_empty_partitions: optional, boolean
+        Deprecated. This parameter no longer has any effect and
+        will be removed in release 26.10.
 
     Examples
     --------
@@ -113,6 +117,7 @@ class RandomForestClassifier(
         verbose=False,
         n_estimators=100,
         random_state=None,
+        ignore_empty_partitions=None,
         **kwargs,
     ):
         super().__init__(client=client, verbose=verbose, **kwargs)
@@ -122,6 +127,7 @@ class RandomForestClassifier(
             workers=workers,
             n_estimators=n_estimators,
             base_seed=random_state,
+            ignore_empty_partitions=ignore_empty_partitions,
             **kwargs,
         )
 
@@ -131,7 +137,7 @@ class RandomForestClassifier(
             n_estimators=n_estimators, random_state=random_state, **kwargs
         )
 
-    def fit(self, X, y):
+    def fit(self, X, y, broadcast_data=None):
         """
         Fit the input data with a Random Forest classifier
 
@@ -171,7 +177,18 @@ class RandomForestClassifier(
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             Labels of training examples.
             **y must be partitioned the same way as X**
+        broadcast_data : bool, optional
+            Deprecated. This parameter no longer has effect and will
+            be removed in release 26.10.
         """
+        if broadcast_data is not None:
+            warnings.warn(
+                (
+                    "broadcast_data parameter is no longer valid "
+                    "and will be removed in release 26.10."
+                ),
+                FutureWarning,
+            )
         if isinstance(y, dask.array.Array):
             unique_vals = dask.array.unique(y).compute()
         else:
@@ -194,6 +211,7 @@ class RandomForestClassifier(
         default_chunk_size=None,
         align_bytes=None,
         delayed=True,
+        broadcast_data=None,
     ):
         """
         Predicts the labels for X.
@@ -220,12 +238,23 @@ class RandomForestClassifier(
         delayed : bool (default = True)
             Whether to do a lazy prediction (and return Delayed objects) or an
             eagerly executed one.
+        broadcast_data : bool, optional
+            Deprecated. This parameter no longer has effect and will
+            be removed in release 26.10.
 
         Returns
         -------
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             The predicted class labels.
         """
+        if broadcast_data is not None:
+            warnings.warn(
+                (
+                    "broadcast_data parameter is no longer valid "
+                    "and will be removed in release 26.10."
+                ),
+                FutureWarning,
+            )
         return self._predict_using_nvforest(
             X,
             threshold=threshold,
