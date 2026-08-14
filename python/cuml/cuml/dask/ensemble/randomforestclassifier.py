@@ -185,9 +185,10 @@ class RandomForestClassifier(
             warnings.warn(
                 (
                     "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.10."
+                    "and will be removed in release 26.12."
                 ),
                 FutureWarning,
+                stacklevel=2,
             )
         if isinstance(y, dask.array.Array):
             unique_vals = dask.array.unique(y).compute()
@@ -251,9 +252,10 @@ class RandomForestClassifier(
             warnings.warn(
                 (
                     "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.10."
+                    "and will be removed in release 26.12."
                 ),
                 FutureWarning,
+                stacklevel=2,
             )
         return self._predict_using_nvforest(
             X,

@@ -162,9 +162,10 @@ class RandomForestRegressor(
             warnings.warn(
                 (
                     "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.10."
+                    "and will be removed in release 26.12."
                 ),
                 FutureWarning,
+                stacklevel=2,
             )
         self.internal_model = None
         self._fit(
@@ -217,9 +218,10 @@ class RandomForestRegressor(
             warnings.warn(
                 (
                     "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.10."
+                    "and will be removed in release 26.12."
                 ),
                 FutureWarning,
+                stacklevel=2,
             )
         return self._predict_using_nvforest(
             X,

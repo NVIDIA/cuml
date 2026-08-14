@@ -46,17 +46,19 @@ class BaseRandomForestModel(object):
             warnings.warn(
                 (
                     "n_streams has no effect on distributed training and "
-                    "will be removed in release 26.10."
+                    "will be removed in release 26.12."
                 ),
                 FutureWarning,
+                stacklevel=2,
             )
         if ignore_empty_partitions is not None:
             warnings.warn(
                 (
                     "ignore_empty_partitions parameter is no longer valid "
-                    "and will be removed in release 26.10."
+                    "and will be removed in release 26.12."
                 ),
                 FutureWarning,
+                stacklevel=2,
             )
 
         self.rfs = {
@@ -138,9 +140,10 @@ class BaseRandomForestModel(object):
             warnings.warn(
                 (
                     "n_streams has no effect on distributed training and "
-                    "will be removed in release 26.10."
+                    "will be removed in release 26.12."
                 ),
                 FutureWarning,
+                stacklevel=2,
             )
         model_params = list()
         for worker in self.workers:
