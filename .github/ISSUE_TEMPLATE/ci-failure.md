@@ -13,7 +13,7 @@ assignees: ''
 **Failing test/component:** `[test_name_or_component]`
 
 **Failure observed in:**
-- https://github.com/rapidsai/cuml/actions/runs/XXXX
+- https://github.com/NVIDIA/cuml/actions/runs/XXXX
 
 ## Environment
 

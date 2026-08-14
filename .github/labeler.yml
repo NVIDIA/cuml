@@ -1,6 +1,6 @@
 # https://github.com/actions/labeler#common-examples
-# Adapted from https://github.com/rapidsai/cuml/blob/main/.github/CODEOWNERS
-# Labels culled from https://github.com/rapidsai/cuml/labels
+# Adapted from https://github.com/NVIDIA/cuml/blob/main/.github/CODEOWNERS
+# Labels culled from https://github.com/NVIDIA/cuml/labels
 
 Cython / Python:
   - changed-files:

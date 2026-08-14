@@ -23,7 +23,7 @@ jobs:
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
     with:
-      PROJECT_ID: "PVT_kwDOAp2shc4AA8lR"
+      PROJECT_ID: "PVT_kwDOABpemM4BgFBJ"
       ITEM_NODE_ID: "${{ github.event.pull_request.node_id }}"
 
   update-status:
@@ -38,8 +38,8 @@ jobs:
       packages: read
       pull-requests: read
     with:
-      PROJECT_ID: "PVT_kwDOAp2shc4AA8lR"
-      SINGLE_SELECT_FIELD_ID: "PVTSSF_lADOAp2shc4AA8lRzgAftsM"
+      PROJECT_ID: "PVT_kwDOABpemM4BgFBJ"
+      SINGLE_SELECT_FIELD_ID: "PVTSSF_lADOABpemM4BgFBJzhaTRPI"
       SINGLE_SELECT_FIELD_NAME: "Status"
       SINGLE_SELECT_OPTION_VALUE: "In Progress"
       ITEM_PROJECT_ID: "${{ needs.get-project-id.outputs.ITEM_PROJECT_ID }}"
@@ -90,8 +90,8 @@ jobs:
       packages: read
       pull-requests: read
     with:
-      PROJECT_ID: "PVT_kwDOAp2shc4AA8lR"
-      SINGLE_SELECT_FIELD_ID: "PVTSSF_lADOAp2shc4AA8lRzgFqH3Y"
+      PROJECT_ID: "PVT_kwDOABpemM4BgFBJ"
+      SINGLE_SELECT_FIELD_ID: "PVTSSF_lADOABpemM4BgFBJzhaTRP8"
       SINGLE_SELECT_FIELD_NAME: "Release"
       SINGLE_SELECT_OPTION_VALUE: "${{ needs.get-release-version.outputs.release-version }}"
       ITEM_PROJECT_ID: "${{ needs.get-project-id.outputs.ITEM_PROJECT_ID }}"
@@ -130,5 +130,5 @@ jobs:
             --repo "$REPOSITORY" \
             --pr-number "$PR_NUMBER" \
             --target-release "$TARGET_RELEASE" \
-            --project-id "PVT_kwDOAp2shc4AA8lR" \
-            --release-field-id "PVTSSF_lADOAp2shc4AA8lRzgFqH3Y"
+            --project-id "PVT_kwDOABpemM4BgFBJ" \
+            --release-field-id "PVTSSF_lADOABpemM4BgFBJzhaTRP8"
