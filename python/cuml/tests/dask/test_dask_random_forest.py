@@ -214,7 +214,6 @@ def test_rf_classification_dask_nvforest_predict_proba(
 
     cu_rf_params = {
         "n_bins": 16,
-        "n_streams": 1,
         "n_estimators": 40,
         "max_depth": 16,
     }
@@ -350,7 +349,6 @@ def test_rf_data_count(client, max_depth, n_estimators):
         split_criterion=0,
         min_samples_leaf=2,
         random_state=23707,
-        n_streams=1,
         n_estimators=n_estimators,
         max_leaves=-1,
         max_depth=max_depth,
@@ -421,7 +419,6 @@ def test_rf_get_model_right_after_fit(client, estimator_type):
             max_features=1.0,
             max_samples=1.0,
             n_bins=16,
-            n_streams=1,
             n_estimators=n_estimators,
             max_leaves=-1,
             max_depth=max_depth,
@@ -432,7 +429,6 @@ def test_rf_get_model_right_after_fit(client, estimator_type):
             max_features=1.0,
             max_samples=1.0,
             n_bins=16,
-            n_streams=1,
             n_estimators=n_estimators,
             max_leaves=-1,
             max_depth=max_depth,
