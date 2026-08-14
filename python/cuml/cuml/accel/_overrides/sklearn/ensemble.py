@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -8,7 +8,11 @@ from cuml.accel.estimator_proxy import ProxyBase
 from cuml.internals.interop import UnsupportedOnGPU
 from cuml.internals.validation import check_array
 
-__all__ = ("RandomForestRegressor", "RandomForestClassifier", "IsolationForest")
+__all__ = (
+    "RandomForestRegressor",
+    "RandomForestClassifier",
+    "IsolationForest",
+)
 
 
 class _RandomForestMixin:
