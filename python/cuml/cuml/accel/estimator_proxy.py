@@ -33,6 +33,7 @@ __all__ = ("ProxyBase", "ArrayAPIProxyBase", "is_proxy")
 
 
 SKLEARN_18 = Version(sklearn.__version__) >= Version("1.8.0.dev0")
+SKLEARN_110 = Version(sklearn.__version__) >= Version("1.10.0.dev0")
 
 
 class classproperty:
@@ -546,6 +547,12 @@ class ProxyBase(BaseEstimator, metaclass=ProxyBaseMeta):
     def _gpu_set_callbacks(self, *callbacks):
         self._cpu.set_callbacks(*callbacks)
         return self._gpu
+
+    if SKLEARN_110:
+        # Required for sklearn 1.10 callback support
+        def _set_callbacks(self, callbacks):
+            self._cpu._set_callbacks(callbacks)
+            return self
 
     ############################################################
     # Standard magic methods                                   #

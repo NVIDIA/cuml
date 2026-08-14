@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -62,7 +62,6 @@ def fit(
     y,
     sample_weight=None,
     *,
-    convert_dtype="deprecated",
     is_classifier=False,
     class_weight=None,
     n_streams=0,
@@ -162,7 +161,6 @@ def fit(
         y,
         sample_weight,
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         order="F",
         y_dtype=(None if is_classifier else ...),
         return_classes=is_classifier,

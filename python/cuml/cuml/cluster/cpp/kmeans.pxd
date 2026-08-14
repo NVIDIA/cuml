@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -29,7 +29,9 @@ cdef extern from "cuml/cluster/kmeans_params.hpp" namespace "ML::kmeans" nogil:
         int n_init,
         double oversampling_factor,
         int batch_samples,
-        int batch_centroids
+        int batch_centroids,
+        int64_t init_size,
+        int64_t device_buffer_samples
 
 
 cdef extern from "cuml/cluster/kmeans.hpp" namespace "ML::kmeans" nogil:
@@ -107,6 +109,28 @@ cdef extern from "cuml/cluster/kmeans.hpp" namespace "ML::kmeans" nogil:
                   int64_t n_samples,
                   int64_t n_features,
                   const double *sample_weight,
+                  double *centroids,
+                  double &inertia,
+                  int64_t &n_iter) except +
+
+    cdef void fit(handle_t& handle,
+                  KMeansParams& params,
+                  float **X_parts,
+                  const int64_t *n_samples_parts,
+                  int64_t n_parts,
+                  int64_t n_features,
+                  float **sample_weight_parts,
+                  float *centroids,
+                  float &inertia,
+                  int64_t &n_iter) except +
+
+    cdef void fit(handle_t& handle,
+                  KMeansParams& params,
+                  double **X_parts,
+                  const int64_t *n_samples_parts,
+                  int64_t n_parts,
+                  int64_t n_features,
+                  double **sample_weight_parts,
                   double *centroids,
                   double &inertia,
                   int64_t &n_iter) except +

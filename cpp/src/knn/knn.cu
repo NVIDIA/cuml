@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -433,6 +433,19 @@ void knn_regress(raft::handle_t& handle,
                  float* out,
                  int64_t* knn_indices,
                  std::vector<float*>& y,
+                 size_t n_index_rows,
+                 size_t n_query_rows,
+                 int k,
+                 float* sample_weight)
+{
+  MLCommon::Selection::knn_regress(
+    handle, out, knn_indices, y, n_index_rows, n_query_rows, k, sample_weight);
+}
+
+void knn_regress(raft::handle_t& handle,
+                 double* out,
+                 int64_t* knn_indices,
+                 std::vector<double*>& y,
                  size_t n_index_rows,
                  size_t n_query_rows,
                  int k,

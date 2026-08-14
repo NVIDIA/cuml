@@ -305,7 +305,6 @@ class DBSCAN(InteropMixin,
         sample_weight=None,
         *,
         out_dtype="int32",
-        convert_dtype="deprecated"
     ) -> "DBSCAN":
         """
         Perform DBSCAN clustering from features.
@@ -327,7 +326,6 @@ class DBSCAN(InteropMixin,
             X,
             sample_weight=sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="C",
             return_index=True,
             reset=True,
@@ -482,7 +480,6 @@ class DBSCAN(InteropMixin,
         sample_weight=None,
         *,
         out_dtype="int32",
-        convert_dtype="deprecated",
     ):
         """
         Performs clustering on X and returns cluster labels.
@@ -499,10 +496,5 @@ class DBSCAN(InteropMixin,
             negative weight may inhibit its eps-neighbor from being core.
             default: None (which is equivalent to weight 1 for all samples).
         """
-        self.fit(
-            X,
-            sample_weight=sample_weight,
-            out_dtype=out_dtype,
-            convert_dtype=convert_dtype
-        )
+        self.fit(X, sample_weight=sample_weight, out_dtype=out_dtype)
         return self.labels_

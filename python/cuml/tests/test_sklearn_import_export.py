@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -29,6 +29,7 @@ from sklearn.linear_model import Lasso as SkLasso
 from sklearn.linear_model import LinearRegression as SkLinearRegression
 from sklearn.linear_model import LogisticRegression as SkLogisticRegression
 from sklearn.linear_model import Ridge as SkRidge
+from sklearn.manifold import TSNE as SkTSNE
 from sklearn.manifold import trustworthiness
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
@@ -292,6 +293,16 @@ def test_tsne(random_state):
 
     assert array_equal(original_embedding, sklearn_embedding)
     assert array_equal(original_embedding, roundtrip_embedding)
+
+
+def test_tsne_from_sklearn_numeric_learning_rate():
+    model = TSNE.from_sklearn(
+        SkTSNE(learning_rate=100.0, early_exaggeration=10.0)
+    )
+
+    assert model.learning_rate == 100.0
+    assert model.learning_rate_method == "none"
+    assert model.early_exaggeration == 10.0
 
 
 def test_spectral_embedding(random_state):

@@ -9,7 +9,6 @@ import numpy as np
 import pytest
 import scipy.sparse as scipy_sparse
 from cudf.pandas import LOADED as cudf_pandas_active
-from numba import cuda
 from sklearn import svm
 from sklearn.datasets import (
     load_iris,
@@ -323,8 +322,6 @@ def test_svm_gamma(params):
     X = X.astype(np.float32)
     if x_arraytype == "dataframe":
         y = cudf.Series(y)
-    elif x_arraytype == "numba":
-        X = cuda.to_device(X)
     # Using degree 40 polynomials and fp32 training would fail with
     # gamma = 1/(n_cols*X.std()), but it works with the correct implementation:
     # gamma = 1/(n_cols*X.var())

@@ -1,3 +1,147 @@
+# cuml 26.08.00 (5 Aug 2026)
+
+### 🚨 Breaking Changes
+* Switch RandomForest max_depth default to None by @csadorf in https://github.com/rapidsai/cuml/pull/8200
+* Link to libcuvs dynamically in wheel builds by @divyegala in https://github.com/rapidsai/cuml/pull/8250
+* Cleanup pairwise distances by @jcrist in https://github.com/rapidsai/cuml/pull/8268
+* Deprecate `convert_dtype` by @jcrist in https://github.com/rapidsai/cuml/pull/8300
+* Deprecate `PorterStemmer` by @jcrist in https://github.com/rapidsai/cuml/pull/8304
+* Move `Lars` out of experimental by @jcrist in https://github.com/rapidsai/cuml/pull/8336
+* CI Extend time limit for hypothesis tests by @betatim in https://github.com/rapidsai/cuml/pull/8346
+* Deprecate cuml.tsa by @csadorf in https://github.com/rapidsai/cuml/pull/8344
+* wheels: build CUDA 13 wheels with latest CTK (13.3.0) by @jameslamb in https://github.com/rapidsai/cuml/pull/8345
+* Deprecate `cuml.datasets.make_arima` by @jcrist in https://github.com/rapidsai/cuml/pull/8379
+* Deprecate legacy output types by @jcrist in https://github.com/rapidsai/cuml/pull/8389
+### 🐛 Bug Fixes
+* Fix pandas 3 string dtype compatibility and CI flakes by @csadorf in https://github.com/rapidsai/cuml/pull/8142
+* Fix KDE score_samples symbol exports by @csadorf in https://github.com/rapidsai/cuml/pull/8173
+* Fix hinge loss decision-function shape handling by @csadorf in https://github.com/rapidsai/cuml/pull/8245
+* Fix clang-tidy failures in CUDA 13.2 CI by @dantegd in https://github.com/rapidsai/cuml/pull/8251
+* Match sklearn random forest feature sampling by @RAMitchell in https://github.com/rapidsai/cuml/pull/8239
+* Test cuml.accel upstream test suite with sklearn 1.9 by @csadorf in https://github.com/rapidsai/cuml/pull/8207
+* Update test suite to work with new `pytest` release by @dantegd in https://github.com/rapidsai/cuml/pull/8266
+* Introduce Safe Arithmetic by @divyegala in https://github.com/rapidsai/cuml/pull/8171
+* Cleanup `extract_knn_graph` by @jcrist in https://github.com/rapidsai/cuml/pull/8272
+* Fix RandomForestClassifier sklearn child metadata by @csadorf in https://github.com/rapidsai/cuml/pull/8291
+* Fallback unsupported cuml.accel PCA and KernelRidge cases to CPU by @csadorf in https://github.com/rapidsai/cuml/pull/8290
+* Fix `FastIntDiv` tparam by @aamijar in https://github.com/rapidsai/cuml/pull/8299
+* Remove sklearn example xfails by @csadorf in https://github.com/rapidsai/cuml/pull/8090
+* FIX: handle None transformers in ColumnTransformer get_params/set_params by @Husnain987 in https://github.com/rapidsai/cuml/pull/8292
+* Handle OpenML checksum failures in sklearn examples by @csadorf in https://github.com/rapidsai/cuml/pull/8359
+* Fix RF feature importances with infinite metrics by @RAMitchell in https://github.com/rapidsai/cuml/pull/8347
+* Limit cuml.accel pytest logging to errors by @csadorf in https://github.com/rapidsai/cuml/pull/8360
+* Fix --print-status path in benchmark CLI by @fallintoplace in https://github.com/rapidsai/cuml/pull/8320
+* fix(clang-format): preserve SPDX comments by @bdice in https://github.com/rapidsai/cuml/pull/8368
+* Make LabelEncoder docstring account for cuDF update by @viclafargue in https://github.com/rapidsai/cuml/pull/8376
+* Improve multi-GPU KMeans validation by @viclafargue in https://github.com/rapidsai/cuml/pull/8350
+* Separate sklearn example compatibility and total pass rates by @csadorf in https://github.com/rapidsai/cuml/pull/8409
+* Make FFT t-SNE deterministic when random seed is set by @dantegd in https://github.com/rapidsai/cuml/pull/8123
+* Fix Dask logistic regression with non-contiguous class labels by @viclafargue in https://github.com/rapidsai/cuml/pull/8422
+### 📖 Documentation
+* Modernize the Python developer docs by @csadorf in https://github.com/rapidsai/cuml/pull/7642
+* Update docs to use NVIDIA Sphinx theme by @bdice in https://github.com/rapidsai/cuml/pull/8308
+* Restructure and clarify cuml.accel documentation by @csadorf in https://github.com/rapidsai/cuml/pull/8367
+* Document list and tuple input support by @csadorf in https://github.com/rapidsai/cuml/pull/8381
+### 🚀 New Features
+* Add IPython magic for setting `cuml.accel` log level by @jcrist in https://github.com/rapidsai/cuml/pull/8231
+* [FEA] Add host-streaming support to single-GPU KMeans by @tarang-jain in https://github.com/rapidsai/cuml/pull/8248
+* Isolation Forest Implementation  by @dantegd in https://github.com/rapidsai/cuml/pull/8226
+### 🛠️ Improvements
+* Suppress intentional hardcoded version references by @csadorf in https://github.com/rapidsai/cuml/pull/8113
+* Forward merge release/26.06 into main by @csadorf in https://github.com/rapidsai/cuml/pull/8138
+* Improve devcontainer startup times by @trxcllnt in https://github.com/rapidsai/cuml/pull/8135
+* Fix symbol export by @vyasr in https://github.com/rapidsai/cuml/pull/8037
+* Fix a few lingering sklearn compat xfails by @jcrist in https://github.com/rapidsai/cuml/pull/8166
+* Add YAML based benchmark definitions for cuML regression runs by @dantegd in https://github.com/rapidsai/cuml/pull/7980
+* Report xfail details in Python test output by @csadorf in https://github.com/rapidsai/cuml/pull/8140
+* Add SECURITY.md by @jameslamb in https://github.com/rapidsai/cuml/pull/8175
+* merge release/26.06 into main by @jameslamb in https://github.com/rapidsai/cuml/pull/8184
+* Replace RF global quantile sort with deterministic sampled quantiles by @RAMitchell in https://github.com/rapidsai/cuml/pull/8111
+* Large (int64 indices) sparse input support by @jcrist in https://github.com/rapidsai/cuml/pull/8196
+* RF: narrow `CountBin` to `double` for weighted-training prep by @switch527 in https://github.com/rapidsai/cuml/pull/8132
+* fix(ci): fix configuration for breaking change notification workflow by @jameslamb in https://github.com/rapidsai/cuml/pull/8199
+* TST Make `check_estimator` coverage opt-out by @betatim in https://github.com/rapidsai/cuml/pull/8176
+* Forward merge release/26.06 into main by @csadorf in https://github.com/rapidsai/cuml/pull/8214
+* Remove deprecated `sample_weight` in naive bayes/`sample_weights` in `hinge_loss` by @jcrist in https://github.com/rapidsai/cuml/pull/8221
+* Remove deprecated `probability` argument to `SVC` by @jcrist in https://github.com/rapidsai/cuml/pull/8223
+* Bump scikit-learn minimum to 1.6 by @csadorf in https://github.com/rapidsai/cuml/pull/8091
+* Avoid host sync in `_repr_mimebundle_` when possible by @jcrist in https://github.com/rapidsai/cuml/pull/8232
+* Remove deprecated `probability` argument to `LinearSVC` by @jcrist in https://github.com/rapidsai/cuml/pull/8224
+* Fix type reflection when input is an array-like by @jcrist in https://github.com/rapidsai/cuml/pull/8234
+* Update `cuml.tsa` to use new validation by @jcrist in https://github.com/rapidsai/cuml/pull/8236
+* Unify distributed RF quantile samples by @RAMitchell in https://github.com/rapidsai/cuml/pull/8190
+* Remove numba-cuda upper bound by @brandon-b-miller in https://github.com/rapidsai/cuml/pull/8189
+* refactor: switch to `rapids-artifact-name` for consistent artifact naming by @gforsyth in https://github.com/rapidsai/cuml/pull/8174
+* Update cuML sklearn tags for scikit-learn 1.6 by @csadorf in https://github.com/rapidsai/cuml/pull/8227
+* Refactor RF objectives by objective family by @RAMitchell in https://github.com/rapidsai/cuml/pull/8233
+* Update multi-gpu estimators to new input validation by @jcrist in https://github.com/rapidsai/cuml/pull/8241
+* Prepare RF bins and objectives for weights support by @RAMitchell in https://github.com/rapidsai/cuml/pull/8247
+* A few fixups to multi-gpu implementations by @jcrist in https://github.com/rapidsai/cuml/pull/8249
+* Remove obsolete scikit-learn 1.5 compatibility paths by @csadorf in https://github.com/rapidsai/cuml/pull/8253
+* Remove stale sklearn example xfail by @csadorf in https://github.com/rapidsai/cuml/pull/8259
+* Build and test with CUDA 13.3.0 by @bdice in https://github.com/rapidsai/cuml/pull/8246
+* Remove `make_monotonic` and `sorted_unique_labels` by @jcrist in https://github.com/rapidsai/cuml/pull/8269
+* Cleanup `cuml.model_selection` by @jcrist in https://github.com/rapidsai/cuml/pull/8270
+* Fixup CI by @jcrist in https://github.com/rapidsai/cuml/pull/8280
+* Limit high-dimensional cosine KDE property cases by @Federicorao in https://github.com/rapidsai/cuml/pull/8273
+* Validate random forest n_streams by @fallintoplace in https://github.com/rapidsai/cuml/pull/8263
+* Use main shared-workflows branch by @bdice in https://github.com/rapidsai/cuml/pull/8286
+* Mark `test_logreg_l1[42-csr_array]` flaky by @jcrist in https://github.com/rapidsai/cuml/pull/8289
+* Use segmented scan for RF row partitioning by @RAMitchell in https://github.com/rapidsai/cuml/pull/8257
+* Consolidate sparse utilities by @jcrist in https://github.com/rapidsai/cuml/pull/8288
+* Validate LinearSVC n_streams by @fallintoplace in https://github.com/rapidsai/cuml/pull/8282
+* Add C++ RF sample weight training support by @RAMitchell in https://github.com/rapidsai/cuml/pull/8258
+* Center RF split thresholds across empty quantile bins by @RAMitchell in https://github.com/rapidsai/cuml/pull/8283
+* Remove xfail markers for cuml.accel examples by @jinsolp in https://github.com/rapidsai/cuml/pull/8297
+* FIX Make `__repr__` show parameters set to non-default values by @betatim in https://github.com/rapidsai/cuml/pull/8229
+* Avoid hard-coded SHAP test outputs by @viclafargue in https://github.com/rapidsai/cuml/pull/8264
+* CI Run cuml.accel tests in the sklearn nightly test runs by @betatim in https://github.com/rapidsai/cuml/pull/8219
+* Simplify `reflect` decorator by @jcrist in https://github.com/rapidsai/cuml/pull/8295
+* Remove `cuml.internals.input_utils` and remaining legacy ingest paths by @jcrist in https://github.com/rapidsai/cuml/pull/8293
+* Remove RMM make_any_device_resource helper usage by @bdice in https://github.com/rapidsai/cuml/pull/8197
+* skip Cython 3.2.7 by @jameslamb in https://github.com/rapidsai/cuml/pull/8301
+* Update CuPy and NumPy dependency specs by @bdice in https://github.com/rapidsai/cuml/pull/8287
+* Implement weighted bootstrap sampling for RF by @RAMitchell in https://github.com/rapidsai/cuml/pull/8296
+* Add benchmark coverage for missing cuML estimators by @viclafargue in https://github.com/rapidsai/cuml/pull/8271
+* Warn in `cuml.accel` if proxying a package outside a range of tested versions by @jcrist in https://github.com/rapidsai/cuml/pull/8303
+* `cuml.accel` SVM onnx support  by @jcrist in https://github.com/rapidsai/cuml/pull/8307
+* Thread sample weights through RandomForest Python API by @RAMitchell in https://github.com/rapidsai/cuml/pull/8306
+* Add benchmark coverage for missing cuML estimators 2 by @viclafargue in https://github.com/rapidsai/cuml/pull/8325
+* Add benchmark coverage for missing cuML estimators 3 by @viclafargue in https://github.com/rapidsai/cuml/pull/8341
+* switch from 'cuda-python' to specific components (e.g. 'cuda-bindings') by @jameslamb in https://github.com/rapidsai/cuml/pull/8314
+* Handle RF split histogram shared-memory pressure by @RAMitchell in https://github.com/rapidsai/cuml/pull/8323
+* Empty commit to trigger new builds due to RAFT 3052 ABI breakage by @divyegala in https://github.com/rapidsai/cuml/pull/8353
+* fix(naive_bayes): use established classes_ on later partial_fit calls by @nethum529 in https://github.com/rapidsai/cuml/pull/8316
+* Prevent cuVS types from leaking through public headers by @viclafargue in https://github.com/rapidsai/cuml/pull/8342
+* Support row-major RandomForest training inputs by @RAMitchell in https://github.com/rapidsai/cuml/pull/8324
+* Add regression test for cluster-metric label-permutation invariance (#7199) by @aminehd in https://github.com/rapidsai/cuml/pull/8355
+* Prepare RF split counts for distributed training by @RAMitchell in https://github.com/rapidsai/cuml/pull/8348
+* Raise TypeError for invalid sparse input types in benchmark datagen by @fallintoplace in https://github.com/rapidsai/cuml/pull/8318
+* CI Fix bertopic testing by @betatim in https://github.com/rapidsai/cuml/pull/8298
+* Unify reflection system & decorators by @jcrist in https://github.com/rapidsai/cuml/pull/8339
+* Add JSON output for benchmark results by @dantegd in https://github.com/rapidsai/cuml/pull/8027
+* Increase cython-lint line length by @jcrist in https://github.com/rapidsai/cuml/pull/8374
+* A few sklearn compat test fixes by @jcrist in https://github.com/rapidsai/cuml/pull/8366
+* Split random forest histogram building and split scoring kernels by @RAMitchell in https://github.com/rapidsai/cuml/pull/8370
+* Re-enable RF regressor C++ benchmarks by @RAMitchell in https://github.com/rapidsai/cuml/pull/8371
+* Support coercing host arrays in `mlfunc`/`ReflectedAttr` by @jcrist in https://github.com/rapidsai/cuml/pull/8373
+* Finish migration to new decorators/descriptors by @jcrist in https://github.com/rapidsai/cuml/pull/8378
+* Address signedness compiler warning by @chyunsu3 in https://github.com/rapidsai/cuml/pull/8382
+* Add RF histogram allreduce hook for distributed split scoring by @RAMitchell in https://github.com/rapidsai/cuml/pull/8377
+* Enable building with 26.08 nvForest by @chyunsu3 in https://github.com/rapidsai/cuml/pull/8388
+* Remove legacy array and reflection machinery by @jcrist in https://github.com/rapidsai/cuml/pull/8385
+* Update developer wiki for new machinery by @jcrist in https://github.com/rapidsai/cuml/pull/8386
+* Empty commit to trigger a build by @bdice in https://github.com/rapidsai/cuml/pull/8399
+* [FEA] Skip Device Concat for KmeansMG by @tarang-jain in https://github.com/rapidsai/cuml/pull/8084
+
+## New Contributors
+* @Federicorao made their first contribution in https://github.com/rapidsai/cuml/pull/8273
+* @nethum529 made their first contribution in https://github.com/rapidsai/cuml/pull/8316
+* @Husnain987 made their first contribution in https://github.com/rapidsai/cuml/pull/8292
+* @aminehd made their first contribution in https://github.com/rapidsai/cuml/pull/8355
+
+**Full Changelog**: https://github.com/rapidsai/cuml/compare/v26.08.00a...release/26.08
+
 # cuml 26.06.00 (3 Jun 2026)
 
 ### 🚨 Breaking Changes

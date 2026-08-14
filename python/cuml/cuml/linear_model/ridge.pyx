@@ -361,7 +361,7 @@ class Ridge(InteropMixin,
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y, sample_weight=None, *, convert_dtype="deprecated") -> "Ridge":
+    def fit(self, X, y, sample_weight=None) -> "Ridge":
         """
         Fit the model with X and y.
         """
@@ -372,7 +372,6 @@ class Ridge(InteropMixin,
             y,
             sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             ensure_min_samples=2,
             accept_sparse=True,
             accept_large_sparse=True,

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import inspect
@@ -410,15 +410,11 @@ def test_classifier_label_types(cls, target_kind, dtype_kind):
 
 # Names of `Base` subclasses that go through `cuml.Base.__repr__`. Preprocessing
 # estimators (`sklBaseEstimator` subclasses) use scikit-learn's own repr, so we
-# exclude them here. `ForestInference` is a FIL inference wrapper that normalizes
-# several constructor arguments before storing them, so its stored attributes
-# don't round-trip against the constructor defaults; exclude it too.
+# exclude them here.
 _REPR_TESTABLE_CLASSES = [
     name
     for name, klass in all_base_children.items()
-    if "Base" not in name
-    and name != "ForestInference"
-    and not issubclass(klass, sklBaseEstimator)
+    if "Base" not in name and not issubclass(klass, sklBaseEstimator)
 ]
 
 

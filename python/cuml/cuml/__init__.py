@@ -29,12 +29,12 @@ from cuml.datasets.regression import make_regression
 from cuml.decomposition.incremental_pca import IncrementalPCA
 from cuml.decomposition.pca import PCA
 from cuml.decomposition.tsvd import TruncatedSVD
+from cuml.ensemble.isolation_forest import IsolationForest
 from cuml.ensemble.randomforestclassifier import RandomForestClassifier
 from cuml.ensemble.randomforestregressor import RandomForestRegressor
 from cuml.explainer.kernel_shap import KernelExplainer
 from cuml.explainer.permutation_shap import PermutationExplainer
 from cuml.explainer.tree_shap import TreeExplainer
-from cuml.fil import ForestInference
 from cuml.internals.base import Base
 from cuml.internals.global_settings import (
     GlobalSettings,
@@ -128,11 +128,11 @@ __all__ = [
     "ElasticNet",
     "EmpiricalCovariance",
     "ExponentialSmoothing",
-    "ForestInference",
     "GaussianRandomProjection",
     "Handle",
     "HDBSCAN",
     "IncrementalPCA",
+    "IsolationForest",
     "KernelDensity",
     "KernelExplainer",
     "KernelRidge",

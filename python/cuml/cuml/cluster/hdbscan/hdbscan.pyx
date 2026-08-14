@@ -903,7 +903,7 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y=None, *, convert_dtype="deprecated") -> "HDBSCAN":
+    def fit(self, X, y=None) -> "HDBSCAN":
         """
         Fit HDBSCAN model from features.
         """
@@ -923,7 +923,6 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
             self,
             X,
             dtype="float32",
-            convert_dtype=convert_dtype,
             mem_type=mem_type,
             ensure_min_samples=2,
             return_index=True,
@@ -1177,12 +1176,7 @@ def all_points_membership_vectors(clusterer, int batch_size=4096):
 
 
 @mlfunc(model_arg="clusterer", array_arg="points_to_predict", preserve_index=True)
-def membership_vector(
-    clusterer,
-    points_to_predict,
-    int batch_size=4096,
-    convert_dtype="deprecated",
-):
+def membership_vector(clusterer, points_to_predict, int batch_size=4096):
     """
     Predict soft cluster membership. The result produces a vector
     for each point in ``points_to_predict`` that gives a probability that
@@ -1221,7 +1215,6 @@ def membership_vector(
         clusterer,
         points_to_predict,
         dtype="float32",
-        convert_dtype=convert_dtype,
         order="C",
     )
     cdef int n_prediction_points = points_to_predict.shape[0]
@@ -1261,7 +1254,7 @@ def membership_vector(
 
 
 @mlfunc(model_arg="clusterer", array_arg="points_to_predict", preserve_index=True)
-def approximate_predict(clusterer, points_to_predict, convert_dtype="deprecated"):
+def approximate_predict(clusterer, points_to_predict):
     """Predict the cluster label of new points. The returned labels
     will be those of the original clustering found by ``clusterer``,
     and therefore are not (necessarily) the cluster labels that would
@@ -1305,7 +1298,6 @@ def approximate_predict(clusterer, points_to_predict, convert_dtype="deprecated"
         clusterer,
         points_to_predict,
         dtype="float32",
-        convert_dtype=convert_dtype,
         order="C",
     )
     cdef int n_prediction_points = points_to_predict.shape[0]

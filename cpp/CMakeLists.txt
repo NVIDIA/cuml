@@ -17,6 +17,9 @@ include(rapids-find)
 
 rapids_cuda_init_architectures(CUML)
 
+include("${rapids-cmake-dir}/cmake/check_conda_env.cmake")
+rapids_cmake_check_conda_env()
+
 project(
   CUML
   VERSION "${RAPIDS_VERSION}"
@@ -459,6 +462,13 @@ if(BUILD_CUML_CPP_LIBRARY)
 
   if(all_algo OR randomforest_algo)
     target_sources(cuml_objs PRIVATE src/randomforest/randomforest.cu)
+  endif()
+
+  if(all_algo
+     OR isolationforest_algo
+     OR randomforest_algo
+  )
+    target_sources(cuml_objs PRIVATE src/isolation_forest/isolation_forest.cu)
   endif()
 
   # todo: separate solvers better

@@ -154,16 +154,16 @@ CUML_EXPORT QuantileResult<T> computeQuantiles(const raft::handle_t& handle,
                                                bool row_major          = false)
 {
   raft::common::nvtx::push_range("computeQuantiles");
-  RAFT_EXPECTS(data != nullptr, "data pointer must not be null");
-  RAFT_EXPECTS(max_n_bins > 0, "max_n_bins must be positive");
-  RAFT_EXPECTS(n_rows > 0, "n_rows must be positive");
-  RAFT_EXPECTS(n_cols > 0, "n_cols must be positive");
-  RAFT_EXPECTS(oversampling_factor > 0, "oversampling_factor must be positive");
-
   auto stream      = handle.get_stream();
   bool distributed = raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1;
-  int rank         = distributed ? handle.get_comms().get_rank() : 0;
-  int comm_size    = distributed ? handle.get_comms().get_size() : 1;
+
+  RAFT_EXPECTS(max_n_bins > 0, "max_n_bins must be positive");
+  RAFT_EXPECTS(distributed ? n_rows >= 0 : n_rows > 0, "n_rows must be positive");
+  RAFT_EXPECTS(n_rows == 0 || data != nullptr, "data pointer must not be null");
+  RAFT_EXPECTS(n_cols > 0, "n_cols must be positive");
+  RAFT_EXPECTS(oversampling_factor > 0, "oversampling_factor must be positive");
+  int rank      = distributed ? handle.get_comms().get_rank() : 0;
+  int comm_size = distributed ? handle.get_comms().get_size() : 1;
 
   // Build exclusive global row offsets so sampled global row ids can be mapped to owning ranks.
   rmm::device_uvector<std::uint64_t> rank_row_offsets(comm_size + 1, stream);

@@ -54,4 +54,4 @@ For help determining what ran on the GPU and why an operation fell back, see
 conditions.
 
 .. _Python pickle documentation: https://docs.python.org/3/library/pickle.html
-.. _cuML issue tracker: https://github.com/rapidsai/cuml/issues/new?template=bug_report.md
+.. _cuML issue tracker: https://github.com/NVIDIA/cuml/issues/new?template=bug_report.md

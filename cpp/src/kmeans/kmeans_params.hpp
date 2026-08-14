@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -27,6 +27,8 @@ inline cuvs::cluster::kmeans::params to_cuvs(KMeansParams const& config)
   params.oversampling_factor = config.oversampling_factor;
   params.batch_samples       = config.batch_samples;
   params.batch_centroids     = config.batch_centroids;
+  params.init_size           = config.init_size;
+  params.device_buffer_samples = config.device_buffer_samples;
 
   return params;
 }

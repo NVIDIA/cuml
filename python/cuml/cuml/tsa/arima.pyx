@@ -186,12 +186,6 @@ class ARIMA(Base):
         type. If None, the output type set at the module level
         (`cuml.global_settings.output_type`) will be used. See
         :ref:`output-data-type-configuration` for more info.
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
 
     Attributes
     ----------
@@ -293,8 +287,7 @@ class ARIMA(Base):
                  fit_intercept=True,
                  simple_differencing=True,
                  verbose=False,
-                 output_type=None,
-                 convert_dtype="deprecated"):
+                 output_type=None):
 
         warn_deprecated_tsa_api("cuml.tsa.ARIMA")
 
@@ -327,7 +320,6 @@ class ARIMA(Base):
             endog,
             dtype="float64",
             order="F",
-            convert_dtype=convert_dtype,
             ensure_2d=False,
             ensure_all_finite=False,
         )
@@ -345,7 +337,6 @@ class ARIMA(Base):
                 exog,
                 dtype="float64",
                 order="F",
-                convert_dtype=convert_dtype,
                 ensure_2d=False,
                 ensure_all_finite=False,
             )
@@ -558,7 +549,7 @@ class ARIMA(Base):
                 params[names[i]] = getattr(self, "{}_".format(names[i]))
         return params
 
-    def set_fit_params(self, params: Mapping[str, object], convert_dtype="deprecated"):
+    def set_fit_params(self, params: Mapping[str, object]):
         """Set all the fit parameters. Not to be confused with ``set_params``
         Note: `unpack()` can be used to load a compact vector of the
         parameters
@@ -577,7 +568,6 @@ class ARIMA(Base):
                 array = check_array(
                     params[param_name],
                     dtype="float64",
-                    convert_dtype=convert_dtype,
                     ensure_2d=False,
                     ensure_all_finite=False,
                 )
@@ -618,7 +608,6 @@ class ARIMA(Base):
         end=None,
         level=None,
         exog=None,
-        convert_dtype="deprecated"
     ):
         """Compute in-sample and/or out-of-sample prediction for each series
 
@@ -705,7 +694,6 @@ class ARIMA(Base):
             d_exog_fut = check_array(
                 exog,
                 dtype="float64",
-                convert_dtype=convert_dtype,
                 order="F",
                 ensure_2d=False,
                 ensure_all_finite=False,
@@ -863,8 +851,7 @@ class ARIMA(Base):
             h: float = 1e-8,
             maxiter: int = 1000,
             method="ml",
-            truncate: int = 0,
-            convert_dtype = "deprecated") -> "ARIMA":
+            truncate: int = 0) -> "ARIMA":
         r"""Fit the ARIMA model to each time series.
 
         Parameters
@@ -906,16 +893,14 @@ class ARIMA(Base):
                 """The (batched) energy functional returning the negative
                 log-likelihood (foreach series)."""
                 # Recall: We maximize LL by minimizing -LL
-                n_llf = -self._loglike(x, True, fit_method, truncate,
-                                       convert_dtype)
+                n_llf = -self._loglike(x, True, fit_method, truncate)
                 return n_llf / (self.n_obs - 1)
 
             # Optimized finite differencing gradient for batches
             def gf(x) -> np.ndarray:
                 """The gradient of the (batched) energy functional."""
                 # Recall: We maximize LL by minimizing -LL
-                n_gllf = -self._loglike_grad(x, h, True, fit_method, truncate,
-                                             convert_dtype)
+                n_gllf = -self._loglike_grad(x, h, True, fit_method, truncate)
                 return n_gllf / (self.n_obs - 1)
 
             # Check initial parameter sanity
@@ -954,12 +939,12 @@ class ARIMA(Base):
             x, niter = fit_helper(x if method == "css-ml" else x0, "ml")
             self.niter = (self.niter + niter) if method == "css-ml" else niter
 
-        self.unpack(self._batched_transform(x), convert_dtype)
+        self.unpack(self._batched_transform(x))
         return self
 
     @nvtx.annotate(message="tsa.arima.ARIMA._loglike", domain="cuml_python")
     @mlfunc(convert_output=False)
-    def _loglike(self, x, trans=True, method="ml", truncate=0, convert_dtype="deprecated"):
+    def _loglike(self, x, trans=True, method="ml", truncate=0):
         """Compute the batched log-likelihood for the given parameters.
 
         Parameters
@@ -993,7 +978,6 @@ class ARIMA(Base):
         d_x_array = check_array(
             x,
             dtype="float64",
-            convert_dtype=convert_dtype,
             order="C",
             ensure_2d=False,
             ensure_all_finite=False,
@@ -1030,8 +1014,7 @@ class ARIMA(Base):
     @nvtx.annotate(message="tsa.arima.ARIMA._loglike_grad",
                    domain="cuml_python")
     @mlfunc(convert_output=False)
-    def _loglike_grad(self, x, h=1e-8, trans=True, method="ml", truncate=0,
-                      convert_dtype="deprecated"):
+    def _loglike_grad(self, x, h=1e-8, trans=True, method="ml", truncate=0):
         """Compute the gradient (via finite differencing) of the batched
         log-likelihood.
 
@@ -1073,7 +1056,6 @@ class ARIMA(Base):
         d_x_array = check_array(
             x,
             dtype="float64",
-            convert_dtype=convert_dtype,
             order="C",
             ensure_2d=False,
             ensure_all_finite=False,
@@ -1157,7 +1139,7 @@ class ARIMA(Base):
 
     @nvtx.annotate(message="tsa.arima.ARIMA.unpack", domain="cuml_python")
     @mlfunc(convert_output=False)
-    def unpack(self, x: Union[list, np.ndarray], convert_dtype="deprecated"):
+    def unpack(self, x: Union[list, np.ndarray]):
         """Unpack linearized parameter vector `x` into the separate
         parameter arrays of the model
 
@@ -1178,7 +1160,6 @@ class ARIMA(Base):
         d_x_array = check_array(
             x,
             dtype="float64",
-            convert_dtype=convert_dtype,
             order="C",
             ensure_2d=False,
             ensure_all_finite=False,

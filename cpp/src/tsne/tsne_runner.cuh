@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -27,6 +27,9 @@
 
 #include <rmm/device_uvector.hpp>
 
+#include <cuda/std/tuple>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/sort.h>
 #include <thrust/transform.h>
 
 #include <cuvs/distance/distance.hpp>
@@ -204,7 +207,6 @@ class TSNE_runner {
       k_graph.knn_dists   = distances.data();
       TSNE::get_distances(handle, input, k_graph, stream, params.metric, params.p);
     }
-
     if (params.square_distances) {
       auto policy = handle.get_thrust_policy();
 
@@ -214,7 +216,6 @@ class TSNE_runner {
                         k_graph.knn_dists,
                         TSNE::FunctionalSquare());
     }
-
     //---------------------------------------------------
     END_TIMER(DistancesTime);
 
@@ -261,6 +262,18 @@ class TSNE_runner {
                                 &COO_Matrix,
                                 stream,
                                 handle);
+
+    if (params.algorithm == TSNE_ALGORITHM::FFT && params.random_state >= 0) {
+      // Canonicalize fixed-seed FFT inputs with value as a tie-breaker for
+      // duplicate (row, col) entries. raft::sparse::op::coo_sort orders by
+      // (row, col) only and carries values as payload; that is not enough for
+      // byte-identical sums when duplicate edges are later walked row-wise.
+      auto policy    = handle.get_thrust_policy();
+      auto coo_begin = thrust::make_zip_iterator(
+        cuda::std::make_tuple(COO_Matrix.rows(), COO_Matrix.cols(), COO_Matrix.vals()));
+      thrust::sort(policy, coo_begin, coo_begin + COO_Matrix.nnz);
+    }
+
     END_TIMER(SymmetrizeTime);
   }
 

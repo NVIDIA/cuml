@@ -17,6 +17,15 @@ class KMeansMG(KMeans):
         self.handle = handle
         super().__init__(**kwargs)
 
+    def fit(self, X, sample_weight=None):
+        """Fit the multi-GPU KMeans model.
+
+        When ``X`` is a sequence of local data partitions.
+        """
+        if isinstance(X, (list, tuple)):
+            return self._fit_mg_parts(X, sample_weight_parts=sample_weight)
+        return super().fit(X, sample_weight=sample_weight)
+
     def _validate_fit_params(self):
         super()._validate_fit_params()
         if isinstance(self.init, str):

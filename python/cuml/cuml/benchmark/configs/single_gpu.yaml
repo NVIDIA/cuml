@@ -397,6 +397,28 @@ benchmarks:
           default: {rows: [2000000]}
           nightly: {rows: [8000000]}
 
+  - id: empiricalcovariance_fit
+    algorithm: EmpiricalCovariance
+    dataset: blobs
+    operation: fit
+    tags: [covariance]
+    variants:
+      narrow:
+        features: [16]
+        tiers:
+          default: {rows: [2000000]}
+          nightly: {rows: [8000000]}
+      medium:
+        features: [128]
+        tiers:
+          default: {rows: [500000]}
+          nightly: {rows: [2000000]}
+      wide:
+        features: [512]
+        tiers:
+          default: {rows: [100000]}
+          nightly: {rows: [400000]}
+
   - id: ledoitwolf_fit
     algorithm: LedoitWolf
     dataset: blobs

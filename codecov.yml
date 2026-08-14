@@ -1,8 +1,8 @@
 #Configuration File for CodeCov
 coverage:
   status:
-    project: off
-    patch: off
+    project: off  # yamllint disable-line rule:truthy
+    patch: off  # yamllint disable-line rule:truthy
 comment: false
 
 # Suggested workaround to fix "missing base report" issue when using Squash and

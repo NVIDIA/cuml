@@ -1201,7 +1201,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
         skip_parameters_heading=True,
     )
     @mlfunc(set_input_type=True)
-    def fit(self, X, y=None, *, convert_dtype="deprecated", knn_graph=None) -> "UMAP":
+    def fit(self, X, y=None, *, knn_graph=None) -> "UMAP":
         """
         Fit X into an embedded space.
 
@@ -1227,12 +1227,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             reset=True,
         )
         if y is not None:
-            y = check_y(
-                y,
-                dtype="float32",
-                convert_dtype=convert_dtype,
-                order="C",
-            )
+            y = check_y(y, dtype="float32", order="C")
             check_consistent_length(X, y)
 
         cdef int n_rows = X.shape[0]
@@ -1265,7 +1260,6 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             X,
             mem_type=mem_type,
             dtype="float32",
-            convert_dtype=convert_dtype,
             order="C",
             accept_sparse="csr",
             ensure_min_samples=2,
@@ -1428,9 +1422,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
         }
     )
     @mlfunc(preserve_index=True)
-    def fit_transform(
-        self, X, y=None, *, convert_dtype="deprecated", knn_graph=None
-    ):
+    def fit_transform(self, X, y=None, *, knn_graph=None):
         """
         Fit X into an embedded space and return that transformed
         output.
@@ -1451,7 +1443,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             over it. See the ``UMAP`` docstring on ``precomputed_knn`` for more
             information.
         """
-        self.fit(X, y, convert_dtype=convert_dtype, knn_graph=knn_graph)
+        self.fit(X, y, knn_graph=knn_graph)
         return self.embedding_
 
     @generate_docstring(
@@ -1463,7 +1455,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
         }
     )
     @mlfunc(preserve_index=True)
-    def transform(self, X, *, convert_dtype="deprecated"):
+    def transform(self, X):
         """
         Transform X into the existing embedded space and return that
         transformed output.
@@ -1481,7 +1473,6 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             self,
             X,
             dtype="float32",
-            convert_dtype=convert_dtype,
             order="C",
             accept_sparse="csr",
         )
@@ -1589,7 +1580,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
         }
     )
     @mlfunc(preserve_index=True)
-    def inverse_transform(self, X, *, convert_dtype="deprecated"):
+    def inverse_transform(self, X):
         """Transform X in the existing embedded space back into the input
         data space and return that transformed output.
         """
@@ -1607,12 +1598,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             )
 
         # skip n_features_in_ validation
-        X = check_array(
-            X,
-            dtype="float32",
-            convert_dtype=convert_dtype,
-            order="C",
-        )
+        X = check_array(X, dtype="float32", order="C")
 
         n_samples = X.shape[0]
         if X.shape[1] != self.n_components:
@@ -1835,7 +1821,6 @@ def simplicial_set_embedding(
     metric_kwds=None,
     output_metric="euclidean",
     output_metric_kwds=None,
-    convert_dtype="deprecated",
     verbose=False,
 ):
     """Perform a fuzzy simplicial set embedding, using a specified
@@ -1928,7 +1913,6 @@ def simplicial_set_embedding(
     X = check_array(
         data,
         dtype="float32",
-        convert_dtype=convert_dtype,
         order="C",
         input_name="X",
     )
@@ -1986,7 +1970,6 @@ def simplicial_set_embedding(
         embedding = check_array(
             init,
             dtype="float32",
-            convert_dtype=convert_dtype,
             order="C",
             input_name="init",
         )

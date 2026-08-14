@@ -159,6 +159,15 @@ if(BUILD_CUML_TESTS AND (all_algo OR randomforest_algo))
   )
 endif()
 
+if(all_algo OR isolationforest_algo)
+  ConfigureTest(
+    PREFIX SG
+    NAME ISOLATION_FOREST_TEST sg/isolation_forest_test.cu ML_INCLUDE
+    GPUS 1
+    PERCENT 100
+  )
+endif()
+
 # todo: separate solvers better
 if(BUILD_CUML_TESTS AND (all_algo OR solvers_algo))
   ConfigureTest(PREFIX SG NAME CD_TEST sg/cd_test.cu ML_INCLUDE)
@@ -220,6 +229,7 @@ if(BUILD_CUML_MG_TESTS)
     ConfigureTest(
       PREFIX MG NAME RF_QUANTILE_TEST mg/rf_quantile_test.cu MPI RAFT_DISTRIBUTED ML_INCLUDE
     )
+    ConfigureTest(PREFIX MG NAME RF_TEST mg/rf_test.cu MPI RAFT_DISTRIBUTED ML_INCLUDE)
   else(MPI_CXX_FOUND)
     message("OpenMPI not found. Skipping MultiGPU tests '${CUML_MG_TEST_TARGET}'")
   endif()

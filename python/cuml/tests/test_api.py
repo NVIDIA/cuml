@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -16,11 +16,6 @@ import cuml.internals.mixins as cumix
 from cuml.internals.base import Base
 from cuml.internals.mixins import CumlTags
 from cuml.testing.utils import ClassEnumerator
-
-# TODO(26.10) Remove this filter, once cuml.fil is removed
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:cuml.fil.ForestInference.* is deprecated:FutureWarning"
-)
 
 ###############################################################################
 #                        Helper functions and classes                         #

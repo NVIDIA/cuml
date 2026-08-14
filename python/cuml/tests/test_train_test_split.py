@@ -9,7 +9,6 @@ import pandas as pd
 import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
-from numba import cuda
 
 from cuml.datasets import make_classification
 from cuml.model_selection import train_test_split
@@ -20,12 +19,11 @@ test_seeds = ["int", "cupy", "numpy"]
 
 @pytest.fixture(
     params=[
-        ("numba", cuda.to_device),
         ("cupy", cp.asarray),
         ("cudf", cudf),
         ("pandas", pd),
     ],
-    ids=["to_numba", "to_cupy", "to_cudf", "to_pandas"],
+    ids=["to_cupy", "to_cudf", "to_pandas"],
 )
 def convert_to_type(request):
     backend_name, array_constructor = request.param
@@ -42,9 +40,6 @@ def convert_to_type(request):
 
         yield (backend_name, ctor)
 
-    elif backend_name == "numba":
-        with pytest.warns(FutureWarning, match="Handling `numba` arrays"):
-            yield (backend_name, array_constructor)
     else:
         yield (backend_name, array_constructor)
 
@@ -175,12 +170,6 @@ def test_array_split(X, y, convert_to_type, sizes, shuffle):
         assert isinstance(y_train, cp.ndarray)
         assert isinstance(y_test, cp.ndarray)
 
-    if backend_name == "numba":
-        assert cuda.devicearray.is_cuda_ndarray(X_train)
-        assert cuda.devicearray.is_cuda_ndarray(X_test)
-        assert cuda.devicearray.is_cuda_ndarray(y_train)
-        assert cuda.devicearray.is_cuda_ndarray(y_test)
-
     if backend_name == "cudf":
         # cudf input should produce cudf output
         expected_x_type = cudf.DataFrame if X.ndim > 1 else cudf.Series
@@ -285,10 +274,6 @@ def test_split_array_single_argument(X, convert_to_type, sizes, shuffle):
         assert isinstance(X_train, cp.ndarray)
         assert isinstance(X_test, cp.ndarray)
 
-    if backend_name == "numba":
-        assert cuda.devicearray.is_cuda_ndarray(X_train)
-        assert cuda.devicearray.is_cuda_ndarray(X_test)
-
     if backend_name == "cudf":
         # cudf input should produce cudf output
         expected_type = cudf.DataFrame if X.ndim > 1 else cudf.Series
@@ -351,10 +336,6 @@ def test_stratified_split(convert_to_type, sizes):
     if backend_name == "cupy":
         assert isinstance(X_train, cp.ndarray)
         assert isinstance(X_test, cp.ndarray)
-
-    if backend_name == "numba":
-        assert cuda.devicearray.is_cuda_ndarray(X_train)
-        assert cuda.devicearray.is_cuda_ndarray(X_test)
 
     if backend_name == "cudf":
         # cudf input should produce cudf output

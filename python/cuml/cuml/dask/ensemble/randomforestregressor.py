@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import dask.array
@@ -138,13 +138,7 @@ class RandomForestRegressor(
             n_estimators=n_estimators, random_state=random_state, **kwargs
         )
 
-    def fit(
-        self,
-        X,
-        y,
-        convert_dtype="deprecated",
-        broadcast_data=False,
-    ):
+    def fit(self, X, y, broadcast_data=False):
         """
         Fit the input data with a Random Forest regression model
 
@@ -181,13 +175,6 @@ class RandomForestRegressor(
         y : Dask cuDF DataFrame or CuPy backed Dask Array (n_rows, 1)
             Labels of training examples.
             **y must be partitioned the same way as X**
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
-
         broadcast_data : bool, optional (default = False)
             When set to True, the whole dataset is broadcasted
             to train the workers, otherwise each worker
@@ -197,7 +184,6 @@ class RandomForestRegressor(
         self._fit(
             model=self.rfs,
             dataset=(X, y),
-            convert_dtype=convert_dtype,
             broadcast_data=broadcast_data,
         )
         return self
@@ -205,7 +191,6 @@ class RandomForestRegressor(
     def predict(
         self,
         X,
-        convert_dtype="deprecated",
         layout="depth_first",
         default_chunk_size=None,
         align_bytes=None,
@@ -220,13 +205,6 @@ class RandomForestRegressor(
         X : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, n_features)
             Distributed dense matrix (floats or doubles) of shape
             (n_samples, n_features).
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
-
         layout : string (default = 'depth_first')
             Specifies the in-memory layout of nodes in FIL forests. Options:
             'depth_first', 'layered', 'breadth_first'.
@@ -257,7 +235,6 @@ class RandomForestRegressor(
         if broadcast_data:
             return self.partial_inference(
                 X,
-                convert_dtype=convert_dtype,
                 layout=layout,
                 default_chunk_size=default_chunk_size,
                 align_bytes=align_bytes,
@@ -265,7 +242,6 @@ class RandomForestRegressor(
             )
         return self._predict_using_fil(
             X,
-            convert_dtype=convert_dtype,
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,

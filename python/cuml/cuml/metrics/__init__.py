@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -25,7 +25,6 @@ from cuml.metrics.pairwise_distances import (
     PAIRWISE_DISTANCE_SPARSE_METRICS,
     nan_euclidean_distances,
     pairwise_distances,
-    sparse_pairwise_distances,
 )
 from cuml.metrics.pairwise_kernels import (
     PAIRWISE_KERNEL_FUNCTIONS,
@@ -59,7 +58,6 @@ __all__ = [
     "entropy",
     "nan_euclidean_distances",
     "pairwise_distances",
-    "sparse_pairwise_distances",
     "pairwise_kernels",
     "hinge_loss",
     "kl_divergence",

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -87,7 +87,7 @@ class UMAP(BaseEstimator, DelayedTransformMixin):
 
         self._set_internal_model(model)
 
-    def transform(self, X, convert_dtype="deprecated"):
+    def transform(self, X):
         """
         Transform X into the existing embedded space and return that
         transformed output.
@@ -112,4 +112,4 @@ class UMAP(BaseEstimator, DelayedTransformMixin):
         """
         data = DistributedDataHandler.create(data=X, client=self.client)
         self.datatype = data.datatype
-        return self._transform(X, convert_dtype=convert_dtype)
+        return self._transform(X)

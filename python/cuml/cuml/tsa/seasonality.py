@@ -10,7 +10,7 @@ from cuml.tsa._deprecation import deprecated_tsa_api
 
 @deprecated_tsa_api("cuml.tsa.seasonality.seas_test")
 @mlfunc
-def seas_test(y, s, convert_dtype="deprecated"):
+def seas_test(y, s):
     """
     Perform Wang, Smith & Hyndman's test to decide whether seasonal
     differencing is needed
@@ -46,7 +46,6 @@ def seas_test(y, s, convert_dtype="deprecated"):
     y = check_array(
         y,
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         mem_type="host",
         ensure_all_finite=False,
         input_name="y",

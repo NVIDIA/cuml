@@ -11,6 +11,7 @@ jobs:
   # Please keep pr-builder as the top job here
   pr-builder:
     needs:
+      - build-details
       - check-nightly-ci
       - changed-files
       - checks
@@ -26,6 +27,7 @@ jobs:
       - conda-python-cuml-accel-upstream-tests
       - conda-notebook-tests
       - docs-build
+      - publish-api-docs
       - telemetry-setup
       - wheel-build-libcuml
       - wheel-build-cuml
@@ -54,6 +56,8 @@ jobs:
       - name: Telemetry setup
         if: ${{ vars.TELEMETRY_ENABLED == 'true' }}
         uses: rapidsai/shared-actions/telemetry-dispatch-stash-base-env-vars@main
+  build-details:
+    uses: rapidsai/shared-workflows/.github/workflows/compute-build-details.yaml@main
   check-nightly-ci:
     runs-on: ubuntu-latest
     permissions:
@@ -98,11 +102,15 @@ jobs:
           - '!.github/ops-bot.yaml'
           - '!.github/release.yml'
           - '!.github/scripts/**'
+          - '!.github/workflows/build.yaml'
+          - '!.github/workflows/labeler.yml'
           - '!.github/workflows/new-issues-to-triage-projects.yml'
           - '!.github/workflows/pr_assign_author.yml'
           - '!.github/workflows/pr_issue_status_automation.yml'
+          - '!.github/workflows/test.yaml'
           - '!.github/workflows/trigger-breaking-change-alert.yaml'
           - '!.pre-commit-config.yaml'
+          - '!.yamllint.yaml'
           - '!SECURITY.md'
           - '!ci/build_wheel*.sh'
           - '!ci/check_style.sh'
@@ -124,11 +132,15 @@ jobs:
           - '!.github/ops-bot.yaml'
           - '!.github/release.yml'
           - '!.github/scripts/**'
+          - '!.github/workflows/build.yaml'
+          - '!.github/workflows/labeler.yml'
           - '!.github/workflows/new-issues-to-triage-projects.yml'
           - '!.github/workflows/pr_assign_author.yml'
           - '!.github/workflows/pr_issue_status_automation.yml'
+          - '!.github/workflows/test.yaml'
           - '!.github/workflows/trigger-breaking-change-alert.yaml'
           - '!.pre-commit-config.yaml'
+          - '!.yamllint.yaml'
           - '!BUILD.md'
           - '!CONTRIBUTING.md'
           - '!README.md'
@@ -161,11 +173,15 @@ jobs:
           - '!.github/ops-bot.yaml'
           - '!.github/release.yml'
           - '!.github/scripts/**'
+          - '!.github/workflows/build.yaml'
+          - '!.github/workflows/labeler.yml'
           - '!.github/workflows/new-issues-to-triage-projects.yml'
           - '!.github/workflows/pr_assign_author.yml'
           - '!.github/workflows/pr_issue_status_automation.yml'
+          - '!.github/workflows/test.yaml'
           - '!.github/workflows/trigger-breaking-change-alert.yaml'
           - '!.pre-commit-config.yaml'
+          - '!.yamllint.yaml'
           - '!BUILD.md'
           - '!CONTRIBUTING.md'
           - '!README.md'
@@ -195,11 +211,15 @@ jobs:
           - '!.github/ops-bot.yaml'
           - '!.github/release.yml'
           - '!.github/scripts/**'
+          - '!.github/workflows/build.yaml'
+          - '!.github/workflows/labeler.yml'
           - '!.github/workflows/new-issues-to-triage-projects.yml'
           - '!.github/workflows/pr_assign_author.yml'
           - '!.github/workflows/pr_issue_status_automation.yml'
+          - '!.github/workflows/test.yaml'
           - '!.github/workflows/trigger-breaking-change-alert.yaml'
           - '!.pre-commit-config.yaml'
+          - '!.yamllint.yaml'
           - '!BUILD.md'
           - '!CONTRIBUTING.md'
           - '!README.md'
@@ -234,11 +254,15 @@ jobs:
           - '!.github/ops-bot.yaml'
           - '!.github/release.yml'
           - '!.github/scripts/**'
+          - '!.github/workflows/build.yaml'
+          - '!.github/workflows/labeler.yml'
           - '!.github/workflows/new-issues-to-triage-projects.yml'
           - '!.github/workflows/pr_assign_author.yml'
           - '!.github/workflows/pr_issue_status_automation.yml'
+          - '!.github/workflows/test.yaml'
           - '!.github/workflows/trigger-breaking-change-alert.yaml'
           - '!.pre-commit-config.yaml'
+          - '!.yamllint.yaml'
           - '!BUILD.md'
           - '!CONTRIBUTING.md'
           - '!README.md'
@@ -295,7 +319,7 @@ jobs:
       container_image: "rapidsai/ci-conda:26.10-latest"
       script: "ci/run_clang_tidy.sh"
   conda-cpp-build:
-    needs: checks
+    needs: [build-details, checks]
     permissions:
       actions: read
       contents: read
@@ -306,6 +330,7 @@ jobs:
     uses: rapidsai/shared-workflows/.github/workflows/conda-cpp-build.yaml@main
     with:
       build_type: pull-request
+      build-datetime: ${{ needs.build-details.outputs.build-datetime }}
       node_type: cpu16
       script: ci/build_cpp.sh
   conda-cpp-tests:
@@ -336,7 +361,7 @@ jobs:
       build_type: pull-request
       package_name: libcuml
   conda-python-build:
-    needs: conda-cpp-build
+    needs: [build-details, conda-cpp-build]
     permissions:
       actions: read
       contents: read
@@ -347,6 +372,7 @@ jobs:
     uses: rapidsai/shared-workflows/.github/workflows/conda-python-build.yaml@main
     with:
       build_type: pull-request
+      build-datetime: ${{ needs.build-details.outputs.build-datetime }}
       script: ci/build_python.sh
       # Build a conda package for each CUDA x ARCH x minimum supported Python version
       matrix_filter: group_by({CUDA_VER, ARCH}) | map(min_by(.PY_VER | split(".") | map(tonumber)))
@@ -471,8 +497,28 @@ jobs:
       arch: "amd64"
       container_image: "rapidsai/ci-conda:26.10-latest"
       script: "ci/build_docs.sh"
+  publish-api-docs:
+    needs: [docs-build]
+    permissions:
+      contents: read
+      id-token: write
+    secrets:
+      akamai-access-token: ${{ secrets.NVIDIA_DOCS_AKAMAI_ACCESS_TOKEN }}
+      akamai-client-token: ${{ secrets.NVIDIA_DOCS_AKAMAI_CLIENT_TOKEN }}
+      akamai-client-secret: ${{ secrets.NVIDIA_DOCS_AKAMAI_CLIENT_SECRET }}
+      akamai-emails-to-notify: ${{ secrets.NVIDIA_DOCS_AKAMAI_EMAILS_TO_NOTIFY }}
+      akamai-host: ${{ secrets.NVIDIA_DOCS_AKAMAI_HOST }}
+      target-aws-access-key-id: ${{ secrets.NVIDIA_DOCS_AWS_ACCESS_KEY_ID }}
+      target-aws-region: ${{ secrets.NVIDIA_DOCS_AWS_REGION }}
+      target-aws-secret-access-key: ${{ secrets.NVIDIA_DOCS_AWS_SECRET_ACCESS_KEY }}
+      target-s3-bucket: ${{ secrets.NVIDIA_DOCS_S3_BUCKET }}
+    uses: rapidsai/shared-workflows/.github/workflows/publish-api-docs.yaml@main
+    with:
+      docs-projects: cuml,libcuml
+      dry-run: true
+      version-map: '{"26.04": "legacy", "26.06": "stable"}'
   wheel-build-libcuml:
-    needs: checks
+    needs: [build-details, checks]
     permissions:
       actions: read
       contents: read
@@ -483,6 +529,7 @@ jobs:
     uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@main
     with:
       build_type: pull-request
+      build-datetime: ${{ needs.build-details.outputs.build-datetime }}
       branch: ${{ inputs.branch }}
       sha: ${{ inputs.sha }}
       date: ${{ inputs.date }}
@@ -493,7 +540,7 @@ jobs:
       package-name: libcuml
       package-type: cpp
   wheel-build-cuml:
-    needs: [checks, wheel-build-libcuml]
+    needs: [build-details, checks, wheel-build-libcuml]
     permissions:
       actions: read
       contents: read
@@ -504,6 +551,7 @@ jobs:
     uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@main
     with:
       build_type: pull-request
+      build-datetime: ${{ needs.build-details.outputs.build-datetime }}
       node_type: cpu8
       script: ci/build_wheel_cuml.sh
       package-name: cuml

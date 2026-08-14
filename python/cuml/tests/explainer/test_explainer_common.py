@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -16,13 +16,6 @@ from cuml.explainer.common import (
     link_dict,
     model_func_call,
 )
-
-pytestmark = [
-    # TODO(26.10) Remove this filter, once cuml.fil is removed
-    pytest.mark.filterwarnings(
-        "ignore:cuml.fil.ForestInference.* is deprecated:FutureWarning"
-    ),
-]
 
 
 def test_model_func_call_gpu():

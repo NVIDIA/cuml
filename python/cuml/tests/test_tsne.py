@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -143,6 +143,63 @@ def test_tsne_precomputed_knn(precomputed_type, sparse_input):
     embedding = model.fit_transform(data)
     trust = trustworthiness(data, embedding, n_neighbors=n_neighbors)
     assert trust >= 0.92
+
+
+@pytest.mark.parametrize("use_precomputed_knn", [False, True])
+@pytest.mark.parametrize("n_features", [4, 64, 256, 1024])
+def test_tsne_fft_random_state_reproducibility(
+    use_precomputed_knn, n_features
+):
+    data, _ = make_blobs(
+        n_samples=2000, n_features=n_features, centers=5, random_state=0
+    )
+    data = data.astype(np.float32)
+
+    n_neighbors = 30
+    perplexity = 10
+    knn_graph = None
+    if use_precomputed_knn:
+        nn = NearestNeighbors(n_neighbors=n_neighbors)
+        nn.fit(data)
+        knn_graph = nn.kneighbors_graph(data, mode="distance").astype(
+            "float32"
+        )
+
+    tsne_kwargs = {
+        "n_components": 2,
+        "random_state": 42,
+        "n_neighbors": n_neighbors,
+        "perplexity": perplexity,
+        "method": "fft",
+        "init": "random",
+        "learning_rate_method": "none",
+        "max_iter": 300,
+        "min_grad_norm": 1e-12,
+    }
+
+    embedding_a = TSNE(**tsne_kwargs).fit_transform(data, knn_graph=knn_graph)
+    embedding_b = TSNE(**tsne_kwargs).fit_transform(data, knn_graph=knn_graph)
+
+    assert np.array_equal(embedding_a, embedding_b)
+
+
+def test_tsne_fft_zero_random_state_reproducibility():
+    data, _ = make_blobs(
+        n_samples=30, n_features=10, centers=5, random_state=0
+    )
+    data = data.astype(np.float32)
+    tsne_kwargs = {
+        "random_state": 0,
+        "n_neighbors": 30,
+        "perplexity": 25,
+        "method": "fft",
+        "init": "random",
+    }
+
+    embedding_a = TSNE(**tsne_kwargs).fit_transform(data)
+    embedding_b = TSNE(**tsne_kwargs).fit_transform(data)
+
+    assert np.array_equal(embedding_a, embedding_b)
 
 
 @pytest.mark.parametrize("init", ["random", "pca"])

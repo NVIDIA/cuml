@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -27,22 +27,6 @@ def normalize_data(X, y):
     x_scale[x_scale == 0] = 1
     X = (X - x_mean) / x_scale
     return X, y, x_mean, x_scale, y_mean
-
-
-def test_experimental_namespace_deprecation():
-    with pytest.warns(
-        FutureWarning, match="`cuml.experimental.linear_model.Lars`"
-    ):
-        from cuml.experimental.linear_model import Lars
-
-        assert Lars is cuLars
-
-    import cuml.experimental.linear_model as ex_lm
-
-    with pytest.warns(
-        FutureWarning, match="`cuml.experimental.linear_model.Lars`"
-    ):
-        assert ex_lm.Lars is cuLars
 
 
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])

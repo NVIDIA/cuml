@@ -9,6 +9,7 @@ import dask_cudf
 import numpy as np
 import pytest
 from raft_dask.common.comms import Comms
+from sklearn.datasets import make_blobs as sk_make_blobs
 from sklearn.metrics import adjusted_rand_score as sk_adjusted_rand_score
 
 from cuml.dask.cluster import KMeans
@@ -467,3 +468,99 @@ def test_random_init_partition_too_small_raises(client):
         match="init='random' requires rank 0 to sample up to 2",
     ):
         model.fit(X)
+
+
+@pytest.mark.mg
+@pytest.mark.parametrize("n_parts", [2, 8])
+@pytest.mark.parametrize("device_buffer_samples", [0, 64])
+@pytest.mark.parametrize("weighted", [False, True])
+def test_out_of_core_host_fit(
+    client, n_parts, device_buffer_samples, weighted
+):
+    n_rows, n_cols, n_clusters = 4000, 16, 5
+    X_np, y_np = sk_make_blobs(
+        n_samples=n_rows,
+        n_features=n_cols,
+        centers=n_clusters,
+        cluster_std=0.1,
+        random_state=10,
+    )
+    X_np = X_np.astype(np.float32)
+
+    chunk = int(np.ceil(n_rows / n_parts))
+    X = da.from_array(X_np, chunks=(chunk, n_cols))
+
+    fit_kwargs = {}
+    if weighted:
+        rng = np.random.RandomState(42)
+        wt = rng.uniform(0.5, 2.0, size=n_rows).astype(np.float32)
+        fit_kwargs["sample_weight"] = da.from_array(wt, chunks=(chunk,))
+
+    model = KMeans(
+        init="k-means||",
+        n_clusters=n_clusters,
+        random_state=10,
+        n_init="auto",
+        init_size=n_rows,
+        device_buffer_samples=device_buffer_samples,
+    )
+
+    labels = model.fit_predict(X, **fit_kwargs).compute()
+    labels = cp.asnumpy(cp.asarray(labels)).reshape(-1)
+
+    assert labels.shape[0] == n_rows
+    assert model.cluster_centers_.shape == (n_clusters, n_cols)
+    assert sk_adjusted_rand_score(y_np, labels) >= 0.99
+
+
+@pytest.mark.mg
+@pytest.mark.parametrize("device_buffer_samples", [0, 128])
+def test_out_of_core_host_matches_device(client, device_buffer_samples):
+    """The host out-of-core fit and the in-core device fit should agree on
+    identical data (same clustering and inertia)."""
+    from sklearn.datasets import make_blobs as sk_make_blobs
+    from sklearn.metrics import adjusted_rand_score as sk_adjusted_rand_score
+
+    n_rows, n_cols, n_clusters, n_parts = 3000, 8, 6, 6
+    X_np, _ = sk_make_blobs(
+        n_samples=n_rows,
+        n_features=n_cols,
+        centers=n_clusters,
+        cluster_std=0.1,
+        random_state=10,
+    )
+    X_np = X_np.astype(np.float32)
+    chunk = int(np.ceil(n_rows / n_parts))
+
+    rng = np.random.RandomState(10)
+    wt = rng.uniform(0.5, 2.0, size=n_rows).astype(np.float32)
+
+    common = dict(
+        init="k-means||",
+        n_clusters=n_clusters,
+        random_state=10,
+        n_init="auto",
+    )
+
+    X_host = da.from_array(X_np, chunks=(chunk, n_cols))
+    wt_host = da.from_array(wt, chunks=(chunk,))
+    host_model = KMeans(device_buffer_samples=device_buffer_samples, **common)
+    host_labels = cp.asnumpy(
+        cp.asarray(
+            host_model.fit_predict(X_host, sample_weight=wt_host).compute()
+        )
+    ).reshape(-1)
+
+    X_dev = da.from_array(cp.asarray(X_np), chunks=(chunk, n_cols))
+    wt_dev = da.from_array(cp.asarray(wt), chunks=(chunk,))
+    dev_model = KMeans(**common)
+    dev_labels = cp.asnumpy(
+        cp.asarray(
+            dev_model.fit_predict(X_dev, sample_weight=wt_dev).compute()
+        )
+    ).reshape(-1)
+
+    assert sk_adjusted_rand_score(host_labels, dev_labels) >= 0.99
+    np.testing.assert_allclose(
+        float(host_model.inertia_), float(dev_model.inertia_), rtol=1e-2
+    )

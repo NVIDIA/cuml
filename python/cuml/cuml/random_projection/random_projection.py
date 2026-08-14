@@ -78,7 +78,7 @@ class _BaseRandomProjection(SparseInputTagMixin, Base):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y=None, *, convert_dtype="deprecated"):
+    def fit(self, X, y=None):
         """Generate a random projection matrix."""
         # Use `mem_type=None` & `order=None` to minimize copies or transfers. We
         # don't need to access the data here, just ensure it's valid and get
@@ -87,7 +87,6 @@ class _BaseRandomProjection(SparseInputTagMixin, Base):
             self,
             X,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             mem_type=None,
             order=None,
             accept_sparse=True,
@@ -122,14 +121,13 @@ class _BaseRandomProjection(SparseInputTagMixin, Base):
 
     @generate_docstring()
     @mlfunc(preserve_index=True)
-    def transform(self, X, *, convert_dtype="deprecated"):
+    def transform(self, X):
         """Project the data by taking the matrix product with the random matrix."""
         check_is_fitted(self)
         X = check_inputs(
             self,
             X,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             accept_sparse=("csr", "csc"),
             accept_large_sparse=True,
         )
@@ -152,11 +150,9 @@ class _BaseRandomProjection(SparseInputTagMixin, Base):
 
     @generate_docstring()
     @mlfunc(preserve_index=True)
-    def fit_transform(self, X, y=None, *, convert_dtype="deprecated"):
+    def fit_transform(self, X, y=None):
         """Fit to data, then transform it."""
-        return self.fit(X, convert_dtype=convert_dtype).transform(
-            X, convert_dtype=convert_dtype
-        )
+        return self.fit(X).transform(X)
 
 
 class GaussianRandomProjection(_BaseRandomProjection):

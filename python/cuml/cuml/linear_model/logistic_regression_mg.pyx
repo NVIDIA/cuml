@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -210,6 +210,16 @@ class LogisticRegressionMG(LogisticRegression):
             )
         classes.sort()
         cdef int n_classes = len(classes)
+
+        # QN's classification losses expect labels to be dense class indices
+        # in [0, n_classes). Keep the original values in ``classes`` for
+        # predictions, but encode the solver-facing labels using the global
+        # class ordering shared by all ranks.
+        y = cp.searchsorted(cp.asarray(classes, dtype=X.dtype), y).astype(
+            X.dtype, copy=False
+        )
+        opg.free_data_t(y_ptr, X.dtype)
+        y_ptr = opg.build_data_t([y])
 
         # Validate and initialize parameters
         l1_strength, l2_strength = self._get_l1_l2_strength()

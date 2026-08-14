@@ -16,7 +16,7 @@ from cuml.dask.common.base import (
     DelayedTransformMixin,
     mnmg_import,
 )
-from cuml.dask.common.input_utils import DistributedDataHandler, concatenate
+from cuml.dask.common.input_utils import DistributedDataHandler
 from cuml.dask.common.utils import wait_and_raise_from_futures
 from cuml.internals.validation import check_random_seed
 
@@ -117,11 +117,11 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
         handle = get_raft_comm_state(sessionId, get_worker())["handle"]
 
         if not has_weights:
-            inp_data = concatenate(objs)
+            inp_data = list(objs)
             inp_weights = None
         else:
-            inp_data = concatenate([X for X, weights in objs])
-            inp_weights = concatenate([weights for X, weights in objs])
+            inp_data = [X for X, weights in objs]
+            inp_weights = [weights for X, weights in objs]
 
         return KMeansMG(handle=handle, output_type=datatype, **kwargs).fit(
             inp_data, sample_weight=inp_weights

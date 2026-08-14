@@ -31,10 +31,6 @@ from cuml.testing.test_preproc_utils import (  # noqa: F401
     sparse_clf_dataset,
 )
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:Outputting `numba` arrays:FutureWarning"
-)
-
 
 @pytest.mark.parametrize("remainder", ["drop", "passthrough"])
 @pytest.mark.parametrize(

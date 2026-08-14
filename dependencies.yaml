@@ -631,17 +631,6 @@ dependencies:
               - --extra-index-url=https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
           - matrix:  # fallback for non-nightly dependencies
             packages:
-      # TODO: remove this block once `onnxruntime` has Python 3.14 support (and conda packages built)
-      - output_types: [conda, requirements, pyproject]
-        matrices:
-          - matrix: {py: "3.14"}
-            packages:
-          - matrix: {py: "3.*"}
-            packages:
-              - *onnxruntime
-              - *skl2onnx
-          - matrix:
-            packages:
       # TODO: we're seeing test failures with openblas > 0.3.30 on aarch64. For
       # now we pin openblas in tests on that architecture.
       - output_types: [conda]
@@ -678,9 +667,8 @@ dependencies:
           - numpydoc<1.9
           # 'nvidia-ml-py' provides the 'pynvml' module
           - nvidia-ml-py>=12
-        # TODO: uncomment these two lines once `onnxruntime` has Python 3.14 support (and conda packages built)
-          # - *onnxruntime
-          # - *skl2onnx
+          - *onnxruntime
+          - *skl2onnx
           - pytest
           - pytest-benchmark
           - pytest-cov
@@ -721,12 +709,12 @@ dependencies:
     specific:
       - output_types: [conda]
         matrices:
-        - matrix:
-            py: "3.11"
-          packages: []
-        - matrix:
-          packages:
-            - rapids-xgboost==26.10.*,>=0.0.0a0
+          - matrix:
+              py: "3.11"
+            packages: []
+          - matrix:
+            packages:
+              - xgboost>=3.3.0
       - output_types: [requirements, pyproject]
         matrices:
           - matrix:
@@ -1065,7 +1053,7 @@ dependencies:
     common:
       - output_types: [conda]
         packages:
-        - &numba_cuda numba-cuda>=0.22.2
+          - &numba_cuda numba-cuda>=0.22.2
     specific:
       - output_types: [requirements, pyproject]
         matrices:
@@ -1162,7 +1150,7 @@ dependencies:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
-          - rapids-logger==0.2.*,>=0.0.0a0
+          - rapids-logger==0.3.*
       - output_types: requirements
         packages:
           # pip recognizes the index as a global option for the requirements.txt file

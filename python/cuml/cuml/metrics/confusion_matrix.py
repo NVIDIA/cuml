@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -19,7 +19,6 @@ def confusion_matrix(
     labels=None,
     sample_weight=None,
     normalize=None,
-    convert_dtype="deprecated",
 ) -> cp.ndarray:
     """Compute confusion matrix to evaluate the accuracy of a classification.
 
@@ -39,12 +38,6 @@ def confusion_matrix(
         Normalizes confusion matrix over the true (rows), predicted (columns)
         conditions or all the population. If None, confusion matrix will not be
         normalized.
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
 
     Returns
     -------
@@ -55,14 +48,12 @@ def confusion_matrix(
         y_true,
         ensure_2d=False,
         dtype=("int32", "int64"),
-        convert_dtype=convert_dtype,
         input_name="y_true",
     )
     y_pred = check_array(
         y_pred,
         ensure_2d=False,
         dtype=("int32", "int64"),
-        convert_dtype=convert_dtype,
         input_name="y_pred",
     )
     if y_true.ndim != 1 or y_pred.ndim != 1:
@@ -73,7 +64,6 @@ def confusion_matrix(
     sample_weight = check_sample_weight(
         sample_weight,
         dtype=("float32", "float64", "int32", "int64"),
-        convert_dtype=convert_dtype,
     )
     check_consistent_length(y_true, y_pred, sample_weight)
 
@@ -82,7 +72,6 @@ def confusion_matrix(
             labels,
             ensure_2d=False,
             dtype=("int32", "int64"),
-            convert_dtype=convert_dtype,
             input_name="labels",
             ensure_min_samples=0,
         )

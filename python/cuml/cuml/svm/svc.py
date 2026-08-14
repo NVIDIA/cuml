@@ -341,9 +341,7 @@ class SVC(ClassifierMixin, SVMBase):
 
     @generate_docstring(y="dense_anydtype")
     @mlfunc(set_input_type=True)
-    def fit(
-        self, X, y, sample_weight=None, *, convert_dtype="deprecated"
-    ) -> "SVC":
+    def fit(self, X, y, sample_weight=None) -> "SVC":
         """
         Fit the model with X and y.
 
@@ -360,7 +358,6 @@ class SVC(ClassifierMixin, SVMBase):
             y,
             sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="F",
             accept_sparse="csr",
             ensure_min_samples=2,
@@ -408,7 +405,7 @@ class SVC(ClassifierMixin, SVMBase):
         }
     )
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predicts the class labels for X. The returned y values are the class
         labels associated to sign(decision_function(X)).
@@ -418,7 +415,7 @@ class SVC(ClassifierMixin, SVMBase):
         if hasattr(self, "_multiclass"):
             indices = self._multiclass.predict(X)
         else:
-            res = self.decision_function(X, convert_dtype=convert_dtype)
+            res = self.decision_function(X)
             indices = (res >= 0).view(cp.int8)
 
         return ClassLabels(indices, self.classes_)
@@ -432,7 +429,7 @@ class SVC(ClassifierMixin, SVMBase):
         }
     )
     @mlfunc(preserve_index=True)
-    def decision_function(self, X, *, convert_dtype="deprecated"):
+    def decision_function(self, X):
         """
         Calculates the decision function values for X.
 
@@ -446,4 +443,4 @@ class SVC(ClassifierMixin, SVMBase):
         if hasattr(self, "_multiclass"):
             return self._multiclass.decision_function(X)
 
-        return self._predict(X, convert_dtype=convert_dtype)
+        return self._predict(X)

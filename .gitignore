@@ -81,7 +81,7 @@ compile_commands.json
 .clangd/
 
 # generally prefer 'pyproject.toml' to 'pytest.ini' for pytest options
-# ref: https://github.com/rapidsai/cuml/pull/6201
+# ref: https://github.com/NVIDIA/cuml/pull/6201
 pytest.ini
 !python/cuml/cuml/benchmark/automated/pytest.ini
 !python/cuml/cuml_accel_tests/upstream/pytest.ini

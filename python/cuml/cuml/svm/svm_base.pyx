@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import cupy as cp
 import cupyx.scipy.sparse as cp_sp
@@ -464,7 +464,7 @@ class SVMBase(InteropMixin,
         self._gamma = gamma
         self._sparse = sparse_X
 
-    def _predict(self, X, *, convert_dtype="deprecated"):
+    def _predict(self, X):
         """Perform `predict`."""
         check_is_fitted(self)
 
@@ -477,7 +477,6 @@ class SVMBase(InteropMixin,
             self,
             X,
             dtype=self.support_vectors_.dtype,
-            convert_dtype=convert_dtype,
             order="F",
             accept_sparse="csr",
         )

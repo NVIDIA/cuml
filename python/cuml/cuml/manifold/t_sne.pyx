@@ -285,9 +285,8 @@ class TSNE(InteropMixin,
         Sets logging level. It must be one of `cuml.common.logger.level_*`.
         See :ref:`verbosity-levels` for more info.
     random_state : int (default None)
-        Setting this can make repeated runs look more similar. Note, however,
-        that this highly parallelized t-SNE implementation is not completely
-        deterministic between runs, even with the same `random_state`.
+        Controls random initialization. For the FFT method, setting this value
+        makes repeated runs with the same inputs deterministic.
     method : str 'fft', 'barnes_hut' or 'exact' (default 'fft')
         'barnes_hut' and 'fft' are fast approximations. 'exact' is more
         accurate but slower.
@@ -375,11 +374,11 @@ class TSNE(InteropMixin,
 
     .. tip::
         Maaten and Linderman showcased how t-SNE can be very sensitive to both
-        the starting conditions (i.e. random initialization), and how parallel
-        versions of t-SNE can generate vastly different results between runs.
-        You can run t-SNE multiple times to settle on the best configuration.
-        Note that using the same random_state across runs does not guarantee
-        similar results each time.
+        the starting conditions (i.e. random initialization) and its
+        hyperparameters. You can run t-SNE with different random seeds to
+        compare embeddings and settle on the best configuration. For the FFT
+        method, reusing the same `random_state` and inputs reproduces the same
+        result.
 
     .. note::
         The CUDA implementation is derived from the excellent CannyLabs open
@@ -452,8 +451,8 @@ class TSNE(InteropMixin,
             "method": method,
         }
         if model.learning_rate != "auto":
-            # For now have `learning_rate="auto"` just use cuml's default
-            params["learning_rate"]: model.learning_rate
+            params["learning_rate"] = model.learning_rate
+            params["learning_rate_method"] = "none"
 
         if (max_iter := getattr(model, "max_iter", None)) is not None:
             params["max_iter"] = max_iter
@@ -558,7 +557,7 @@ class TSNE(InteropMixin,
     @generate_docstring(skip_parameters_heading=True,
                         X='dense_sparse')
     @mlfunc(set_input_type=True)
-    def fit(self, X, y=None, *, convert_dtype="deprecated", knn_graph=None) -> "TSNE":
+    def fit(self, X, y=None, *, knn_graph=None) -> "TSNE":
         """
         Fit X into an embedded space.
 
@@ -583,7 +582,6 @@ class TSNE(InteropMixin,
             self,
             X,
             dtype="float32",
-            convert_dtype=convert_dtype,
             order="F",
             accept_sparse="csr",
             ensure_min_samples=2,
@@ -682,13 +680,11 @@ class TSNE(InteropMixin,
                                                        low-dimensional space.',
                                        'shape': '(n_samples, n_components)'})
     @mlfunc(preserve_index=True)
-    def fit_transform(
-        self, X, y=None, *, convert_dtype="deprecated", knn_graph=None
-    ):
+    def fit_transform(self, X, y=None, *, knn_graph=None):
         """
         Fit X into an embedded space and return that transformed output.
         """
-        self.fit(X, convert_dtype=convert_dtype, knn_graph=knn_graph)
+        self.fit(X, knn_graph=knn_graph)
         return self.embedding_
 
     @property

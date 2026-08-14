@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cudf
@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from cudf.pandas import LOADED as cudf_pandas_active
-from numba import cuda
 
 from cuml.explainer.sampling import kmeans_sampling
 
@@ -24,8 +23,6 @@ def test_kmeans_input(input_type):
         X = cudf.DataFrame(X)
     elif input_type == "cudf-series":
         X = cudf.Series(X[:, 1])
-    elif input_type == "numba":
-        X = cuda.as_cuda_array(X)
     elif input_type == "pandas-df":
         X = pd.DataFrame(cp.asnumpy(X))
     elif input_type == "pandas-series":
@@ -56,11 +53,6 @@ def test_kmeans_input(input_type):
             summary[0].to_numpy().flatten(), [23.0, 52.0]
         )
         assert isinstance(summary[0], pd.Series)
-    elif input_type == "numba":
-        cp.testing.assert_array_equal(
-            cp.array(summary[0]).tolist(), [[1.0, 23.0], [0.0, 52.0]]
-        )
-        assert isinstance(summary[0], cuda.devicearray.DeviceNDArray)
     elif input_type == "cupy":
         cp.testing.assert_array_equal(
             summary[0].tolist(), [[1.0, 23.0], [0.0, 52.0]]

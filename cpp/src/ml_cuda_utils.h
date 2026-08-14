@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -22,13 +22,7 @@ inline cudaMemoryType memory_type(const void* p)
 {
   cudaPointerAttributes att;
   cudaError_t err = cudaPointerGetAttributes(&att, p);
-  ASSERT(err == cudaSuccess || err == cudaErrorInvalidValue, "%s", cudaGetErrorString(err));
-
-  if (err == cudaErrorInvalidValue) {
-    // Make sure the current thread error status has been reset
-    err = cudaGetLastError();
-    ASSERT(err == cudaErrorInvalidValue, "%s", cudaGetErrorString(err));
-  }
+  ASSERT(err == cudaSuccess, "cudaPointerGetAttributes failed: %s", cudaGetErrorString(err));
   return att.type;
 }
 

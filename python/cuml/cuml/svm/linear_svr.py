@@ -199,16 +199,13 @@ class LinearSVR(InteropMixin, LinearPredictMixin, RegressorMixin, Base):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(
-        self, X, y, sample_weight=None, *, convert_dtype="deprecated"
-    ) -> "LinearSVR":
+    def fit(self, X, y, sample_weight=None) -> "LinearSVR":
         """Fit the model according to the given training data."""
         coef, intercept, n_iter, _ = cuml.svm.linear.fit(
             self,
             X,
             y,
             sample_weight=sample_weight,
-            convert_dtype=convert_dtype,
             loss=self.loss,
             penalty=self.penalty,
             fit_intercept=self.fit_intercept,

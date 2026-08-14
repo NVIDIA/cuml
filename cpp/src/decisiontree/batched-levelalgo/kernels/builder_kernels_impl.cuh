@@ -212,12 +212,12 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
     dataset, work_items, splits, workload_info, partition_row_ids);
 }
 
-template <typename DatasetT, typename NodeT, typename ObjectiveT, typename DataT>
-static __global__ void leafKernel(ObjectiveT objective,
-                                  DatasetT dataset,
-                                  const NodeT* tree,
-                                  const InstanceRange* instance_ranges,
-                                  DataT* leaves)
+template <typename DatasetT, typename NodeT, typename ObjectiveT>
+static __global__ void buildLeafHistogramsKernel(ObjectiveT objective,
+                                                 DatasetT dataset,
+                                                 const NodeT* tree,
+                                                 const InstanceRange* instance_ranges,
+                                                 typename ObjectiveT::BinT* leaf_histograms)
 {
   using BinT = typename ObjectiveT::BinT;
   extern __shared__ char shared_memory[];
@@ -237,25 +237,48 @@ static __global__ void leafKernel(ObjectiveT objective,
     objective.IncrementHistogram(histogram, 1, 0, label, dataset, row);
   }
   __syncthreads();
-  if (tid == 0) {
-    ObjectiveT::SetLeafVector(
-      histogram, dataset.num_outputs, leaves + dataset.num_outputs * node_id);
+  for (int i = tid; i < dataset.num_outputs; i += blockDim.x) {
+    leaf_histograms[dataset.num_outputs * node_id + i] = histogram[i];
   }
 }
 
-template <typename DatasetT, typename NodeT, typename ObjectiveT, typename DataT>
-void launchLeafKernel(ObjectiveT objective,
-                      DatasetT& dataset,
-                      const NodeT* tree,
-                      const InstanceRange* instance_ranges,
-                      DataT* leaves,
-                      int batch_size,
-                      size_t smem_size,
-                      cudaStream_t builder_stream)
+template <typename DatasetT, typename NodeT, typename ObjectiveT>
+void launchBuildLeafHistogramsKernel(ObjectiveT objective,
+                                     DatasetT& dataset,
+                                     const NodeT* tree,
+                                     const InstanceRange* instance_ranges,
+                                     typename ObjectiveT::BinT* leaf_histograms,
+                                     int batch_size,
+                                     size_t smem_size,
+                                     cudaStream_t builder_stream)
 {
-  int num_blocks = batch_size;
-  leafKernel<<<num_blocks, TPB_DEFAULT, smem_size, builder_stream>>>(
-    objective, dataset, tree, instance_ranges, leaves);
+  auto num_blocks = ML::narrow_cast<ML::cuda_launch_t>(batch_size);
+  buildLeafHistogramsKernel<<<num_blocks, TPB_DEFAULT, smem_size, builder_stream>>>(
+    objective, dataset, tree, instance_ranges, leaf_histograms);
+}
+
+template <typename ObjectiveT, typename DataT>
+static __global__ void finalizeLeafKernel(const typename ObjectiveT::BinT* leaf_histograms,
+                                          DataT* leaves,
+                                          int num_outputs,
+                                          int batch_size)
+{
+  auto node_id = int(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (node_id >= batch_size) return;
+  ObjectiveT::SetLeafVector(
+    leaf_histograms + num_outputs * node_id, num_outputs, leaves + num_outputs * node_id);
+}
+
+template <typename ObjectiveT, typename DataT>
+void launchFinalizeLeafKernel(const typename ObjectiveT::BinT* leaf_histograms,
+                              DataT* leaves,
+                              int num_outputs,
+                              int batch_size,
+                              cudaStream_t builder_stream)
+{
+  auto num_blocks = ML::narrow_cast<ML::cuda_launch_t>(raft::ceildiv(batch_size, TPB_DEFAULT));
+  finalizeLeafKernel<ObjectiveT, DataT><<<num_blocks, TPB_DEFAULT, 0, builder_stream>>>(
+    leaf_histograms, leaves, num_outputs, batch_size);
 }
 
 /**

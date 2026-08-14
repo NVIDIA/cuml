@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import numpy as np
@@ -19,7 +19,7 @@ cdef extern from "cuml/metrics/metrics.hpp" namespace "ML::Metrics" nogil:
                                int n) except +
 
 
-def adjusted_rand_score(labels_true, labels_pred, convert_dtype="deprecated") -> float:
+def adjusted_rand_score(labels_true, labels_pred) -> float:
     """
     Adjusted_rand_score is a clustering similarity metric based on the Rand
     index and is corrected for chance.
@@ -44,7 +44,6 @@ def adjusted_rand_score(labels_true, labels_pred, convert_dtype="deprecated") ->
         ensure_min_samples=0,
         order='C',
         dtype=np.int32,
-        convert_dtype=convert_dtype,
         input_name='labels_true',
     )
     labels_pred = check_array(
@@ -53,7 +52,6 @@ def adjusted_rand_score(labels_true, labels_pred, convert_dtype="deprecated") ->
         ensure_min_samples=0,
         order='C',
         dtype=np.int32,
-        convert_dtype=convert_dtype,
         input_name='labels_pred',
     )
     if labels_true.ndim != 1 or labels_pred.ndim != 1:

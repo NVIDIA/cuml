@@ -13,6 +13,7 @@ from cuml.neighbors.nearest_neighbors import NeighborsBase
 from cuml.neighbors.weights import compute_weights
 
 from libc.stdint cimport int64_t, uintptr_t
+from libcpp cimport bool
 from libcpp.vector cimport vector
 from pylibraft.common.handle cimport handle_t
 
@@ -24,6 +25,17 @@ cdef extern from "cuml/neighbors/knn.hpp" namespace "ML" nogil:
         float *out,
         int64_t *knn_indices,
         vector[float *] &y,
+        size_t n_index_rows,
+        size_t n_query_rows,
+        int k,
+        float *sample_weight
+    ) except +
+
+    void knn_regress(
+        handle_t &handle,
+        double *out,
+        int64_t *knn_indices,
+        vector[double *] &y,
         size_t n_index_rows,
         size_t n_query_rows,
         int k,
@@ -169,10 +181,12 @@ class KNeighborsRegressor(RegressorMixin, FMajorInputTagMixin, NeighborsBase):
         }
 
     def _attrs_from_cpu(self, model):
-        return {
-            "_y": cp.asarray(model._y, dtype=cp.float32, order="F"),
-            **super()._attrs_from_cpu(model),
-        }
+        y = cp.asarray(
+            model._y,
+            dtype="float64" if model._y.dtype == "float64" else "float32",
+            order="F",
+        )
+        return {"_y": y, **super()._attrs_from_cpu(model)}
 
     def _attrs_to_cpu(self, model):
         return {
@@ -214,7 +228,7 @@ class KNeighborsRegressor(RegressorMixin, FMajorInputTagMixin, NeighborsBase):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y, *, convert_dtype="deprecated") -> "KNeighborsRegressor":
+    def fit(self, X, y) -> "KNeighborsRegressor":
         """
         Fit a GPU index for k-nearest neighbors regression model.
 
@@ -223,15 +237,9 @@ class KNeighborsRegressor(RegressorMixin, FMajorInputTagMixin, NeighborsBase):
             raise ValueError(
                 f"weights must be 'uniform', 'distance', or a callable, got {self.weights}"
             )
-        super().fit(X, convert_dtype=convert_dtype)
+        super().fit(X)
 
-        y = check_y(
-            y,
-            dtype="float32",
-            convert_dtype=convert_dtype,
-            order="F",
-            accept_multi_output=True,
-        )
+        y = check_y(y, dtype=("float32", "float64"), order="F", accept_multi_output=True)
         check_consistent_length(self._fit_X, y)
         self._y = y
 
@@ -242,16 +250,14 @@ class KNeighborsRegressor(RegressorMixin, FMajorInputTagMixin, NeighborsBase):
                                        'description': 'Predicted values',
                                        'shape': '(n_samples, n_features)'})
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Use the trained k-nearest neighbors regression model to
         predict the labels for X
 
         """
         # Get KNN results - always get distances to compute weights
-        distances, indices = self.kneighbors(
-            X, return_distance=True, convert_dtype=convert_dtype
-        )
+        distances, indices = self.kneighbors(X, return_distance=True)
         indices = cp.ascontiguousarray(indices, dtype=cp.int64)
         cdef size_t n_rows = indices.shape[0]
         cdef int64_t* inds_ptr = <int64_t*><uintptr_t>indices.data.ptr
@@ -259,16 +265,18 @@ class KNeighborsRegressor(RegressorMixin, FMajorInputTagMixin, NeighborsBase):
         res_cols = 1 if self._y.ndim == 1 else self._y.shape[1]
         res_shape = n_rows if res_cols == 1 else (n_rows, res_cols)
 
-        out = cp.zeros(res_shape, dtype=cp.float32, order="C")
+        out = cp.zeros(res_shape, dtype=self._y.dtype, order="C")
+        cdef uintptr_t out_ptr = <uintptr_t>out.data.ptr
+        cdef bool use_f32 = self._y.dtype == "float32"
 
-        cdef float* out_ptr = <float*><uintptr_t>out.data.ptr
-
-        cdef vector[float*] y_vec
-        cdef float* y_ptr
+        cdef vector[float*] y_f32_vec
+        cdef vector[double*] y_f64_vec
         for col_num in range(res_cols):
             col = self._y if res_cols == 1 else self._y[:, col_num]
-            y_ptr = <float*><uintptr_t>col.data.ptr
-            y_vec.push_back(y_ptr)
+            if use_f32:
+                y_f32_vec.push_back(<float*><uintptr_t>col.data.ptr)
+            else:
+                y_f64_vec.push_back(<double*><uintptr_t>col.data.ptr)
 
         handle = get_handle()
         cdef handle_t* handle_ = <handle_t*><size_t>handle.getHandle()
@@ -282,16 +290,28 @@ class KNeighborsRegressor(RegressorMixin, FMajorInputTagMixin, NeighborsBase):
         cdef size_t n_samples_fit = self._y.shape[0]
         cdef int n_neighbors = self.n_neighbors
         with nogil:
-            knn_regress(
-                handle_[0],
-                out_ptr,
-                inds_ptr,
-                y_vec,
-                n_samples_fit,
-                n_rows,
-                n_neighbors,
-                weights_ptr
-            )
+            if use_f32:
+                knn_regress(
+                    handle_[0],
+                    <float *>out_ptr,
+                    inds_ptr,
+                    y_f32_vec,
+                    n_samples_fit,
+                    n_rows,
+                    n_neighbors,
+                    weights_ptr
+                )
+            else:
+                knn_regress(
+                    handle_[0],
+                    <double *>out_ptr,
+                    inds_ptr,
+                    y_f64_vec,
+                    n_samples_fit,
+                    n_rows,
+                    n_neighbors,
+                    weights_ptr
+                )
 
         handle.sync()
 

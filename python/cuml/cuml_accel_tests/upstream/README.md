@@ -155,10 +155,14 @@ Useful `summarize-results.py` options:
 
 - `-v, --verbose`: Display detailed failure information.
 - `-f, --fail-below VALUE`: Set a minimum pass-rate threshold from 0 to 100.
+- `--total-fail-below VALUE`: Set a minimum total pass-rate threshold,
+  including outcomes excluded by `--exclude-xfail-reason`.
 - `--format FORMAT`: Output `summary`, `xfail_list`, or `traceback`.
 - `--limit N`: Limit output to the first `N` entries.
 - `--test-id-prefix PREFIX`: Prefix added to test IDs in generated output.
 - `-k, --filter PATTERN`: Filter tests by ID substring, case-insensitively.
+- `--exclude-xfail-reason TEXT`: Exclude xfails whose JUnit reason contains
+  `TEXT` from the pass-rate denominator. May be specified multiple times.
 - `--config FILE`: Load summary defaults from a config file, such as
   `scikit-learn/test_config.yaml` for scikit-learn tests.
 

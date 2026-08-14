@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -40,10 +40,9 @@ cdef extern from "cuml/neighbors/knn_mg.hpp" namespace "ML::KNN::opg" nogil:
     ) except +
 
 
-def _build_part_inputs(arrays, parts_to_ranks, m, n, local_rank, convert_dtype):
+def _build_part_inputs(arrays, parts_to_ranks, m, n, local_rank):
     cupy_arrays = [
-        check_array(array, order="F", dtype="float32", convert_dtype=convert_dtype)
-        for array in arrays
+        check_array(array, order="F", dtype="float32") for array in arrays
     ]
 
     cdef vector[floatData_t*] *local_parts = new vector[floatData_t*]()
@@ -92,7 +91,6 @@ class NearestNeighborsMG(NearestNeighbors):
         ncols,
         rank,
         n_neighbors,
-        convert_dtype
     ):
         """
         Query the kneighbors of an index
@@ -108,7 +106,6 @@ class NearestNeighborsMG(NearestNeighbors):
         ncols: number of columns
         rank: rank of current worker
         n_neighbors: number of nearest neighbors to query
-        convert_dtype: deprecated, will be removed in 26.10
 
         Returns
         -------
@@ -122,7 +119,7 @@ class NearestNeighborsMG(NearestNeighbors):
         # Build input arrays and descriptors for native code interfacing
         input = self.gen_local_input(
             index, index_parts_to_ranks, index_nrows, query,
-            query_parts_to_ranks, query_nrows, ncols, rank, convert_dtype)
+            query_parts_to_ranks, query_nrows, ncols, rank)
 
         query_arrays = input['arrays']['query']
         local_query_rows = [x.shape[0] for x in query_arrays]
@@ -166,16 +163,16 @@ class NearestNeighborsMG(NearestNeighbors):
     @staticmethod
     def gen_local_input(index, index_parts_to_ranks, index_nrows,
                         query, query_parts_to_ranks, query_nrows,
-                        ncols, rank, convert_dtype):
+                        ncols, rank):
         index_dask = [d[0] if isinstance(d, (list, tuple))
                       else d for d in index]
 
         index_arrays, index_local_parts, index_desc = _build_part_inputs(
-            index_dask, index_parts_to_ranks, index_nrows, ncols, rank, convert_dtype
+            index_dask, index_parts_to_ranks, index_nrows, ncols, rank
         )
 
         query_arrays, query_local_parts, query_desc = _build_part_inputs(
-            query, query_parts_to_ranks, query_nrows, ncols, rank, convert_dtype
+            query, query_parts_to_ranks, query_nrows, ncols, rank
         )
 
         return {
@@ -194,7 +191,7 @@ class NearestNeighborsMG(NearestNeighbors):
         }
 
     @staticmethod
-    def gen_local_labels(index, convert_dtype, dtype):
+    def gen_local_labels(index, dtype):
         cdef vector[vector[int*]] *out_local_parts_i32
         cdef vector[vector[float*]] *out_local_parts_f32
 
@@ -213,7 +210,6 @@ class NearestNeighborsMG(NearestNeighbors):
             arr = check_array(
                 arr,
                 dtype=dtype,
-                convert_dtype=convert_dtype,
                 order="F",
                 ensure_2d=False,
             )

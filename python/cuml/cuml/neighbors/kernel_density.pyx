@@ -211,9 +211,7 @@ class KernelDensity(InteropMixin, Base):
         self.metric_params = metric_params
 
     @mlfunc(set_input_type=True)
-    def fit(
-        self, X, y=None, sample_weight=None, *, convert_dtype="deprecated"
-    ) -> "KernelDensity":
+    def fit(self, X, y=None, sample_weight=None) -> "KernelDensity":
         """Fit the Kernel Density model on the data.
 
         Parameters
@@ -253,7 +251,6 @@ class KernelDensity(InteropMixin, Base):
             X,
             sample_weight=sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="C",
             reset=True,
         )
@@ -277,7 +274,7 @@ class KernelDensity(InteropMixin, Base):
         return self
 
     @mlfunc(preserve_index=True)
-    def score_samples(self, X, *, convert_dtype="deprecated"):
+    def score_samples(self, X):
         """Compute the log-likelihood of each sample under the model.
 
         Parameters
@@ -298,7 +295,6 @@ class KernelDensity(InteropMixin, Base):
             self,
             X,
             dtype=[self._X.dtype],
-            convert_dtype=convert_dtype,
             order="C",
         )
         if self.metric == "russellrao":

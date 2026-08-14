@@ -17,10 +17,10 @@ jobs:
     steps:
       - name: Assign PR to its author via gh CLI
         env:
-          GH_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER:   ${{ github.event.pull_request.number }}
-          LOGIN:       ${{ github.event.pull_request.user.login }}
-          REPOSITORY:  ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LOGIN: ${{ github.event.pull_request.user.login }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           # use gh pr edit to add the PR author as assignee
           # fail gracefully if the author cannot be assigned (e.g., not a collaborator)

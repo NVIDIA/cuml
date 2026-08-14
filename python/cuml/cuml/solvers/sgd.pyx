@@ -101,7 +101,6 @@ def fit_sgd(
     X,
     y,
     *,
-    convert_dtype="deprecated",
     return_classes=False,
     loss="squared_loss",
     penalty=None,
@@ -174,7 +173,6 @@ def fit_sgd(
         X,
         y,
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         order="F",
         return_classes=return_classes,
         reset=True,
@@ -406,7 +404,7 @@ class SGD(FMajorInputTagMixin, Base):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y, *, convert_dtype="deprecated") -> "SGD":
+    def fit(self, X, y) -> "SGD":
         """
         Fit the model with X and y.
 
@@ -415,7 +413,6 @@ class SGD(FMajorInputTagMixin, Base):
             self,
             X,
             y,
-            convert_dtype=convert_dtype,
             loss=self.loss,
             penalty=self.penalty,
             alpha=self.alpha,
@@ -443,7 +440,7 @@ class SGD(FMajorInputTagMixin, Base):
         }
     )
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predicts the y for X.
 
@@ -454,7 +451,6 @@ class SGD(FMajorInputTagMixin, Base):
             self,
             X,
             dtype=self.coef_.dtype,
-            convert_dtype=convert_dtype,
             order="F",
         )
 

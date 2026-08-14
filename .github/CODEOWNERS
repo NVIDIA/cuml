@@ -1,37 +1,38 @@
 # fallback (overridden by matches later in the file)
-* @rapidsai/ci-codeowners
+* @NVIDIA/adi-ci-codeowners
 
 #cpp code owners
-cpp/               @rapidsai/cuml-cpp-codeowners
+cpp/               @NVIDIA/cuml-cpp-codeowners
 
 # docs
-/CONTRIBUTING.md @rapidsai/cuml-python-codeowners
-/README.md       @rapidsai/cuml-python-codeowners
-/docs/           @rapidsai/cuml-python-codeowners
-/wiki/           @rapidsai/cuml-python-codeowners
-/wiki/cpp        @rapidsai/cuml-cpp-codeowners
+/CONTRIBUTING.md @NVIDIA/cuml-python-codeowners
+/README.md       @NVIDIA/cuml-python-codeowners
+/docs/           @NVIDIA/cuml-python-codeowners
+/wiki/           @NVIDIA/cuml-python-codeowners
+/wiki/cpp        @NVIDIA/cuml-cpp-codeowners
 
 #python code owners
-python/            @rapidsai/cuml-python-codeowners
-/notebooks/        @rapidsai/cuml-python-codeowners
+python/            @NVIDIA/cuml-python-codeowners
+/notebooks/        @NVIDIA/cuml-python-codeowners
 
 #cmake code owners
-CMakeLists.txt @rapidsai/cuml-cmake-codeowners
-*.cmake        @rapidsai/cuml-cmake-codeowners
-**/cmake/      @rapidsai/cuml-cmake-codeowners
+CMakeLists.txt @NVIDIA/cuml-cmake-codeowners
+*.cmake        @NVIDIA/cuml-cmake-codeowners
+**/cmake/      @NVIDIA/cuml-cmake-codeowners
 
 #CI code owners
-/.github/                @rapidsai/ci-codeowners
-/ci/                     @rapidsai/ci-codeowners
-/.coderabbit.yaml        @rapidsai/ci-codeowners
+/.github/                @NVIDIA/adi-ci-codeowners
+/.coderabbit.yaml        @NVIDIA/adi-ci-codeowners
+/.yamllint.yaml          @NVIDIA/adi-ci-codeowners
+/ci/                     @NVIDIA/adi-ci-codeowners
 
 #packaging code owners
-/.pre-commit-config.yaml @rapidsai/packaging-codeowners
-/.devcontainer/          @rapidsai/packaging-codeowners
-/conda/                  @rapidsai/packaging-codeowners
-dependencies.yaml        @rapidsai/packaging-codeowners
-/build.sh                @rapidsai/packaging-codeowners
-pyproject.toml           @rapidsai/packaging-codeowners
+/.pre-commit-config.yaml @NVIDIA/adi-packaging-codeowners
+/.devcontainer/          @NVIDIA/adi-packaging-codeowners
+/conda/                  @NVIDIA/adi-packaging-codeowners
+dependencies.yaml        @NVIDIA/adi-packaging-codeowners
+/build.sh                @NVIDIA/adi-packaging-codeowners
+pyproject.toml           @NVIDIA/adi-packaging-codeowners
 
 # Ops code owners
-/SECURITY.md             @rapidsai/ops-codeowners
+/SECURITY.md             @NVIDIA/adi-ops-codeowners

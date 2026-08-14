@@ -20,7 +20,7 @@ class LinearPredictMixin:
         }
     )
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predicts `y` values for `X`.
         """
@@ -30,7 +30,6 @@ class LinearPredictMixin:
             self,
             X,
             dtype=self.coef_.dtype,
-            convert_dtype=convert_dtype,
             order=None,
             accept_sparse=True,
         )
@@ -51,7 +50,7 @@ class LinearClassifierMixin:
         },
     )
     @mlfunc(preserve_index=True)
-    def decision_function(self, X, *, convert_dtype="deprecated"):
+    def decision_function(self, X):
         """Predict confidence scores for samples."""
         check_is_fitted(self)
 
@@ -59,7 +58,6 @@ class LinearClassifierMixin:
             self,
             X,
             dtype=self.coef_.dtype,
-            convert_dtype=convert_dtype,
             order=None,
             accept_sparse=True,
         )

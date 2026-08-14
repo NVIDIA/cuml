@@ -197,9 +197,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
     )
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(
-        self, X, y, sample_weight=None, *, convert_dtype="deprecated"
-    ) -> "RandomForestRegressor":
+    def fit(self, X, y, sample_weight=None) -> "RandomForestRegressor":
         """
         Perform Random Forest Regression on the input data
 
@@ -210,7 +208,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             y,
             sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="A",
             sample_weight_dtype="float64",
             reset=True,
@@ -230,7 +227,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         self,
         X,
         *,
-        convert_dtype="deprecated",
         layout="depth_first",
         default_chunk_size=None,
         align_bytes=None,
@@ -241,13 +237,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         Parameters
         ----------
         X : {}
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
-
         layout : string (default = 'depth_first')
             Specifies the in-memory layout of nodes in FIL forests. Options:
             'depth_first', 'layered', 'breadth_first'.
@@ -274,7 +263,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             self,
             X,
             dtype=nvforest_model.forest.get_dtype(),
-            convert_dtype=convert_dtype,
             order="C",
             mem_type="device",
         )
@@ -303,7 +291,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         y,
         sample_weight=None,
         *,
-        convert_dtype="deprecated",
         layout="depth_first",
         default_chunk_size=None,
         align_bytes=None,
@@ -317,13 +304,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         y : {}
         sample_weight : array-like, shape=(n_samples,), default=None
             Sample weights for weighted R^2.
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
-
         layout : string (default = 'depth_first')
             Specifies the in-memory layout of nodes in FIL forests. Options:
             'depth_first', 'layered', 'breadth_first'.
@@ -345,7 +325,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             X,
             y,
             sample_weight=sample_weight,
-            convert_dtype=convert_dtype,
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,

@@ -314,14 +314,7 @@ class LinearRegression(InteropMixin,
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(
-        self,
-        X,
-        y,
-        sample_weight=None,
-        *,
-        convert_dtype="deprecated",
-    ) -> "LinearRegression":
+    def fit(self, X, y, sample_weight=None) -> "LinearRegression":
         """
         Fit the model with X and y.
 
@@ -333,7 +326,6 @@ class LinearRegression(InteropMixin,
             y,
             sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             ensure_min_samples=2,
             accept_sparse=True,
             accept_large_sparse=True,

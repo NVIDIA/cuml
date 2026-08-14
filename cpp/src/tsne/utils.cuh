@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -12,6 +12,8 @@
 #include <raft/linalg/norm.cuh>
 #include <raft/random/rng.cuh>
 #include <raft/stats/sum.cuh>
+#include <raft/util/cuda_utils.cuh>
+#include <raft/util/cudart_utils.hpp>
 #include <raft/util/device_atomics.cuh>
 
 #include <rmm/exec_policy.hpp>
@@ -19,6 +21,7 @@
 #include <cuda/functional>
 #include <cuda_runtime.h>
 #include <thrust/device_ptr.h>
+#include <thrust/extrema.h>
 #include <thrust/reduce.h>
 #include <thrust/transform.h>
 
@@ -32,7 +35,8 @@
 
 #include <cfloat>
 #include <chrono>
-#include <iostream>
+#include <cmath>
+#include <cstdlib>
 
 /**
  * @brief Performs P + P.T.
@@ -41,7 +45,7 @@
  * @param[in] maximum: The maximum value in the output vector you want.
  * @param[in] size: The size of the output vector.
  * @param[in] stream: The GPU stream.
- * @param[in] seed: If seed == -1, then the output is pure randomness. If >= 0, then you can
+ * @param[in] seed: If seed < 0, then the output is pure randomness. If >= 0, then you can
  * reproduce TSNE.
  */
 
@@ -53,7 +57,7 @@ void random_vector(value_t* vector,
                    cudaStream_t stream,
                    long long seed = -1)
 {
-  if (seed <= 0) {
+  if (seed < 0) {
     // Get random seed based on time of day
     struct timeval tp;
     gettimeofday(&tp, NULL);
