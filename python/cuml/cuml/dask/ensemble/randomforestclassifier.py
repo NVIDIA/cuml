@@ -101,7 +101,7 @@ class RandomForestClassifier(
         Seed for the random number generator. Unseeded by default.
     ignore_empty_partitions: optional, boolean
         Deprecated. This parameter no longer has any effect and
-        will be removed in release 26.10.
+        will be removed in release 26.12.
 
     Examples
     --------
@@ -179,7 +179,7 @@ class RandomForestClassifier(
             **y must be partitioned the same way as X**
         broadcast_data : bool, optional
             Deprecated. This parameter no longer has effect and will
-            be removed in release 26.10.
+            be removed in release 26.12.
         """
         if broadcast_data is not None:
             warnings.warn(
@@ -241,7 +241,7 @@ class RandomForestClassifier(
             eagerly executed one.
         broadcast_data : bool, optional
             Deprecated. This parameter no longer has effect and will
-            be removed in release 26.10.
+            be removed in release 26.12.
 
         Returns
         -------
