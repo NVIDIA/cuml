@@ -85,6 +85,8 @@ class BaseRandomForestModel(object):
                 "Training data was placed on workers that were not selected "
                 f"for this estimator: {sorted(unknown_workers)}"
             )
+        if not data.worker_to_parts:
+            raise ValueError("No mapping found between workers and partitions")
 
         total_rows = sum(total for _, total in data._worker_sizes.values())
         comms = Comms(
