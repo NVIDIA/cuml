@@ -90,10 +90,9 @@ class BaseRandomForestModel(object):
             client=self.client,
             streams_per_handle=1,
         )
-        comms.init(workers=data.workers)
-
         futures = []
         try:
+            comms.init(workers=data.workers)
             for worker, worker_data in data.worker_to_parts.items():
                 future = self.client.submit(
                     _func_fit,
