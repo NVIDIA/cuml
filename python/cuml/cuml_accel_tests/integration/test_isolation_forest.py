@@ -50,4 +50,4 @@ def test_isolation_forest_gpu_fit_attrs_raise_until_conversion_supported(
     assert result._gpu is not None
 
     with pytest.raises(ValueError, match="not supported"):
-        result.offset_
+        _ = result.offset_
