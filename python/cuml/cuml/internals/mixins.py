@@ -1,8 +1,8 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-
+import warnings
 from dataclasses import dataclass, field
 
 from sklearn.utils import (
@@ -16,6 +16,28 @@ from sklearn.utils import (
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.outputs import ClassLabels, mlfunc
+
+
+class DeprecatedGetFeatureNamesMixin:
+    """Defines the deprecated `get_feature_names` method."""
+
+    def get_feature_names(self, input_features=None):
+        """Return feature names for output features.
+
+        .. deprecated:: 26.10
+
+            This method was deprecated in version 26.10 and will be removed in
+            version 26.12. Please use `get_feature_names_out` instead.
+        """
+        warnings.warn(
+            "`get_feature_names` was deprecated in version 26.10 and will be "
+            "removed in version 26.12. Please use `get_feature_names_out` instead",
+            FutureWarning,
+        )
+        return self.get_feature_names_out(
+            input_features=input_features
+        ).tolist()
+
 
 ###############################################################################
 #                          Tag Functionality Mixin                            #
