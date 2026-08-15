@@ -210,11 +210,16 @@ def test_make_column_transformer_sparse(
 def test_column_transformer_get_feature_names_out(clf_dataset, remainder):
     X_np, X = clf_dataset
 
+    bool_mask = [False] * X_np.shape[1]
+    bool_mask[0] = True
+    bool_mask[-1] = True
+
     cu_transformer = cuColumnTransformer(
         [
             ("t1", cuPolynomialFeatures(), slice(0, 2)),
             ("t2", cuPolynomialFeatures(), [0, 2]),
             ("t3", cuPolynomialFeatures(), lambda X: [1]),
+            ("t4", cuPolynomialFeatures(), bool_mask),
         ],
         remainder=remainder,
     ).fit(X)
@@ -225,6 +230,7 @@ def test_column_transformer_get_feature_names_out(clf_dataset, remainder):
             ("t1", skPolynomialFeatures(), slice(0, 2)),
             ("t2", skPolynomialFeatures(), [0, 2]),
             ("t3", skPolynomialFeatures(), lambda X: [1]),
+            ("t4", skPolynomialFeatures(), bool_mask),
         ],
         remainder=remainder,
     ).fit(X_np)

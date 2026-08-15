@@ -370,13 +370,14 @@ def test_onehot_category_class_count(total_classes: int):
 
 
 @pytest.mark.parametrize("named", [True, False])
-def test_onehot_get_feature_names_out(named):
+@pytest.mark.parametrize("drop", [None, "first"])
+def test_onehot_get_feature_names_out(named, drop):
     columns = [["apple", "banana", "strawberry"], [0, 1, 2]]
     names = ["fruits", "sizes"] if named else [0, 1]
     X = pd.DataFrame(dict(zip(names, columns)))
 
-    cu_model = OneHotEncoder().fit(X)
-    sk_model = SkOneHotEncoder().fit(X)
+    cu_model = OneHotEncoder(drop=drop).fit(X)
+    sk_model = SkOneHotEncoder(drop=drop).fit(X)
 
     res = cu_model.get_feature_names_out()
     sol = sk_model.get_feature_names_out()

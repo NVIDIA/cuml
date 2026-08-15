@@ -504,7 +504,14 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, BaseEncoder):
 
         out = []
         for i, (col, cats) in enumerate(zip(input_features, self.categories_)):
-            drop_idx = None if self.drop_idx_ is None else self.drop_idx_[i]
+            # TODO: when `drop_idx_` is actually implemented properly, this can
+            # be simplified to
+            # drop_idx = None if self.drop_idx_ is None else self.drop_idx_[i]
+            drop_idx = cp.asnumpy(
+                None
+                if self.drop_idx_ is None
+                else self.drop_idx_[self._features[i]]
+            ).item()
             if drop_idx is not None:
                 cats = np.delete(cats, drop_idx)
             out.extend(f"{col}_{val!s}" for val in cats)

@@ -786,9 +786,12 @@ class ColumnTransformer(
                 inputs = [input_features[col]]
             elif isinstance(col, str):
                 inputs = [col]
-            elif isinstance(col, list):
+            else:
+                col = cpu_np.asarray(col, dtype=object)
                 if all(isinstance(c, str) for c in col):
-                    inputs = col
+                    inputs = col.tolist()
+                elif all(isinstance(c, bool) for c in col):
+                    inputs = input_features[col.astype(bool)].tolist()
                 else:
                     inputs = [input_features[c] for c in col]
 

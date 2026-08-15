@@ -766,6 +766,7 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _VectorizerMixin):
         feature_names_out : numpy.ndarray of str objects.
             Transformed feature names.
         """
+        # TODO: use `check_is_fitted` once this class subclasses from `Base`
         return self.vocabulary_.to_numpy(dtype=object)
 
 
