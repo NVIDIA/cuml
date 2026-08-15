@@ -839,16 +839,11 @@ def test_check_array_dataframe_mixed_dtypes(kind, mem_type):
             "z": ["1", "2", "3.5", "4", "5"],
         }
     )
-    # Non-numeric columns -> object dtype by default
-    if is_cuda_output(mem_type, df):
-        # cupy doesn't support object dtypes. We don't care what the exception
-        # is here, just that one is raised.
-        with pytest.raises(Exception, match="object"):
-            check_array(df, mem_type=mem_type)
-    else:
-        # dtype=None does no conversion by default
-        out = check_array(df, mem_type=mem_type)
-        assert out.dtype == "object"
+    # Non-numeric columns use host object dtype because cupy cannot represent
+    # arbitrary Python objects.
+    out = check_array(df, mem_type=mem_type)
+    assert isinstance(out, np.ndarray)
+    assert out.dtype == "object"
 
     # Can coerce all columns to specified dtype
     out = check_array(df, mem_type=mem_type, dtype=("float32", "float64"))
@@ -904,13 +899,9 @@ def test_check_array_object_dtype(kind, mem_type):
     elif kind == "pandas":
         array = pd.Series(array)
 
-    if is_cuda_output(mem_type, array):
-        # cupy doesn't support object dtypes
-        with pytest.raises((ValueError, TypeError), match="object|str"):
-            check_array(array, mem_type=mem_type, ensure_2d=False)
-    else:
-        out = check_array(array, mem_type=mem_type, ensure_2d=False)
-        assert out.dtype == "object"
+    out = check_array(array, mem_type=mem_type, ensure_2d=False)
+    assert isinstance(out, np.ndarray)
+    assert out.dtype == "object"
 
     # Can coerce to numeric if specified
     out = check_array(

@@ -13,6 +13,7 @@ from sklearn.compose import make_column_selector as sk_make_column_selector
 from sklearn.compose import (
     make_column_transformer as sk_make_column_transformer,
 )
+from sklearn.impute import SimpleImputer as skSimpleImputer
 from sklearn.preprocessing import Normalizer as skNormalizer
 from sklearn.preprocessing import OneHotEncoder as skOneHotEncoder
 from sklearn.preprocessing import PolynomialFeatures as skPolynomialFeatures
@@ -24,6 +25,7 @@ from cuml.compose import make_column_transformer as cu_make_column_transformer
 from cuml.preprocessing import Normalizer as cuNormalizer
 from cuml.preprocessing import OneHotEncoder as cuOneHotEncoder
 from cuml.preprocessing import PolynomialFeatures as cuPolynomialFeatures
+from cuml.preprocessing import SimpleImputer as cuSimpleImputer
 from cuml.preprocessing import StandardScaler as cuStandardScaler
 from cuml.testing.test_preproc_utils import (  # noqa: F401
     assert_allclose,
@@ -352,3 +354,130 @@ def test_column_transform_properly_handles_sub_output_type():
         ]
     ).fit(df)
     transformer.transform(df)
+
+
+def test_column_transformer_simple_imputer_categorical_cudf():
+    """Regression test for https://github.com/rapidsai/cuml/issues/6183
+
+    ColumnTransformer + SimpleImputer on a native cuDF DataFrame with
+    categorical/string columns used to raise (KeyError / AttributeError on
+    ``.dtype``, later ``ValueError: Unsupported dtype object`` after
+    unrelated refactors). impute-then-transform is one of the most common
+    sklearn pipeline shapes, so this must work end to end.
+    """
+    df = cudf.DataFrame(
+        {
+            "num1": [1.0, np.nan, 3.0],
+            "num2": [4.0, 5.0, np.nan],
+            "cat1": ["a", None, "c"],
+            "cat2": ["x", "y", None],
+        }
+    )
+    df_np = df.to_pandas()
+
+    num_cols = ["num1", "num2"]
+    cat_cols = ["cat1"]
+    mode_cols = ["cat2"]
+
+    cu_transformer = cuColumnTransformer(
+        transformers=[
+            (
+                "num",
+                cuSimpleImputer(strategy="constant", fill_value=0),
+                num_cols,
+            ),
+            (
+                "cat",
+                cuSimpleImputer(
+                    strategy="constant",
+                    fill_value="missing",
+                    missing_values=pd.NA,
+                ),
+                cat_cols,
+            ),
+            (
+                "mod",
+                cuSimpleImputer(
+                    strategy="most_frequent", missing_values=pd.NA
+                ),
+                mode_cols,
+            ),
+        ]
+    )
+    cu_result = cu_transformer.fit_transform(df)
+
+    sk_transformer = skColumnTransformer(
+        transformers=[
+            (
+                "num",
+                skSimpleImputer(strategy="constant", fill_value=0),
+                num_cols,
+            ),
+            (
+                "cat",
+                skSimpleImputer(
+                    strategy="constant",
+                    fill_value="missing",
+                    missing_values=pd.NA,
+                ),
+                cat_cols,
+            ),
+            (
+                "mod",
+                skSimpleImputer(
+                    strategy="most_frequent", missing_values=pd.NA
+                ),
+                mode_cols,
+            ),
+        ]
+    )
+    sk_result = sk_transformer.fit_transform(df_np)
+
+    np.testing.assert_array_equal(np.asarray(cu_result), sk_result)
+
+
+def test_simple_imputer_add_indicator_object_cudf():
+    """Regression: SimpleImputer(add_indicator=True) on string/object columns
+    must stack the imputed (host object) data with the indicator mask on host
+    instead of routing the host array through cupy.hstack (issue #6183 follow-up).
+    """
+    df = cudf.DataFrame(
+        {
+            "cat1": ["a", None, "c", "a"],
+            "cat2": ["x", "y", None, "x"],
+        }
+    )
+    df_np = df.to_pandas()
+    cu_imp = cuSimpleImputer(
+        strategy="most_frequent", missing_values=pd.NA, add_indicator=True
+    )
+    sk_imp = skSimpleImputer(
+        strategy="most_frequent", missing_values=pd.NA, add_indicator=True
+    )
+
+    cu_result = cu_imp.fit_transform(df)
+    sk_result = sk_imp.fit_transform(df_np)
+
+    np.testing.assert_array_equal(np.asarray(cu_result), np.asarray(sk_result))
+
+
+def test_simple_imputer_add_indicator_clone_params():
+    imputer = cuSimpleImputer(add_indicator=True, missing_values=pd.NA)
+
+    cloned = sk_clone(imputer)
+
+    params = cloned.get_params()
+    assert params["add_indicator"] is True
+    assert params["missing_values"] is pd.NA
+
+
+def test_is_object_dtype_handles_series_and_extension_dtypes():
+    from cuml.internals.outputs import _is_object_dtype
+
+    assert _is_object_dtype(pd.Series(["a", "b"])) is True
+    assert _is_object_dtype(pd.Series([1, 2, 3])) is False
+    assert _is_object_dtype(pd.Series(pd.Categorical(["a", "b"]))) is False
+    assert _is_object_dtype(pd.Series(["a"], dtype="string")) is False
+    assert _is_object_dtype(pd.DataFrame({"a": ["x"], "b": [1]})) is True
+    assert _is_object_dtype(np.array(["a", "b"], dtype=object)) is True
+    assert _is_object_dtype(np.array([1, 2, 3])) is False

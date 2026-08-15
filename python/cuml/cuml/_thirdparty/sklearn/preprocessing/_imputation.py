@@ -29,7 +29,7 @@ from cuml.internals.mixins import (
     StringInputTagMixin,
     _ensure_transformer_tags,
 )
-from cuml.internals.outputs import mlfunc, ReflectedAttr
+from cuml.internals.outputs import _is_object_dtype, mlfunc, ReflectedAttr
 from cuml.internals.validation import check_is_fitted, check_inputs
 
 from ....thirdparty_adapters import (
@@ -140,7 +140,6 @@ class _BaseImputer(TransformerMixin):
         if not self.add_indicator:
             return X_imputed
 
-        hstack = sparse.hstack if sparse.issparse(X_imputed) else np.hstack
         if X_indicator is None:
             raise ValueError(
                 "Data from the missing indicator are not provided. Call "
@@ -148,7 +147,17 @@ class _BaseImputer(TransformerMixin):
                 "implementation."
             )
 
-        return hstack((X_imputed, X_indicator))
+        if sparse.issparse(X_imputed):
+            return sparse.hstack((X_imputed, X_indicator))
+
+        if _is_object_dtype(X_imputed) or _is_object_dtype(X_indicator):
+            arrays = [
+                array.get() if isinstance(array, np.ndarray) else array
+                for array in (X_imputed, X_indicator)
+            ]
+            return cpu_np.hstack(arrays)
+
+        return np.hstack((X_imputed, X_indicator))
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
@@ -260,10 +269,12 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
     @classmethod
     def _get_param_names(cls):
         return super()._get_param_names() + [
+            "missing_values",
             "strategy",
             "fill_value",
             "verbose",
-            "copy"
+            "copy",
+            "add_indicator",
         ]
 
     def _validate_input(self, X, in_fit):
@@ -423,7 +434,11 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
 
         # Constant
         elif strategy == "constant":
-            return np.full(X.shape[1], fill_value, dtype=X.dtype)
+            # Object-dtype X (e.g. strings) lives on host, since cupy has no
+            # way to represent it on device. Dispatch to X's own module so
+            # this works for both device (numeric) and host (object) input.
+            xp = np.get_array_module(X)
+            return xp.full(X.shape[1], fill_value, dtype=X.dtype)
 
     @mlfunc
     def transform(self, X):
@@ -449,14 +464,18 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
         if self.strategy == "constant":
             valid_statistics = statistics
         else:
+            # Object-dtype statistics (e.g. strings) live on host, since cupy
+            # has no way to represent them on device. Dispatch to their own
+            # module so this works for both device and host input.
+            xp = np.get_array_module(statistics)
             # same as np.isnan but also works for object dtypes
             invalid_mask = _get_mask(statistics, np.nan)
-            valid_mask = np.logical_not(invalid_mask)
+            valid_mask = xp.logical_not(invalid_mask)
             valid_statistics = statistics[valid_mask]
-            valid_statistics_indexes = np.flatnonzero(valid_mask)
+            valid_statistics_indexes = xp.flatnonzero(valid_mask)
 
             if invalid_mask.any():
-                missing = np.arange(X.shape[1])[invalid_mask]
+                missing = xp.arange(X.shape[1])[invalid_mask]
                 if self.verbose:
                     warnings.warn("Deleting features without "
                                   "observed values: %s" % missing)
@@ -481,8 +500,9 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
             if self.strategy == "constant":
                 X[mask] = valid_statistics[0]
             else:
+                xp = np.get_array_module(mask)
                 for i, vi in enumerate(valid_statistics_indexes):
-                    feature_idxs = np.flatnonzero(mask[:, vi])
+                    feature_idxs = xp.flatnonzero(mask[:, vi])
                     X[feature_idxs, vi] = valid_statistics[i]
 
         X = super()._concatenate_indicator(X, X_indicator)

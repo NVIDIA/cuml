@@ -25,6 +25,7 @@ from itertools import chain, compress
 import cudf
 import cupy as np
 import numba
+import numpy as cpu_np
 import pandas as pd
 import scipy.sparse as sp_sparse
 from cupyx.scipy import sparse as cu_sparse
@@ -35,6 +36,7 @@ from sklearn.utils import Bunch
 
 import cuml
 from cuml.internals.global_settings import _global_settings_data
+from cuml.internals.outputs import _is_object_dtype
 from cuml.internals.validation import check_is_fitted, check_features, check_array
 
 from ..preprocessing._function_transformer import FunctionTransformer
@@ -982,6 +984,12 @@ class ColumnTransformer(TransformerMixin, BaseComposition, BaseEstimator):
             return cu_sparse.hstack(converted_Xs).tocsr()
         else:
             Xs = [f.toarray() if issparse(f) else f for f in Xs]
+            if any(_is_object_dtype(X) for X in Xs):
+                # Object dtype (e.g. string columns from a categorical
+                # SimpleImputer) has no device representation - cupy has no
+                # way to store it. Stack on host instead.
+                Xs = [X.get() if isinstance(X, np.ndarray) else X for X in Xs]
+                return cpu_np.hstack(Xs)
             return np.hstack(Xs)
 
 

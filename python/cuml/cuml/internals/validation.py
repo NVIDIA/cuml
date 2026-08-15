@@ -681,6 +681,15 @@ def check_array(
         # No original dtype, use first provided dtype
         dtype = dtype[0]
 
+    # Object dtype (e.g. strings) has no device-memory representation - cupy
+    # has no way to store arbitrary Python objects on the GPU. Force host
+    # output in that case regardless of the requested `mem_type`, rather than
+    # crashing when attempting the device conversion below. This is required
+    # for estimators (e.g. SimpleImputer) that explicitly support categorical
+    # / string data with an object dtype.
+    if isinstance(dtype, np.dtype) and dtype.kind == "O":
+        mem_type = "host"
+
     # Coerce `array` to numpy/cupy/scipy.sparse/cupyx.scipy.sparse values as
     # requested. For dataframe-like inputs also extract the index for later use.
     index = None
