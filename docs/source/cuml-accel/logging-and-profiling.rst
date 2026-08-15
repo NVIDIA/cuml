@@ -58,7 +58,7 @@ Jupyter/IPython
 The log level may be set in Jupyter notebooks or IPython through the
 ``cuml.accel.log_level`` line magic after loading the ``cuml.accel`` extension:
 
-.. code-block:: python
+.. code-block:: ipython
 
    # Load the cuml.accel extension, enabling cuml.accel
    %load_ext cuml.accel
@@ -156,7 +156,7 @@ whole script.
 If running in IPython or Jupyter, you may use the ``cuml.accel.profile`` cell
 magic to profile code running in a single cell.
 
-.. code-block:: python
+.. code-block:: ipython
 
    %%cuml.accel.profile
 
@@ -258,7 +258,7 @@ line profiler on your whole script.
 If running in IPython or Jupyter, you may use the ``cuml.accel.line_profile``
 cell magic to run the line profiler on code in a single cell.
 
-.. code-block:: python
+.. code-block:: ipython
 
    %%cuml.accel.line_profile
 

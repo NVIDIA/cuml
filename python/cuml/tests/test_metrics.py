@@ -390,7 +390,6 @@ def test_silhouette_samples_batched(metric, chunk_divider, labeled_clusters):
         assert False
 
 
-@pytest.mark.xfail
 def test_silhouette_score_batched_non_monotonic():
     vecs = np.array(
         [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [10.0, 10.0, 10.0]]

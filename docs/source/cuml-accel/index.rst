@@ -27,7 +27,7 @@ Run a script through the ``cuml.accel`` command-line interface:
 
 Or load the extension at the top of a Jupyter notebook, before other imports:
 
-.. code-block:: python
+.. code-block:: ipython
 
    %load_ext cuml.accel
 
