@@ -22,7 +22,6 @@ import treelite
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import (
     InteropMixin,
-    UnsupportedOnCPU,
     UnsupportedOnGPU,
 )
 from cuml.internals.mixins import CMajorInputTagMixin
@@ -352,6 +351,113 @@ cdef class _IsolationForestModelFloat64(_IsolationForestModel):
             )
 
 
+_SAMPLE_COUNT_ATOL = 1e-4
+
+
+def _invert_average_path_length(value):
+    """Recovers the integer sample count ``n`` with ``average_path_length(n)``
+    equal to ``value``.
+
+    The Treelite export of an isolation forest does not carry per-node sample
+    counts, but every leaf value is ``depth + average_path_length(n_samples)``,
+    so the count is recoverable because it is an integer. The average path
+    length is strictly increasing in ``n``, with adjacent values separated by
+    roughly ``2 / n``: recovery is exact for realistic ``max_samples`` and
+    fails loudly once the separation approaches the tolerance rather than
+    silently selecting a nearby count.
+    """
+    from sklearn.ensemble._iforest import _average_path_length
+
+    def apl(n):
+        return float(_average_path_length(np.asarray([n]))[0])
+
+    if value < -_SAMPLE_COUNT_ATOL:
+        raise ValueError(
+            "Cannot recover a leaf sample count from negative average path "
+            f"length {value!r}."
+        )
+    if value <= _SAMPLE_COUNT_ATOL:
+        return 1
+    # Bracket the value: apl is strictly increasing for n >= 2.
+    hi = 2
+    while apl(hi) < value:
+        hi *= 2
+    lo = hi // 2
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if apl(mid) < value:
+            lo = mid
+        else:
+            hi = mid
+    # The count is lo or hi; accept exactly one candidate within tolerance.
+    matches = [n for n in (lo, hi) if abs(apl(n) - value) <= _SAMPLE_COUNT_ATOL]
+    if len(matches) != 1:
+        raise ValueError(
+            f"Cannot recover a leaf sample count from average path length "
+            f"{value!r}: {'no' if not matches else 'more than one'} integer "
+            f"count matches within tolerance {_SAMPLE_COUNT_ATOL}. The "
+            "Treelite export does not carry sample counts and the leaf values "
+            "no longer identify them unambiguously."
+        )
+    return matches[0]
+
+
+def _recover_node_sample_counts(tree, n_samples):
+    """Recovers ``n_node_samples`` for every node of one exported isolation
+    tree.
+
+    Leaf counts come from inverting the leaf values; internal counts are
+    bottom-up sums. The root count must equal ``n_samples`` (the per-tree
+    sample count), which validates every inversion in the tree at once.
+    """
+    children_left = tree.children_left
+    children_right = tree.children_right
+    # Node depths are 1-based; leaf values encode the 0-based depth.
+    depths = tree.compute_node_depths()
+    values = tree.value.reshape(-1)
+    counts = np.zeros(tree.node_count, dtype=np.int64)
+    # Children are strictly deeper than their parent, so descending depth
+    # order processes every child before its parent.
+    for node in np.argsort(depths)[::-1]:
+        if children_left[node] == -1:
+            counts[node] = _invert_average_path_length(
+                values[node] - (depths[node] - 1)
+            )
+        else:
+            counts[node] = (
+                counts[children_left[node]] + counts[children_right[node]]
+            )
+    if counts[0] != n_samples:
+        raise ValueError(
+            f"Recovered leaf sample counts sum to {counts[0]} at the root, "
+            f"expected {n_samples}. The exported leaf values do not identify "
+            "the per-node sample counts."
+        )
+    return counts
+
+
+def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
+    """Rebuilds one fitted sklearn ``ExtraTreeRegressor`` from one tree of the
+    Treelite export, restoring the per-node sample counts that isolation
+    forest scoring requires."""
+    from sklearn.tree import ExtraTreeRegressor
+
+    counts = _recover_node_sample_counts(exported_tree.tree_, n_samples)
+    state = exported_tree.tree_.__getstate__()
+    nodes = state["nodes"].copy()
+    nodes["n_node_samples"] = counts
+    nodes["weighted_n_node_samples"] = counts.astype(np.float64)
+    rebuilt = ExtraTreeRegressor(max_features=1.0, max_depth=max_depth)
+    rebuilt.n_features_in_ = n_features
+    rebuilt.n_outputs_ = 1
+    tree = type(exported_tree.tree_)(
+        n_features, np.asarray([1], dtype=np.intp), 1
+    )
+    tree.__setstate__({**state, "nodes": nodes})
+    rebuilt.tree_ = tree
+    return rebuilt
+
+
 class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     """
     GPU-accelerated Isolation Forest for anomaly detection.
@@ -463,7 +569,10 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     decision-function values are predicted as anomalies.
 
     Fitted models can be exported to Treelite with ``as_treelite()`` and loaded
-    into nvForest with ``as_nvforest()``.
+    into nvForest with ``as_nvforest()``. ``as_sklearn()`` converts a fitted
+    model into an equivalent ``sklearn.ensemble.IsolationForest``;
+    ``estimators_samples_`` is not available on the converted model because
+    cuML does not record per-tree sample indices.
     """
 
     _cpu_class_path = "sklearn.ensemble.IsolationForest"
@@ -548,9 +657,48 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         )
 
     def _attrs_to_cpu(self, model):
-        raise UnsupportedOnCPU(
-            "Conversion of a fitted cuML IsolationForest is not supported"
-        )
+        """Converts fitted state to sklearn attributes.
+
+        The tree structure comes from the Treelite export; the per-node sample
+        counts that isolation forest scoring requires are recovered from the
+        leaf values (see ``_invert_average_path_length``). ``_seeds`` is not
+        transferable because cuML does not record per-tree sample indices, so
+        ``estimators_samples_`` is unavailable on the converted model.
+        """
+        from sklearn.ensemble._iforest import _average_path_length
+        from sklearn.tree import ExtraTreeRegressor
+
+        tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
+        exported = treelite.sklearn.export_model(tl_model)
+        n_features = self.n_features_in_
+        n_samples = int(self.max_samples_)
+        max_depth = int(np.ceil(np.log2(max(n_samples, 2))))
+        estimators = [
+            _isolation_tree_to_sklearn(tree, n_features, n_samples, max_depth)
+            for tree in exported.estimators_
+        ]
+        return {
+            "estimator_": ExtraTreeRegressor(max_features=1.0),
+            "estimators_": estimators,
+            "estimators_features_": [
+                np.arange(n_features, dtype=np.int64) for _ in estimators
+            ],
+            "max_samples_": n_samples,
+            "offset_": float(self.offset_),
+            # The exported trees reference features globally, so scoring uses
+            # the full feature set for every tree.
+            "_max_features": n_features,
+            "_max_samples": n_samples,
+            "_sample_weight": None,
+            "_average_path_length_per_tree": tuple(
+                _average_path_length(est.tree_.n_node_samples)
+                for est in estimators
+            ),
+            "_decision_path_lengths": tuple(
+                est.tree_.compute_node_depths() for est in estimators
+            ),
+            **super()._attrs_to_cpu(model),
+        }
 
     def __getstate__(self):
         """Pickle support - serialize state."""
