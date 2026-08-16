@@ -5,6 +5,7 @@
 
 import numbers
 from collections.abc import Iterable
+from random import getrandbits
 
 import cupy as cp
 import numpy as np
@@ -14,6 +15,11 @@ import cuml.internals.nvtx as nvtx
 from cuml.datasets.utils import _create_rs_generator
 
 
+# - Figures out how many centers this call needs.
+# - Makes random centers when none were handed in.
+# - Checks that sample counts and center shapes line up.
+# - Leaves fixed centers alone when they already fit.
+# - Hands back the centers plus their count.
 def _get_centers(rs, centers, center_box, n_samples, n_features, dtype):
     if isinstance(n_samples, numbers.Integral):
         # Set n_centers by looking at centers arg
@@ -70,6 +76,148 @@ def _get_centers(rs, centers, center_box, n_samples, n_features, dtype):
     return centers, n_centers
 
 
+# - Checks the smaller set of inputs RAFT can handle here.
+# - Sorts out generated centers versus centers the caller passed in.
+# - Keeps center memory order lined up with the output array.
+# - Turns random_state into the uint64 seed RAFT expects.
+# - Calls the Cython bridge and gives the same Python-style result back.
+def _make_blobs_raft(
+    n_samples,
+    n_features,
+    centers,
+    cluster_std,
+    center_box,
+    shuffle,
+    random_state,
+    return_centers,
+    order,
+    dtype,
+):
+    if not isinstance(n_samples, numbers.Integral):
+        raise ValueError(
+            "`n_samples` must be an integer when `use_raft=True`."
+        )
+    if not isinstance(n_features, numbers.Integral):
+        raise ValueError(
+            "`n_features` must be an integer when `use_raft=True`."
+        )
+
+    n_samples, n_features = int(n_samples), int(n_features)
+    if n_samples <= 0:
+        raise ValueError("`n_samples` must be greater than 0.")
+    if n_features <= 0:
+        raise ValueError("`n_features` must be greater than 0.")
+
+    if not isinstance(cluster_std, numbers.Real):
+        raise ValueError(
+            "`cluster_std` must be a scalar when `use_raft=True`."
+        )
+    if cluster_std < 0:
+        raise ValueError("`cluster_std` must be non-negative.")
+
+    dtype = cp.dtype(dtype)
+    if dtype not in (cp.dtype("float32"), cp.dtype("float64")):
+        raise ValueError(
+            "RAFT make_blobs only supports float32 and float64 output."
+        )
+    if order not in ("C", "F"):
+        raise ValueError("`order` must be either 'C' or 'F'.")
+
+    made_ctr = False
+    if centers is None:
+        n_ctr, r_ctr, made_ctr = 3, None, True
+    elif isinstance(centers, numbers.Integral):
+        n_ctr, r_ctr, made_ctr = int(centers), None, True
+        if n_ctr <= 0:
+            raise ValueError("`centers` must be greater than 0.")
+    else:
+        r_ctr = cp.asarray(centers, dtype=dtype, order=order)
+        if r_ctr.ndim != 2:
+            raise ValueError(
+                "`centers` must be a 2D array when `use_raft=True`."
+            )
+        if r_ctr.shape[1] != n_features:
+            raise ValueError(
+                "Expected `n_features` to be equal to"
+                " the length of axis 1 of centers array"
+            )
+
+        n_ctr = int(r_ctr.shape[0])
+        if n_ctr <= 0:
+            raise ValueError("`centers` must contain at least one center.")
+
+        # RAFT uses the same layout flag for X and centers, so keep them paired.
+        # cp.asarray can keep an input layout in a few CUDA-array cases.
+        if order == "C" and not r_ctr.flags["C_CONTIGUOUS"]:
+            r_ctr = cp.ascontiguousarray(r_ctr)
+        elif order == "F" and not r_ctr.flags["F_CONTIGUOUS"]:
+            r_ctr = cp.asfortranarray(r_ctr)
+
+    if made_ctr:
+        try:
+            box_lo, box_hi = center_box
+        except (TypeError, ValueError):
+            raise ValueError("`center_box` must contain exactly two values.")
+
+        if not isinstance(box_lo, numbers.Real) or not isinstance(
+            box_hi, numbers.Real
+        ):
+            raise ValueError("`center_box` values must be real numbers.")
+        if box_lo > box_hi:
+            raise ValueError(
+                "`center_box` minimum must not exceed its maximum."
+            )
+    else:
+        # The native call ignores the box once actual center locations are given.
+        box_lo = box_hi = 0.0
+
+    if return_centers and made_ctr:
+        raise ValueError(
+            "`return_centers=True` with generated centers is not supported "
+            "when `use_raft=True`; pass explicit center locations instead."
+        )
+
+    if random_state is None:
+        seed = getrandbits(64)
+    elif isinstance(random_state, numbers.Integral):
+        seed = int(random_state)
+        if not 0 <= seed <= (1 << 64) - 1:
+            raise ValueError(
+                "`random_state` must be between 0 and 2**64 - 1 "
+                "when `use_raft=True`."
+            )
+    else:
+        raise ValueError(
+            "`random_state` must be an integer or None when `use_raft=True`."
+        )
+
+    # Keep this import here so the normal CuPy path does not need the native module.
+    from cuml.datasets._blobs import make_blobs as raft_blobs
+
+    X, y = raft_blobs(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_centers=n_ctr,
+        centers=r_ctr,
+        cluster_std=float(cluster_std),
+        center_box_min=float(box_lo),
+        center_box_max=float(box_hi),
+        shuffle=bool(shuffle),
+        random_state=seed,
+        order=order,
+        dtype=dtype,
+    )
+
+    if return_centers:
+        return X, y, r_ctr
+    return X, y
+
+
+# - Keeps the existing CuPy generator as the default path.
+# - Sends the call to RAFT only when use_raft=True.
+# - Uses the same public arguments either way.
+# - Keeps the current return shape and label dtype behavior.
+# - Falls straight back into the original generator code otherwise.
 @nvtx.annotate(message="datasets.make_blobs", domain="cuml_python")
 @cuml.internals.mlfunc(array_arg=None)
 def make_blobs(
@@ -83,6 +231,7 @@ def make_blobs(
     return_centers=False,
     order="F",
     dtype="float32",
+    use_raft=False,
 ):
     """Generate isotropic Gaussian blobs for clustering.
 
@@ -117,6 +266,11 @@ def make_blobs(
         The order of the generated samples
     dtype : str, optional (default='float32')
         Dtype of the generated samples
+    use_raft : bool, optional (default=False)
+        If True, send generation through RAFT's C++ ``make_blobs`` path.
+        False keeps the existing CuPy path. RAFT currently expects integer
+        ``n_samples``, scalar ``cluster_std``, and an integer or None
+        ``random_state``; generated centers cannot be returned.
 
     Returns
     -------
@@ -151,6 +305,20 @@ def make_blobs(
     --------
     make_classification: a more intricate variant
     """
+    if use_raft:
+        return _make_blobs_raft(
+            n_samples=n_samples,
+            n_features=n_features,
+            centers=centers,
+            cluster_std=cluster_std,
+            center_box=center_box,
+            shuffle=shuffle,
+            random_state=random_state,
+            return_centers=return_centers,
+            order=order,
+            dtype=dtype,
+        )
+
     generator = _create_rs_generator(random_state=random_state)
 
     centers, n_centers = _get_centers(
