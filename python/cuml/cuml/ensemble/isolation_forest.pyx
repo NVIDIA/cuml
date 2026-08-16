@@ -668,6 +668,11 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         from sklearn.ensemble._iforest import _average_path_length
         from sklearn.tree import ExtraTreeRegressor
 
+        # A failed `fit` can leave `n_features_in_` set (making the model look
+        # fitted to `InteropMixin`) while no serialized forest exists yet.
+        if self._treelite_model_bytes is None:
+            raise RuntimeError("Model has not been fitted. Call fit() first.")
+
         tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
         exported = treelite.sklearn.export_model(tl_model)
         n_features = self.n_features_in_

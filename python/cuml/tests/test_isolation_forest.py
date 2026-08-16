@@ -333,6 +333,17 @@ def test_fitted_from_sklearn_is_explicitly_unsupported(blobs_data):
         cuIsolationForest.from_sklearn(sk_model)
 
 
+def test_as_sklearn_after_failed_fit_raises(blobs_data):
+    """A failed fit sets ``n_features_in_`` before raising, which makes the
+    model look fitted to ``InteropMixin``; conversion must still fail
+    loudly rather than deserialize a missing forest."""
+    cu_model = cuIsolationForest(max_features=0)
+    with pytest.raises(ValueError, match="max_features"):
+        cu_model.fit(blobs_data)
+    with pytest.raises(RuntimeError, match="not been fitted"):
+        cu_model.as_sklearn()
+
+
 @pytest.mark.parametrize(
     "params",
     [
