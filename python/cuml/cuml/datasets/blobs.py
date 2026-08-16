@@ -5,6 +5,7 @@
 
 import numbers
 from collections.abc import Iterable
+from random import getrandbits
 
 import cupy as cp
 import numpy as np
@@ -68,6 +69,115 @@ def _get_centers(rs, centers, center_box, n_samples, n_features, dtype):
                 )
 
     return centers, n_centers
+
+
+def _make_blobs_raft(
+    n_samples,
+    n_features,
+    centers,
+    cluster_std,
+    center_box,
+    shuffle,
+    random_state,
+    return_centers,
+    order,
+    dtype,
+):
+    n_samples = int(n_samples)
+    n_features = int(n_features)
+    dt = cp.dtype(dtype)
+
+    if n_samples <= 0 or n_features <= 0:
+        raise ValueError("`n_samples` and `n_features` must be positive.")
+
+    if cluster_std < 0:
+        raise ValueError("`cluster_std` must be non-negative.")
+
+    gen_ctr = centers is None or isinstance(centers, numbers.Integral)
+
+    if centers is None:
+        n_ctr, ctr = 3, None
+    elif isinstance(centers, numbers.Integral):
+        n_ctr, ctr = int(centers), None
+        if n_ctr <= 0:
+            raise ValueError("`centers` must be greater than 0.")
+    else:
+        ctr = cp.asarray(centers, dtype=dt, order=order)
+
+        if ctr.ndim != 2:
+            raise ValueError("`centers` must be a 2D array.")
+        if ctr.shape[1] != n_features:
+            raise ValueError(
+                "Expected `n_features` to be equal to"
+                " the length of axis 1 of centers array"
+            )
+
+        n_ctr = ctr.shape[0]
+        if n_ctr == 0:
+            raise ValueError("`centers` must contain at least one center.")
+
+    if gen_ctr:
+        try:
+            lo, hi = center_box
+        except (TypeError, ValueError):
+            raise ValueError(
+                "`center_box` must contain exactly two values."
+            ) from None
+
+        if lo > hi:
+            raise ValueError(
+                "`center_box` minimum must not exceed its maximum."
+            )
+    else:
+        lo = hi = 0.0
+
+    if return_centers and gen_ctr:
+        rs = _create_rs_generator(random_state=random_state)
+        ctr, n_ctr = _get_centers(
+            rs,
+            centers,
+            center_box,
+            n_samples,
+            n_features,
+            dt,
+        )
+
+    if ctr is not None:
+        ctr = cp.asarray(ctr, dtype=dt, order=order)
+
+        if order == "C" and not ctr.flags["C_CONTIGUOUS"]:
+            ctr = cp.ascontiguousarray(ctr)
+        elif order == "F" and not ctr.flags["F_CONTIGUOUS"]:
+            ctr = cp.asfortranarray(ctr)
+
+    if random_state is None:
+        seed = getrandbits(64)
+    else:
+        seed = int(random_state)
+
+        if not 0 <= seed <= (1 << 64) - 1:
+            raise ValueError("`random_state` must be between 0 and 2**64 - 1.")
+
+    from cuml.datasets._blobs import make_blobs as cpp_blobs
+
+    X, y = cpp_blobs(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_centers=n_ctr,
+        centers=ctr,
+        cluster_std=float(cluster_std),
+        center_box_min=float(lo),
+        center_box_max=float(hi),
+        shuffle=bool(shuffle),
+        random_state=seed,
+        order=order,
+        dtype=dt,
+    )
+
+    if return_centers:
+        return X, y, ctr if gen_ctr else centers
+
+    return X, y
 
 
 @nvtx.annotate(message="datasets.make_blobs", domain="cuml_python")
@@ -151,6 +261,34 @@ def make_blobs(
     --------
     make_classification: a more intricate variant
     """
+    dt = cp.dtype(dtype)
+
+    use_cpp = (
+        isinstance(n_samples, numbers.Integral)
+        and isinstance(n_features, numbers.Integral)
+        and n_samples > 0
+        and n_features > 0
+        and isinstance(cluster_std, numbers.Real)
+        and isinstance(random_state, (type(None), int))
+        and shuffle is True
+        and order in ("C", "F")
+        and dt in (cp.dtype("float32"), cp.dtype("float64"))
+    )
+
+    if use_cpp:
+        return _make_blobs_raft(
+            n_samples=n_samples,
+            n_features=n_features,
+            centers=centers,
+            cluster_std=cluster_std,
+            center_box=center_box,
+            shuffle=shuffle,
+            random_state=random_state,
+            return_centers=return_centers,
+            order=order,
+            dtype=dt,
+        )
+
     generator = _create_rs_generator(random_state=random_state)
 
     centers, n_centers = _get_centers(
