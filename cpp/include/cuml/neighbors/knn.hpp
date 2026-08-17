@@ -132,6 +132,9 @@ struct knnIndexParam {
 struct IVFParam : knnIndexParam {
   int nlist;
   int nprobe;
+  uint32_t kmeans_n_iters;
+  double kmeans_trainset_fraction;
+  bool conservative_memory_allocation;
 };
 
 struct IVFFlatParam : IVFParam {};
@@ -140,6 +143,14 @@ struct IVFPQParam : IVFParam {
   int M;
   int n_bits;
   bool usePrecomputedTables;
+  int codebook_kind;
+  int codes_layout;
+  bool force_random_rotation;
+  uint32_t max_train_points_per_pq_code;
+  int lut_dtype;
+  int internal_distance_dtype;
+  int coarse_search_dtype;
+  uint32_t max_internal_batch_size;
 };
 
 /**
