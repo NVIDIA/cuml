@@ -113,6 +113,9 @@ cdef extern from "cuml/neighbors/knn.hpp" namespace "ML" nogil:
     cdef cppclass IVFParam(knnIndexParam):
         int nlist
         int nprobe
+        uint32_t kmeans_n_iters
+        double kmeans_trainset_fraction
+        bool conservative_memory_allocation
 
     cdef cppclass IVFFlatParam(IVFParam):
         pass
@@ -121,6 +124,14 @@ cdef extern from "cuml/neighbors/knn.hpp" namespace "ML" nogil:
         int M
         int n_bits
         bool usePrecomputedTables
+        int codebook_kind
+        int codes_layout
+        bool force_random_rotation
+        uint32_t max_train_points_per_pq_code
+        int lut_dtype
+        int internal_distance_dtype
+        int coarse_search_dtype
+        uint32_t max_internal_batch_size
 
 
 cdef extern from "cuml/neighbors/knn_sparse.hpp" namespace "ML::Sparse" nogil:
@@ -378,6 +389,118 @@ cdef class RBCIndex:
         return distances, indices
 
 
+def _ivfpq_enum_code(value, name, choices):
+    try:
+        return choices[value]
+    except (KeyError, TypeError):
+        valid = ", ".join(repr(v) for v in choices)
+        raise ValueError(
+            f"{name} must be one of {{{valid}}}; got {value!r}"
+        ) from None
+
+
+def _ivfpq_dtype_code(value, name, allowed):
+    aliases = {
+        "cuda_r_32f": "float32",
+        "cuda_r_16f": "float16",
+        "cuda_r_8u": "uint8",
+        "cuda_r_8i": "int8",
+    }
+
+    if isinstance(value, str):
+        value = aliases.get(value.lower(), value)
+
+    try:
+        dtype_name = cp.dtype(value).name
+    except (TypeError, ValueError):
+        dtype_name = None
+
+    codes = {
+        "float32": 0,
+        "float16": 1,
+        "uint8": 2,
+        "int8": 3,
+    }
+
+    if dtype_name not in allowed:
+        valid = ", ".join(allowed)
+        raise ValueError(
+            f"{name} must be one of {valid}; got {value!r}"
+        )
+
+    return codes[dtype_name]
+
+
+def _normalize_ivf_params(algorithm, params):
+    if algorithm == "ivfflat":
+        defaults = {
+            "n_lists": 1024,
+            "n_probes": 20,
+            "kmeans_n_iters": 20,
+            "kmeans_trainset_fraction": 0.5,
+            "conservative_memory_allocation": False,
+        }
+        aliases = {
+            "nlist": "n_lists",
+            "nprobe": "n_probes",
+        }
+    else:
+        defaults = {
+            "n_lists": 1024,
+            "n_probes": 20,
+            "kmeans_n_iters": 20,
+            "kmeans_trainset_fraction": 0.5,
+            "pq_dim": 0,
+            "pq_bits": 8,
+            "codebook_kind": "subspace",
+            "codes_layout": "interleaved",
+            "force_random_rotation": False,
+            "conservative_memory_allocation": False,
+            "max_train_points_per_pq_code": 256,
+            "lut_dtype": cp.float32,
+            "internal_distance_dtype": cp.float32,
+            "coarse_search_dtype": cp.float32,
+            "max_internal_batch_size": 4096,
+        }
+        aliases = {
+            "nlist": "n_lists",
+            "nprobe": "n_probes",
+            "M": "pq_dim",
+            "n_bits": "pq_bits",
+        }
+
+    params = {} if params is None else dict(params)
+
+    if algorithm == "ivfpq" and "usePrecomputedTables" in params:
+        warnings.warn(
+            "'usePrecomputedTables' is deprecated and ignored because "
+            "cuVS IVF-PQ has no equivalent parameter.",
+            FutureWarning,
+            stacklevel=3,
+        )
+        params.pop("usePrecomputedTables")
+
+    for old, new in aliases.items():
+        if old not in params:
+            continue
+
+        if new in params and params[new] != params[old]:
+            raise ValueError(
+                f"Conflicting values provided for '{old}' and '{new}'"
+            )
+
+        warnings.warn(
+            f"'{old}' is deprecated; use '{new}' instead.",
+            FutureWarning,
+            stacklevel=3,
+        )
+
+        params.setdefault(new, params[old])
+        del params[old]
+
+    return {**defaults, **params}
+
+
 cdef class ApproxIndex:
     """An approximate nearest neighbors index (IVFQ or IVFFlat)"""
     cdef knnIndex* index
@@ -387,26 +510,57 @@ cdef class ApproxIndex:
             del self.index
 
     cdef _init_ivfflat(self, IVFFlatParam *out, params):
-        if params is None:
-            params = {"nlist": 8, "nprobe": 2}
-        out.nlist = params["nlist"]
-        out.nprobe = params["nprobe"]
+        params = _normalize_ivf_params("ivfflat", params)
+        out.nlist = params["n_lists"]
+        out.nprobe = params["n_probes"]
+        out.kmeans_n_iters = params["kmeans_n_iters"]
+        out.kmeans_trainset_fraction = params["kmeans_trainset_fraction"]
+        out.conservative_memory_allocation = (
+            params["conservative_memory_allocation"]
+        )
 
     cdef _init_ivfpq(self, IVFPQParam *out, params):
-        # TODO: These parameter defaults don't work for all datasets and
-        # don't match the defaults in cuVS. The defaults here should be
-        # redone to match cuVS.
-        if params is None:
-            params = {
-                "nlist": 8,
-                "nprobe": 3,
-                "M": 0,
-                "n_bits": 8,
-            }
-        out.nlist = params["nlist"]
-        out.nprobe = params["nprobe"]
-        out.M = params["M"]
-        out.n_bits = params["n_bits"]
+        params = _normalize_ivf_params("ivfpq", params)
+        out.nlist = params["n_lists"]
+        out.nprobe = params["n_probes"]
+        out.kmeans_n_iters = params["kmeans_n_iters"]
+        out.kmeans_trainset_fraction = params["kmeans_trainset_fraction"]
+        out.conservative_memory_allocation = (
+            params["conservative_memory_allocation"]
+        )
+        out.M = params["pq_dim"]
+        out.n_bits = params["pq_bits"]
+        out.usePrecomputedTables = False
+        out.codebook_kind = _ivfpq_enum_code(
+            params["codebook_kind"],
+            "codebook_kind",
+            {"subspace": 0, "cluster": 1},
+        )
+        out.codes_layout = _ivfpq_enum_code(
+            params["codes_layout"],
+            "codes_layout",
+            {"flat": 0, "interleaved": 1},
+        )
+        out.force_random_rotation = params["force_random_rotation"]
+        out.max_train_points_per_pq_code = (
+            params["max_train_points_per_pq_code"]
+        )
+        out.lut_dtype = _ivfpq_dtype_code(
+            params["lut_dtype"],
+            "lut_dtype",
+            ("float32", "float16", "uint8"),
+        )
+        out.internal_distance_dtype = _ivfpq_dtype_code(
+            params["internal_distance_dtype"],
+            "internal_distance_dtype",
+            ("float32", "float16"),
+        )
+        out.coarse_search_dtype = _ivfpq_dtype_code(
+            params["coarse_search_dtype"],
+            "coarse_search_dtype",
+            ("float32", "float16", "int8"),
+        )
+        out.max_internal_batch_size = params["max_internal_batch_size"]
 
     @staticmethod
     def build(X, metric, algorithm, params=None, float p=2):
@@ -1011,10 +1165,10 @@ class NearestNeighbors(NeighborsBase):
         - ``'ivfflat'``: for inverted file, divide the dataset in partitions
           and perform search on relevant partitions only
         - ``'ivfpq'``: for inverted file and product quantization,
-          same as inverted list, in addition the vectors are broken
-          in n_features/M sub-vectors that will be encoded thanks
-          to intermediary k-means clusterings. This encoding provide
-          partial information allowing faster distances calculations
+          same as inverted list; in addition, vectors are compressed
+          using ``pq_dim`` product-quantization sub-vectors and
+          ``pq_bits`` bits per encoded element. This encoding provides
+          partial information allowing faster distance calculations.
 
     metric : string (default='euclidean').
         Distance metric to use. Supported metrics include: 'l1', 'cityblock',
@@ -1045,16 +1199,46 @@ class NearestNeighbors(NeighborsBase):
 
         Parameters for algorithm ``'ivfflat'``:
 
-            - nlist: (int) number of cells to partition dataset into
-            - nprobe: (int) at query time, number of cells used for search
+            - n_lists: (int, default=1024) number of inverted lists
+            - n_probes: (int, default=20) lists searched per query
+            - kmeans_n_iters: (int, default=20) k-means iterations
+            - kmeans_trainset_fraction: (float, default=0.5) fraction of the
+              dataset used to train k-means
+            - conservative_memory_allocation: (bool, default=False) allocate
+              only the memory required by the current index
 
         Parameters for algorithm ``'ivfpq'``:
 
-            - nlist: (int) number of cells to partition dataset into
-            - nprobe: (int) at query time, number of cells used for search
-            - M: (int) number of subquantizers
-            - n_bits: (int) bits allocated per subquantizer
-            - usePrecomputedTables : (bool) whether to use precomputed tables
+            - n_lists: (int, default=1024) number of inverted lists
+            - n_probes: (int, default=20) lists searched per query
+            - kmeans_n_iters: (int, default=20) k-means iterations
+            - kmeans_trainset_fraction: (float, default=0.5) fraction of the
+              dataset used to train k-means
+            - pq_dim: (int, default=0) product-quantization dimensionality;
+              zero selects the value heuristically
+            - pq_bits: (int, default=8) bits per PQ encoded element
+            - codebook_kind: ({'subspace', 'cluster'}, default='subspace')
+              method used to construct PQ codebooks
+            - codes_layout: ({'flat', 'interleaved'}, default='interleaved')
+              memory layout used for PQ codes
+            - force_random_rotation: (bool, default=False) always apply a
+              random rotation before product quantization
+            - conservative_memory_allocation: (bool, default=False) allocate
+              only the memory required by the current index
+            - max_train_points_per_pq_code: (int, default=256) maximum
+              training points used per PQ code
+            - lut_dtype: (dtype, default=float32) lookup-table dtype; valid
+              values are float32, float16, and uint8
+            - internal_distance_dtype: (dtype, default=float32) internal
+              distance dtype; valid values are float32 and float16
+            - coarse_search_dtype: (dtype, default=float32) coarse-search
+              dtype; valid values are float32, float16, and int8
+            - max_internal_batch_size: (int, default=4096) internal search
+              batch size
+
+        The legacy IVF parameter names ``nlist``, ``nprobe``, ``M``, and
+        ``n_bits`` are deprecated aliases. ``usePrecomputedTables`` is also
+        deprecated and ignored because cuVS IVF-PQ has no equivalent option.
     metric_params : dict, optional (default = None)
         Additional keyword arguments for the metric function.
     n_jobs : int (default = None)
@@ -1298,10 +1482,10 @@ def kneighbors_graph(
         - ``'ivfflat'``: for inverted file, divide the dataset in partitions
           and perform search on relevant partitions only
         - ``'ivfpq'``: for inverted file and product quantization,
-          same as inverted list, in addition the vectors are broken
-          in n_features/M sub-vectors that will be encoded thanks
-          to intermediary k-means clusterings. This encoding provide
-          partial information allowing faster distances calculations
+          same as inverted list; in addition, vectors are compressed
+          using ``pq_dim`` product-quantization sub-vectors and
+          ``pq_bits`` bits per encoded element. This encoding provides
+          partial information allowing faster distance calculations.
 
     metric : string (default='euclidean').
         Distance metric to use. Supported distances are ['l1, 'cityblock',
