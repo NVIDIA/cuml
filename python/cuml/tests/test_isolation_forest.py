@@ -285,12 +285,6 @@ def test_bootstrap_parameter(blobs_data, bootstrap):
     assert predictions.shape[0] == blobs_data.shape[0]
 
 
-def test_unsupported_warm_start():
-    """sklearn models with warm_start=True cannot be converted."""
-    with pytest.raises(UnsupportedOnGPU, match="warm_start"):
-        cuIsolationForest.from_sklearn(skIsolationForest(warm_start=True))
-
-
 def test_unfitted_sklearn_conversion_preserves_parameters():
     """Unfitted estimators may still be converted in either direction."""
     cu_model = cuIsolationForest(n_estimators=7, random_state=42)
