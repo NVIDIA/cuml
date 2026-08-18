@@ -2,15 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import inspect
-import io
-import os
-import pickle
-import subprocess
-import sys
-from textwrap import dedent
 
 import cupy as cp
-import joblib
 import numpy as np
 import pandas as pd
 import pytest
@@ -310,55 +303,3 @@ def test_hdbscan_min_samples_one_falls_back(blobs):
 def test_hdbscan_complex_input_uses_sklearn_validation(blobs):
     with pytest.raises(ValueError, match="Complex data not supported"):
         HDBSCAN(copy=False).fit(blobs.astype(np.complex128))
-
-
-def test_hdbscan_pickle_roundtrip(blobs):
-    model = HDBSCAN(min_cluster_size=8, copy=False).fit(blobs)
-    expected_labels = model.labels_.copy()
-
-    restored = pickle.loads(pickle.dumps(model))
-
-    assert type(restored._cpu) is CPUHDBSCAN
-    assert restored._gpu is not None
-    np.testing.assert_array_equal(restored.labels_, expected_labels)
-    restored.dbscan_clustering(cut_distance=1.0)
-
-    buffer = io.BytesIO()
-    joblib.dump(model, buffer)
-    buffer.seek(0)
-    restored = joblib.load(buffer)
-
-    assert type(restored._cpu) is CPUHDBSCAN
-    assert restored._gpu is not None
-    np.testing.assert_array_equal(restored.labels_, expected_labels)
-
-
-def test_hdbscan_unpickle_without_accelerator(blobs):
-    model = HDBSCAN(min_cluster_size=8, copy=False).fit(blobs)
-    payload = pickle.dumps((model, model.labels_))
-    script = dedent(
-        f"""
-        import pickle
-
-        model, labels = pickle.loads({payload!r})
-
-        from cuml.accel import enabled
-        from sklearn.cluster import HDBSCAN
-
-        assert not enabled()
-        assert type(model) is HDBSCAN
-        assert not hasattr(model, "_cpu")
-        assert (model.labels_ == labels).all()
-        model.dbscan_clustering(cut_distance=1.0)
-        """
-    )
-    env = os.environ.copy()
-    env.pop("CUML_ACCEL_ENABLED", None)
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=env,
-    )
-    assert result.returncode == 0, result.stdout

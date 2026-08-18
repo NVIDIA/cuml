@@ -638,10 +638,6 @@ HDBSCAN
 
    Additional notes:
 
-   - cuML's native implementation adds one to ``min_samples`` when constructing
-     the neighbor graph to match contrib HDBSCAN semantics. The scikit-learn
-     adapter therefore subtracts one from scikit-learn's effective value. The
-     separate ``hdbscan.HDBSCAN`` proxy retains its own parameter handling.
    - ``max_cluster_size=None`` is translated to cuML's unlimited value.
    - cuML uses float32 computation and a parallel MST, so linkage distances,
      probabilities, cluster labels, and even cluster assignments may differ
