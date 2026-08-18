@@ -389,31 +389,12 @@ cdef class RBCIndex:
         return distances, indices
 
 
-def _ivfpq_enum_code(value, name, choices):
+def _ivfpq_dtype_code(val, name, allowed):
+    """Validate an IVF-PQ dtype and return its native integer code."""
     try:
-        return choices[value]
-    except (KeyError, TypeError):
-        valid = ", ".join(repr(v) for v in choices)
-        raise ValueError(
-            f"{name} must be one of {{{valid}}}; got {value!r}"
-        ) from None
-
-
-def _ivfpq_dtype_code(value, name, allowed):
-    aliases = {
-        "cuda_r_32f": "float32",
-        "cuda_r_16f": "float16",
-        "cuda_r_8u": "uint8",
-        "cuda_r_8i": "int8",
-    }
-
-    if isinstance(value, str):
-        value = aliases.get(value.lower(), value)
-
-    try:
-        dtype_name = cp.dtype(value).name
+        dt = cp.dtype(val).name
     except (TypeError, ValueError):
-        dtype_name = None
+        dt = None
 
     codes = {
         "float32": 0,
@@ -422,17 +403,18 @@ def _ivfpq_dtype_code(value, name, allowed):
         "int8": 3,
     }
 
-    if dtype_name not in allowed:
+    if dt not in allowed:
         valid = ", ".join(allowed)
         raise ValueError(
-            f"{name} must be one of {valid}; got {value!r}"
+            f"{name} must be one of {valid}; got {val!r}"
         )
 
-    return codes[dtype_name]
+    return codes[dt]
 
 
-def _normalize_ivf_params(algorithm, params):
-    if algorithm == "ivfflat":
+def _normalize_ivf_params(algo, params):
+    """Normalize IVF defaults, aliases, and supported parameters."""
+    if algo == "ivfflat":
         defaults = {
             "n_lists": 1024,
             "n_probes": 20,
@@ -471,13 +453,16 @@ def _normalize_ivf_params(algorithm, params):
 
     params = {} if params is None else dict(params)
 
-    if algorithm == "ivfpq" and "usePrecomputedTables" in params:
+    if algo == "ivfpq" and "usePrecomputedTables" in params:
+        # rapids-pre-commit-hooks: disable[verify-hardcoded-version]
         warnings.warn(
-            "'usePrecomputedTables' is deprecated and ignored because "
-            "cuVS IVF-PQ has no equivalent parameter.",
+            "'usePrecomputedTables' was deprecated in 26.10 and will be "
+            "removed in 26.12. It is ignored because cuVS IVF-PQ has no "
+            "equivalent parameter.",
             FutureWarning,
             stacklevel=3,
         )
+        # rapids-pre-commit-hooks: enable[verify-hardcoded-version]
         params.pop("usePrecomputedTables")
 
     for old, new in aliases.items():
@@ -489,16 +474,32 @@ def _normalize_ivf_params(algorithm, params):
                 f"Conflicting values provided for '{old}' and '{new}'"
             )
 
+        # rapids-pre-commit-hooks: disable[verify-hardcoded-version]
         warnings.warn(
-            f"'{old}' is deprecated; use '{new}' instead.",
+            f"'{old}' was deprecated in 26.10 and will be removed in "
+            f"26.12. Use '{new}' instead.",
             FutureWarning,
             stacklevel=3,
         )
+        # rapids-pre-commit-hooks: enable[verify-hardcoded-version]
 
         params.setdefault(new, params[old])
         del params[old]
 
-    return {**defaults, **params}
+    bad = sorted(set(params) - set(defaults))
+    if bad:
+        valid = ", ".join(sorted(defaults))
+        raise ValueError(
+            f"Unsupported algo_params for algorithm={algo!r}: "
+            f"{', '.join(bad)}. Valid parameters are: {valid}"
+        )
+
+    out = {**defaults, **params}
+
+    if algo == "ivfpq" and out["pq_dim"] * out["pq_bits"] % 8:
+        raise ValueError("pq_dim * pq_bits must be a multiple of 8")
+
+    return out
 
 
 cdef class ApproxIndex:
@@ -531,16 +532,21 @@ cdef class ApproxIndex:
         out.M = params["pq_dim"]
         out.n_bits = params["pq_bits"]
         out.usePrecomputedTables = False
-        out.codebook_kind = _ivfpq_enum_code(
-            params["codebook_kind"],
-            "codebook_kind",
-            {"subspace": 0, "cluster": 1},
-        )
-        out.codes_layout = _ivfpq_enum_code(
-            params["codes_layout"],
-            "codes_layout",
-            {"flat": 0, "interleaved": 1},
-        )
+        kind = params["codebook_kind"]
+        if kind == "subspace":
+            out.codebook_kind = 0
+        elif kind == "cluster":
+            out.codebook_kind = 1
+        else:
+            raise ValueError(f"Incorrect codebook kind {kind!r}")
+
+        layout = params["codes_layout"]
+        if layout == "flat":
+            out.codes_layout = 0
+        elif layout == "interleaved":
+            out.codes_layout = 1
+        else:
+            raise ValueError(f"Incorrect codes layout {layout!r}")
         out.force_random_rotation = params["force_random_rotation"]
         out.max_train_points_per_pq_code = (
             params["max_train_points_per_pq_code"]
@@ -1236,9 +1242,13 @@ class NearestNeighbors(NeighborsBase):
             - max_internal_batch_size: (int, default=4096) internal search
               batch size
 
-        The legacy IVF parameter names ``nlist``, ``nprobe``, ``M``, and
-        ``n_bits`` are deprecated aliases. ``usePrecomputedTables`` is also
-        deprecated and ignored because cuVS IVF-PQ has no equivalent option.
+        .. deprecated:: 26.10
+            The IVF parameter names ``nlist``, ``nprobe``, ``M``, and
+            ``n_bits`` were deprecated in 26.10 and will be removed in
+            26.12. Use ``n_lists``, ``n_probes``, ``pq_dim``, and
+            ``pq_bits`` instead. ``usePrecomputedTables`` was also
+            deprecated in 26.10 and will be removed in 26.12; it is ignored
+            because cuVS IVF-PQ has no equivalent option.
     metric_params : dict, optional (default = None)
         Additional keyword arguments for the metric function.
     n_jobs : int (default = None)

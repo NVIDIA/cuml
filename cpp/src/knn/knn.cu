@@ -8,6 +8,7 @@
 #include <cuml/neighbors/knn.hpp>
 
 #include <raft/core/device_resources.hpp>
+#include <raft/core/error.hpp>
 #include <raft/core/handle.hpp>
 #include <raft/core/operators.hpp>
 #include <raft/label/classlabels.cuh>
@@ -298,7 +299,7 @@ void approx_knn_build_index(raft::handle_t& handle,
     cuvs::neighbors::ivf_flat::index_params params;
     params.metric                         = static_cast<cuvs::distance::DistanceType>(metric);
     params.metric_arg                     = metricArg;
-    params.n_lists                        = ivf_ft_pams->nlist;
+    params.n_lists                        = ML::narrow_cast<uint32_t>(ivf_ft_pams->nlist);
     params.kmeans_n_iters                 = ivf_ft_pams->kmeans_n_iters;
     params.kmeans_trainset_fraction       = ivf_ft_pams->kmeans_trainset_fraction;
     params.conservative_memory_allocation = ivf_ft_pams->conservative_memory_allocation;
@@ -310,11 +311,16 @@ void approx_knn_build_index(raft::handle_t& handle,
     cuvs::neighbors::ivf_pq::index_params params;
     params.metric                   = static_cast<cuvs::distance::DistanceType>(metric);
     params.metric_arg               = metricArg;
-    params.n_lists                  = ivf_pq_pams->nlist;
+    params.n_lists                  = ML::narrow_cast<uint32_t>(ivf_pq_pams->nlist);
     params.kmeans_n_iters           = ivf_pq_pams->kmeans_n_iters;
     params.kmeans_trainset_fraction = ivf_pq_pams->kmeans_trainset_fraction;
-    params.pq_bits                  = ivf_pq_pams->n_bits;
-    params.pq_dim                   = ivf_pq_pams->M;
+    params.pq_bits                  = ML::narrow_cast<uint32_t>(ivf_pq_pams->n_bits);
+    params.pq_dim                   = ML::narrow_cast<uint32_t>(ivf_pq_pams->M);
+    RAFT_EXPECTS(ivf_pq_pams->codebook_kind == 0 || ivf_pq_pams->codebook_kind == 1,
+                 "Invalid IVF-PQ codebook_kind.");
+    RAFT_EXPECTS(ivf_pq_pams->codes_layout == 0 || ivf_pq_pams->codes_layout == 1,
+                 "Invalid IVF-PQ codes_layout.");
+
     params.codebook_kind =
       static_cast<cuvs::neighbors::ivf_pq::codebook_gen>(ivf_pq_pams->codebook_kind);
     params.codes_layout =
@@ -385,7 +391,7 @@ void approx_knn_search(raft::handle_t& handle,
     auto query_view = raft::make_device_matrix_view<const float, int64_t>(
       query_array, n, index->pimpl->ivf_flat->dim());
     cuvs::neighbors::ivf_flat::search_params params;
-    params.n_probes = index->nprobe;
+    params.n_probes = ML::narrow_cast<uint32_t>(index->nprobe);
 
     cuvs::neighbors::ivf_flat::search(
       handle, params, *index->pimpl->ivf_flat, query_view, indices_view, distances_view);
@@ -393,7 +399,7 @@ void approx_knn_search(raft::handle_t& handle,
     auto query_view = raft::make_device_matrix_view<const float, int64_t>(
       query_array, n, index->pimpl->ivf_pq->dim());
     cuvs::neighbors::ivf_pq::search_params params;
-    params.n_probes  = index->nprobe;
+    params.n_probes  = ML::narrow_cast<uint32_t>(index->nprobe);
     params.lut_dtype = ivfpq_dtype_from_code(index->pimpl->pq_lut_dtype);
     params.internal_distance_dtype =
       ivfpq_dtype_from_code(index->pimpl->pq_internal_distance_dtype);

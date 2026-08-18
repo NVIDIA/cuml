@@ -5,6 +5,7 @@
 
 import gc
 import math
+import warnings
 
 import cudf
 import cupy as cp
@@ -216,6 +217,20 @@ def test_ivf_cuvs_default_params():
 @pytest.mark.parametrize(
     "algorithm,algo_params",
     [
+        ("ivfflat", {"n_probe": 2}),
+        ("ivfpq", {"pq_bit": 8}),
+    ],
+)
+def test_ivf_unknown_algo_params(algorithm, algo_params):
+    from cuml.neighbors.nearest_neighbors import _normalize_ivf_params
+
+    with pytest.raises(ValueError, match="Unsupported algo_params"):
+        _normalize_ivf_params(algorithm, algo_params)
+
+
+@pytest.mark.parametrize(
+    "algorithm,algo_params",
+    [
         (
             "ivfflat",
             {
@@ -255,11 +270,13 @@ def test_ivf_cuvs_param_names(algorithm, algo_params):
         random_state=0,
     )
 
-    knn = cuKNN(
-        algorithm=algorithm,
-        algo_params=algo_params,
-    )
-    knn.fit(X)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        knn = cuKNN(
+            algorithm=algorithm,
+            algo_params=algo_params,
+        )
+        knn.fit(X)
     distances, indices = knn.kneighbors(
         X[:32],
         n_neighbors=4,
@@ -287,6 +304,17 @@ def test_ivf_cuvs_param_names(algorithm, algo_params):
         ),
     ],
 )
+def test_ivfpq_invalid_encoding_size():
+    with pytest.raises(
+        ValueError,
+        match=r"pq_dim \* pq_bits must be a multiple of 8",
+    ):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"pq_dim": 3, "pq_bits": 4},
+        )
+
+
 def test_ivf_legacy_param_names_warn(algorithm, algo_params):
     X, _ = make_blobs(
         n_samples=4000,
@@ -294,7 +322,10 @@ def test_ivf_legacy_param_names_warn(algorithm, algo_params):
         random_state=0,
     )
 
-    with pytest.warns(FutureWarning):
+    with pytest.warns(
+        FutureWarning,
+        match=r"deprecated in 26\.10.*removed in 26\.12",
+    ):
         cuKNN(
             algorithm=algorithm,
             algo_params=algo_params,
