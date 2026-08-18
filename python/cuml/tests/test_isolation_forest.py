@@ -677,20 +677,6 @@ def test_pickle_unfitted_model_is_silent():
     assert loaded.get_params() == clf.get_params()
 
 
-def test_failed_fit_leaves_estimator_unfitted(blobs_data):
-    """A failed fit must leave the estimator genuinely unfitted rather than
-    half fitted."""
-    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
-    clf.max_features = 0
-
-    with pytest.raises(ValueError, match="max_features"):
-        clf.fit(blobs_data)
-
-    assert _fitted_only_attrs(clf) == []
-    with pytest.raises(NotFittedError, match="not fitted"):
-        clf.predict(blobs_data)
-
-
 # =============================================================================
 # Determinism tests
 # =============================================================================

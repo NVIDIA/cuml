@@ -367,15 +367,6 @@ _UNFITTED_BASELINE = {
     "_n_features_per_tree": None,
 }
 
-# Attributes that only exist on a fitted estimator.
-_FITTED_ONLY_ATTRS = (
-    "n_features_in_",
-    "feature_names_in_",
-    "max_samples_",
-    "offset_",
-    "_n_samples_per_tree",
-)
-
 
 class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     """
@@ -577,18 +568,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             "Conversion of a fitted cuML IsolationForest is not supported"
         )
 
-    @staticmethod
-    def _clear_fitted_state(state):
-        """Applies the unfitted baseline to the ``state`` mapping in place."""
-        state.update(_UNFITTED_BASELINE)
-        for attr in _FITTED_ONLY_ATTRS:
-            state.pop(attr, None)
-        return state
-
-    def _reset_fitted_state(self):
-        """Returns the estimator to its unfitted construction state."""
-        self._clear_fitted_state(self.__dict__)
-
     def __getstate__(self):
         """Pickle support: the native model cannot be serialized, so the
         fitted state is dropped entirely and the unpickled estimator is
@@ -600,7 +579,13 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                 "state. The unpickled estimator is unfitted; call fit() "
                 "again before using it."
             )
-        return self._clear_fitted_state(state)
+        state.update(_UNFITTED_BASELINE)
+        # Fitted attributes follow the sklearn naming convention.
+        for attr in list(state):
+            if attr.endswith("_") and not attr.startswith("_"):
+                del state[attr]
+        state.pop("_n_samples_per_tree", None)
+        return state
 
     def __setstate__(self, state):
         """Pickle support - restore state."""
@@ -631,22 +616,138 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         if sample_weight is not None:
             raise UnsupportedOnGPU("`sample_weight` is not supported")
 
-        # Drop any previous fitted state up front, so that a failed fit
-        # leaves the estimator unfitted rather than half fitted.
-        self._reset_fitted_state()
+        # Release any existing native model.
+        self._model = None
 
-        cdef size_t n_rows
-        cdef int n_cols
-        cdef uintptr_t X_ptr
+        # Convert input to a column-major device array for fit.
+        X_m = check_inputs(
+            self,
+            X,
+            dtype=(np.float32, np.float64),
+            order="F",
+            reset=True,
+        )
+
+        cdef size_t n_rows = X_m.shape[0]
+        cdef int n_cols = X_m.shape[1]
+        cdef uintptr_t X_ptr = X_m.data.ptr
         cdef double contamination_fraction = 0.0
         cdef bint use_contamination_quantile = False
+        self.n_features_in_ = n_cols
+        self._dtype = X_m.dtype
+
         cdef int actual_max_features
+        if isinstance(self.max_features, builtins.bool):
+            raise ValueError(
+                "max_features must be an int in [1, n_features] or a float "
+                "in (0.0, 1.0]."
+            )
+        elif isinstance(self.max_features, Integral):
+            if self.max_features < 1 or self.max_features > n_cols:
+                raise ValueError(
+                    "max_features must be an int in [1, n_features] or a "
+                    "float in (0.0, 1.0]."
+                )
+            actual_max_features = int(self.max_features)
+        elif isinstance(self.max_features, Real):
+            if self.max_features <= 0.0 or self.max_features > 1.0:
+                raise ValueError(
+                    "max_features must be an int in [1, n_features] or a "
+                    "float in (0.0, 1.0]."
+                )
+            actual_max_features = max(1, int(self.max_features * n_cols))
+        else:
+            raise ValueError(
+                "max_features must be an int in [1, n_features] or a float "
+                "in (0.0, 1.0]."
+            )
+        self._n_features_per_tree = actual_max_features
+
+        if isinstance(self.contamination, str):
+            if self.contamination != "auto":
+                raise ValueError(
+                    "contamination must be 'auto' or a float in the range "
+                    "(0, 0.5]."
+                )
+        elif isinstance(self.contamination, Real):
+            contamination_fraction = float(self.contamination)
+            if contamination_fraction <= 0.0 or contamination_fraction > 0.5:
+                raise ValueError(
+                    "contamination must be 'auto' or a float in the range "
+                    "(0, 0.5]."
+                )
+            use_contamination_quantile = True
+        else:
+            raise ValueError(
+                "contamination must be 'auto' or a float in the range "
+                "(0, 0.5]."
+            )
+
+        # Compute max_samples
         cdef int actual_max_samples
+        if isinstance(self.max_samples, str):
+            if self.max_samples != "auto":
+                raise ValueError(
+                    "max_samples must be 'auto', a positive int, or a float "
+                    "in (0.0, 1.0]."
+                )
+            actual_max_samples = min(256, n_rows)
+        elif isinstance(self.max_samples, builtins.bool):
+            raise ValueError(
+                "max_samples must be 'auto', a positive int, or a float "
+                "in (0.0, 1.0]."
+            )
+        elif isinstance(self.max_samples, Integral):
+            if self.max_samples <= 0:
+                raise ValueError("max_samples must be a positive integer.")
+            if self.max_samples > n_rows:
+                warnings.warn(
+                    f"max_samples ({self.max_samples}) is greater than the "
+                    f"total number of samples ({n_rows}). max_samples will "
+                    "be set to n_samples for estimation.",
+                    UserWarning,
+                )
+            actual_max_samples = min(self.max_samples, n_rows)
+        elif isinstance(self.max_samples, Real):
+            if self.max_samples <= 0.0 or self.max_samples > 1.0:
+                raise ValueError("float max_samples must be in (0.0, 1.0].")
+            actual_max_samples = int(self.max_samples * n_rows)
+            if actual_max_samples < 1:
+                raise ValueError(
+                    "max_samples resolves to 0 samples; increase max_samples "
+                    "or provide more training rows."
+                )
+        else:
+            raise ValueError(
+                "max_samples must be 'auto', a positive int, or a float "
+                "in (0.0, 1.0]."
+            )
+        self.max_samples_ = actual_max_samples
+
+        # Compute max_depth (-1 means auto in C++)
         cdef int actual_max_depth
-        cdef uint64_t seed
+        if self.max_depth is None:
+            actual_max_depth = -1  # C++ will compute ceil(log2(max_samples))
+        else:
+            actual_max_depth = self.max_depth
+
+        # Get random seed
+        cdef uint64_t seed = check_random_seed(self.random_state)
+
+        # Setup parameters
         cdef IF_params params
-        cdef handle_t* handle_
-        cdef level_enum verbose
+        params.n_estimators = self.n_estimators
+        params.max_samples = actual_max_samples
+        params.max_depth = actual_max_depth
+        params.max_features = actual_max_features
+        params.bootstrap = self.bootstrap
+        params.seed = seed
+
+        # Get handle and verbosity
+        handle = get_handle()
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+        cdef level_enum verbose = <level_enum>self._verbose_level
+
         cdef _IsolationForestModel model
         cdef TreeliteModelHandle tl_handle = NULL
         cdef const char* tl_bytes = NULL
@@ -654,128 +755,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         cdef int tl_free_status
 
         try:
-            # Convert input to a column-major device array for fit.
-            # ``reset=True`` sets ``n_features_in_``/``feature_names_in_``.
-            X_m = check_inputs(
-                self,
-                X,
-                dtype=(np.float32, np.float64),
-                order="F",
-                reset=True,
-            )
-            n_rows = X_m.shape[0]
-            n_cols = X_m.shape[1]
-            X_ptr = X_m.data.ptr
-            self._dtype = X_m.dtype
-
-            if isinstance(self.max_features, builtins.bool):
-                raise ValueError(
-                    "max_features must be an int in [1, n_features] or a float "
-                    "in (0.0, 1.0]."
-                )
-            elif isinstance(self.max_features, Integral):
-                if self.max_features < 1 or self.max_features > n_cols:
-                    raise ValueError(
-                        "max_features must be an int in [1, n_features] or a "
-                        "float in (0.0, 1.0]."
-                    )
-                actual_max_features = int(self.max_features)
-            elif isinstance(self.max_features, Real):
-                if self.max_features <= 0.0 or self.max_features > 1.0:
-                    raise ValueError(
-                        "max_features must be an int in [1, n_features] or a "
-                        "float in (0.0, 1.0]."
-                    )
-                actual_max_features = max(1, int(self.max_features * n_cols))
-            else:
-                raise ValueError(
-                    "max_features must be an int in [1, n_features] or a float "
-                    "in (0.0, 1.0]."
-                )
-            self._n_features_per_tree = actual_max_features
-
-            if isinstance(self.contamination, str):
-                if self.contamination != "auto":
-                    raise ValueError(
-                        "contamination must be 'auto' or a float in the range "
-                        "(0, 0.5]."
-                    )
-            elif isinstance(self.contamination, Real):
-                contamination_fraction = float(self.contamination)
-                if contamination_fraction <= 0.0 or contamination_fraction > 0.5:
-                    raise ValueError(
-                        "contamination must be 'auto' or a float in the range "
-                        "(0, 0.5]."
-                    )
-                use_contamination_quantile = True
-            else:
-                raise ValueError(
-                    "contamination must be 'auto' or a float in the range "
-                    "(0, 0.5]."
-                )
-
-            # Compute max_samples
-            if isinstance(self.max_samples, str):
-                if self.max_samples != "auto":
-                    raise ValueError(
-                        "max_samples must be 'auto', a positive int, or a float "
-                        "in (0.0, 1.0]."
-                    )
-                actual_max_samples = min(256, n_rows)
-            elif isinstance(self.max_samples, builtins.bool):
-                raise ValueError(
-                    "max_samples must be 'auto', a positive int, or a float "
-                    "in (0.0, 1.0]."
-                )
-            elif isinstance(self.max_samples, Integral):
-                if self.max_samples <= 0:
-                    raise ValueError("max_samples must be a positive integer.")
-                if self.max_samples > n_rows:
-                    warnings.warn(
-                        f"max_samples ({self.max_samples}) is greater than the "
-                        f"total number of samples ({n_rows}). max_samples will "
-                        "be set to n_samples for estimation.",
-                        UserWarning,
-                    )
-                actual_max_samples = min(self.max_samples, n_rows)
-            elif isinstance(self.max_samples, Real):
-                if self.max_samples <= 0.0 or self.max_samples > 1.0:
-                    raise ValueError("float max_samples must be in (0.0, 1.0].")
-                actual_max_samples = int(self.max_samples * n_rows)
-                if actual_max_samples < 1:
-                    raise ValueError(
-                        "max_samples resolves to 0 samples; increase max_samples "
-                        "or provide more training rows."
-                    )
-            else:
-                raise ValueError(
-                    "max_samples must be 'auto', a positive int, or a float "
-                    "in (0.0, 1.0]."
-                )
-            self.max_samples_ = actual_max_samples
-
-            # Compute max_depth (-1 means auto in C++)
-            if self.max_depth is None:
-                actual_max_depth = -1  # C++ will compute ceil(log2(max_samples))
-            else:
-                actual_max_depth = self.max_depth
-
-            # Get random seed
-            seed = check_random_seed(self.random_state)
-
-            # Setup parameters
-            params.n_estimators = self.n_estimators
-            params.max_samples = actual_max_samples
-            params.max_depth = actual_max_depth
-            params.max_features = actual_max_features
-            params.bootstrap = self.bootstrap
-            params.seed = seed
-
-            # Get handle and verbosity
-            handle = get_handle()
-            handle_ = <handle_t*><uintptr_t>handle.getHandle()
-            verbose = <level_enum>self._verbose_level
-
             if X_m.dtype == np.float32:
                 model = _IsolationForestModelFloat32()
             else:
@@ -806,23 +785,26 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             safe_treelite_call(
                 tl_free_status, "Failed to free Treelite model:"
             )
-            self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
-            self._nvforest_model = None
-
-            if use_contamination_quantile:
-                training_scores = self.score_samples(X_m)
-                self.offset_ = float(
-                    cp.percentile(
-                        training_scores, 100.0 * contamination_fraction
-                    ).get()
-                )
-            else:
-                self.offset_ = -0.5
         except Exception:
             if tl_handle != NULL:
                 TreeliteFreeModel(tl_handle)
-            self._reset_fitted_state()
+            self._model = None
+            self._treelite_model_bytes = None
+            self._nvforest_model = None
             raise
+
+        self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
+        self._nvforest_model = None
+
+        if use_contamination_quantile:
+            training_scores = self.score_samples(X_m)
+            self.offset_ = float(
+                cp.percentile(
+                    training_scores, 100.0 * contamination_fraction
+                ).get()
+            )
+        else:
+            self.offset_ = -0.5
 
         return self
 
