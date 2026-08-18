@@ -38,11 +38,6 @@
   - "sklearn.linear_model.tests.test_coordinate_descent::test_enet_sample_weight_consistency[42-csr_matrix-False-0.01-True-ElasticNet]"
   - "sklearn.linear_model.tests.test_coordinate_descent::test_random_descent[csr_array]"
   - "sklearn.linear_model.tests.test_coordinate_descent::test_random_descent[csr_matrix]"
-- reason: HDBSCAN hierarchy differences can change labels at numerical cluster-selection boundaries
-  marker: cuml_accel_bugs
-  tests:
-  - "sklearn.cluster.tests.test_hdbscan::test_dbscan_clustering"
-  - "sklearn.cluster.tests.test_hdbscan::test_hdbscan_allow_single_cluster_with_epsilon"
 - reason: LogisticRegression behavior differs with cuml.accel in sklearn 1.9
   marker: cuml_accel_bugs
   condition: scikit-learn>=1.9
