@@ -997,6 +997,11 @@ def test_sklearn_hdbscan_roundtrip(random_state):
 
     roundtrip = _SklearnHDBSCAN.from_sklearn(sklearn_model)
     check_is_fitted(roundtrip)
+    assert roundtrip._state is not None
+    assert (
+        roundtrip.n_clusters_
+        == np.unique(sklearn_model.labels_[sklearn_model.labels_ >= 0]).size
+    )
 
     for name, expected in params.items():
         assert getattr(roundtrip, name) == expected
@@ -1032,6 +1037,15 @@ def test_sklearn_hdbscan_roundtrip(random_state):
         sklearn_model.dbscan_clustering(1.0),
         sklearn_roundtrip.dbscan_clustering(1.0),
     )
+
+
+def test_sklearn_hdbscan_rejects_incomplete_fitted_state(random_state):
+    X, _ = make_blobs(n_samples=100, random_state=random_state)
+    model = SkHDBSCAN(copy=False).fit(X)
+    del model._single_linkage_tree_
+
+    with pytest.raises(UnsupportedOnGPU, match="single-linkage tree"):
+        _SklearnHDBSCAN.from_sklearn(model)
 
 
 def test_linear_svr(random_state):

@@ -10,6 +10,7 @@ import numpy as np
 
 import cuml.cluster
 from cuml.accel.estimator_proxy import ProxyBase
+from cuml.cluster.hdbscan.hdbscan import _HDBSCANState
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.outputs import ArrayIndexPair
 
@@ -157,6 +158,26 @@ class _SklearnHDBSCAN(cuml.cluster.HDBSCAN):
 
         raw_data = cp.asarray(raw_data_cpu, order="C", dtype=np.float32)
         labels = cp.asarray(model.labels_, order="C", dtype=np.int64)
+        try:
+            linkage = _linkage_from_sklearn(model._single_linkage_tree_)
+            state = _HDBSCANState.from_sklearn(self, raw_data, linkage)
+        except (
+            AttributeError,
+            IndexError,
+            KeyError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise UnsupportedOnGPU(
+                "Fitted model does not contain a supported single-linkage tree"
+            ) from exc
+
+        n_clusters = np.unique(model.labels_[model.labels_ >= 0]).size
+        if state.n_clusters != n_clusters:
+            raise UnsupportedOnGPU(
+                "Fitted model cannot populate equivalent native cluster state"
+            )
 
         return {
             "labels_": ArrayIndexPair(labels, None),
@@ -165,12 +186,11 @@ class _SklearnHDBSCAN(cuml.cluster.HDBSCAN):
             ),
             "_raw_data": ArrayIndexPair(raw_data, None),
             "_raw_data_cpu": raw_data_cpu,
-            "_single_linkage_tree": _linkage_from_sklearn(
-                model._single_linkage_tree_
-            ),
+            "_single_linkage_tree": linkage,
             "_min_spanning_tree": None,
             "_prediction_data": None,
-            "_state": None,
+            "_state": state,
+            "n_clusters_": state.n_clusters,
             **InteropMixin._attrs_from_cpu(self, model),
         }
 
