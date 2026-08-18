@@ -12,6 +12,9 @@ These tests are designed to be:
 4. Validating sklearn compatibility
 """
 
+import pickle
+import warnings
+
 import cupy as cp
 import numpy as np
 import pytest
@@ -616,14 +619,76 @@ def test_treelite_export_before_fit_raises(blobs_data):
     """Treelite and nvForest export should require a fitted model."""
     clf = cuIsolationForest()
 
-    with pytest.raises(NotFittedError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_treelite()
 
-    with pytest.raises(NotFittedError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_nvforest()
 
-    with pytest.raises(NotFittedError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf._score_samples_nvforest(blobs_data)
+
+
+# =============================================================================
+# Pickling tests
+# =============================================================================
+
+
+def _fitted_only_attrs(estimator):
+    return sorted(
+        attr
+        for attr in vars(estimator)
+        if attr.endswith("_") and not attr.startswith("__")
+    )
+
+
+def test_pickle_fitted_model_is_unfitted_after_roundtrip(blobs_data):
+    """The native model cannot be serialized: pickling a fitted model warns
+    and unpickles as a genuinely unfitted estimator with the same
+    parameters."""
+    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
+
+    with pytest.warns(UserWarning, match="unfitted"):
+        payload = pickle.dumps(clf)
+    loaded = pickle.loads(payload)
+
+    assert _fitted_only_attrs(loaded) == []
+    assert loaded._treelite_model_bytes is None
+    assert loaded.get_params() == clf.get_params()
+    with pytest.raises(NotFittedError, match="not fitted"):
+        loaded.predict(blobs_data)
+    with pytest.raises(NotFittedError, match="not fitted"):
+        loaded.as_treelite()
+
+    # Refitting the unpickled estimator reproduces the original model.
+    refit_scores = np.asarray(loaded.fit(blobs_data).score_samples(blobs_data))
+    original_scores = np.asarray(clf.score_samples(blobs_data))
+    np.testing.assert_allclose(refit_scores, original_scores)
+
+
+def test_pickle_unfitted_model_is_silent():
+    """Pickling an unfitted estimator round trips without warning."""
+    clf = cuIsolationForest(n_estimators=7, random_state=3)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        loaded = pickle.loads(pickle.dumps(clf))
+
+    assert loaded.get_params() == clf.get_params()
+
+
+def test_failed_fit_leaves_estimator_unfitted(blobs_data):
+    """A failed fit must leave the estimator genuinely unfitted rather than
+    half fitted."""
+    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
+    clf.max_features = 0
+
+    with pytest.raises(ValueError, match="max_features"):
+        clf.fit(blobs_data)
+
+    assert _fitted_only_attrs(clf) == []
+    with pytest.raises(NotFittedError, match="not fitted"):
+        clf.predict(blobs_data)
 
 
 # =============================================================================
