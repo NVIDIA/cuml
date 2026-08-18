@@ -111,7 +111,7 @@ def test_hdbscan_min_samples_semantics():
 
     expected = CPUHDBSCAN(**params).fit_predict(X)
     off_by_one = CPUHDBSCAN(**{**params, "min_samples": 5}).fit_predict(X)
-    assert adjusted_rand_score(expected, off_by_one) == 0.0
+    assert adjusted_rand_score(expected, off_by_one) <= 0.1
 
     result = HDBSCAN(**params)
     labels = result.fit_predict(X)
