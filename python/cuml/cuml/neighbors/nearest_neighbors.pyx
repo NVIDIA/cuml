@@ -390,6 +390,7 @@ cdef class RBCIndex:
 
 
 def _ivfpq_enum_code(value, name, choices):
+    """Convert an IVF-PQ enum value to its native integer code."""
     try:
         return choices[value]
     except (KeyError, TypeError):
@@ -400,6 +401,7 @@ def _ivfpq_enum_code(value, name, choices):
 
 
 def _ivfpq_dtype_code(value, name, allowed):
+    """Validate an IVF-PQ dtype and return its native integer code."""
     aliases = {
         "cuda_r_32f": "float32",
         "cuda_r_16f": "float16",
@@ -432,6 +434,7 @@ def _ivfpq_dtype_code(value, name, allowed):
 
 
 def _normalize_ivf_params(algorithm, params):
+    """Normalize IVF defaults, aliases, and supported parameters."""
     if algorithm == "ivfflat":
         defaults = {
             "n_lists": 1024,
@@ -497,6 +500,14 @@ def _normalize_ivf_params(algorithm, params):
 
         params.setdefault(new, params[old])
         del params[old]
+
+    unknown = sorted(set(params) - set(defaults))
+    if unknown:
+        valid = ", ".join(sorted(defaults))
+        raise ValueError(
+            f"Unsupported algo_params for algorithm={algorithm!r}: "
+            f"{', '.join(unknown)}. Valid parameters are: {valid}"
+        )
 
     return {**defaults, **params}
 

@@ -216,6 +216,20 @@ def test_ivf_cuvs_default_params():
 @pytest.mark.parametrize(
     "algorithm,algo_params",
     [
+        ("ivfflat", {"n_probe": 2}),
+        ("ivfpq", {"pq_bit": 8}),
+    ],
+)
+def test_ivf_unknown_algo_params(algorithm, algo_params):
+    from cuml.neighbors.nearest_neighbors import _normalize_ivf_params
+
+    with pytest.raises(ValueError, match="Unsupported algo_params"):
+        _normalize_ivf_params(algorithm, algo_params)
+
+
+@pytest.mark.parametrize(
+    "algorithm,algo_params",
+    [
         (
             "ivfflat",
             {
