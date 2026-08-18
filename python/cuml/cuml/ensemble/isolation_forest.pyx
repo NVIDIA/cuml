@@ -674,7 +674,10 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         exported = treelite.sklearn.export_model(tl_model)
         n_features = self.n_features_in_
         n_samples = int(self.max_samples_)
-        max_depth = int(np.ceil(np.log2(max(n_samples, 2))))
+        if self.max_depth is None:
+            max_depth = int(np.ceil(np.log2(max(n_samples, 2))))
+        else:
+            max_depth = int(self.max_depth)
         estimators = [
             _isolation_tree_to_sklearn(tree, n_features, n_samples, max_depth)
             for tree in exported.estimators_

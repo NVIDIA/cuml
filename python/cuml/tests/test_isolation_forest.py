@@ -333,6 +333,23 @@ def test_fitted_from_sklearn_is_explicitly_unsupported(blobs_data):
         cuIsolationForest.from_sklearn(sk_model)
 
 
+def test_as_sklearn_respects_max_depth(anomaly_data):
+    """A configured ``max_depth`` must carry over to the reconstructed
+    estimators, and truncated trees (leaves holding many samples) must
+    still score identically."""
+    cu_model = cuIsolationForest(
+        n_estimators=20, max_samples=256, max_depth=4, random_state=11
+    ).fit(anomaly_data)
+    sk_model = cu_model.as_sklearn()
+    assert all(est.max_depth == 4 for est in sk_model.estimators_)
+    cu_scores = np.asarray(
+        cu_model.score_samples(anomaly_data), dtype=np.float64
+    )
+    np.testing.assert_allclose(
+        cu_scores, sk_model.score_samples(anomaly_data), atol=1e-5
+    )
+
+
 def test_as_sklearn_after_failed_fit_raises(blobs_data):
     """A failed fit sets ``n_features_in_`` before raising, which makes the
     model look fitted to ``InteropMixin``; conversion must still fail
