@@ -577,11 +577,17 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             "Conversion of a fitted cuML IsolationForest is not supported"
         )
 
+    @staticmethod
+    def _clear_fitted_state(state):
+        """Applies the unfitted baseline to the ``state`` mapping in place."""
+        state.update(_UNFITTED_BASELINE)
+        for attr in _FITTED_ONLY_ATTRS:
+            state.pop(attr, None)
+        return state
+
     def _reset_fitted_state(self):
         """Returns the estimator to its unfitted construction state."""
-        self.__dict__.update(_UNFITTED_BASELINE)
-        for attr in _FITTED_ONLY_ATTRS:
-            self.__dict__.pop(attr, None)
+        self._clear_fitted_state(self.__dict__)
 
     def __getstate__(self):
         """Pickle support: the native model cannot be serialized, so the
@@ -594,10 +600,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                 "state. The unpickled estimator is unfitted; call fit() "
                 "again before using it."
             )
-        state.update(_UNFITTED_BASELINE)
-        for attr in _FITTED_ONLY_ATTRS:
-            state.pop(attr, None)
-        return state
+        return self._clear_fitted_state(state)
 
     def __setstate__(self, state):
         """Pickle support - restore state."""
