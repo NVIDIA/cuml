@@ -20,10 +20,7 @@ import nvforest
 import treelite
 
 from cuml.internals.base import Base, get_handle
-from cuml.internals.interop import (
-    InteropMixin,
-    UnsupportedOnGPU,
-)
+from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.mixins import CMajorInputTagMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.treelite import safe_treelite_call
