@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -243,7 +243,6 @@ def test_precomputed_matrix_formats(converter, dtype):
     assert ari > min_ari
 
 
-@pytest.mark.xfail(reason="https://github.com/rapidsai/cuml/issues/7714")
 @given(
     n_samples=st.integers(min_value=100, max_value=2000),
     n_features=st.integers(min_value=2, max_value=20),

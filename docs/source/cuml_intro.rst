@@ -47,7 +47,7 @@ cuML estimators look and feel just like `scikit-learn estimators
    print(f"R² score: {model.score(X_test, y_test):.3f}")
 
 You can find many more complete examples in the `Introductory Notebook
-<estimator_intro.ipynb>`_ and in the cuML API documentation.
+<estimator_intro.ipynb>`__ and in the cuML API documentation.
 
 .. note::
 
@@ -108,9 +108,8 @@ Performance gains vary by algorithm and dataset size:
    enough data to keep the GPU busy. Expect larger performance gains as dataset
    size grows.
 
-The `cuml.benchmark
-<https://docs.rapids.ai/api/cuml/nightly/api.html#benchmarking>`_ module
-provides an easy interface to benchmark your own hardware.
+The :doc:`cuml.benchmark <api/cuml.benchmark>` module provides an easy interface
+to benchmark your own hardware.
 
 
 What's Next
@@ -119,9 +118,9 @@ What's Next
 Here are some suggestions on what to explore next:
 
 1. **Try the examples**: Walk through the `Introductory Notebook
-   <estimator_intro.ipynb>`_ for hands-on learning
+   <estimator_intro.ipynb>`__ for hands-on learning
 2. **Explore the API**: Browse the `API Reference <api>`_ for specific algorithms
-3. **Check out notebooks**: Try examples in the `notebooks <https://github.com/rapidsai/cuml/tree/HEAD/notebooks>`_ directory
+3. **Check out notebooks**: Try examples in the `notebooks <https://github.com/NVIDIA/cuml/tree/main/notebooks>`_ directory
 4. **Learn advanced topics**: Read the `cuML blogs <cuml_blogs.rst>`_ for deeper insights
-5. **Get help**: Visit our `GitHub Issues <https://github.com/rapidsai/cuml/issues>`_
-   or `RAPIDS Community <https://rapids.ai/community.html>`_
+5. **Get help**: Visit our `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_
+   or join the `CUDA-X Data Science Community <https://developer.nvidia.com/topics/ai/data-science/cuda-x-for-data-science#join-the-community>`_

@@ -25,6 +25,7 @@ from cuml.internals.validation import (
     check_consistent_length,
     check_cudf,
     check_features,
+    check_input_features,
     check_inputs,
     check_non_negative,
     check_random_seed,
@@ -475,6 +476,44 @@ def test_feature_names_mismatch_errors():
     with pytest.raises(ValueError, match="The feature names") as rec:
         model.predict(bad)
     assert "Feature names must be in the same order" in str(rec.value)
+
+
+def test_check_input_features():
+    X = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
+
+    # Correct names are fine
+    model_named = MyModel().fit(X)
+    model_unnamed = MyModel().fit(X.to_numpy())
+
+    # no-args call returns feature_names_in_
+    np.testing.assert_array_equal(
+        check_input_features(model_named),
+        model_named.feature_names_in_,
+    )
+
+    # if no feature_names_in_, names are generated like x0, x1, ...
+    np.testing.assert_array_equal(
+        check_input_features(model_unnamed),
+        np.array(["x0", "x1", "x2"], dtype="object"),
+    )
+
+    # If `input_features` provided, that's returned if valid
+    np.testing.assert_array_equal(
+        check_input_features(model_named, ["a", "b", "c"]),
+        model_named.feature_names_in_,
+    )
+    np.testing.assert_array_equal(
+        check_input_features(model_unnamed, ["x", "y", "z"]),
+        np.array(["x", "y", "z"]),
+    )
+
+    # Errors if feature_names_in_ defined and doesn't match
+    with pytest.raises(ValueError, match="input_features is not equal to"):
+        check_input_features(model_named, ["x", "y", "z"])
+
+    # If no `feature_names_in_`, errors if input_features isn't the right size
+    with pytest.raises(ValueError, match=r".*number of features \(3\), got 2"):
+        check_input_features(model_unnamed, ["x", "y"])
 
 
 def test_check_consistent_length():

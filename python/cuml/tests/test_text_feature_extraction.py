@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -59,17 +59,13 @@ NGRAM_RANGES = [(1, 1), (1, 2), (2, 3)]
 NGRAM_IDS = [f"ngram_range={str(r)}" for r in NGRAM_RANGES]
 
 
-@pytest.mark.skip(
-    reason="scikit-learn replaced get_feature_names with "
-    "get_feature_names_out"
-    "https://github.com/rapidsai/cuml/issues/5159"
-)
 @pytest.mark.parametrize("ngram_range", NGRAM_RANGES, ids=NGRAM_IDS)
 def test_word_analyzer(ngram_range):
     v = CountVectorizer(ngram_range=ngram_range).fit(DOCS_GPU)
     ref = SkCountVect(ngram_range=ngram_range).fit(DOCS)
-    assert (
-        ref.get_feature_names() == v.get_feature_names().to_arrow().to_pylist()
+    assert_array_equal(
+        ref.get_feature_names_out(),
+        v.get_feature_names_out(),
     )
 
 
@@ -102,7 +98,7 @@ def test_countvectorizer_stop_words_ngrams():
     v = CountVectorizer(ngram_range=(2, 2), stop_words="english")
     v.fit(stop_words_doc)
 
-    assert expected_vocabulary == v.get_feature_names().to_arrow().to_pylist()
+    assert_array_equal(v.get_feature_names_out(), expected_vocabulary)
 
 
 def test_countvectorizer_max_features():
@@ -120,10 +116,7 @@ def test_countvectorizer_max_features():
     # test bounded number of extracted features
     vec = CountVectorizer(max_df=0.6, max_features=4)
     vec.fit(DOCS_GPU)
-    assert (
-        set(vec.get_feature_names().to_arrow().to_pylist())
-        == expected_vocabulary
-    )
+    assert set(vec.get_feature_names_out()) == expected_vocabulary
     assert set(vec.stop_words_.to_arrow().to_pylist()) == expected_stop_words
 
 
@@ -138,9 +131,9 @@ def test_countvectorizer_max_features_counts():
     counts_3 = cv_3.fit_transform(JUNK_FOOD_DOCS_GPU).sum(axis=0)
     counts_None = cv_None.fit_transform(JUNK_FOOD_DOCS_GPU).sum(axis=0)
 
-    features_1 = cv_1.get_feature_names()
-    features_3 = cv_3.get_feature_names()
-    features_None = cv_None.get_feature_names()
+    features_1 = cv_1.get_feature_names_out()
+    features_3 = cv_3.get_feature_names_out()
+    features_None = cv_None.get_feature_names_out()
 
     # The most common feature is "the", with frequency 7.
     assert 7 == counts_1.max()
@@ -208,10 +201,7 @@ def test_count_binary_occurrences():
     test_data = Series(["aaabc", "abbde"])
     vect = CountVectorizer(analyzer="char", max_df=1.0)
     X = cp.asnumpy(vect.fit_transform(test_data).todense())
-    assert_array_equal(
-        ["a", "b", "c", "d", "e"],
-        vect.get_feature_names().to_arrow().to_pylist(),
-    )
+    assert_array_equal(["a", "b", "c", "d", "e"], vect.get_feature_names_out())
     assert_array_equal([[3, 1, 1, 0, 0], [1, 2, 0, 1, 1]], X)
 
     # using boolean features, we can fetch the binary occurrence info
@@ -256,9 +246,10 @@ def test_space_ngrams(ngram_range):
     data_gpu = Series(data)
     vec = CountVectorizer(ngram_range=ngram_range).fit(data_gpu)
     ref = SkCountVect(ngram_range=ngram_range).fit(data)
-    assert (
-        ref.get_feature_names()
-    ) == vec.get_feature_names().to_arrow().to_pylist()
+    assert_array_equal(
+        ref.get_feature_names_out(),
+        vec.get_feature_names_out(),
+    )
 
 
 def test_empty_doc_after_limit_features():
@@ -283,7 +274,7 @@ def test_non_ascii():
     res = cv.fit_transform(non_ascii_gpu)
     ref = SkCountVect().fit_transform(non_ascii)
 
-    assert "αγγλικά" in set(cv.get_feature_names().to_arrow().to_pylist())
+    assert "αγγλικά" in set(cv.get_feature_names_out())
     cp.testing.assert_array_equal(res.todense(), ref.toarray())
 
 
@@ -321,9 +312,10 @@ def test_character_ngrams(analyzer, ngram_range):
 
     ref = SkCountVect(analyzer=analyzer, ngram_range=ngram_range).fit(data)
 
-    assert (
-        ref.get_feature_names()
-    ) == res.get_feature_names().to_arrow().to_pylist()
+    assert_array_equal(
+        res.get_feature_names_out(),
+        ref.get_feature_names_out(),
+    )
 
 
 @pytest.mark.parametrize(
@@ -400,7 +392,7 @@ def test_tfidf_vectorizer(norm, use_idf, smooth_idf, sublinear_tf):
     cp.testing.assert_array_almost_equal(tfidf_mat.todense(), ref.toarray())
 
 
-def test_tfidf_vectorizer_get_feature_names():
+def test_tfidf_vectorizer_get_feature_names_out():
     corpus = [
         "This is the first document.",
         "This document is the second document.",
@@ -420,7 +412,24 @@ def test_tfidf_vectorizer_get_feature_names():
         "third",
         "this",
     ]
-    assert vectorizer.get_feature_names().to_arrow().to_pylist() == output
+    assert_array_equal(vectorizer.get_feature_names_out(), output)
+
+
+@pytest.mark.parametrize("cls", [TfidfVectorizer, CountVectorizer])
+def test_vectorizer_get_feature_names_deprecated(cls):
+    X = Series(
+        [
+            "This is the first document.",
+            "This document is the second document.",
+            "And this is the third one.",
+            "Is this the first document?",
+        ]
+    )
+    model = cls().fit(X)
+    with pytest.warns(FutureWarning, match="get_feature_names"):
+        res = model.get_feature_names()
+
+    np.testing.assert_array_equal(res, model.get_feature_names_out())
 
 
 # ----------------------------------------------------------------

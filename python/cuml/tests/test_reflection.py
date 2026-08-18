@@ -53,10 +53,11 @@ def rand_array(output_type, *, shape=(8, 4), seed=42):
     elif output_type == "numpy":
         return cp.asnumpy(X)
     elif output_type == "pandas":
-        return pd.DataFrame(X.get())
+        X = X.get()
+        return pd.DataFrame(X) if X.ndim == 2 else pd.Series(X)
     else:
         assert output_type == "cudf"
-        return cudf.DataFrame(X)
+        return cudf.DataFrame(X) if X.ndim == 2 else cudf.Series(X)
 
 
 class ImplementsArray:
@@ -284,19 +285,42 @@ def test_global_input_with_estimator_output_type():
     assert_output_type(model.components_, "pandas")
 
 
-@pytest.mark.parametrize("input_type", ["numpy", "cupy"])
+@pytest.mark.parametrize(
+    "input_type, order",
+    [
+        ("numpy", "C"),
+        ("numpy", "F"),
+        ("cupy", "C"),
+        ("cupy", "F"),
+        ("pandas", "F"),
+        ("cudf", "F"),
+    ],
+)
 @pytest.mark.parametrize("output_type", ["numpy", "cupy"])
-@pytest.mark.parametrize("order", ["C", "F"])
-def test_convert_arrays_dense_array(input_type, output_type, order):
+def test_convert_arrays_dense_array(input_type, order, output_type):
+    X = rand_array(input_type)
     if input_type == "cupy":
-        X = cp.asarray(rand_array("cupy"), order=order)
-    else:
-        X = np.asarray(rand_array("numpy"), order=order)
+        X = cp.asarray(X, order=order)
+    elif input_type == "numpy":
+        X = np.asarray(X, order=order)
 
     out = convert_arrays(X, output_type)
+    sol = X.to_numpy() if hasattr(X, "to_numpy") else cp.asnumpy(X)
+
     assert_output_type(out, output_type)
-    np.testing.assert_array_equal(cp.asnumpy(X), cp.asnumpy(out))
+    np.testing.assert_array_equal(cp.asnumpy(out), sol)
     assert out.flags.c_contiguous if order == "C" else out.flags.f_contiguous
+
+
+@pytest.mark.parametrize("input_type", ["numpy", "cupy", "pandas", "cudf"])
+@pytest.mark.parametrize("output_type", ["numpy", "cupy"])
+def test_convert_arrays_dense_array_1d(input_type, output_type):
+    X = rand_array(input_type, shape=8)
+    out = convert_arrays(X, output_type)
+    sol = X.to_numpy() if hasattr(X, "to_numpy") else cp.asnumpy(X)
+
+    assert_output_type(out, output_type)
+    np.testing.assert_array_equal(cp.asnumpy(out), sol)
 
 
 @pytest.mark.parametrize("input_type", ["scipy", "cupyx"])
@@ -328,7 +352,7 @@ def test_convert_arrays_sparse_array(input_type, output_type, format):
 
 
 @pytest.mark.parametrize("kind", ["dataframe", "series"])
-@pytest.mark.parametrize("input_type", ["cupy", "numpy"])
+@pytest.mark.parametrize("input_type", ["cupy", "numpy", "pandas", "cudf"])
 @pytest.mark.parametrize("output_type", ["pandas", "cudf"])
 def test_convert_arrays_dataframe(kind, input_type, output_type):
     arr = rand_array(input_type, shape=((8, 4) if kind == "dataframe" else 8))
@@ -346,7 +370,7 @@ def test_convert_arrays_dataframe(kind, input_type, output_type):
 @pytest.mark.parametrize("xdf", [pd, cudf])
 @pytest.mark.parametrize("kind", ["dataframe", "series"])
 @pytest.mark.parametrize("use_pair", [False, True])
-@pytest.mark.parametrize("input_type", ["cupy", "numpy"])
+@pytest.mark.parametrize("input_type", ["cupy", "numpy", "pandas", "cudf"])
 @pytest.mark.parametrize("output_type", ["pandas", "cudf"])
 def test_convert_arrays_dataframe_with_index(
     xdf, kind, use_pair, input_type, output_type
@@ -360,13 +384,13 @@ def test_convert_arrays_dataframe_with_index(
         res = convert_arrays(arr, output_type, index=index)
 
     if kind == "dataframe":
-        cudf.testing.assert_frame_equal(
-            cudf.DataFrame(res), cudf.DataFrame(arr, index=index)
-        )
+        sol = cudf.DataFrame(arr)
+        sol.index = index
+        cudf.testing.assert_frame_equal(cudf.DataFrame(res), sol)
     else:
-        cudf.testing.assert_series_equal(
-            cudf.Series(res), cudf.Series(arr, index=index)
-        )
+        sol = cudf.Series(arr)
+        sol.index = index
+        cudf.testing.assert_series_equal(cudf.Series(res), sol)
 
 
 @pytest.mark.parametrize(

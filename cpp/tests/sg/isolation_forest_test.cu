@@ -16,6 +16,7 @@
 
 #include "../../src/isolation_forest/isolation_tree_builder.cuh"
 
+#include <cuml/common/utils.hpp>
 #include <cuml/ensemble/isolation_forest.hpp>
 
 #include <raft/core/handle.hpp>
@@ -51,7 +52,7 @@
 namespace ML {
 namespace tl = treelite;
 
-__global__ void sample_rows_for_test(
+CUML_KERNEL void sample_rows_for_test(
   size_t n_rows, int max_samples, bool bootstrap, uint64_t seed, size_t* sample_indices)
 {
   if (threadIdx.x != 0 || blockIdx.x != 0) return;
@@ -73,10 +74,10 @@ __global__ void sample_rows_for_test(
   }
 }
 
-__global__ void sample_features_for_test(int n_cols,
-                                         int max_features,
-                                         uint64_t seed,
-                                         int* feature_indices)
+CUML_KERNEL void sample_features_for_test(int n_cols,
+                                          int max_features,
+                                          uint64_t seed,
+                                          int* feature_indices)
 {
   if (threadIdx.x != 0 || blockIdx.x != 0) return;
 
