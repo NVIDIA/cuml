@@ -83,9 +83,10 @@ def test_hdbscan_copy_default_warning(blobs):
 @pytest.mark.parametrize(
     "kwargs,name,expected",
     [
-        ({}, "min_samples", 5),
-        ({"min_samples": 1}, "min_samples", 1),
-        ({"min_cluster_size": 20, "min_samples": 8}, "min_samples", 8),
+        ({}, "min_samples", 4),
+        ({"min_samples": 2}, "min_samples", 1),
+        ({"min_cluster_size": 20, "min_samples": 8}, "min_samples", 7),
+        ({"min_samples": 1024}, "min_samples", 1023),
         ({}, "max_cluster_size", 0),
         ({"max_cluster_size": 25}, "max_cluster_size", 25),
     ],
@@ -94,9 +95,31 @@ def test_hdbscan_parameter_translation(kwargs, name, expected):
     assert _gpu_params(**kwargs)[name] == expected
 
 
-def test_hdbscan_min_samples_gpu_bound():
+@pytest.mark.parametrize("min_samples", [1, 1025])
+def test_hdbscan_min_samples_gpu_bound(min_samples):
     with pytest.raises(UnsupportedOnGPU):
-        _gpu_params(min_samples=1024)
+        _gpu_params(min_samples=min_samples)
+
+
+def test_hdbscan_min_samples_semantics():
+    X, _ = make_moons(n_samples=200, noise=0.12, random_state=1)
+    params = {
+        "min_cluster_size": 50,
+        "min_samples": 4,
+        "copy": False,
+    }
+
+    expected = CPUHDBSCAN(**params).fit_predict(X)
+    off_by_one = CPUHDBSCAN(**{**params, "min_samples": 5}).fit_predict(X)
+    assert adjusted_rand_score(expected, off_by_one) == 0.0
+
+    result = HDBSCAN(**params)
+    labels = result.fit_predict(X)
+
+    assert result._gpu.min_samples == 3
+    expected_score = adjusted_rand_score(expected, labels)
+    off_by_one_score = adjusted_rand_score(off_by_one, labels)
+    assert expected_score > off_by_one_score
 
 
 @pytest.mark.parametrize(
@@ -135,7 +158,7 @@ def test_hdbscan_cpu_gpu_agreement(
 def test_hdbscan_fit_predict_and_dbscan_clustering():
     X, _ = make_moons(n_samples=500, noise=0.08, random_state=42)
     X = pd.DataFrame(X, columns=["x", "y"])
-    params = {"min_cluster_size": 10, "min_samples": 5, "copy": False}
+    params = {"min_cluster_size": 10, "min_samples": 6, "copy": False}
 
     expected = CPUHDBSCAN(**params).fit(X)
     result = HDBSCAN(**params)
@@ -216,7 +239,7 @@ def test_hdbscan_parameter_updates(blobs):
         n_jobs=2,
     )
     assert model._gpu is not None
-    assert model._gpu.min_samples == 8
+    assert model._gpu.min_samples == 7
     assert model._gpu.max_cluster_size == 25
     assert model.fit(blobs)._gpu is not None
 
@@ -271,6 +294,17 @@ def test_hdbscan_data_dependent_min_samples_falls_back(blobs):
         model.fit(blobs)
 
     _assert_cpu_fallback(model)
+
+
+def test_hdbscan_min_samples_one_falls_back(blobs):
+    params = {"min_samples": 1, "copy": False}
+    expected = CPUHDBSCAN(**params).fit_predict(blobs)
+
+    model = HDBSCAN(**params)
+    result = model.fit_predict(blobs)
+
+    _assert_cpu_fallback(model)
+    np.testing.assert_array_equal(result, expected)
 
 
 def test_hdbscan_complex_input_uses_sklearn_validation(blobs):

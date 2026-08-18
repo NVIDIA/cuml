@@ -993,6 +993,7 @@ def test_sklearn_hdbscan_roundtrip(random_state):
     sklearn_model = original.as_sklearn()
     assert type(sklearn_model) is SkHDBSCAN
     check_is_fitted(sklearn_model)
+    assert sklearn_model.min_samples == params["min_samples"] + 1
 
     roundtrip = _SklearnHDBSCAN.from_sklearn(sklearn_model)
     check_is_fitted(roundtrip)

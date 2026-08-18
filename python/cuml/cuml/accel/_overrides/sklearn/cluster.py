@@ -100,17 +100,19 @@ class _SklearnHDBSCAN(cuml.cluster.HDBSCAN):
                 f"`store_centers={model.store_centers!r}` is not supported"
             )
 
-        # sklearn and cuML both count the point itself in min_samples. The
-        # contrib HDBSCAN API differs, but uses a separate accel adapter.
-        min_samples = (
+        sklearn_min_samples = (
             model.min_cluster_size
             if model.min_samples is None
             else model.min_samples
         )
-        if not 1 <= min_samples <= 1023:
+        # Native cuML follows the contrib HDBSCAN convention and adds one to
+        # min_samples before constructing the KNN graph. sklearn's
+        # min_samples=k therefore corresponds to native min_samples=k-1.
+        if not 2 <= sklearn_min_samples <= 1024:
             raise UnsupportedOnGPU(
                 f"`min_samples={model.min_samples!r}` is not supported"
             )
+        min_samples = sklearn_min_samples - 1
 
         return {
             "min_cluster_size": model.min_cluster_size,
@@ -124,9 +126,14 @@ class _SklearnHDBSCAN(cuml.cluster.HDBSCAN):
         }
 
     def _params_to_cpu(self):
+        min_samples = (
+            self.min_cluster_size
+            if self.min_samples is None
+            else self.min_samples
+        )
         return {
             "min_cluster_size": self.min_cluster_size,
-            "min_samples": self.min_samples,
+            "min_samples": min_samples + 1,
             "cluster_selection_epsilon": self.cluster_selection_epsilon,
             "max_cluster_size": self.max_cluster_size or None,
             "metric": self.metric,
@@ -168,6 +175,11 @@ class _SklearnHDBSCAN(cuml.cluster.HDBSCAN):
         }
 
     def _attrs_to_cpu(self, model):
+        min_samples = (
+            self.min_cluster_size
+            if self.min_samples is None
+            else self.min_samples
+        )
         return {
             "labels_": self.labels_.array.get(order="A"),
             "probabilities_": self.probabilities_.get(order="A").astype(
@@ -179,11 +191,7 @@ class _SklearnHDBSCAN(cuml.cluster.HDBSCAN):
             "_single_linkage_tree_": _linkage_to_sklearn(
                 self._single_linkage_tree
             ),
-            "_min_samples": (
-                self.min_cluster_size
-                if self.min_samples is None
-                else self.min_samples
-            ),
+            "_min_samples": min_samples + 1,
             "_metric_params": {},
             **InteropMixin._attrs_to_cpu(self, model),
         }

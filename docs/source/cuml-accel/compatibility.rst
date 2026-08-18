@@ -627,8 +627,8 @@ HDBSCAN
    - If ``metric`` is not ``"l2"`` or ``"euclidean"``.
    - If ``metric_params`` is not empty.
    - If ``store_centers`` is not ``None``.
-   - If the effective ``min_samples`` value is outside cuML's supported range
-     of 1 through 1023.
+   - If the effective scikit-learn ``min_samples`` value is outside the range
+     of 2 through 1024. In particular, ``min_samples=1`` falls back to CPU.
    - If the input is sparse, precomputed, or contains non-finite values.
 
    The ``algorithm``, ``leaf_size``, ``n_jobs``, and ``copy`` parameters control
@@ -638,9 +638,10 @@ HDBSCAN
 
    Additional notes:
 
-   - Scikit-learn and cuML both count each point itself in ``min_samples``, so
-     this parameter is forwarded without an offset. The separate
-     ``hdbscan.HDBSCAN`` proxy retains its own parameter handling.
+   - cuML's native implementation adds one to ``min_samples`` when constructing
+     the neighbor graph to match contrib HDBSCAN semantics. The scikit-learn
+     adapter therefore subtracts one from scikit-learn's effective value. The
+     separate ``hdbscan.HDBSCAN`` proxy retains its own parameter handling.
    - ``max_cluster_size=None`` is translated to cuML's unlimited value.
    - cuML uses float32 computation and a parallel MST, so linkage distances,
      probabilities, cluster labels, and even cluster assignments may differ
