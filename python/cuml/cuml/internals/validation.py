@@ -14,7 +14,7 @@ import pandas as pd
 import scipy.sparse as sp
 import sklearn
 from packaging.version import Version
-from pandas.api.types import is_extension_array_dtype, is_string_dtype
+from pandas.api.types import is_string_dtype
 from sklearn.exceptions import DataConversionWarning
 from sklearn.utils.validation import check_is_fitted
 
@@ -35,25 +35,6 @@ __all__ = (
 )
 
 _CUPY_SUPPORTS_LARGE_SPARSE = Version(cp.__version__) >= Version("14.1.0")
-
-
-def _as_numpy_dtype(dtype):
-    """Normalize pandas extension dtypes for numpy/cupy conversion."""
-    try:
-        return np.dtype(dtype)
-    except TypeError:
-        if is_string_dtype(dtype) or is_extension_array_dtype(dtype):
-            return np.dtype("object")
-        raise
-
-
-def _dataframe_numpy_dtype(dtypes):
-    """Infer a NumPy dtype for dataframe-like inputs."""
-    if all(isinstance(dt, np.dtype) for dt in dtypes):
-        return np.result_type(*dtypes)
-    if any(dt == "object" or is_string_dtype(dt) for dt in dtypes):
-        return np.dtype("object")
-    return None
 
 
 def check_random_seed(random_state) -> int:
@@ -675,7 +656,7 @@ def check_array(
     if dtype is not None:
         if not isinstance(dtype, (list, tuple)):
             dtype = [dtype]
-        dtype = [_as_numpy_dtype(i) for i in dtype]
+        dtype = [np.dtype(i) for i in dtype]
 
     is_sparse = cp_sp.issparse(array) or sp.issparse(array)
     if is_sparse and (
@@ -699,12 +680,26 @@ def check_array(
     # Extract original array type and dtype (when possible)
     array_type = type(array)
     if isinstance(array, (cudf.DataFrame, pd.DataFrame)):
-        array_dtype = _dataframe_numpy_dtype(array.dtypes)
+        if all(isinstance(dt, np.dtype) for dt in array.dtypes):
+            array_dtype = np.result_type(*array.dtypes)
+        elif any(dt == "object" or is_string_dtype(dt) for dt in array.dtypes):
+            array_dtype = np.dtype("object")
+        else:
+            array_dtype = None
     else:
         array_dtype = getattr(array, "dtype", None)
-        if not isinstance(array_dtype, np.dtype) and array_dtype is not None:
-            array_dtype = _as_numpy_dtype(array_dtype)
-        elif not isinstance(array_dtype, np.dtype):
+        if array_dtype is not None and not isinstance(array_dtype, np.dtype):
+            # Try to coerce the dtype to numpy, falling back to None if it's
+            # not a support dtype (pytorch for example has a `dtype` attribute,
+            # but it can't be directly coerced to numpy's.
+            try:
+                array_dtype = np.dtype(array_dtype)
+            except TypeError:
+                if is_string_dtype(array_dtype):
+                    array_dtype = np.dtype("object")
+                else:
+                    array_dtype = None
+        if not isinstance(array_dtype, np.dtype):
             # Objects implementing the numpy array protocol may not expose a
             # ``dtype`` attribute themselves. Normalize these before selecting
             # from the supported dtypes so their represented dtype is preserved.
@@ -1144,7 +1139,7 @@ def check_y(
     if dtype is not None:
         if not isinstance(dtype, (list, tuple)):
             dtype = [dtype]
-        dtype = [_as_numpy_dtype(i) for i in dtype]
+        dtype = [np.dtype(i) for i in dtype]
 
     # Extract the index from `y` (if available)
     if isinstance(y, (pd.DataFrame, pd.Series, cudf.DataFrame, cudf.Series)):
