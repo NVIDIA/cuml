@@ -151,6 +151,32 @@ def test_rf_regression_dask_nvforest(partitions_per_worker, dtype, client):
     assert acc_score >= 0.59
 
 
+def test_rf_regression_nan_on_one_worker(client):
+    workers = list(client.scheduler_info(n_workers=-1)["workers"])
+    if len(workers) < 2:
+        pytest.skip("This test requires at least two workers")
+
+    X_parts = []
+    y_parts = []
+    for rank, worker in enumerate(workers):
+        X_part = cudf.DataFrame(
+            np.arange(80, dtype=np.float32).reshape(20, 4) + rank
+        )
+        y_part = cudf.Series(np.arange(20, dtype=np.float32) + rank)
+        if rank == 0:
+            X_part.iloc[0, 0] = np.nan
+
+        X_parts.append(client.scatter(X_part, workers=[worker]))
+        y_parts.append(client.scatter(y_part, workers=[worker]))
+
+    X = dask_cudf.from_delayed(X_parts, meta=X_part.iloc[:0])
+    y = dask_cudf.from_delayed(y_parts, meta=y_part.iloc[:0])
+
+    model = cuRFR_mg(n_estimators=5, max_depth=3)
+    with pytest.raises(RuntimeError, match="Input X contains NaN"):
+        model.fit(X, y)
+
+
 @pytest.mark.parametrize("partitions_per_worker", [5])
 def test_rf_classification_dask_array(partitions_per_worker, client):
     n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
