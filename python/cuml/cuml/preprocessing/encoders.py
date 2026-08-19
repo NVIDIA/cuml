@@ -49,10 +49,30 @@ def _cats_to_series(cats):
     return cudf.Series(cats)
 
 
-def _compute_categories(X, categories="auto", handle_unknown="error"):
-    """Compute `categories_` for an encoder."""
-    X = check_cudf(X, input_name="X")
-    n_features = X.shape[1]
+def _compute_categories(
+    X_list, unique=False, categories="auto", handle_unknown="error"
+):
+    """Compute `categories_` for an encoder.
+
+    Parameters
+    ----------
+    X_list : list[cudf.Series]
+        A list of columns in the input X.
+    unique : bool, default=False
+        Whether the columns already are reduced to only their unique entries.
+    categories : 'auto' or list[array-like], default='auto'
+        Explicitly provided categories per-column, or 'auto' to automatically
+        infer the categories from the input data.
+    handle_unknown : {'error', 'ignore'}, default='error'
+        If 'error', entries found in X that don't exist in explicitly provided
+        categories will lead to an error. If 'ignore' no error will be raised.
+
+    Returns
+    -------
+    categories_ : list[numpy.ndarray]
+        A list of the categories determined per-column.
+    """
+    n_features = len(X_list)
 
     if handle_unknown not in ("ignore", "error"):
         raise ValueError(
@@ -76,11 +96,11 @@ def _compute_categories(X, categories="auto", handle_unknown="error"):
 
     out = []
 
-    for i in range(n_features):
-        Xi = X.iloc[:, i]
-
+    for i, Xi in enumerate(X_list):
         if auto:
-            cats = Xi.drop_duplicates().sort_values().to_numpy()
+            if not unique:
+                Xi = Xi.drop_duplicates()
+            cats = Xi.sort_values().to_numpy()
         else:
             dtype = Xi.dtype if isinstance(Xi.dtype, np.dtype) else "O"
             cats = categories[i]
@@ -113,7 +133,9 @@ def _compute_categories(X, categories="auto", handle_unknown="error"):
                 )
 
             if handle_unknown == "error":
-                present = Xi.drop_duplicates().sort_values().to_numpy()
+                if not unique:
+                    Xi = Xi.drop_duplicates()
+                present = Xi.sort_values().to_numpy()
                 diff = _get_diff(present, cats)
                 if diff:
                     raise ValueError(
@@ -276,9 +298,16 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
     def fit(self, X, y=None) -> "OneHotEncoder":
         """Fit OneHotEncoder to X."""
         check_features(self, X, reset=True)
+        X = check_cudf(X, input_name="X")
+        X_list = [X.iloc[:, i] for i in range(X.shape[1])]
+        return self._fit(X_list)
 
+    def _fit(self, X_list, unique=False):
         categories = _compute_categories(
-            X, categories=self.categories, handle_unknown=self.handle_unknown
+            X_list,
+            unique=unique,
+            categories=self.categories,
+            handle_unknown=self.handle_unknown,
         )
 
         # Compute drop_idx_
@@ -400,7 +429,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
 
         n_samples, n_features = raw_inds.shape
 
-        feature_indices = np.cumsum([0] + self._n_features_outs)
+        feature_indices = np.cumsum([0, *self._n_features_outs])
         indices = (raw_inds + cp.asarray(feature_indices[:-1])).ravel()
 
         if has_unknown:
@@ -655,9 +684,16 @@ class OrdinalEncoder(Base):
     def fit(self, X, y=None) -> "OrdinalEncoder":
         """Fit OrdinalEncoder to X."""
         check_features(self, X, reset=True)
+        X = check_cudf(X, input_name="X")
+        X_list = [X.iloc[:, i] for i in range(X.shape[1])]
+        return self._fit(X_list)
 
+    def _fit(self, X_list, unique=False):
         self.categories_ = _compute_categories(
-            X, categories=self.categories, handle_unknown=self.handle_unknown
+            X_list,
+            unique=unique,
+            categories=self.categories,
+            handle_unknown=self.handle_unknown,
         )
 
         self._missing_indices = {
