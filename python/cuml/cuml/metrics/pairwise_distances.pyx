@@ -107,7 +107,6 @@ def nan_euclidean_distances(
     squared=False,
     missing_values=cp.nan,
     copy=True,
-    convert_dtype="deprecated",
 ):
     """Calculate the euclidean distances in the presence of missing values.
 
@@ -153,13 +152,6 @@ def nan_euclidean_distances(
         False can reduce memory usage, but may result in mutation
         of X and Y.
 
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
-
     Returns
     -------
     distances : array of shape (n_samples_X, n_samples_Y)
@@ -172,7 +164,6 @@ def nan_euclidean_distances(
         X,
         order="A",
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         ensure_all_finite="allow-nan",
         input_name="X",
         copy=copy,
@@ -190,7 +181,6 @@ def nan_euclidean_distances(
                 "A"
             ),
             dtype=X.dtype,
-            convert_dtype=convert_dtype,
             ensure_all_finite="allow-nan",
             input_name="Y",
             copy=copy,
@@ -266,9 +256,7 @@ def _ensure_boolean(X, metric):
 
 
 @mlfunc
-def pairwise_distances(
-    X, Y=None, metric="euclidean", convert_dtype="deprecated", **kwds
-):
+def pairwise_distances(X, Y=None, metric="euclidean", **kwds):
     """Compute the distance matrix from a feature array X and optional Y.
 
     This function takes either one or two feature arrays, and returns
@@ -295,16 +283,28 @@ def pairwise_distances(
 
         - Supports sparse only: ['dice', 'inner_product', 'jaccard'].
 
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
-
     **kwds : optional keyword parameters
-        Any additional metric-specific parameters. For example, with
-        ``metric="minkowski"``, passing ``p`` sets the norm used.
+        Additional metric-specific parameters:
+
+        - ``minkowski``:
+
+          - ``p`` : float, default=2.0
+            The p-norm to apply for Minkowski distance. ``p=1`` gives
+            Manhattan distance, ``p=2`` gives Euclidean distance.
+
+        - ``nan_euclidean``:
+
+          - ``squared`` : bool, default=False
+            Return squared Euclidean distances.
+          - ``missing_values`` : np.nan or int, default=np.nan
+            Representation of missing values in the input data.
+          - ``copy`` : bool, default=True
+            Whether to make a copy of X and Y when necessary. Setting
+            to ``False`` can reduce memory usage, but may result in
+            mutation of X and Y.
+
+        All other metrics do not accept additional keyword parameters.
+        Passing unknown parameters raises a ``TypeError``.
 
     Returns
     -------
@@ -330,20 +330,12 @@ def pairwise_distances(
     array([[1., 2.],
            [2., 1.]])
     """
-    cdef double p = 2
-    if "metric_arg" in kwds:
-        warnings.warn(
-            "The `metric_arg` keyword was deprecated in version 26.08 and will "
-            "be removed in version 26.10. Please use `p` instead.",
-            FutureWarning,
-        )
-        p = kwds.pop("metric_arg")
-    elif metric == "minkowski":
-        p = kwds.pop("p", 2)
-
     if metric == "nan_euclidean":
         return nan_euclidean_distances(X, Y, **kwds)
 
+    cdef double p = 2
+    if metric == "minkowski":
+        p = kwds.pop("p", 2)
     if kwds:
         raise TypeError(f"Unknown parameters {sorted(kwds)}")
 
@@ -353,7 +345,6 @@ def pairwise_distances(
         X,
         order="A",
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         input_name="X",
         accept_sparse="csr",
     )
@@ -372,7 +363,6 @@ def pairwise_distances(
                 "A"
             ),
             dtype=X.dtype,
-            convert_dtype=convert_dtype,
             input_name="Y",
             accept_sparse="csr",
         )
@@ -499,108 +489,3 @@ def pairwise_distances(
     handle.sync()
 
     return out
-
-
-@mlfunc
-def sparse_pairwise_distances(
-    X, Y=None, metric="euclidean", convert_dtype="deprecated", **kwds
-):
-    """
-    Compute the distance matrix from a vector array `X` and optional `Y`.
-
-    .. deprecated:: 26.08
-
-       The ``sparse_pairwise_distances`` function was deprecated in version
-       26.08 and will be removed in version 26.10. Please use
-       ``pairwise_distances`` instead.
-
-    This method takes either one or two sparse vector arrays, and returns a
-    dense distance matrix.
-
-    If `Y` is given (default is `None`), then the returned matrix is the
-    pairwise distance between the arrays from both `X` and `Y`.
-
-    Valid values for metric are:
-
-    - From scikit-learn: ['cityblock', 'cosine', 'euclidean', 'l1', 'l2', \
-        'manhattan'].
-    - From scipy.spatial.distance: ['sqeuclidean', 'canberra', 'minkowski', \
-        'jaccard', 'chebyshev', 'dice']
-        See the documentation for scipy.spatial.distance for details on these
-        metrics.
-    - ['inner_product', 'hellinger']
-
-    Parameters
-    ----------
-    X : array-like (device or host) of shape (n_samples_x, n_features)
-        Acceptable formats: SciPy or Cupy sparse array
-
-    Y : array-like (device or host) of shape (n_samples_y, n_features),\
-        optional
-        Acceptable formats: SciPy or Cupy sparse array
-
-    metric : {"cityblock", "cosine", "euclidean", "l1", "l2", "manhattan", \
-        "sqeuclidean", "canberra", "lp", "inner_product", "minkowski", \
-        "jaccard", "hellinger", "chebyshev", "linf", "dice"}
-        The metric to use when calculating distance between instances in a
-        feature array.
-
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
-
-    **kwds : optional keyword parameters
-        Any additional metric-specific parameters. For example, with
-        ``metric="minkowski"``, passing ``p`` sets the norm used.
-
-    Returns
-    -------
-    D : array [n_samples_x, n_samples_x] or [n_samples_x, n_samples_y]
-        A dense distance matrix D such that D_{i, j} is the distance between
-        the ith and jth vectors of the given matrix `X`, if `Y` is None.
-        If `Y` is not `None`, then D_{i, j} is the distance between the ith
-        array from `X` and the jth array from `Y`.
-
-    Examples
-    --------
-
-    .. code-block:: python
-
-        >>> import cupy as cp
-        >>> import cupyx
-        >>> from cuml.metrics import sparse_pairwise_distances
-
-        >>> X = cupyx.scipy.sparse.csr_matrix(cp.array([[1.0, 2.0, 0.0],
-        ...                                             [0.0, 3.0, 1.0]]))
-        >>> Y = cupyx.scipy.sparse.csr_matrix(cp.array([[1.0, 0.0, 2.0]]))
-        >>> # Cosine Pairwise Distance, Single Input:
-        >>> sparse_pairwise_distances(X, metric='cosine')
-        array([[0.   , 0.151...],
-            [0.151..., 0.   ]])
-
-        >>> # Squared euclidean Pairwise Distance, Multi-Input:
-        >>> sparse_pairwise_distances(X, Y, metric='sqeuclidean')
-        array([[ 8.],
-            [11.]])
-
-        >>> # Canberra Pairwise Distance, Multi-Input:
-        >>> sparse_pairwise_distances(X, Y, metric='canberra')
-        array([[2.   ],
-            [2.333...]])
-    """
-    warnings.warn(
-        "The ``sparse_pairwise_distances`` function was deprecated "
-        "in version 26.08 and will be removed in version 26.10. "
-        "Please use ``pairwise_distances`` instead.",
-        FutureWarning,
-    )
-    return pairwise_distances(
-        X,
-        Y,
-        metric=metric,
-        convert_dtype=convert_dtype,
-        **kwds,
-    )

@@ -120,12 +120,6 @@ class AutoARIMA(Base):
         type. If None, the output type set at the module level
         (`cuml.global_settings.output_type`) will be used. See
         :ref:`output-data-type-configuration` for more info.
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
 
     Notes
     -----
@@ -165,8 +159,7 @@ class AutoARIMA(Base):
                  *,
                  simple_differencing=True,
                  verbose=False,
-                 output_type=None,
-                 convert_dtype="deprecated"):
+                 output_type=None):
 
         warn_deprecated_tsa_api("cuml.tsa.auto_arima.AutoARIMA")
 
@@ -178,7 +171,6 @@ class AutoARIMA(Base):
         self.d_y = d_y = check_array(
             endog,
             dtype="float64",
-            convert_dtype=convert_dtype,
             order="F",
             ensure_2d=False,
             ensure_all_finite=False,

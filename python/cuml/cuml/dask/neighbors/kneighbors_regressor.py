@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -96,7 +96,6 @@ class KNeighborsRegressor(NearestNeighbors):
         ncols,
         rank,
         n_output,
-        convert_dtype,
     ):
         return model.predict(
             index,
@@ -108,10 +107,9 @@ class KNeighborsRegressor(NearestNeighbors):
             ncols,
             rank,
             n_output,
-            convert_dtype,
         )
 
-    def predict(self, X, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predict outputs for a query from previously stored index
         and outputs.
@@ -122,13 +120,6 @@ class KNeighborsRegressor(NearestNeighbors):
         X : array-like (device or host) shape = (n_samples, n_features)
             Query data.
             Acceptable formats: dask cuDF, dask CuPy/NumPy/Numba Array
-
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
 
         Returns
         -------
@@ -203,7 +194,6 @@ class KNeighborsRegressor(NearestNeighbors):
                         X.shape[1],
                         self.n_outputs,
                         worker_info[worker]["rank"],
-                        convert_dtype,
                         key="%s-%s" % (key, idx),
                         workers=[worker],
                     ),

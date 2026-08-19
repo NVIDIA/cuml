@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse
-from numba.cuda import as_cuda_array, is_cuda_array
 
 import cuml
 from cuml.internals.base import Base
@@ -25,7 +24,7 @@ from cuml.internals.outputs import (
 )
 from cuml.internals.validation import check_inputs
 
-OUTPUT_TYPES = ["numpy", "numba", "cupy", "cudf", "pandas"]
+OUTPUT_TYPES = ["numpy", "cupy", "cudf", "pandas"]
 
 
 @pytest.fixture(autouse=True)
@@ -36,33 +35,29 @@ def reset_global_output_type():
 
 
 def assert_output_type(arr, output_type):
-    if output_type == "numba":
-        assert is_cuda_array(arr)
-    else:
-        cls = {
-            "numpy": np.ndarray,
-            "cupy": cp.ndarray,
-            "cudf": (cudf.Series, cudf.DataFrame),
-            "pandas": (pd.Series, pd.DataFrame),
-        }[output_type]
-        assert isinstance(arr, cls)
+    cls = {
+        "numpy": np.ndarray,
+        "cupy": cp.ndarray,
+        "cudf": (cudf.Series, cudf.DataFrame),
+        "pandas": (pd.Series, pd.DataFrame),
+    }[output_type]
+    assert isinstance(arr, cls)
 
 
 def rand_array(output_type, *, shape=(8, 4), seed=42):
     X = cp.random.default_rng(seed).uniform(
         low=0.0, high=10.0, size=shape, dtype="float32"
     )
-    if output_type == "numba":
-        return as_cuda_array(X)
-    elif output_type == "cupy":
+    if output_type == "cupy":
         return X
     elif output_type == "numpy":
         return cp.asnumpy(X)
     elif output_type == "pandas":
-        return pd.DataFrame(X.get())
+        X = X.get()
+        return pd.DataFrame(X) if X.ndim == 2 else pd.Series(X)
     else:
         assert output_type == "cudf"
-        return cudf.DataFrame(X)
+        return cudf.DataFrame(X) if X.ndim == 2 else cudf.Series(X)
 
 
 class ImplementsArray:
@@ -227,55 +222,16 @@ def test_infer_output_type_non_arrays(obj):
 def test_default_output_type(input_type):
     X = rand_array(input_type)
     model = cuml.DBSCAN(eps=1.0, min_samples=1)
-    if input_type == "numba":
-        with pytest.warns(FutureWarning, match="Outputting `numba` arrays"):
-            labels = model.fit_predict(X)
-    else:
-        labels = model.fit_predict(X)
+    labels = model.fit_predict(X)
     assert_output_type(labels, input_type)
     assert_output_type(model.components_, input_type)
-
-
-@pytest.mark.parametrize(
-    "output_type", ("numba", "array", "df_obj", "series", "dataframe")
-)
-def test_deprecated_output_type(output_type):
-    X = rand_array("cupy")
-
-    with pytest.warns(
-        FutureWarning,
-        match=f"`{output_type=!r}` was deprecated",
-    ) as rec:
-        model = cuml.DBSCAN(eps=1.0, min_samples=1, output_type=output_type)
-
-    if output_type in ("series", "dataframe"):
-        assert "Note that `output_type='cudf'`" in str(rec[0].message)
-    else:
-        assert "Note that `output_type='cudf'`" not in str(rec[0].message)
-
-    labels = model.fit_predict(X)
-    if alias := {"numba": "numba", "array": "cupy", "df_obj": "cudf"}.get(
-        output_type
-    ):
-        assert_output_type(labels, alias)
-        assert_output_type(model.labels_, alias)
-    else:
-        cls = cudf.Series if output_type == "series" else cudf.DataFrame
-        assert isinstance(labels, cls)
-        assert isinstance(model.labels_, cls)
 
 
 @pytest.mark.parametrize("input_type", OUTPUT_TYPES)
 @pytest.mark.parametrize("output_type", OUTPUT_TYPES)
 def test_estimator_output_type(input_type, output_type):
     X = rand_array(input_type)
-    if output_type == "numba":
-        with pytest.warns(FutureWarning, match="`output_type='numba'`"):
-            model = cuml.DBSCAN(
-                eps=1.0, min_samples=1, output_type=output_type
-            )
-    else:
-        model = cuml.DBSCAN(eps=1.0, min_samples=1, output_type=output_type)
+    model = cuml.DBSCAN(eps=1.0, min_samples=1, output_type=output_type)
     labels = model.fit_predict(X)
     assert_output_type(labels, output_type)
     assert_output_type(model.components_, output_type)
@@ -284,12 +240,7 @@ def test_estimator_output_type(input_type, output_type):
 @pytest.mark.parametrize("input_type", OUTPUT_TYPES)
 @pytest.mark.parametrize("output_type", OUTPUT_TYPES)
 def test_global_output_type(input_type, output_type):
-    if output_type == "numba":
-        with pytest.warns(FutureWarning, match="`output_type='numba'`"):
-            cuml.set_global_output_type(output_type)
-    else:
-        cuml.set_global_output_type(output_type)
-
+    cuml.set_global_output_type(output_type)
     X = rand_array(input_type)
     model = cuml.DBSCAN(eps=1.0, min_samples=1)
     labels = model.fit_predict(X)
@@ -334,19 +285,42 @@ def test_global_input_with_estimator_output_type():
     assert_output_type(model.components_, "pandas")
 
 
-@pytest.mark.parametrize("input_type", ["numpy", "cupy"])
+@pytest.mark.parametrize(
+    "input_type, order",
+    [
+        ("numpy", "C"),
+        ("numpy", "F"),
+        ("cupy", "C"),
+        ("cupy", "F"),
+        ("pandas", "F"),
+        ("cudf", "F"),
+    ],
+)
 @pytest.mark.parametrize("output_type", ["numpy", "cupy"])
-@pytest.mark.parametrize("order", ["C", "F"])
-def test_convert_arrays_dense_array(input_type, output_type, order):
+def test_convert_arrays_dense_array(input_type, order, output_type):
+    X = rand_array(input_type)
     if input_type == "cupy":
-        X = cp.asarray(rand_array("cupy"), order=order)
-    else:
-        X = np.asarray(rand_array("numpy"), order=order)
+        X = cp.asarray(X, order=order)
+    elif input_type == "numpy":
+        X = np.asarray(X, order=order)
 
     out = convert_arrays(X, output_type)
+    sol = X.to_numpy() if hasattr(X, "to_numpy") else cp.asnumpy(X)
+
     assert_output_type(out, output_type)
-    np.testing.assert_array_equal(cp.asnumpy(X), cp.asnumpy(out))
+    np.testing.assert_array_equal(cp.asnumpy(out), sol)
     assert out.flags.c_contiguous if order == "C" else out.flags.f_contiguous
+
+
+@pytest.mark.parametrize("input_type", ["numpy", "cupy", "pandas", "cudf"])
+@pytest.mark.parametrize("output_type", ["numpy", "cupy"])
+def test_convert_arrays_dense_array_1d(input_type, output_type):
+    X = rand_array(input_type, shape=8)
+    out = convert_arrays(X, output_type)
+    sol = X.to_numpy() if hasattr(X, "to_numpy") else cp.asnumpy(X)
+
+    assert_output_type(out, output_type)
+    np.testing.assert_array_equal(cp.asnumpy(out), sol)
 
 
 @pytest.mark.parametrize("input_type", ["scipy", "cupyx"])
@@ -364,7 +338,7 @@ def test_convert_arrays_sparse_array(input_type, output_type, format):
 
     out = convert_arrays(X, output_type)
 
-    if output_type in ["cupy", "cudf", "numba"]:
+    if output_type in ["cupy", "cudf"]:
         assert cupyx.scipy.sparse.issparse(out)
     else:
         assert scipy.sparse.issparse(out)
@@ -378,7 +352,7 @@ def test_convert_arrays_sparse_array(input_type, output_type, format):
 
 
 @pytest.mark.parametrize("kind", ["dataframe", "series"])
-@pytest.mark.parametrize("input_type", ["cupy", "numpy"])
+@pytest.mark.parametrize("input_type", ["cupy", "numpy", "pandas", "cudf"])
 @pytest.mark.parametrize("output_type", ["pandas", "cudf"])
 def test_convert_arrays_dataframe(kind, input_type, output_type):
     arr = rand_array(input_type, shape=((8, 4) if kind == "dataframe" else 8))
@@ -396,7 +370,7 @@ def test_convert_arrays_dataframe(kind, input_type, output_type):
 @pytest.mark.parametrize("xdf", [pd, cudf])
 @pytest.mark.parametrize("kind", ["dataframe", "series"])
 @pytest.mark.parametrize("use_pair", [False, True])
-@pytest.mark.parametrize("input_type", ["cupy", "numpy"])
+@pytest.mark.parametrize("input_type", ["cupy", "numpy", "pandas", "cudf"])
 @pytest.mark.parametrize("output_type", ["pandas", "cudf"])
 def test_convert_arrays_dataframe_with_index(
     xdf, kind, use_pair, input_type, output_type
@@ -410,13 +384,13 @@ def test_convert_arrays_dataframe_with_index(
         res = convert_arrays(arr, output_type, index=index)
 
     if kind == "dataframe":
-        cudf.testing.assert_frame_equal(
-            cudf.DataFrame(res), cudf.DataFrame(arr, index=index)
-        )
+        sol = cudf.DataFrame(arr)
+        sol.index = index
+        cudf.testing.assert_frame_equal(cudf.DataFrame(res), sol)
     else:
-        cudf.testing.assert_series_equal(
-            cudf.Series(res), cudf.Series(arr, index=index)
-        )
+        sol = cudf.Series(arr)
+        sol.index = index
+        cudf.testing.assert_series_equal(cudf.Series(res), sol)
 
 
 @pytest.mark.parametrize(
@@ -455,7 +429,6 @@ def test_convert_arrays_nested_values(construct, output_type):
 
 
 @pytest.mark.parametrize("output_type", [None, *OUTPUT_TYPES])
-@pytest.mark.filterwarnings("ignore:`output_type='numba'`:FutureWarning")
 def test_mlfunc_dense_outputs(output_type):
     cuml.set_global_output_type(output_type)
     X = rand_array("cupy")
@@ -474,7 +447,6 @@ def test_mlfunc_dense_outputs(output_type):
 
 
 @pytest.mark.parametrize("output_type", [None, *OUTPUT_TYPES])
-@pytest.mark.filterwarnings("ignore:`output_type='numba'`:FutureWarning")
 def test_mlfunc_sparse_outputs(output_type):
     @mlfunc
     def make_sparse():
@@ -483,7 +455,7 @@ def test_mlfunc_sparse_outputs(output_type):
     cuml.set_global_output_type(output_type)
     res = make_sparse()
 
-    if output_type in [None, "input", "cupy", "cudf", "numba", "cuml"]:
+    if output_type in [None, "input", "cupy", "cudf", "cuml"]:
         assert cupyx.scipy.sparse.issparse(res)
     else:
         assert scipy.sparse.issparse(res)
@@ -572,7 +544,6 @@ def test_mlfunc_preserve_index(input_type, output_type):
 
 @pytest.mark.parametrize("dtype", ["int32", "object", "U"])
 @pytest.mark.parametrize("output_type", OUTPUT_TYPES)
-@pytest.mark.filterwarnings("ignore:`output_type='numba'`:FutureWarning")
 def test_class_labels(dtype, output_type):
     if dtype in ("object", "U"):
         classes = np.array(["a", "b", "c"], dtype=dtype)
@@ -585,7 +556,7 @@ def test_class_labels(dtype, output_type):
     def myfunc():
         return ClassLabels(indices, classes)
 
-    if dtype in ("object", "U") and output_type in ("cupy", "numba"):
+    if dtype in ("object", "U") and output_type == "cupy":
         with pytest.raises(
             TypeError,
             match=f"output_type={output_type!r} doesn't support outputs of dtype",
@@ -676,7 +647,6 @@ def test_estimator_method_with_no_array_input():
         assert_output_type(model.example_no_args(), "pandas")
 
 
-@pytest.mark.filterwarnings("ignore:`output_type='numba'`:FutureWarning")
 @pytest.mark.parametrize("output_type", [None, *OUTPUT_TYPES])
 def test_reflected_attr(output_type):
     cuml.set_global_output_type(output_type)

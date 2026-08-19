@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib
@@ -35,6 +35,7 @@ from cuml.accel.estimator_proxy import ProxyBase
 
 SKLEARN_18 = Version(sklearn.__version__) >= Version("1.8.0.dev0")
 SKLEARN_19 = Version(sklearn.__version__) >= Version("1.9.0.dev0")
+SKLEARN_110 = Version(sklearn.__version__) >= Version("1.10.0.dev0")
 
 requires_array_api = pytest.mark.skipif(
     not SKLEARN_18,
@@ -1108,3 +1109,24 @@ def test_set_callbacks_meta_estimator(capsys):
     captured = capsys.readouterr()
     assert "StandardScaler" in captured.out
     assert "LogisticRegression" in captured.out
+
+
+@pytest.mark.skipif(not SKLEARN_110, reason="scikit-learn >= 1.10 required")
+def test_private_set_callbacks():
+    from sklearn.callback import ProgressBar
+
+    bar = ProgressBar()
+
+    X, y = make_classification()
+
+    model = LogisticRegression().fit(X, y)
+    assert model._gpu is not None
+
+    # Setting callbacks through the private API returns the proxy,
+    # which makes this different from the other methods we forward.
+    assert model._set_callbacks([bar]) is model
+    assert model._cpu._skl_callbacks == [bar]
+    assert model._gpu is not None
+
+    assert model._set_callbacks([]) is model
+    assert not hasattr(model._cpu, "_skl_callbacks")

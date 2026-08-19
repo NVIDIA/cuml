@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -55,7 +55,6 @@ class KNeighborsRegressorMG(NearestNeighborsMG):
         ncols,
         n_outputs,
         rank,
-        convert_dtype
     ):
         """
         Predict outputs for a query from previously stored index
@@ -73,7 +72,6 @@ class KNeighborsRegressorMG(NearestNeighborsMG):
         ncols: number of columns
         n_outputs: number of outputs columns
         rank: rank of current worker
-        convert_dtype: deprecated, will be removed in 26.10
 
         Returns
         -------
@@ -85,10 +83,10 @@ class KNeighborsRegressorMG(NearestNeighborsMG):
         # Build input arrays and descriptors for native code interfacing
         input = self.gen_local_input(
             index, index_parts_to_ranks, index_nrows, query,
-            query_parts_to_ranks, query_nrows, ncols, rank, convert_dtype)
+            query_parts_to_ranks, query_nrows, ncols, rank)
 
         # Build input labels arrays and descriptors for native code interfacing
-        labels = self.gen_local_labels(index, convert_dtype, dtype='float32')
+        labels = self.gen_local_labels(index, dtype='float32')
 
         local_query_rows = [x.shape[0] for x in input['arrays']['query']]
 

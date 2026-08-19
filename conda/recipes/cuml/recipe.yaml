@@ -7,7 +7,7 @@ context:
   minor_version: ${{ (version | split("."))[:2] | join(".") }}
   cuda_version: ${{ (env.get("RAPIDS_CUDA_VERSION") | split("."))[:2] | join(".") }}
   cuda_major: '${{ (env.get("RAPIDS_CUDA_VERSION") | split("."))[0] }}'
-  date_string: '${{ env.get("RAPIDS_DATE_STRING") }}'
+  datetime_string: '${{ env.get("RAPIDS_DATETIME_STRING") }}'
   py_abi_min: ${{ env.get("RAPIDS_PY_VERSION") }}
   py_buildstring: ${{ py_abi_min | version_to_buildstring }}
   py_runtime_latest: "3.14"
@@ -23,7 +23,7 @@ source:
 build:
   python:
     version_independent: true
-  string: cuda${{ cuda_major }}_cp${{ py_buildstring }}_abi3_${{ date_string }}_${{ head_rev }}
+  string: cuda${{ cuda_major }}_cp${{ py_buildstring }}_abi3_${{ datetime_string }}_${{ head_rev }}
   files:
     exclude:
       - '*libarrow.so.*gdb.py'
@@ -87,7 +87,7 @@ requirements:
     - python =${{ py_abi_min }}
     - python-abi3 ${{ py_abi_min }}.*
     - rapids-build-backend >=0.4.0,<0.5.0
-    - rapids-logger =0.2
+    - rapids-logger =0.3
     - scikit-build-core>=0.11.0
     - treelite ${{ treelite_version }}
     - cuda-cudart-dev
@@ -109,7 +109,7 @@ requirements:
     - packaging
     - pylibraft =${{ minor_version }}
     - python
-    - rapids-logger =0.2
+    - rapids-logger =0.3
     - rich
     - treelite ${{ treelite_version }}
     - if: cuda_major == "12"

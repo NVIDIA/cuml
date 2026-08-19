@@ -79,7 +79,6 @@ def fit_cd(
     y,
     sample_weight=None,
     *,
-    convert_dtype="deprecated",
     loss="squared_loss",
     double alpha=0.0001,
     double l1_ratio=0.15,
@@ -100,13 +99,6 @@ def fit_cd(
         The target values.
     sample_weight : None or array-like, shape=(n_samples,)
         The sample weights.
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
-
     **kwargs
         Remaining keyword arguments match the hyperparameters
         to ``CD``, see the ``CD`` docs for more information.
@@ -136,7 +128,6 @@ def fit_cd(
         y,
         sample_weight,
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         order="F",
         ensure_min_samples=2,
         reset=True,
@@ -314,7 +305,7 @@ class CD(FMajorInputTagMixin, Base):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y, convert_dtype="deprecated", sample_weight=None) -> "CD":
+    def fit(self, X, y, sample_weight=None) -> "CD":
         """
         Fit the model with X and y.
         """
@@ -323,7 +314,6 @@ class CD(FMajorInputTagMixin, Base):
             X,
             y,
             sample_weight=sample_weight,
-            convert_dtype=convert_dtype,
             loss=self.loss,
             alpha=self.alpha,
             l1_ratio=self.l1_ratio,
@@ -343,7 +333,7 @@ class CD(FMajorInputTagMixin, Base):
                                        'description': 'Predicted values',
                                        'shape': '(n_samples, 1)'})
     @mlfunc(preserve_index=True)
-    def predict(self, X, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predicts the y for X.
         """
@@ -353,7 +343,6 @@ class CD(FMajorInputTagMixin, Base):
             self,
             X,
             dtype=self.coef_.dtype,
-            convert_dtype=convert_dtype,
         )
         preds = cp.zeros(X.shape[0], dtype=self.coef_.dtype, order="F")
 

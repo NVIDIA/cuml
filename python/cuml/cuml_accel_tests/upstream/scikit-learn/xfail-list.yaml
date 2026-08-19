@@ -340,7 +340,6 @@
   - "sklearn.model_selection.tests.test_classification_threshold::test_fit_and_score_over_thresholds_sample_weight"
   - "sklearn.model_selection.tests.test_classification_threshold::test_tuned_threshold_classifier_cv_zeros_sample_weights_equivalence"
   - "sklearn.model_selection.tests.test_validation::test_cross_val_predict_class_subset"
-  - "sklearn.neighbors.tests.test_neighbors::test_KNeighborsRegressor_multioutput_uniform_weight"
   - "sklearn.neighbors.tests.test_neighbors::test_auto_algorithm[X3-euclidean-None-kd_tree]"
   - "sklearn.neighbors.tests.test_neighbors::test_k_and_radius_neighbors_duplicates[auto]"
   - "sklearn.neighbors.tests.test_neighbors::test_k_and_radius_neighbors_duplicates[ball_tree]"
@@ -638,10 +637,7 @@
   - "sklearn.preprocessing.tests.test_polynomial::test_csr_polynomial_expansion_index_overflow[csr_array-False-True-3-2344]"
   - "sklearn.svm.tests.test_svm::test_custom_kernel_not_array_input[SVC]"
   - "sklearn.svm.tests.test_svm::test_custom_kernel_not_array_input[SVR]"
-  - "sklearn.tests.test_common::test_estimators[LinearSVC()-check_classifier_data_not_an_array]"
-  - "sklearn.tests.test_common::test_estimators[LinearSVR()-check_regressor_data_not_an_array]"
-  - "sklearn.tests.test_common::test_estimators[SVC()-check_classifier_data_not_an_array]"
-  - "sklearn.tests.test_common::test_estimators[SVR()-check_regressor_data_not_an_array]"
+  - "sklearn.tests.test_common::test_estimators[RandomForestRegressor()-check_regressor_data_not_an_array]"
   - "sklearn.tests.test_multioutput::test_base_chain_fit_and_predict_with_sparse_data_and_cv[csr_array]"
   - "sklearn.tests.test_multioutput::test_classifier_chain_fit_and_predict_with_sparse_data[csr_array]"
 - reason: Test is flaky with cuml.accel on scikit-learn <1.9
@@ -818,9 +814,7 @@
 - reason: test_estimators checks fail
   marker: cuml_accel_test_estimators
   tests:
-  - "sklearn.tests.test_common::test_estimators[KNeighborsRegressor()-check_supervised_y_no_nan]"
   - "sklearn.tests.test_common::test_estimators[RandomForestClassifier()-check_classifiers_multilabel_output_format_decision_function]"
-  - "sklearn.tests.test_common::test_estimators[RandomForestRegressor()-check_regressor_data_not_an_array]"
 - reason: test_estimators checks fail
   marker: cuml_accel_test_estimators
   strict: false

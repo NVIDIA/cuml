@@ -233,11 +233,6 @@ Accepted output types are:
  - `"numpy"`: Return a NumPy array.
  - `"cudf"`: Return a cuDF Series or DataFrame.
  - `"pandas"`: Return a pandas Series or DataFrame.
- - `"numba"`: Return a Numba device array.
- - `"dataframe"`: Return a cuDF DataFrame.
- - `"series"`: Return a cuDF Series.
- - `"array"`: An alias for `"cupy"`.
- - `"df_obj"`: An alias for `"cudf"`.
 
 The internal output type `"cuml"` may appear inside reflected calls.
 User-facing code should not set it.
@@ -257,13 +252,12 @@ from cuml.internals.validation import check_inputs, check_is_fitted
 
 
 @mlfunc(set_input_type=True)
-def fit(self, X, y, *, convert_dtype=True):
+def fit(self, X, y):
     X, y = check_inputs(
         self,
         X,
         y,
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         order="K",
         reset=True,
     )
@@ -273,13 +267,12 @@ def fit(self, X, y, *, convert_dtype=True):
 
 
 @mlfunc(preserve_index=True)
-def transform(self, X, *, convert_dtype=True):
+def transform(self, X):
     check_is_fitted(self)
     X = check_inputs(
         self,
         X,
         dtype=self.result_.dtype,
-        convert_dtype=convert_dtype,
         order="K",
     )
     ...

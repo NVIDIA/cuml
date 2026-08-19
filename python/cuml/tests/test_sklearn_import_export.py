@@ -14,6 +14,7 @@ import sklearn.svm
 import umap
 from numpy.testing import assert_allclose
 from packaging.version import Version
+from sklearn.cluster import HDBSCAN as SkHDBSCAN
 from sklearn.cluster import KMeans as SkKMeans
 from sklearn.cluster import SpectralClustering as SkSpectralClustering
 from sklearn.datasets import (
@@ -36,6 +37,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils.validation import check_is_fitted
 
 import cuml
+from cuml.accel._overrides.sklearn.cluster import _SklearnHDBSCAN
 from cuml.cluster import DBSCAN, KMeans, SpectralClustering
 from cuml.decomposition import PCA, TruncatedSVD
 from cuml.internals.interop import UnsupportedOnCPU, UnsupportedOnGPU
@@ -969,6 +971,81 @@ def test_hdbscan(random_state, prediction_data, gen_min_span_tree):
     # Can refit on converted models
     cu_model2.fit(X, y)
     sk_model2.fit(X, y)
+
+
+def test_sklearn_hdbscan_roundtrip(random_state):
+    X, _ = make_blobs(
+        n_samples=200,
+        n_features=4,
+        centers=4,
+        random_state=random_state,
+    )
+    params = {
+        "min_cluster_size": 8,
+        "min_samples": 5,
+        "cluster_selection_epsilon": 0.05,
+        "max_cluster_size": 50,
+        "alpha": 1.2,
+        "allow_single_cluster": True,
+    }
+    original = _SklearnHDBSCAN(**params).fit(X)
+
+    sklearn_model = original.as_sklearn()
+    assert type(sklearn_model) is SkHDBSCAN
+    check_is_fitted(sklearn_model)
+    assert sklearn_model.min_samples == params["min_samples"] + 1
+
+    roundtrip = _SklearnHDBSCAN.from_sklearn(sklearn_model)
+    check_is_fitted(roundtrip)
+    assert roundtrip._state is not None
+    assert (
+        roundtrip.n_clusters_
+        == np.unique(sklearn_model.labels_[sklearn_model.labels_ >= 0]).size
+    )
+
+    for name, expected in params.items():
+        assert getattr(roundtrip, name) == expected
+
+    with cuml.using_output_type("numpy"):
+        np.testing.assert_array_equal(original.labels_, roundtrip.labels_)
+        assert_allclose(
+            original.probabilities_, roundtrip.probabilities_, rtol=1e-6
+        )
+
+    np.testing.assert_array_equal(
+        original._single_linkage_tree, roundtrip._single_linkage_tree
+    )
+    assert original.n_features_in_ == roundtrip.n_features_in_
+
+    # The sklearn state produced after the full roundtrip remains usable.
+    sklearn_roundtrip = roundtrip.as_sklearn()
+    assert type(sklearn_roundtrip) is SkHDBSCAN
+    check_is_fitted(sklearn_roundtrip)
+    np.testing.assert_array_equal(
+        sklearn_model.labels_, sklearn_roundtrip.labels_
+    )
+    assert_allclose(
+        sklearn_model.probabilities_,
+        sklearn_roundtrip.probabilities_,
+        rtol=1e-6,
+    )
+    np.testing.assert_array_equal(
+        sklearn_model._single_linkage_tree_,
+        sklearn_roundtrip._single_linkage_tree_,
+    )
+    np.testing.assert_array_equal(
+        sklearn_model.dbscan_clustering(1.0),
+        sklearn_roundtrip.dbscan_clustering(1.0),
+    )
+
+
+def test_sklearn_hdbscan_rejects_incomplete_fitted_state(random_state):
+    X, _ = make_blobs(n_samples=100, random_state=random_state)
+    model = SkHDBSCAN(copy=False).fit(X)
+    del model._single_linkage_tree_
+
+    with pytest.raises(UnsupportedOnGPU, match="single-linkage tree"):
+        _SklearnHDBSCAN.from_sklearn(model)
 
 
 def test_linear_svr(random_state):

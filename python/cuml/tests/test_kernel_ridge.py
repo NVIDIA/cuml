@@ -107,6 +107,27 @@ def test_pairwise_kernels_basic():
     assert np.allclose(X, pairwise_kernels(X, metric="precomputed"))
 
 
+@pytest.mark.parametrize("metric", ["additive_chi2", "chi2"])
+def test_pairwise_kernels_rejects_negative_x_for_chi2(metric):
+    X = np.array([[1.0, -1.0], [2.0, 3.0]])
+
+    with pytest.raises(
+        ValueError, match="Negative values in data passed to X"
+    ):
+        pairwise_kernels(X, metric=metric)
+
+
+@pytest.mark.parametrize("metric", ["additive_chi2", "chi2"])
+def test_pairwise_kernels_rejects_negative_y_for_chi2(metric):
+    X = np.array([[1.0, 2.0]])
+    Y = np.array([[3.0, -1.0]])
+
+    with pytest.raises(
+        ValueError, match="Negative values in data passed to Y"
+    ):
+        pairwise_kernels(X, Y, metric=metric)
+
+
 @cuda.jit(device=True)
 def custom_kernel(x, y, custom_arg=5.0):
     sum = 0.0

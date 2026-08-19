@@ -127,7 +127,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/rapidsai/cuml",
+            "url": "https://github.com/NVIDIA/cuml",
             "icon": "fa-brands fa-github",
             "type": "fontawesome",
         },
@@ -136,6 +136,10 @@ html_theme_options = {
     "navbar_align": "right",
     "navbar_center": "navbar-nav, version-switcher, navbar-external-links",
     "navigation_with_keys": True,
+    "switcher": {
+        "json_url": "https://docs.nvidia.com/cuml/versions.json",
+        "version_match": version,
+    },
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -205,7 +209,10 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    "cudf": ("https://docs.rapids.ai/api/cudf/stable/", None),
+    # TODO: Use stable URLs once subpath redirects are available:
+    # https://github.com/rapidsai/build-infra/issues/395
+    # rapids-pre-commit-hooks: disable-next-line
+    "cudf": ("https://docs.nvidia.com/cudf/26.10/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "python": ("https://docs.python.org/3", None),
     # TODO: re-enable once scipy docs are more reliable
@@ -216,7 +223,8 @@ intersphinx_mapping = {
         "https://nvidia.github.io/cuda-python/cuda-core/latest/",
         None,
     ),
-    "rmm": ("https://docs.rapids.ai/api/rmm/stable/", None),
+    # rapids-pre-commit-hooks: disable-next-line
+    "rmm": ("https://docs.nvidia.com/rmm/26.10/", None),
 }
 
 # Config numpydoc
@@ -271,7 +279,7 @@ def setup(app):
 # The following is used by sphinx.ext.linkcode to provide links to github
 linkcode_resolve = make_linkcode_resolve(
     "cuml",
-    "https://github.com/rapidsai/"
+    "https://github.com/NVIDIA/"
     "cuml/blob/{revision}/python/cuml/"
     "{package}/{path}#L{lineno}",
 )

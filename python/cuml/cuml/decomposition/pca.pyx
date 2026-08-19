@@ -459,7 +459,7 @@ class PCA(InteropMixin,
 
     @generate_docstring(X='dense_sparse')
     @mlfunc(set_input_type=True)
-    def fit(self, X, y=None, *, convert_dtype="deprecated") -> "PCA":
+    def fit(self, X, y=None) -> "PCA":
         """
         Fit the model with X. y is currently ignored.
 
@@ -470,7 +470,6 @@ class PCA(InteropMixin,
             accept_sparse=["csr"],
             accept_large_sparse=True,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             ensure_min_samples=2,
             ensure_min_features=2,
             order="F",
@@ -575,7 +574,6 @@ class PCA(InteropMixin,
         self,
         X,
         *,
-        convert_dtype="deprecated",
         return_sparse=False,
         sparse_tol=1e-10,
     ):
@@ -590,7 +588,6 @@ class PCA(InteropMixin,
             X,
             accept_sparse=True,
             dtype=self.components_.dtype,
-            convert_dtype=convert_dtype,
             order="F",
         )
         if X.shape[1] != self.n_components_:
@@ -665,7 +662,7 @@ class PCA(InteropMixin,
                                        'description': 'Transformed values',
                                        'shape': '(n_samples, n_components)'})
     @mlfunc(preserve_index=True)
-    def transform(self, X, *, convert_dtype="deprecated"):
+    def transform(self, X):
         """
         Apply dimensionality reduction to X.
 
@@ -680,7 +677,6 @@ class PCA(InteropMixin,
             X,
             accept_sparse=True,
             dtype=self.components_.dtype,
-            convert_dtype=convert_dtype,
             order="F",
         )
         if is_sparse(X):

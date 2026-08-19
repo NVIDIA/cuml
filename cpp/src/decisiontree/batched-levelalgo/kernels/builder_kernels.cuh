@@ -107,15 +107,22 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
                            std::int64_t* partition_row_ids,
                            cudaStream_t builder_stream);
 
-template <typename DatasetT, typename NodeT, typename ObjectiveT, typename DataT>
-void launchLeafKernel(ObjectiveT objective,
-                      DatasetT& dataset,
-                      const NodeT* tree,
-                      const InstanceRange* instance_ranges,
-                      DataT* leaves,
-                      int batch_size,
-                      size_t smem_size,
-                      cudaStream_t builder_stream);
+template <typename DatasetT, typename NodeT, typename ObjectiveT>
+void launchBuildLeafHistogramsKernel(ObjectiveT objective,
+                                     DatasetT& dataset,
+                                     const NodeT* tree,
+                                     const InstanceRange* instance_ranges,
+                                     typename ObjectiveT::BinT* leaf_histograms,
+                                     int batch_size,
+                                     size_t smem_size,
+                                     cudaStream_t builder_stream);
+
+template <typename ObjectiveT, typename DataT>
+void launchFinalizeLeafKernel(const typename ObjectiveT::BinT* leaf_histograms,
+                              DataT* leaves,
+                              int num_outputs,
+                              int batch_size,
+                              cudaStream_t builder_stream);
 template <typename DataT, typename LabelT, int TPB, typename ObjectiveT>
 void launchBuildHistogramsKernel(typename ObjectiveT::BinT* histograms,
                                  std::int64_t n_bins,

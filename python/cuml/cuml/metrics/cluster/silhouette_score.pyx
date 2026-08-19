@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -39,9 +39,7 @@ cdef extern from "cuml/metrics/metrics.hpp" namespace "ML::Metrics::Batched" nog
         DistanceType metric) except +
 
 
-def _silhouette_coeff(
-        X, labels, metric='euclidean', sil_scores=None, chunksize=None,
-        convert_dtype="deprecated"):
+def _silhouette_coeff(X, labels, metric='euclidean', sil_scores=None, chunksize=None):
     """Function wrapped by silhouette_score and silhouette_samples to compute
     silhouette coefficients.
 
@@ -76,7 +74,6 @@ def _silhouette_coeff(
         X,
         order='C',
         dtype=[np.float32, np.float64],
-        convert_dtype=convert_dtype,
         input_name='X',
     )
     cdef int n_rows = data.shape[0]
@@ -110,7 +107,6 @@ def _silhouette_coeff(
             ensure_2d=False,
             order='C',
             dtype=[dtype],
-            convert_dtype=convert_dtype,
             input_name='sil_scores',
             ensure_all_finite=False,  # output buffer may be uninitialized
         )
@@ -145,7 +141,6 @@ def cython_silhouette_score(
     labels,
     metric='euclidean',
     chunksize=None,
-    convert_dtype="deprecated",
 ):
     """Calculate the mean silhouette coefficient for the provided data.
 
@@ -175,7 +170,6 @@ def cython_silhouette_score(
 
     return _silhouette_coeff(
         X, labels, chunksize=chunksize, metric=metric,
-        convert_dtype=convert_dtype
     )
 
 
@@ -184,7 +178,6 @@ def cython_silhouette_samples(
     labels,
     metric='euclidean',
     chunksize=None,
-    convert_dtype="deprecated",
 ):
     """Calculate the silhouette coefficient for each sample in the provided data.
 
@@ -216,7 +209,6 @@ def cython_silhouette_samples(
 
     _silhouette_coeff(
         X, labels, chunksize=chunksize, metric=metric, sil_scores=sil_scores,
-        convert_dtype=convert_dtype
     )
 
     return sil_scores

@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
+from packaging.version import Version
 from sklearn.impute import MissingIndicator as skMissingIndicator
 from sklearn.impute import SimpleImputer as skSimpleImputer
 from sklearn.preprocessing import Binarizer as skBinarizer
@@ -70,10 +71,6 @@ from cuml.testing.test_preproc_utils import (  # noqa: F401
     sparse_imputer_dataset,
     sparse_int_dataset,
     sparse_nan_filled_positive,
-)
-
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:Outputting `numba` arrays:FutureWarning"
 )
 
 
@@ -471,7 +468,7 @@ def test_poly_features(
     )
     t_X = polyfeatures.fit_transform(X)
     assert type(X) is type(t_X)
-    cu_feature_names = polyfeatures.get_feature_names()
+    cu_feature_names = polyfeatures.get_feature_names_out()
 
     if isinstance(t_X, np.ndarray):
         if order == "C":
@@ -486,12 +483,19 @@ def test_poly_features(
         include_bias=include_bias,
     )
     sk_t_X = polyfeatures.fit_transform(X_np)
-    if sklearn.__version__ <= "1.0":
-        sk_feature_names = polyfeatures.get_feature_names()
+    sk_feature_names = polyfeatures.get_feature_names_out()
 
     assert_allclose(t_X, sk_t_X, rtol=0.1, atol=0.1)
-    if sklearn.__version__ <= "1.0":
-        assert sk_feature_names == cu_feature_names
+    np.testing.assert_array_equal(cu_feature_names, sk_feature_names)
+
+
+def test_poly_features_get_feature_names_deprecated():
+    X = np.array([[1.5, 2.5, 3.5], [1.6, 2.4, 3.7]])
+    model = cuPolynomialFeatures().fit(X)
+    with pytest.warns(FutureWarning, match="get_feature_names"):
+        res = model.get_feature_names()
+
+    np.testing.assert_array_equal(res, model.get_feature_names_out())
 
 
 @pytest.mark.parametrize("degree", [2, 3])
@@ -791,22 +795,8 @@ def test_robust_scale_sparse(
 @pytest.mark.parametrize(
     "strategy",
     [
-        pytest.param(
-            "uniform",
-            marks=pytest.mark.xfail(
-                strict=False,
-                reason="Intermittent mismatch with sklearn"
-                " (https://github.com/rapidsai/cuml/issues/3481)",
-            ),
-        ),
-        pytest.param(
-            "quantile",
-            marks=pytest.mark.xfail(
-                strict=False,
-                reason="Intermittent mismatch with sklearn"
-                " (https://github.com/rapidsai/cuml/issues/2933)",
-            ),
-        ),
+        "uniform",
+        "quantile",
         "kmeans",
     ],
 )
@@ -829,6 +819,14 @@ def test_kbinsdiscretizer(
         assert type(t_X) is type(X)
         assert type(r_X) is type(t_X)
 
+    sklearn_kwargs = {}
+    if strategy == "quantile" and Version(sklearn.__version__) >= Version(
+        "1.7"
+    ):
+        # cuML uses linear percentile interpolation. Scikit-learn exposed the
+        # method in 1.7 and changed its default in 1.9.
+        sklearn_kwargs["quantile_method"] = "linear"
+
     transformer = skKBinsDiscretizer(
         n_bins=n_bins,
         encode=encode,
@@ -837,6 +835,7 @@ def test_kbinsdiscretizer(
         subsample=200_000
         if strategy in ("uniform", "quantile", "kmeans")
         else None,
+        **sklearn_kwargs,
     )
     sk_t_X = transformer.fit_transform(X_np)
     sk_r_X = transformer.inverse_transform(sk_t_X)
@@ -846,6 +845,42 @@ def test_kbinsdiscretizer(
     else:
         assert_allclose(t_X, sk_t_X)
         assert_allclose(r_X, sk_r_X)
+
+
+@pytest.mark.parametrize(
+    "X_fit,X_transform,n_bins",
+    [
+        pytest.param(
+            [0.0, 1.0],
+            [0.499999],
+            2,
+            id="value-below-bin-edge",
+        ),
+        # These float32 values put X_transform between edges produced when
+        # CuPy receives a NumPy integer or a Python integer for ``num``.
+        pytest.param(
+            [-11.525976, 9.953962],
+            [1.3619866],
+            20,
+            id="float32-linspace-num-promotion",
+        ),
+    ],
+)
+def test_kbinsdiscretizer_uniform_edge_parity(X_fit, X_transform, n_bins):
+    X_fit = np.asarray(X_fit, dtype=np.float32)[:, None]
+    X_transform = np.asarray(X_transform, dtype=np.float32)[:, None]
+
+    cu_transformer = cuKBinsDiscretizer(
+        n_bins=n_bins, encode="ordinal", strategy="uniform"
+    ).fit(cp.asarray(X_fit))
+    sk_transformer = skKBinsDiscretizer(
+        n_bins=n_bins, encode="ordinal", strategy="uniform"
+    ).fit(X_fit)
+
+    assert_allclose(
+        cu_transformer.transform(cp.asarray(X_transform)),
+        sk_transformer.transform(X_transform),
+    )
 
 
 @pytest.mark.parametrize("missing_values", [0, 1, np.nan])

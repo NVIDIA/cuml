@@ -131,9 +131,7 @@ class SVR(RegressorMixin, SVMBase):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(
-        self, X, y, sample_weight=None, *, convert_dtype="deprecated"
-    ) -> "SVR":
+    def fit(self, X, y, sample_weight=None) -> "SVR":
         """
         Fit the model with X and y.
 
@@ -147,7 +145,6 @@ class SVR(RegressorMixin, SVMBase):
             y,
             sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="F",
             ensure_min_samples=2,
             accept_sparse="csr",
@@ -171,7 +168,7 @@ class SVR(RegressorMixin, SVMBase):
         }
     )
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predicts the values for X.
 
@@ -180,4 +177,4 @@ class SVR(RegressorMixin, SVMBase):
         number of samples used during fit.
 
         """
-        return self._predict(X, convert_dtype=convert_dtype)
+        return self._predict(X)

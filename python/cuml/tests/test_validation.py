@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import re
 import warnings
@@ -25,6 +25,7 @@ from cuml.internals.validation import (
     check_consistent_length,
     check_cudf,
     check_features,
+    check_input_features,
     check_inputs,
     check_non_negative,
     check_random_seed,
@@ -477,6 +478,44 @@ def test_feature_names_mismatch_errors():
     assert "Feature names must be in the same order" in str(rec.value)
 
 
+def test_check_input_features():
+    X = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
+
+    # Correct names are fine
+    model_named = MyModel().fit(X)
+    model_unnamed = MyModel().fit(X.to_numpy())
+
+    # no-args call returns feature_names_in_
+    np.testing.assert_array_equal(
+        check_input_features(model_named),
+        model_named.feature_names_in_,
+    )
+
+    # if no feature_names_in_, names are generated like x0, x1, ...
+    np.testing.assert_array_equal(
+        check_input_features(model_unnamed),
+        np.array(["x0", "x1", "x2"], dtype="object"),
+    )
+
+    # If `input_features` provided, that's returned if valid
+    np.testing.assert_array_equal(
+        check_input_features(model_named, ["a", "b", "c"]),
+        model_named.feature_names_in_,
+    )
+    np.testing.assert_array_equal(
+        check_input_features(model_unnamed, ["x", "y", "z"]),
+        np.array(["x", "y", "z"]),
+    )
+
+    # Errors if feature_names_in_ defined and doesn't match
+    with pytest.raises(ValueError, match="input_features is not equal to"):
+        check_input_features(model_named, ["x", "y", "z"])
+
+    # If no `feature_names_in_`, errors if input_features isn't the right size
+    with pytest.raises(ValueError, match=r".*number of features \(3\), got 2"):
+        check_input_features(model_unnamed, ["x", "y"])
+
+
 def test_check_consistent_length():
     y3 = np.empty(3)
     y4 = np.empty(4)
@@ -739,6 +778,21 @@ def test_check_array_dtype(array, mem_type):
     assert out.dtype == "float32"
 
 
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+@pytest.mark.parametrize("mem_type", ["device", "host", None])
+def test_check_array_array_protocol_preserves_dtype(dtype, mem_type):
+    class ArrayLike:
+        def __init__(self, array):
+            self.array = array
+
+        def __array__(self, dtype=None, copy=None):
+            return self.array
+
+    array = ArrayLike(np.array([[1, 2, 3]], dtype=dtype))
+    out = check_array(array, dtype=("float32", "float64"), mem_type=mem_type)
+    assert out.dtype == dtype
+
+
 @example(mem_type="device", dtype="int32", order="C", shape=(3, 4))
 @example(mem_type="host", dtype="float32", order="F", shape=(3,))
 @given(
@@ -810,45 +864,6 @@ def test_check_array_sparse_copy(mem_type, format):
     else:
         assert ptr(res.indices) != ptr(array.indices)
         assert ptr(res.indptr) != ptr(array.indptr)
-
-
-def test_convert_dtype_deprecated():
-    model = MyModel()
-    X = cp.array([[1, 2], [3, 4], [5, 6]], dtype="float32")
-    y = sample_weight = cp.array([1, 2, 3], dtype="float32")
-
-    with pytest.warns(FutureWarning, match="`convert_dtype` was deprecated"):
-        check_array(X, dtype="float64", convert_dtype=True)
-
-    with pytest.warns(FutureWarning, match="`convert_dtype` was deprecated"):
-        check_inputs(model, X, dtype="float64", convert_dtype=True)
-
-    with pytest.warns(FutureWarning, match="`convert_dtype` was deprecated"):
-        check_y(y, dtype="float64", convert_dtype=True)
-
-    with pytest.warns(FutureWarning, match="`convert_dtype` was deprecated"):
-        check_sample_weight(sample_weight, dtype="float64", convert_dtype=True)
-
-
-@pytest.mark.filterwarnings(
-    "ignore:`convert_dtype` was deprecated:FutureWarning"
-)
-def test_check_array_convert_dtype():
-    array = cp.array([[1, 2, 3]], dtype="float32")
-
-    with pytest.raises(
-        ValueError,
-        match=r"Expected array with dtype in \['int32'\] but got 'float32'",
-    ):
-        check_array(array, dtype="int32", convert_dtype=False)
-
-    array = pd.DataFrame({"x": [1, 2, 3], "y": [1.5, 2.5, 3.5]})
-    with pytest.raises(ValueError, match=r"\['int32'\] but got 'float64'"):
-        check_array(array, dtype="int32", convert_dtype=False)
-
-    array = pd.DataFrame({"x": [1, 2, 3], "y": ["a", "b", "a"]})
-    with pytest.raises(ValueError, match=r"\['int32'\] but got 'object'"):
-        check_array(array, dtype="int32", convert_dtype=False)
 
 
 @pytest.mark.parametrize("kind", ["cudf", "pandas"])

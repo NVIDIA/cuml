@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import platform
@@ -58,7 +58,6 @@ from cuml.metrics import (
     pairwise_distances,
     precision_recall_curve,
     roc_auc_score,
-    sparse_pairwise_distances,
 )
 from cuml.metrics.cluster import adjusted_rand_score as cu_ars
 from cuml.metrics.cluster import entropy
@@ -391,7 +390,6 @@ def test_silhouette_samples_batched(metric, chunk_divider, labeled_clusters):
         assert False
 
 
-@pytest.mark.xfail
 def test_silhouette_score_batched_non_monotonic():
     vecs = np.array(
         [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [10.0, 10.0, 10.0]]
@@ -1253,14 +1251,6 @@ def prep_dense_array(array, metric, col_major=0):
         return np.asfortranarray(array) if col_major else array
 
 
-def test_sparse_pairwise_distances_deprecated():
-    X = cp_sp.random(10, 10, random_state=42, density=0.5)
-    with pytest.warns(FutureWarning, match="deprecated"):
-        res = sparse_pairwise_distances(X, metric="sqeuclidean")
-    sol = sklearn_pairwise_distances(X.toarray().get(), metric="sqeuclidean")
-    np.testing.assert_allclose(res.get(), sol, atol=1e-4)
-
-
 @pytest.mark.filterwarnings(
     "ignore:Data was converted to boolean for metric russellrao:sklearn.exceptions.DataConversionWarning"
 )
@@ -1552,20 +1542,6 @@ def test_pairwise_distances_warns_bool_conversion(metric, kind):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         pairwise_distances(X_bool_like, metric=metric)
-
-
-def test_pairwise_distances_metric_arg_deprecated():
-    X = np.array([[1, 2], [3, 4]], dtype="float64")
-    sol = sklearn_pairwise_distances(X, metric="minkowski", p=1)
-    with pytest.warns(FutureWarning, match="deprecated"):
-        res = pairwise_distances(X, metric="minkowski", metric_arg=1)
-    np.testing.assert_allclose(sol, res)
-
-    # edge case - check that nan_euclidean warns, but still runs
-    with pytest.warns(FutureWarning, match="deprecated"):
-        res = pairwise_distances(X, metric="nan_euclidean", metric_arg=1)
-    sol = sklearn_pairwise_distances(X, metric="nan_euclidean")
-    np.testing.assert_allclose(sol, res)
 
 
 def test_pairwise_distances_metric_kwds():

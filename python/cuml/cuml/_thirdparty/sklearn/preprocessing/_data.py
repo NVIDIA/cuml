@@ -36,9 +36,18 @@ from scipy.special import boxcox
 
 from cuml.common.sparse import csr_row_normalize_l1, csr_row_normalize_l2
 from cuml.internals.interop import InteropMixin
-from cuml.internals.mixins import AllowNaNTagMixin, SparseInputTagMixin
+from cuml.internals.mixins import (
+    AllowNaNTagMixin,
+    SparseInputTagMixin,
+    DeprecatedGetFeatureNamesMixin,
+)
 from cuml.internals.outputs import using_output_type, mlfunc, ReflectedAttr
-from cuml.internals.validation import check_is_fitted, check_array, check_inputs
+from cuml.internals.validation import (
+    check_is_fitted,
+    check_array,
+    check_inputs,
+    check_input_features,
+)
 from cuml.thirdparty_adapters.sparsefuncs_fast import csr_polynomial_expansion
 
 from ..utils.extmath import _incremental_mean_and_var, row_norms
@@ -1480,10 +1489,13 @@ def robust_scale(X, *, axis=0, with_centering=True, with_scaling=True,
         return X
 
 
-class PolynomialFeatures(TransformerMixin,
-                         BaseEstimator,
-                         AllowNaNTagMixin,
-                         SparseInputTagMixin):
+class PolynomialFeatures(
+    DeprecatedGetFeatureNamesMixin,
+    TransformerMixin,
+    BaseEstimator,
+    AllowNaNTagMixin,
+    SparseInputTagMixin,
+):
     """Generate polynomial and interaction features.
 
     Generate a new feature matrix consisting of all polynomial combinations
@@ -1584,35 +1596,35 @@ class PolynomialFeatures(TransformerMixin,
                                               minlength=self.n_input_features_)
                               for c in combinations])
 
-    def get_feature_names(self, input_features=None):
-        """
-        Return feature names for output features
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
 
         Parameters
         ----------
-        input_features : list of string, length n_features, optional
-            String names for input features if available. By default,
-            "x0", "x1", ... "xn_features" is used.
+        input_features : array-like of str or None, default=None
+            Input feature names.
 
         Returns
         -------
-        output_feature_names : list of string, length n_output_features
-
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
         """
-        powers = self.powers_
-        if input_features is None:
-            input_features = ['x%d' % i for i in range(powers.shape[1])]
+        check_is_fitted(self)
+        input_features = check_input_features(self, input_features)
         feature_names = []
-        for row in powers:
+        for row in self.powers_:
             inds = cpu_np.where(row)[0]
             if len(inds):
-                name = " ".join("%s^%d" % (input_features[ind], exp)
-                                if exp != 1 else input_features[ind]
-                                for ind, exp in zip(inds, row[inds]))
+                name = " ".join(
+                    f"{input_features[ind]}^{exp}"
+                    if exp != 1
+                    else input_features[ind]
+                    for ind, exp in zip(inds, row[inds])
+                )
             else:
                 name = "1"
             feature_names.append(name)
-        return feature_names
+        return cpu_np.asarray(feature_names, dtype=object)
 
     @mlfunc(set_input_type=True)
     def fit(self, X, y=None) -> "PolynomialFeatures":

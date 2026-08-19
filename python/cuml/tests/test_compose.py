@@ -31,10 +31,6 @@ from cuml.testing.test_preproc_utils import (  # noqa: F401
     sparse_clf_dataset,
 )
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:Outputting `numba` arrays:FutureWarning"
-)
-
 
 @pytest.mark.parametrize("remainder", ["drop", "passthrough"])
 @pytest.mark.parametrize(
@@ -210,25 +206,56 @@ def test_make_column_transformer_sparse(
     assert_allclose(t_X, sk_t_X)
 
 
-@pytest.mark.skip(
-    reason="scikit-learn replaced get_feature_names with "
-    "get_feature_names_out"
-    "https://github.com/rapidsai/cuml/issues/5159"
-)
-def test_column_transformer_get_feature_names(clf_dataset):  # noqa: F811
+@pytest.mark.parametrize("remainder", ["drop", "passthrough"])
+def test_column_transformer_get_feature_names_out(clf_dataset, remainder):
     X_np, X = clf_dataset
 
-    cu_transformers = [("PolynomialFeatures", cuPolynomialFeatures(), [0, 2])]
-    transformer = cuColumnTransformer(cu_transformers)
-    transformer.fit_transform(X)
-    cu_feature_names = transformer.get_feature_names()
+    bool_mask = [False] * X_np.shape[1]
+    bool_mask[0] = True
+    bool_mask[-1] = True
 
-    sk_transformers = [("PolynomialFeatures", skPolynomialFeatures(), [0, 2])]
-    transformer = skColumnTransformer(sk_transformers)
-    transformer.fit_transform(X_np)
-    sk_feature_names = transformer.get_feature_names()
+    cu_transformer = cuColumnTransformer(
+        [
+            ("t1", cuPolynomialFeatures(), slice(0, 2)),
+            ("t2", cuPolynomialFeatures(), [0, 2]),
+            ("t3", cuPolynomialFeatures(), lambda X: [1]),
+            ("t4", cuPolynomialFeatures(), bool_mask),
+        ],
+        remainder=remainder,
+    ).fit(X)
+    cu_transformer.fit_transform(X)
 
-    assert cu_feature_names == sk_feature_names
+    sk_transformer = skColumnTransformer(
+        [
+            ("t1", skPolynomialFeatures(), slice(0, 2)),
+            ("t2", skPolynomialFeatures(), [0, 2]),
+            ("t3", skPolynomialFeatures(), lambda X: [1]),
+            ("t4", skPolynomialFeatures(), bool_mask),
+        ],
+        remainder=remainder,
+    ).fit(X_np)
+
+    res = cu_transformer.get_feature_names_out()
+    sol = sk_transformer.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)
+
+    # If the input data lacks feature names, also check the generated output
+    # names if feature names are provided explicitly.
+    if not hasattr(cu_transformer, "feature_names_in_"):
+        input_features = [f"c{i}" for i in range(X.shape[1])]
+        res = cu_transformer.get_feature_names_out(input_features)
+        sol = sk_transformer.get_feature_names_out(input_features)
+        np.testing.assert_array_equal(res, sol)
+
+
+def test_column_transformer_get_feature_names_deprecated():
+    X = np.array([[1.5, 2.5, 3.5], [1.6, 2.4, 3.7]])
+    model = cuColumnTransformer([("t1", cuPolynomialFeatures(), [0, 2])])
+    model.fit(X)
+    with pytest.warns(FutureWarning, match="get_feature_names"):
+        res = model.get_feature_names()
+
+    np.testing.assert_array_equal(res, model.get_feature_names_out())
 
 
 def test_column_transformer_named_transformers_(clf_dataset):  # noqa: F811

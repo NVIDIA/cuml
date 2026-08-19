@@ -184,7 +184,6 @@ def pairwise_kernels(
     metric="linear",
     *,
     filter_params=False,
-    convert_dtype="deprecated",
     **kwds,
 ):
     """
@@ -224,13 +223,6 @@ def pairwise_kernels(
         kernel value as a single number.
     filter_params : bool, default=False
         Whether to filter invalid parameters or not.
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
-
     **kwds : optional keyword parameters
         Any further parameters are passed directly to the kernel function.
 
@@ -278,11 +270,14 @@ def pairwise_kernels(
             [5.04347663e-07, 2.03468369e-04],
             [4.24835426e-18, 2.54366565e-13]])
     """
-    X = check_array(X, input_name="X")
+    ensure_non_negative = metric in ("additive_chi2", "chi2")
+    X = check_array(X, input_name="X", ensure_non_negative=ensure_non_negative)
     if Y is None:
         Y = X
     else:
-        Y = check_array(Y, input_name="Y")
+        Y = check_array(
+            Y, input_name="Y", ensure_non_negative=ensure_non_negative
+        )
     if X.shape[1] != Y.shape[1]:
         raise ValueError("X and Y have different dimensions.")
 

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -88,7 +88,7 @@ class BaseRandomForestModel(object):
             n_estimators_per_worker[i] = n_estimators_per_worker[i] + 1
         return n_estimators_per_worker
 
-    def _fit(self, model, dataset, convert_dtype, broadcast_data):
+    def _fit(self, model, dataset, broadcast_data):
         data = DistributedDataHandler.create(dataset, client=self.client)
         self.active_workers = data.workers
         self.datatype = data.datatype
@@ -114,7 +114,6 @@ class BaseRandomForestModel(object):
                     _func_fit,
                     model[worker],
                     combined_data if broadcast_data else worker_data,
-                    convert_dtype,
                     workers=[worker],
                     pure=False,
                 )
@@ -305,10 +304,10 @@ class BaseRandomForestModel(object):
             return delayed_res.persist()
 
 
-def _func_fit(model, input_data, convert_dtype):
+def _func_fit(model, input_data):
     X = concatenate([item[0] for item in input_data])
     y = concatenate([item[1] for item in input_data])
-    return model.fit(X, y, convert_dtype=convert_dtype)
+    return model.fit(X, y)
 
 
 def _func_predict_partial(model, input_data, **kwargs):

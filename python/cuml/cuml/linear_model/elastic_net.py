@@ -223,9 +223,7 @@ class ElasticNet(
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(
-        self, X, y, sample_weight=None, *, convert_dtype="deprecated"
-    ) -> "ElasticNet":
+    def fit(self, X, y, sample_weight=None) -> "ElasticNet":
         """
         Fit the model with X and y.
 
@@ -249,7 +247,6 @@ class ElasticNet(
                 X,
                 y,
                 sample_weight=sample_weight,
-                convert_dtype=convert_dtype,
                 loss="l2",
                 fit_intercept=self.fit_intercept,
                 l1_strength=self.alpha * self.l1_ratio,
@@ -272,7 +269,6 @@ class ElasticNet(
                 X,
                 y,
                 sample_weight=sample_weight,
-                convert_dtype=convert_dtype,
                 alpha=self.alpha,
                 fit_intercept=self.fit_intercept,
                 l1_ratio=self.l1_ratio,

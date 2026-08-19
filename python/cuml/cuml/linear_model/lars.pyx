@@ -199,7 +199,7 @@ class Lars(RegressorMixin, Base):
 
     @generate_docstring(y="dense_anydtype")
     @mlfunc(set_input_type=True)
-    def fit(self, X, y, *, convert_dtype="deprecated") -> "Lars":
+    def fit(self, X, y) -> "Lars":
         """
         Fit the model with X and y.
 
@@ -210,7 +210,6 @@ class Lars(RegressorMixin, Base):
             X,
             y,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="F",
             ensure_min_samples=2,
             reset=True,
@@ -339,7 +338,7 @@ class Lars(RegressorMixin, Base):
         }
     )
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """Predicts `y` values for `X`."""
         check_is_fitted(self)
 
@@ -347,7 +346,6 @@ class Lars(RegressorMixin, Base):
             self,
             X,
             dtype=self.coef_.dtype,
-            convert_dtype=convert_dtype,
             order="F",
         )
         cdef int n_rows = X.shape[0]

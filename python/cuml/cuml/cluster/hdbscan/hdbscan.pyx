@@ -165,8 +165,8 @@ cdef class _HDBSCANState:
         return self
 
     @staticmethod
-    def from_sklearn(model, X):
-        """Initialize internal state from a `hdbscan.HDBSCAN` instance."""
+    def from_sklearn(model, X, dendrogram=None):
+        """Initialize internal state from a fitted CPU HDBSCAN instance."""
         cdef DistanceType metric = _metrics_mapping[model.metric]
         cdef lib.CLUSTER_SELECTION_METHOD cluster_selection_method = {
             "eom": lib.CLUSTER_SELECTION_METHOD.EOM,
@@ -179,7 +179,14 @@ cdef class _HDBSCANState:
         cdef int n_cols = X.shape[1]
 
         handle = get_handle()
-        self._init_from_condensed_tree_array(handle, model._condensed_tree, n_rows)
+        if dendrogram is None:
+            self._init_from_condensed_tree_array(
+                handle, model._condensed_tree, n_rows
+            )
+        else:
+            self._init_from_dendrogram(
+                handle, dendrogram, model.min_cluster_size
+            )
 
         self.core_dists = cp.empty(n_rows, dtype=np.float32)
         cdef handle_t *handle_ = <handle_t*> <size_t> handle.getHandle()
@@ -232,6 +239,36 @@ cdef class _HDBSCANState:
 
         return self
 
+    def _init_from_dendrogram(
+        self, handle, dendrogram, int min_cluster_size
+    ):
+        """Initialize the condensed hierarchy from a linkage dendrogram."""
+        children = cp.asarray(
+            dendrogram[:, 0:2], order="C", dtype="int64"
+        )
+        lambdas = cp.asarray(dendrogram[:, 2], order="C", dtype="float32")
+        sizes = cp.asarray(dendrogram[:, 3], order="C", dtype="int64")
+
+        cdef size_t n_leaves = dendrogram.shape[0] + 1
+        cdef handle_t *handle_ = <handle_t*> <size_t> handle.getHandle()
+
+        self.condensed_tree = new lib.CondensedHierarchy[int64_t, float](
+            handle_[0], n_leaves
+        )
+        cdef int64_t* children_ptr = <int64_t*><uintptr_t>children.data.ptr
+        cdef float* lambdas_ptr = <float*><uintptr_t>lambdas.data.ptr
+        cdef int64_t* sizes_ptr = <int64_t*><uintptr_t>sizes.data.ptr
+        with nogil:
+            lib.build_condensed_hierarchy(
+                handle_[0],
+                children_ptr,
+                lambdas_ptr,
+                sizes_ptr,
+                min_cluster_size,
+                n_leaves,
+                deref(self.condensed_tree)
+            )
+
     cdef lib.CondensedHierarchy[int64_t, float]* get_condensed_tree(self) nogil:
         if self.hdbscan_output != NULL:
             return &(self.hdbscan_output.get_condensed_tree())
@@ -251,29 +288,8 @@ cdef class _HDBSCANState:
         """
         cdef _HDBSCANState self = _HDBSCANState.__new__(_HDBSCANState)
 
-        children = cp.asarray(dendrogram[:, 0:2], order="C", dtype="int64")
-        lambdas = cp.asarray(dendrogram[:, 2], order="C", dtype="float32")
-        sizes = cp.asarray(dendrogram[:, 3], order="C", dtype="int64")
-
-        cdef size_t n_leaves = dendrogram.shape[0] + 1
-
         handle = get_handle()
-        cdef handle_t *handle_ = <handle_t*> <size_t> handle.getHandle()
-
-        self.condensed_tree = new lib.CondensedHierarchy[int64_t, float](handle_[0], n_leaves)
-        cdef int64_t* children_ptr = <int64_t*><uintptr_t>children.data.ptr
-        cdef float* lambdas_ptr = <float*><uintptr_t>lambdas.data.ptr
-        cdef int64_t* sizes_ptr = <int64_t*><uintptr_t>sizes.data.ptr
-        with nogil:
-            lib.build_condensed_hierarchy(
-                handle_[0],
-                children_ptr,
-                lambdas_ptr,
-                sizes_ptr,
-                min_cluster_size,
-                n_leaves,
-                deref(self.condensed_tree)
-            )
+        self._init_from_dendrogram(handle, dendrogram, min_cluster_size)
         return self
 
     @staticmethod
@@ -903,7 +919,7 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y=None, *, convert_dtype="deprecated") -> "HDBSCAN":
+    def fit(self, X, y=None) -> "HDBSCAN":
         """
         Fit HDBSCAN model from features.
         """
@@ -923,8 +939,8 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
             self,
             X,
             dtype="float32",
-            convert_dtype=convert_dtype,
             mem_type=mem_type,
+            order="C",
             ensure_min_samples=2,
             return_index=True,
             reset=True,
@@ -1177,12 +1193,7 @@ def all_points_membership_vectors(clusterer, int batch_size=4096):
 
 
 @mlfunc(model_arg="clusterer", array_arg="points_to_predict", preserve_index=True)
-def membership_vector(
-    clusterer,
-    points_to_predict,
-    int batch_size=4096,
-    convert_dtype="deprecated",
-):
+def membership_vector(clusterer, points_to_predict, int batch_size=4096):
     """
     Predict soft cluster membership. The result produces a vector
     for each point in ``points_to_predict`` that gives a probability that
@@ -1221,7 +1232,6 @@ def membership_vector(
         clusterer,
         points_to_predict,
         dtype="float32",
-        convert_dtype=convert_dtype,
         order="C",
     )
     cdef int n_prediction_points = points_to_predict.shape[0]
@@ -1261,7 +1271,7 @@ def membership_vector(
 
 
 @mlfunc(model_arg="clusterer", array_arg="points_to_predict", preserve_index=True)
-def approximate_predict(clusterer, points_to_predict, convert_dtype="deprecated"):
+def approximate_predict(clusterer, points_to_predict):
     """Predict the cluster label of new points. The returned labels
     will be those of the original clustering found by ``clusterer``,
     and therefore are not (necessarily) the cluster labels that would
@@ -1305,7 +1315,6 @@ def approximate_predict(clusterer, points_to_predict, convert_dtype="deprecated"
         clusterer,
         points_to_predict,
         dtype="float32",
-        convert_dtype=convert_dtype,
         order="C",
     )
     cdef int n_prediction_points = points_to_predict.shape[0]

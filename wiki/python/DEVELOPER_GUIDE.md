@@ -254,7 +254,7 @@ Prefer `check_inputs` for estimator methods that validate `X` and optional `y`
 has a non-standard shape that the higher-level helper cannot express.
 
 Validation helpers should be configured to describe what the estimator actually
-supports. Set `dtype`, `convert_dtype`, `mem_type`, `order`, `accept_sparse`,
+supports. Set `dtype`, `mem_type`, `order`, `accept_sparse`,
 `ensure_all_finite`, `ensure_non_negative`, and minimum shape requirements
 explicitly when the defaults are not correct. Do not hand-roll equivalent
 checks unless the common helpers cannot express the estimator's requirements.

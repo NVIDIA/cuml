@@ -25,7 +25,6 @@ use.
    cuml.ensemble
    cuml.explainer
    cuml.feature_extraction
-   cuml.fil
    cuml.kernel_ridge
    cuml.linear_model
    cuml.manifold
@@ -237,9 +236,6 @@ Regression and Classification
    * - :obj:`~cuml.linear_model.ElasticNet`
      - ElasticNet regression.
      - :mod:`cuml.linear_model`
-   * - :obj:`~cuml.fil.ForestInference`
-     - Forest Inference for fast prediction of tree-based models.
-     - :mod:`cuml.fil`
    * - :obj:`~cuml.naive_bayes.GaussianNB`
      - Gaussian Naive Bayes.
      - :mod:`cuml.naive_bayes`

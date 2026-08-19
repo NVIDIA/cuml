@@ -61,6 +61,5 @@ Pairwise Distances and Kernels
    :template: base.rst
 
    pairwise_distances
-   sparse_pairwise_distances
    nan_euclidean_distances
    pairwise_kernels

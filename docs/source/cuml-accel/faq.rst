@@ -15,7 +15,7 @@ used together from the command line:
 In Jupyter, load both extensions before importing the libraries they
 accelerate:
 
-.. code-block:: python
+.. code-block:: ipython
 
    %load_ext cudf.pandas
    %load_ext cuml.accel
@@ -54,4 +54,4 @@ For help determining what ran on the GPU and why an operation fell back, see
 conditions.
 
 .. _Python pickle documentation: https://docs.python.org/3/library/pickle.html
-.. _cuML issue tracker: https://github.com/rapidsai/cuml/issues/new?template=bug_report.md
+.. _cuML issue tracker: https://github.com/NVIDIA/cuml/issues/new?template=bug_report.md

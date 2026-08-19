@@ -55,10 +55,12 @@ def create_positive_rand(random_state):
 
 def convert(dataset, output_type):
     converted_dataset = convert_arrays(dataset, output_type)
-    if output_type in ["dataframe", "cudf"]:
+    if output_type == "cudf":
         renaming = {i: f"c{i}" for i in range(dataset.shape[1])}
         converted_dataset = converted_dataset.rename(columns=renaming)
-    dataset = cp.asnumpy(dataset)
+        dataset = converted_dataset.to_pandas()
+    else:
+        dataset = cp.asnumpy(dataset)
     return dataset, converted_dataset
 
 
@@ -113,25 +115,19 @@ def sparsify_and_convert(dataset, conversion_format, sparsify_ratio=0.3):
     return cpu_csr_matrix(dataset), converted_dataset
 
 
-@pytest.fixture(
-    scope="session", params=["numpy", "dataframe", "cupy", "cudf", "numba"]
-)
+@pytest.fixture(scope="session", params=["numpy", "cupy", "cudf"])
 def clf_dataset(request, random_seed):
     clf = create_rand_clf(random_seed)
     return convert(clf, request.param)
 
 
-@pytest.fixture(
-    scope="session", params=["numpy", "dataframe", "cupy", "cudf", "numba"]
-)
+@pytest.fixture(scope="session", params=["numpy", "cupy", "cudf"])
 def blobs_dataset(request, random_seed):
     blobs = create_rand_blobs(random_seed)
     return convert(blobs, request.param)
 
 
-@pytest.fixture(
-    scope="session", params=["numpy", "dataframe", "cupy", "cudf", "numba"]
-)
+@pytest.fixture(scope="session", params=["numpy", "cupy", "cudf"])
 def int_dataset(request, random_seed):
     randint = create_rand_integers(random_seed)
     cp.random.seed(random_seed)
@@ -223,9 +219,7 @@ def sparse_imputer_dataset(request, random_seed):
     return val, X_sp, X
 
 
-@pytest.fixture(
-    scope="session", params=["numpy", "dataframe", "cupy", "cudf", "numba"]
-)
+@pytest.fixture(scope="session", params=["numpy", "cupy", "cudf"])
 def nan_filled_positive(request, random_seed):
     rand = create_positive_rand(random_seed)
     cp.random.seed(random_seed)

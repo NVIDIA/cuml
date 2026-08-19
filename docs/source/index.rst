@@ -56,21 +56,20 @@ visit the `RAPIDS Release Selector <https://docs.rapids.ai/install#selector>`_.
    `the RAPIDS install page <https://docs.rapids.ai/install/#system-req>`_
    for details on system and hardware requirements.
 
-Part of RAPIDS
-==============
+CUDA-X Data Science
+===================
 
-cuML is part of the RAPIDS suite of open source libraries that enable
-end-to-end data science and analytics pipelines entirely on GPUs. It works
-seamlessly with other RAPIDS libraries like cuDF for data manipulation and
-cuGraph for graph analytics.
+NVIDIA cuML is an open-source CUDA-X Data Science library for GPU-accelerated
+machine learning. It integrates with libraries in the broader RAPIDS ecosystem,
+including cuDF for data manipulation and cuGraph for graph analytics.
 
 Community & Support
 ===================
 
 * :doc:`User Guide <user_guide>` - Comprehensive usage documentation
 * :doc:`API Reference <api/index>` - Complete API documentation
-* `GitHub Issues <https://github.com/rapidsai/cuml/issues>`_ - Report bugs and request features
-* `RAPIDS Community <https://rapids.ai/community.html>`_ - Join our community
+* `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_ - Report bugs and request features
+* `CUDA-X Data Science Community <https://developer.nvidia.com/topics/ai/data-science/cuda-x-for-data-science#join-the-community>`_ - Join our community
 
 .. toctree::
    :hidden:
@@ -79,5 +78,4 @@ Community & Support
    user_guide.rst
    Zero Code Change Acceleration <cuml-accel/index.rst>
    api/index
-   FIL.rst
    cuml_blogs.rst

@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 from __future__ import annotations
@@ -14,7 +14,6 @@ import cupy as cp
 import numpy as np
 import treelite.sklearn
 
-from cuml.fil.compat import ForestInference
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import (
     InteropMixin,
@@ -370,56 +369,6 @@ class BaseRandomForestModel(InteropMixin, Base):
         check_is_fitted(self)
 
         return treelite.Model.deserialize_bytes(self._treelite_model_bytes)
-
-    def as_fil(
-        self, layout="depth_first", default_chunk_size=None, align_bytes=None,
-    ):
-        """
-        Create a Forest Inference (FIL) model from the cuML model.
-
-        .. deprecated:: 26.06
-
-            The ``as_fil`` method is deprecated and will be removed in 26.10.
-            Please use ``as_nvforest`` instead.
-
-        Parameters
-        ----------
-        layout : string (default = 'depth_first')
-            Specifies the in-memory layout of nodes in forests. Options:
-            'depth_first', 'layered', 'breadth_first'.
-        default_chunk_size : int, optional (default = None)
-            Determines how batches are further subdivided for parallel processing.
-            The optimal value depends on hardware, model, and batch size.
-            If None, will be automatically determined.
-        align_bytes : int, optional (default = None)
-            If specified, trees will be padded such that their in-memory size is
-            a multiple of this value. This can improve performance by guaranteeing
-            that memory reads from trees begin on a cache line boundary.
-            Typical values are 0 or 128 on GPU and 0 or 64 on CPU.
-
-        Returns
-        -------
-        fil_model : ForestInference
-            A Forest Inference model which can be used to perform
-            inferencing on the random forest model.
-        """
-        check_is_fitted(self)
-        warnings.warn(
-            "as_fil() method is deprecated and will be removed in 26.10. "
-            "Use the as_nvforest() method instead.",
-            FutureWarning,
-        )
-        return ForestInference(
-            verbose=self.verbose,
-            output_type=self.output_type,
-            treelite_model=self._treelite_model_bytes,
-            is_classifier=(self._estimator_type == "classifier"),
-            layout=layout,
-            default_chunk_size=default_chunk_size,
-            align_bytes=align_bytes,
-            ensure_all_finite=True,
-            _suppress_deprecation_warning=True,
-        )
 
     def as_nvforest(
         self, layout="depth_first", default_chunk_size=None, align_bytes=None,

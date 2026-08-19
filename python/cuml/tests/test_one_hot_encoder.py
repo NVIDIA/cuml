@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import math
 
@@ -369,26 +369,32 @@ def test_onehot_category_class_count(total_classes: int):
         )
 
 
-@pytest.mark.parametrize("as_array", [True, False], ids=["cupy", "cudf"])
-def test_onehot_get_feature_names(as_array):
-    fruits = ["apple", "banana", "strawberry"]
-    if as_array:
-        fruits = [ord(fruit[0]) for fruit in fruits]
-    sizes = [0, 1, 2]
-    X = DataFrame({"fruits": fruits, "sizes": sizes})
-    if as_array:
-        X = _from_df_to_cupy(X)
+@pytest.mark.parametrize("named", [True, False])
+@pytest.mark.parametrize("drop", [None, "first"])
+def test_onehot_get_feature_names_out(named, drop):
+    columns = [["apple", "banana", "strawberry"], [0, 1, 2]]
+    names = ["fruits", "sizes"] if named else [0, 1]
+    X = pd.DataFrame(dict(zip(names, columns)))
 
-    enc = OneHotEncoder().fit(X)
+    cu_model = OneHotEncoder(drop=drop).fit(X)
+    sk_model = SkOneHotEncoder(drop=drop).fit(X)
 
-    feature_names_ref = ["x0_" + str(fruit) for fruit in fruits] + [
-        "x1_" + str(size) for size in sizes
-    ]
-    feature_names = enc.get_feature_names()
-    assert np.array_equal(feature_names, feature_names_ref)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    assert np.array_equal(res, sol)
 
-    feature_names_ref = ["fruit_" + str(fruit) for fruit in fruits] + [
-        "size_" + str(size) for size in sizes
-    ]
-    feature_names = enc.get_feature_names(["fruit", "size"])
-    assert np.array_equal(feature_names, feature_names_ref)
+    if not named:
+        res = cu_model.get_feature_names_out(["fruit", "size"])
+        sol = sk_model.get_feature_names_out(["fruit", "size"])
+        assert np.array_equal(res, sol)
+
+
+def test_onehot_get_feature_names_deprecated():
+    X = pd.DataFrame(
+        {"fruits": ["apple", "banana", "strawberry"], "sizes": [0, 1, 2]}
+    )
+    model = OneHotEncoder().fit(X)
+    with pytest.warns(FutureWarning, match="get_feature_names"):
+        res = model.get_feature_names()
+
+    np.testing.assert_array_equal(res, model.get_feature_names_out())

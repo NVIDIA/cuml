@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 from cuml._thirdparty.sklearn.preprocessing import (
@@ -28,7 +28,6 @@ from cuml._thirdparty.sklearn.preprocessing import (
     scale,
 )
 from cuml.model_selection import train_test_split
-from cuml.preprocessing import text
 from cuml.preprocessing._label import LabelEncoder
 from cuml.preprocessing._target_encoder import TargetEncoder
 from cuml.preprocessing.encoders import OneHotEncoder, OrdinalEncoder
@@ -67,6 +66,4 @@ __all__ = [
     "robust_scale",
     "scale",
     "train_test_split",
-    # Modules
-    "text",
 ]

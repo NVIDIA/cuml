@@ -5,7 +5,6 @@
 
 import cudf
 import cupy as cp
-import numba
 import numpy as np
 import pytest
 
@@ -21,13 +20,6 @@ TEST_OUTPUT_TYPES = (
     (None, (cp.ndarray, cp.ndarray)),  # Default is cupy if None is used
     ("numpy", (np.ndarray, np.ndarray)),
     ("cupy", (cp.ndarray, cp.ndarray)),
-    (
-        "numba",
-        (
-            numba.cuda.devicearray.DeviceNDArrayBase,
-            numba.cuda.devicearray.DeviceNDArrayBase,
-        ),
-    ),
     ("cudf", (cudf.DataFrame, cudf.Series)),
 )
 
@@ -36,7 +28,6 @@ GENERATORS = (make_blobs, make_classification, make_regression)
 
 @pytest.mark.parametrize("generator", GENERATORS)
 @pytest.mark.parametrize("output_str,output_types", TEST_OUTPUT_TYPES)
-@pytest.mark.filterwarnings("ignore:`output_type='numba'`:FutureWarning")
 def test_xy_output_type(generator, output_str, output_types):
     # Set the output type and ensure data of that type is generated
     with cuml.using_output_type(output_str):
@@ -51,7 +42,6 @@ def test_xy_output_type(generator, output_str, output_types):
     "ignore:`cuml.datasets.make_arima`, along with the entire `cuml.tsa` module, "
     "was deprecated:FutureWarning"
 )
-@pytest.mark.filterwarnings("ignore:`output_type='numba'`:FutureWarning")
 def test_time_series_label_output_type(output_str, output_types):
     # Set the output type and ensure data of that type is generated
     with cuml.using_output_type(output_str):

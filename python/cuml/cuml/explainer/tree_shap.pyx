@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import re
@@ -155,12 +155,11 @@ cdef class TreeExplainer:
     cdef object num_class
     cdef object data
 
-    def __init__(self, *, model, data=None, convert_dtype="deprecated"):
+    def __init__(self, *, model, data=None):
         if data is not None:
             data = check_array(
                 data,
                 dtype=("float32", "float64"),
-                convert_dtype=convert_dtype,
                 order="C",
                 ensure_all_finite=False,
             )
@@ -213,7 +212,7 @@ cdef class TreeExplainer:
         # Process Treelite model to extract path info
         self.path_info = extract_path_info(tl_handle)
 
-    def shap_values(self, X, convert_dtype="deprecated"):
+    def shap_values(self, X):
         """
         Estimate the SHAP values for a set of samples. For a given row, the
         SHAP values plus the `expected_value` attribute sum up to the raw
@@ -238,7 +237,6 @@ cdef class TreeExplainer:
         X = check_array(
             X,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="C",
             ensure_all_finite=False,
         )
@@ -288,12 +286,7 @@ cdef class TreeExplainer:
             preds = preds[:, :-1]
         return preds
 
-    def shap_interaction_values(
-        self,
-        X,
-        method='shapley-interactions',
-        convert_dtype="deprecated",
-    ):
+    def shap_interaction_values(self, X, method='shapley-interactions'):
         """
         Estimate the SHAP interaction values for a set of samples. For a
         given row, the SHAP values plus the `expected_value` attribute sum
@@ -322,7 +315,6 @@ cdef class TreeExplainer:
         X = check_array(
             X,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="C",
             ensure_all_finite=False,
         )

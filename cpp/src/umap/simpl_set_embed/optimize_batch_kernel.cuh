@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -143,23 +143,19 @@ DI T clip(T val, T lb, T ub)
   return min(max(val, lb), ub);
 }
 
-/**
- * Calculate the repulsive gradient
- */
 template <typename T>
-DI T repulsive_grad(T dist_squared, T gamma, UMAPParams params)
+DI T repulsive_coeff(T dist_squared, T gamma, UMAPParams params)
 {
+  if (dist_squared <= T(0.0)) { return T(0.0); }
   auto grad_coeff = T(2.0) * gamma * params.b;
   grad_coeff /= (T(0.001) + dist_squared) * (params.a * pow(dist_squared, params.b) + T(1.0));
   return grad_coeff;
 }
 
-/**
- * Calculate the attractive gradient
- */
 template <typename T>
-DI T attractive_grad(T dist_squared, UMAPParams params)
+DI T attractive_coeff(T dist_squared, UMAPParams params)
 {
+  if (dist_squared <= T(0.0)) { return T(0.0); }
   auto grad_coeff = T(-2.0) * params.a * params.b * pow(dist_squared, params.b - T(1.0));
   grad_coeff /= params.a * pow(dist_squared, params.b) + T(1.0);
   return grad_coeff;
@@ -169,6 +165,52 @@ template <typename T>
 DI T truncate_gradient(T const rounding_factor, T const x)
 {
   return (rounding_factor + x) - rounding_factor;
+}
+
+template <typename T>
+DI T attractive_component_grad(T coeff, T diff)
+{
+  return clip<T>(coeff * diff, T(-4.0), T(4.0));
+}
+
+template <typename T>
+DI T repulsive_component_grad(T coeff, T diff)
+{
+  return coeff > T(0.0) ? clip<T>(coeff * diff, T(-4.0), T(4.0)) : T(4.0);
+}
+
+/**
+ * Warp-level all-reduce sum across all 32 lanes
+ */
+template <typename T>
+DI T warp_all_reduce_sum(T val)
+{
+#pragma unroll
+  for (int offset = 16; offset > 0; offset >>= 1)
+    val += __shfl_xor_sync(0xffffffff, val, offset);
+  return val;
+}
+
+template <typename T, typename nnz_t, typename DistFn, typename ApplyFn>
+DI void run_negative_sampling(int n_neg_samples,
+                              uint64_t seed,
+                              nnz_t edge_id,
+                              MLCommon::FastIntDiv tail_n,
+                              int self_loop_vertex,
+                              T gamma,
+                              UMAPParams const& params,
+                              DistFn compute_dist,
+                              ApplyFn apply_grad)
+{
+  raft::random::detail::PhiloxGenerator gen(seed, edge_id, 0);
+  for (int p = 0; p < n_neg_samples; p++) {
+    int r;
+    gen.next(r);
+    nnz_t t        = static_cast<nnz_t>(r % tail_n);
+    T dist_squared = compute_dist(t);
+    if (dist_squared <= T(0.0) && self_loop_vertex == static_cast<int>(t)) { continue; }
+    apply_grad(repulsive_coeff<T>(dist_squared, gamma, params));
+  }
 }
 
 template <typename T, typename nnz_t, int TPB_X, nnz_t n_components>
@@ -235,8 +277,7 @@ CUML_KERNEL void optimize_batch_kernel_reg(T const* head_embedding,
     auto dist_squared = rdist<T, n_components>(current_reg, other_reg);
     // Attractive force between the two vertices, since they
     // are connected by an edge in the 1-skeleton.
-    auto attractive_grad_coeff = T(0.0);
-    if (dist_squared > T(0.0)) { attractive_grad_coeff = attractive_grad<T>(dist_squared, params); }
+    auto attractive_grad_coeff = attractive_coeff<T>(dist_squared, params);
     /**
      * Apply attractive force between `current` and `other`
      * by updating their 'weights' to place them relative
@@ -245,8 +286,8 @@ CUML_KERNEL void optimize_batch_kernel_reg(T const* head_embedding,
      * performing unsupervised training).
      */
     for (int d = 0; d < n_components; d++) {
-      auto diff   = current_reg[d] - other_reg[d];
-      auto grad_d = clip<T>(attractive_grad_coeff * diff, T(-4.0), T(4.0));
+      auto grad_d =
+        attractive_component_grad<T>(attractive_grad_coeff, current_reg[d] - other_reg[d]);
       current_reg[d] += grad_d * alpha;
       grads[d] = grad_d * alpha;
     }
@@ -264,39 +305,28 @@ CUML_KERNEL void optimize_batch_kernel_reg(T const* head_embedding,
     /**
      * Negative sampling stage
      */
-    raft::random::detail::PhiloxGenerator gen((uint64_t)seed, (nnz_t)row, 0);
-    for (int p = 0; p < n_neg_samples; p++) {
-      int r;
-      gen.next(r);
-      nnz_t t                  = r % tail_n;
-      T const* negative_sample = tail_embedding + (t * n_components);
-      T negative_sample_reg[n_components];
-      for (int i = 0; i < n_components; ++i) {
-        negative_sample_reg[i] = negative_sample[i];
-      }
-      dist_squared = rdist<T, n_components>(current_reg, negative_sample_reg);
-      // repulsive force between two vertices
-      auto repulsive_grad_coeff = T(0.0);
-      if (dist_squared > T(0.0)) {
-        repulsive_grad_coeff = repulsive_grad<T>(dist_squared, gamma, params);
-      } else if (j == t)
-        continue;
-      /**
-       * Apply repulsive force between `current` and `other`
-       * (which has been negatively sampled) by updating
-       * their 'weights' to push them farther in Euclidean space.
-       */
-      for (int d = 0; d < n_components; d++) {
-        auto diff   = current_reg[d] - negative_sample_reg[d];
-        auto grad_d = T(0.0);
-        if (repulsive_grad_coeff > T(0.0))
-          grad_d = clip<T>(repulsive_grad_coeff * diff, T(-4.0), T(4.0));
-        else
-          grad_d = T(4.0);
-        current_reg[d] += grad_d * alpha;
-        grads[d] += grad_d * alpha;
-      }
-    }
+    T negative_sample_reg[n_components];
+    run_negative_sampling<T, nnz_t>(
+      n_neg_samples,
+      (uint64_t)seed,
+      (nnz_t)row,
+      tail_n,
+      (int)j,
+      gamma,
+      params,
+      [&](nnz_t t) -> T {
+        T const* negative_sample = tail_embedding + (t * n_components);
+        for (int i = 0; i < n_components; ++i)
+          negative_sample_reg[i] = negative_sample[i];
+        return rdist<T, n_components>(current_reg, negative_sample_reg);
+      },
+      [&](T coeff) {
+        for (int d = 0; d < n_components; d++) {
+          auto grad_d = repulsive_component_grad<T>(coeff, current_reg[d] - negative_sample_reg[d]);
+          current_reg[d] += grad_d * alpha;
+          grads[d] += grad_d * alpha;
+        }
+      });
     // storing gradients for positive samples back to global memory
     for (int d = 0; d < n_components; d++) {
       raft::myAtomicAdd(cur_write + d, truncate_gradient(rounding, grads[d]));
@@ -385,8 +415,7 @@ CUML_KERNEL void optimize_batch_kernel(T const* head_embedding,
     auto dist_squared = rdist<T>(current, other, n_components);
     // Attractive force between the two vertices, since they
     // are connected by an edge in the 1-skeleton.
-    auto attractive_grad_coeff = T(0.0);
-    if (dist_squared > T(0.0)) { attractive_grad_coeff = attractive_grad<T>(dist_squared, params); }
+    auto attractive_grad_coeff = attractive_coeff<T>(dist_squared, params);
     /**
      * Apply attractive force between `current` and `other`
      * by updating their 'weights' to place them relative
@@ -397,7 +426,7 @@ CUML_KERNEL void optimize_batch_kernel(T const* head_embedding,
     for (int d = 0; d < n_components; d++) {
       T current_val = current[d];
       if constexpr (use_shared_mem) { current_buffer[d] = current_val; }
-      auto grad_d = clip<T>(attractive_grad_coeff * (current_val - other[d]), T(-4.0), T(4.0));
+      auto grad_d = attractive_component_grad<T>(attractive_grad_coeff, current_val - other[d]);
       grad_d *= alpha;
       if constexpr (use_shared_mem) {
         current_buffer[d] += grad_d;
@@ -429,49 +458,41 @@ CUML_KERNEL void optimize_batch_kernel(T const* head_embedding,
     /**
      * Negative sampling stage
      */
-    raft::random::detail::PhiloxGenerator gen((uint64_t)seed, (nnz_t)row, 0);
-    for (int p = 0; p < n_neg_samples; p++) {
-      int r;
-      gen.next(r);
-      nnz_t t                  = r % tail_n;
-      T const* negative_sample = tail_embedding + (t * n_components);
-      if constexpr (use_shared_mem) {
-        dist_squared = rdist<T>(current_buffer, negative_sample, n_components);
-      } else {
-        dist_squared = rdist<T>(current, negative_sample, n_components);
-      }
-      // repulsive force between two vertices
-      auto repulsive_grad_coeff = T(0.0);
-      if (dist_squared > T(0.0)) {
-        repulsive_grad_coeff = repulsive_grad<T>(dist_squared, gamma, params);
-      } else if (j == t)
-        continue;
-      /**
-       * Apply repulsive force between `current` and `other`
-       * (which has been negatively sampled) by updating
-       * their 'weights' to push them farther in Euclidean space.
-       */
-      for (int d = 0; d < n_components; d++) {
-        auto grad_d = T(0.0);
-        if (repulsive_grad_coeff > T(0.0)) {
-          if constexpr (use_shared_mem) {
-            grad_d = clip<T>(
-              repulsive_grad_coeff * (current_buffer[d] - negative_sample[d]), T(-4.0), T(4.0));
-          } else {
-            grad_d =
-              clip<T>(repulsive_grad_coeff * (current[d] - negative_sample[d]), T(-4.0), T(4.0));
-          }
-        } else
-          grad_d = T(4.0);
-        grad_d *= alpha;
+    T const* negative_sample = nullptr;
+    run_negative_sampling<T, nnz_t>(
+      n_neg_samples,
+      (uint64_t)seed,
+      (nnz_t)row,
+      tail_n,
+      (int)j,
+      gamma,
+      params,
+      [&](nnz_t t) -> T {
+        negative_sample = tail_embedding + (t * n_components);
         if constexpr (use_shared_mem) {
-          current_buffer[d] += grad_d;
-          grads_buffer[d * TPB_X] += grad_d;
+          return rdist<T>(current_buffer, negative_sample, n_components);
         } else {
-          raft::myAtomicAdd<T>((T*)cur_write + d, truncate_gradient(rounding, grad_d));
+          return rdist<T>(current, negative_sample, n_components);
         }
-      }
-    }
+      },
+      [&](T coeff) {
+        for (int d = 0; d < n_components; d++) {
+          T cur_d;
+          if constexpr (use_shared_mem) {
+            cur_d = current_buffer[d];
+          } else {
+            cur_d = current[d];
+          }
+          auto grad_d = repulsive_component_grad<T>(coeff, cur_d - negative_sample[d]);
+          grad_d *= alpha;
+          if constexpr (use_shared_mem) {
+            current_buffer[d] += grad_d;
+            grads_buffer[d * TPB_X] += grad_d;
+          } else {
+            raft::myAtomicAdd<T>((T*)cur_write + d, truncate_gradient(rounding, grad_d));
+          }
+        }
+      });
 
     // storing gradients for positive samples back to global memory
     if constexpr (use_shared_mem) {
@@ -560,15 +581,12 @@ CUML_KERNEL void optimize_sequential_kernel_vertex_per_thread(T const* head_embe
       }
 
       auto dist_squared          = rdist<T, N_COMPONENTS>(current_reg, other_reg);
-      auto attractive_grad_coeff = T(0.0);
-      if (dist_squared > T(0.0)) {
-        attractive_grad_coeff = attractive_grad<T>(dist_squared, params);
-      }
+      auto attractive_grad_coeff = attractive_coeff<T>(dist_squared, params);
 
 #pragma unroll
       for (int d = 0; d < N_COMPONENTS; d++) {
-        auto diff      = current_reg[d] - other_reg[d];
-        auto grad_d    = clip<T>(attractive_grad_coeff * diff, T(-4.0), T(4.0));
+        auto grad_d =
+          attractive_component_grad<T>(attractive_grad_coeff, current_reg[d] - other_reg[d]);
         auto step_grad = grad_d * alpha;
         current_reg[d] += step_grad;
         if (move_other) {
@@ -583,38 +601,30 @@ CUML_KERNEL void optimize_sequential_kernel_vertex_per_thread(T const* head_embe
       int n_neg_samples =
         static_cast<int>(T(epoch - _epoch_of_next_negative_sample) / epochs_per_negative_sample);
 
-      raft::random::detail::PhiloxGenerator gen(seed, static_cast<nnz_t>(e), 0);
-      for (int p = 0; p < n_neg_samples; p++) {
-        int r;
-        gen.next(r);
-        nnz_t t                  = r % tail_n;
-        T const* negative_sample = tail_embedding + (t * N_COMPONENTS);
-
+      run_negative_sampling<T, nnz_t>(
+        n_neg_samples,
+        seed,
+        static_cast<nnz_t>(e),
+        tail_n,
+        vertex,
+        gamma,
+        params,
+        [&](nnz_t t) -> T {
+          T const* negative_sample = tail_embedding + (t * N_COMPONENTS);
 #pragma unroll
-        for (int d = 0; d < N_COMPONENTS; d++) {
-          // reuse other_reg for the negative sample
-          other_reg[d] = __ldg(negative_sample + d);
-        }
-
-        dist_squared = rdist<T, N_COMPONENTS>(current_reg, other_reg);
-
-        auto repulsive_grad_coeff = T(0.0);
-        if (dist_squared > T(0.0)) {
-          repulsive_grad_coeff = repulsive_grad<T>(dist_squared, gamma, params);
-        } else if (vertex == static_cast<int>(t))
-          continue;
-
+          for (int d = 0; d < N_COMPONENTS; d++) {
+            // reuse other_reg for the negative sample
+            other_reg[d] = __ldg(negative_sample + d);
+          }
+          return rdist<T, N_COMPONENTS>(current_reg, other_reg);
+        },
+        [&](T coeff) {
 #pragma unroll
-        for (int d = 0; d < N_COMPONENTS; d++) {
-          auto grad_d = T(0.0);
-          if (repulsive_grad_coeff > T(0.0))
-            grad_d =
-              clip<T>(repulsive_grad_coeff * (current_reg[d] - other_reg[d]), T(-4.0), T(4.0));
-          else
-            grad_d = T(4.0);
-          current_reg[d] += grad_d * alpha;
-        }
-      }
+          for (int d = 0; d < N_COMPONENTS; d++) {
+            auto grad_d = repulsive_component_grad<T>(coeff, current_reg[d] - other_reg[d]);
+            current_reg[d] += grad_d * alpha;
+          }
+        });
 
       epoch_of_next_negative_sample[e] =
         _epoch_of_next_negative_sample + n_neg_samples * epochs_per_negative_sample;
@@ -677,10 +687,9 @@ CUML_KERNEL void optimize_sequential_kernel_vertex_per_warp(T const* head_embedd
 {
   const int n_components = params.n_components;
 
-  constexpr unsigned FULL_MASK = 0xffffffff;
-  const int lane_id            = threadIdx.x & 31;
-  const int warp_global_id     = (blockIdx.x * blockDim.x + threadIdx.x) >> 5;
-  const int total_warps        = (gridDim.x * blockDim.x) >> 5;
+  const int lane_id        = threadIdx.x & 31;
+  const int warp_global_id = (blockIdx.x * blockDim.x + threadIdx.x) >> 5;
+  const int total_warps    = (gridDim.x * blockDim.x) >> 5;
 
   for (int vertex = warp_global_id + vertex_offset; vertex < num_vertices; vertex += total_warps) {
     const nnz_t edge_start = row_ptr[vertex];
@@ -715,21 +724,16 @@ CUML_KERNEL void optimize_sequential_kernel_vertex_per_warp(T const* head_embedd
         T diff       = current_reg[i] - other_reg[i];
         partial_dist += diff * diff;
       }
-      for (int offset = 16; offset > 0; offset >>= 1)
-        partial_dist += __shfl_xor_sync(FULL_MASK, partial_dist, offset);
-      T dist_squared = partial_dist;
+      T dist_squared = warp_all_reduce_sum(partial_dist);
 
-      auto attractive_grad_coeff = T(0.0);
-      if (dist_squared > T(0.0)) {
-        attractive_grad_coeff = attractive_grad<T>(dist_squared, params);
-      }
+      auto attractive_grad_coeff = attractive_coeff<T>(dist_squared, params);
 
 #pragma unroll
       for (int i = 0; i < CPL; i++) {
         int d = lane_id + i * 32;
         if (d < n_components) {
-          T diff   = current_reg[i] - other_reg[i];
-          T grad_d = clip<T>(attractive_grad_coeff * diff, T(-4.0), T(4.0));
+          T grad_d =
+            attractive_component_grad<T>(attractive_grad_coeff, current_reg[i] - other_reg[i]);
           current_reg[i] += grad_d * alpha;
           if (move_other) {
             raft::myAtomicAdd(other_write + d, truncate_gradient(rounding, -(grad_d * alpha)));
@@ -747,44 +751,35 @@ CUML_KERNEL void optimize_sequential_kernel_vertex_per_warp(T const* head_embedd
       int n_neg_samples =
         static_cast<int>(T(epoch - _epoch_of_next_negative_sample) / epochs_per_negative_sample);
 
-      raft::random::detail::PhiloxGenerator gen(seed, static_cast<nnz_t>(e), 0);
-      for (int p = 0; p < n_neg_samples; p++) {
-        int r;
-        gen.next(r);
-        nnz_t t = r % tail_n;
-
-        partial_dist = T(0);
+      run_negative_sampling<T, nnz_t>(
+        n_neg_samples,
+        seed,
+        static_cast<nnz_t>(e),
+        tail_n,
+        vertex,
+        gamma,
+        params,
+        [&](nnz_t t) -> T {
+          T partial_dist = T(0);
 #pragma unroll
-        for (int i = 0; i < CPL; i++) {
-          int d        = lane_id + i * 32;
-          other_reg[i] = (d < n_components) ? __ldg(&tail_embedding[t * n_components + d]) : T(0);
-          T diff       = current_reg[i] - other_reg[i];
-          partial_dist += diff * diff;
-        }
-        for (int offset = 16; offset > 0; offset >>= 1)
-          partial_dist += __shfl_xor_sync(FULL_MASK, partial_dist, offset);
-        dist_squared = partial_dist;
-
-        auto repulsive_grad_coeff = T(0.0);
-        if (dist_squared > T(0.0)) {
-          repulsive_grad_coeff = repulsive_grad<T>(dist_squared, gamma, params);
-        } else if (vertex == static_cast<int>(t))
-          continue;
-
-#pragma unroll
-        for (int i = 0; i < CPL; i++) {
-          int d = lane_id + i * 32;
-          if (d < n_components) {
-            T grad_d = T(0.0);
-            if (repulsive_grad_coeff > T(0.0))
-              grad_d =
-                clip<T>(repulsive_grad_coeff * (current_reg[i] - other_reg[i]), T(-4.0), T(4.0));
-            else
-              grad_d = T(4.0);
-            current_reg[i] += grad_d * alpha;
+          for (int i = 0; i < CPL; i++) {
+            int d        = lane_id + i * 32;
+            other_reg[i] = (d < n_components) ? __ldg(&tail_embedding[t * n_components + d]) : T(0);
+            T diff       = current_reg[i] - other_reg[i];
+            partial_dist += diff * diff;
           }
-        }
-      }
+          return warp_all_reduce_sum(partial_dist);
+        },
+        [&](T coeff) {
+#pragma unroll
+          for (int i = 0; i < CPL; i++) {
+            int d = lane_id + i * 32;
+            if (d < n_components) {
+              T grad_d = repulsive_component_grad<T>(coeff, current_reg[i] - other_reg[i]);
+              current_reg[i] += grad_d * alpha;
+            }
+          }
+        });
 
       if (lane_id == 0) {
         epoch_of_next_negative_sample[e] =

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -87,7 +87,7 @@ def test_score(nrows, ncols, n_neighbors, n_clusters, datatype):
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_score_dtype(dtype):
+def test_predict_and_score_dtype(dtype):
     # Using make_blobs here to check averages and neighborhoods
     X, y = make_blobs(
         n_samples=1000,
@@ -102,6 +102,7 @@ def test_score_dtype(dtype):
 
     knn_cu = cuKNN(n_neighbors=5)
     knn_cu.fit(X, y)
+    assert knn_cu.predict(X).dtype == dtype
     assert knn_cu.score(X, y) >= 0.9999
 
 

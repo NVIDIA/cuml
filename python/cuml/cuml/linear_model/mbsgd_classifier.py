@@ -171,7 +171,7 @@ class MBSGDClassifier(
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y, *, convert_dtype="deprecated") -> "MBSGDClassifier":
+    def fit(self, X, y) -> "MBSGDClassifier":
         """
         Fit the model with X and y.
 
@@ -180,7 +180,6 @@ class MBSGDClassifier(
             self,
             X,
             y,
-            convert_dtype=convert_dtype,
             loss=self.loss,
             penalty=self.penalty,
             alpha=self.alpha,
@@ -210,12 +209,12 @@ class MBSGDClassifier(
         }
     )
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predicts the y for X.
 
         """
-        scores = self.decision_function(X, convert_dtype=convert_dtype)
+        scores = self.decision_function(X)
         thresh = 0 if self.loss == "hinge" else 0.5
         indices = (scores > thresh).view(cp.int8)
         return ClassLabels(indices, self.classes_)

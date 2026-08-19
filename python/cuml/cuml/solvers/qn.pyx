@@ -125,7 +125,6 @@ def fit_qn(
     y,
     sample_weight=None,
     *,
-    convert_dtype="deprecated",
     loss="l2",
     class_weight=None,
     bool fit_intercept=True,
@@ -153,13 +152,6 @@ def fit_qn(
         The target values.
     sample_weight : None or array-like, shape=(n_samples,)
         The sample weights.
-    convert_dtype : bool, default="deprecated"
-        .. deprecated:: 26.08
-            `convert_dtype` was deprecated in version 26.08 and will be
-            removed in version 26.10. cuML only copies input arrays when
-            necessary (e.g. to unify dtypes), there is no reason to provide
-            this keyword going forward.
-
     class_weight : dict or 'balanced', default=None
         Weights associated per-classes, or None for uniform weights. If 'balanced',
         weights inversely proportional to the class frequencies will be used.
@@ -190,7 +182,6 @@ def fit_qn(
         y,
         sample_weight,
         dtype=("float32", "float64"),
-        convert_dtype=convert_dtype,
         accept_sparse="csr",
         ensure_min_samples=2,
         y_dtype=(None if return_classes else ...),
@@ -244,9 +235,7 @@ def fit_qn(
     if init_coef is None:
         coef = cp.zeros(coef_shape, dtype=X.dtype, order="C")
     else:
-        coef = check_array(
-            init_coef, dtype=X.dtype, convert_dtype=convert_dtype, order="C",
-        )
+        coef = check_array(init_coef, dtype=X.dtype, order="C")
         if coef.shape != coef_shape:
             raise ValueError(f"Expected coef.shape == ({coef_shape}), got {coef.shape}")
 
@@ -541,7 +530,7 @@ class QN(Base):
 
     @generate_docstring(X="dense_sparse")
     @mlfunc(set_input_type=True)
-    def fit(self, X, y, sample_weight=None, convert_dtype="deprecated") -> "QN":
+    def fit(self, X, y, sample_weight=None) -> "QN":
         """
         Fit the model with X and y.
         """
@@ -561,7 +550,6 @@ class QN(Base):
             X,
             y,
             sample_weight=sample_weight,
-            convert_dtype=convert_dtype,
             loss=self.loss,
             fit_intercept=self.fit_intercept,
             l1_strength=self.l1_strength,
@@ -593,7 +581,7 @@ class QN(Base):
 
     @generate_docstring(X="dense_sparse")
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """Predicts the y for X."""
         check_is_fitted(self)
 
@@ -601,7 +589,6 @@ class QN(Base):
             self,
             X,
             dtype=self.coef_.dtype,
-            convert_dtype=convert_dtype,
             accept_sparse=True,
         )
 

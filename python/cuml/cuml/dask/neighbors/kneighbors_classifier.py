@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -130,7 +130,6 @@ class KNeighborsClassifier(NearestNeighbors):
         n_unique,
         ncols,
         rank,
-        convert_dtype,
         probas_only,
     ):
         if probas_only:
@@ -145,7 +144,6 @@ class KNeighborsClassifier(NearestNeighbors):
                 n_unique,
                 ncols,
                 rank,
-                convert_dtype,
             )
         else:
             return model.predict(
@@ -159,10 +157,9 @@ class KNeighborsClassifier(NearestNeighbors):
                 n_unique,
                 ncols,
                 rank,
-                convert_dtype,
             )
 
-    def predict(self, X, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predict labels for a query from previously stored index
         and index labels.
@@ -173,13 +170,6 @@ class KNeighborsClassifier(NearestNeighbors):
         X : array-like (device or host) shape = (n_samples, n_features)
             Query data.
             Acceptable formats: dask cuDF, dask CuPy/NumPy/Numba Array
-
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
 
         Returns
         -------
@@ -255,7 +245,6 @@ class KNeighborsClassifier(NearestNeighbors):
                         self.n_unique,
                         X.shape[1],
                         worker_info[worker]["rank"],
-                        convert_dtype,
                         False,
                         key="%s-%s" % (key, idx),
                         workers=[worker],
@@ -277,7 +266,7 @@ class KNeighborsClassifier(NearestNeighbors):
 
         return to_output(out_futures, self.datatype).squeeze()
 
-    def score(self, X, y, convert_dtype="deprecated"):
+    def score(self, X, y):
         """
         Predict labels for a query from previously stored index
         and index labels.
@@ -297,7 +286,7 @@ class KNeighborsClassifier(NearestNeighbors):
         -------
         score
         """
-        y_pred_plain = self.predict(X, convert_dtype=convert_dtype)
+        y_pred_plain = self.predict(X)
         if not isinstance(y_pred_plain, da.Array):
             y_pred = y_pred_plain.to_dask_array(lengths=True)
         else:
@@ -310,7 +299,7 @@ class KNeighborsClassifier(NearestNeighbors):
         mean_match = matched.mean()
         return float(mean_match.compute())
 
-    def predict_proba(self, X, convert_dtype="deprecated"):
+    def predict_proba(self, X):
         """
         Provide score by comparing predictions and ground truth.
 
@@ -319,13 +308,6 @@ class KNeighborsClassifier(NearestNeighbors):
         X : array-like (device or host) shape = (n_samples, n_features)
             Query data.
             Acceptable formats: dask cuDF, dask CuPy/NumPy/Numba Array
-
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
 
         Returns
         -------
@@ -401,7 +383,6 @@ class KNeighborsClassifier(NearestNeighbors):
                         self.n_unique,
                         X.shape[1],
                         worker_info[worker]["rank"],
-                        convert_dtype,
                         True,
                         key="%s-%s" % (key, idx),
                         workers=[worker],

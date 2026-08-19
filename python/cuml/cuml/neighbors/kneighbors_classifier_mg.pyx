@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -64,7 +64,6 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         n_unique,
         ncols,
         rank,
-        convert_dtype
     ):
         """
         Predict labels for a query from previously stored index
@@ -84,7 +83,6 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         ncols: number of columns
         rank: rank of current worker
         n_neighbors: number of nearest neighbors to query
-        convert_dtype: deprecated, will be removed in 26.10
 
         Returns
         -------
@@ -96,10 +94,10 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         # Build input arrays and descriptors for native code interfacing
         input = self.gen_local_input(
             index, index_parts_to_ranks, index_nrows, query,
-            query_parts_to_ranks, query_nrows, ncols, rank, convert_dtype)
+            query_parts_to_ranks, query_nrows, ncols, rank)
 
         # Build input labels arrays and descriptors for native code interfacing
-        labels = self.gen_local_labels(index, convert_dtype, 'int32')
+        labels = self.gen_local_labels(index, 'int32')
 
         local_query_rows = [x.shape[0] for x in input['arrays']['query']]
 
@@ -171,8 +169,7 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
     @mlfunc(array_arg=None)
     def predict_proba(self, index, index_parts_to_ranks, index_nrows,
                       query, query_parts_to_ranks, query_nrows,
-                      uniq_labels, n_unique, ncols, rank,
-                      convert_dtype) -> tuple:
+                      uniq_labels, n_unique, ncols, rank) -> tuple:
         """
         Predict labels for a query from previously stored index
         and index labels.
@@ -190,7 +187,6 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         n_unique: array with number of possible labels for each columns
         ncols: number of columns
         rank: int rank of current worker
-        convert_dtype: deprecated, will be removed in 26.10
 
         Returns
         -------
@@ -202,10 +198,10 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         # Build input arrays and descriptors for native code interfacing
         input = self.gen_local_input(
             index, index_parts_to_ranks, index_nrows, query,
-            query_parts_to_ranks, query_nrows, ncols, rank, convert_dtype)
+            query_parts_to_ranks, query_nrows, ncols, rank)
 
         # Build input labels arrays and descriptors for native code interfacing
-        labels = self.gen_local_labels(index, convert_dtype, dtype='int32')
+        labels = self.gen_local_labels(index, dtype='int32')
 
         # Build uniq_labels_vec vector for native code interfacing
         uniq_labels_d = check_array(

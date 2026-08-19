@@ -190,15 +190,6 @@ XFAILS = {
         "check_estimators_unfitted": (
             "Unfitted methods raise RuntimeError instead of NotFittedError"
         ),
-        "check_sample_weights_pandas_series": "Sample weights are not supported",
-        "check_sample_weights_not_an_array": "Sample weights are not supported",
-        "check_sample_weights_list": "Sample weights are not supported",
-        "check_all_zero_sample_weights_error": "Sample weights are not supported",
-        "check_sample_weights_shape": "Sample weights are not supported",
-        "check_sample_weights_not_overwritten": "Sample weights are not supported",
-        "check_sample_weight_equivalence_on_dense_data": (
-            "Sample weights are not supported"
-        ),
         "check_estimators_pickle": (
             "Pickling does not preserve the fitted model state"
         ),
@@ -221,19 +212,9 @@ XFAILS = {
         ),
     },
     RandomForestRegressor: {
-        "check_regressor_data_not_an_array": (
-            "cuml defaults to float32 for non-arrays (while sklearn defaults to "
-            "float64). Our float32 and float64 results differ _just enough_ that "
-            "this test fails on tolerances."
-        ),
         "check_sample_weight_equivalence_on_dense_data": (
             "RandomForest uses quantile-binned splits, so sample weighting is "
             "not equivalent to duplicating rows"
-        ),
-    },
-    KNeighborsRegressor: {
-        "check_regressor_multioutput": (
-            "predict returns float32 output, but the test expects float64"
         ),
     },
     LinearSVC: {
@@ -258,9 +239,7 @@ XFAILS = {
     },
     UMAP: {
         "check_transformer_data_not_an_array": (
-            "cuml defaults to float32 for non-arrays (while sklearn defaults to "
-            "float64). Our float32 and float64 results differ _just enough_ that "
-            "this test fails on tolerances."
+            "UMAP does not have consistent fit_transform and transform outputs"
         ),
         "check_methods_sample_order_invariance": "UMAP results depend on sample order",
         "check_transformer_general": "UMAP does not have consistent fit_transform and transform outputs",
@@ -308,6 +287,14 @@ if missing := set(XFAILS).difference((type(est) for est in ESTIMATORS)):
 @pytest.mark.filterwarnings("ignore:The number of bins.*:UserWarning")
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 def test_sklearn_compatible_estimator(estimator, check):
+    if isinstance(estimator, RandomForestRegressor) and (
+        estimator_checks._get_check_estimator_ids(check)
+        == "check_regressor_data_not_an_array"
+    ):
+        pytest.skip(
+            "Predictions from repeated fits are nondeterministic; see "
+            "https://github.com/rapidsai/cuml/issues/8457"
+        )
     check(estimator)
 
 

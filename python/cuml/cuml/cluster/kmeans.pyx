@@ -724,7 +724,7 @@ class KMeans(InteropMixin,
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
-    def fit(self, X, y=None, sample_weight=None, *, convert_dtype="deprecated") -> "KMeans":
+    def fit(self, X, y=None, sample_weight=None) -> "KMeans":
         """
         Compute k-means clustering with X.
 
@@ -745,7 +745,6 @@ class KMeans(InteropMixin,
             X,
             sample_weight=sample_weight,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order=None,
             mem_type=None,
             reset=True,
@@ -783,7 +782,6 @@ class KMeans(InteropMixin,
                 self.init,
                 order="C",
                 dtype=X.dtype,
-                convert_dtype=convert_dtype,
             ).copy()
             if centers.shape[0] != self.n_clusters:
                 raise ValueError(
@@ -1006,7 +1004,7 @@ class KMeans(InteropMixin,
         """
         return self.fit(X, sample_weight=sample_weight).labels_
 
-    def _predict_labels_inertia(self, X, convert_dtype="deprecated", sample_weight=None):
+    def _predict_labels_inertia(self, X, sample_weight=None):
         """
         Predict the closest cluster each sample in X belongs to.
 
@@ -1016,13 +1014,6 @@ class KMeans(InteropMixin,
             Dense matrix (floats or doubles) of shape (n_samples, n_features).
             Acceptable formats: cuDF DataFrame, NumPy ndarray, Numba device
             ndarray, cuda array interface compliant array like CuPy
-
-        convert_dtype : bool, default="deprecated"
-            .. deprecated:: 26.08
-                `convert_dtype` was deprecated in version 26.08 and will be
-                removed in version 26.10. cuML only copies input arrays when
-                necessary (e.g. to unify dtypes), there is no reason to provide
-                this keyword going forward.
 
         sample_weight : array-like (device or host) shape = (n_samples,), default=None # noqa
             The weights for each observation in X. If None, all observations
@@ -1042,7 +1033,6 @@ class KMeans(InteropMixin,
             X,
             sample_weight=sample_weight,
             dtype=self.cluster_centers_.dtype,
-            convert_dtype=convert_dtype,
             order="C",
         )
         if sample_weight is None:
@@ -1068,12 +1058,12 @@ class KMeans(InteropMixin,
                                        'description': 'Cluster indexes',
                                        'shape': '(n_samples, 1)'})
     @mlfunc(preserve_index=True)
-    def predict(self, X, *, convert_dtype="deprecated"):
+    def predict(self, X):
         """
         Predict the closest cluster each sample in X belongs to.
 
         """
-        labels, _ = self._predict_labels_inertia(X, convert_dtype=convert_dtype)
+        labels, _ = self._predict_labels_inertia(X)
         return labels
 
     @generate_docstring(return_values={'name': 'X_new',
@@ -1081,7 +1071,7 @@ class KMeans(InteropMixin,
                                        'description': 'Transformed data',
                                        'shape': '(n_samples, n_clusters)'})
     @mlfunc(preserve_index=True)
-    def transform(self, X, *, convert_dtype="deprecated"):
+    def transform(self, X):
         """
         Transform X to a cluster-distance space.
 
@@ -1091,7 +1081,6 @@ class KMeans(InteropMixin,
             self,
             X,
             dtype=self.cluster_centers_.dtype,
-            convert_dtype=convert_dtype,
             order="C",
         )
 
@@ -1178,15 +1167,13 @@ class KMeans(InteropMixin,
                                                         of X on the K-means \
                                                         objective.'})
     @mlfunc(convert_output=False)
-    def score(self, X, y=None, sample_weight=None, *, convert_dtype="deprecated"):
+    def score(self, X, y=None, sample_weight=None):
         """
         Opposite of the value of X on the K-means objective.
 
         """
 
-        inertia = self._predict_labels_inertia(
-            X, convert_dtype=convert_dtype, sample_weight=sample_weight
-        )[1]
+        inertia = self._predict_labels_inertia(X, sample_weight=sample_weight)[1]
         return -1 * inertia
 
     @generate_docstring(return_values={'name': 'X_new',
@@ -1194,12 +1181,10 @@ class KMeans(InteropMixin,
                                        'description': 'Transformed data',
                                        'shape': '(n_samples, n_clusters)'})
     @mlfunc(preserve_index=True)
-    def fit_transform(
-        self, X, y=None, sample_weight=None, *, convert_dtype="deprecated"
-    ):
+    def fit_transform(self, X, y=None, sample_weight=None):
         """
         Compute clustering and transform X to cluster-distance space.
 
         """
         self.fit(X, sample_weight=sample_weight)
-        return self.transform(X, convert_dtype=convert_dtype)
+        return self.transform(X)

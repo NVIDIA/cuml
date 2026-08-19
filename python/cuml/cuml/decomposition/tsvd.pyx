@@ -297,7 +297,7 @@ class TruncatedSVD(InteropMixin,
                                        'description': 'Reduced version of X',
                                        'shape': '(n_samples, n_components)'})
     @mlfunc(set_input_type=True, preserve_index=True)
-    def fit_transform(self, X, y=None, *, convert_dtype="deprecated"):
+    def fit_transform(self, X, y=None):
         """
         Fit model to X and perform dimensionality reduction on X.
         y is currently ignored.
@@ -307,7 +307,6 @@ class TruncatedSVD(InteropMixin,
             self,
             X,
             dtype=("float32", "float64"),
-            convert_dtype=convert_dtype,
             order="F",
             ensure_min_samples=2,
             ensure_min_features=2,
@@ -395,7 +394,7 @@ class TruncatedSVD(InteropMixin,
                                        'description': 'X in original space',
                                        'shape': '(n_samples, n_features)'})
     @mlfunc(preserve_index=True)
-    def inverse_transform(self, X, *, convert_dtype="deprecated"):
+    def inverse_transform(self, X):
         """
         Transform X back to its original space.
         Returns X_original whose transform would be X.
@@ -406,7 +405,6 @@ class TruncatedSVD(InteropMixin,
         X = check_array(
             X,
             dtype=self.components_.dtype,
-            convert_dtype=convert_dtype,
             order="F",
         )
         if X.shape[1] != self.n_components:
@@ -458,7 +456,7 @@ class TruncatedSVD(InteropMixin,
                                        'description': 'Reduced version of X',
                                        'shape': '(n_samples, n_components)'})
     @mlfunc(preserve_index=True)
-    def transform(self, X, *, convert_dtype="deprecated"):
+    def transform(self, X):
         """
         Perform dimensionality reduction on X.
 
@@ -469,7 +467,6 @@ class TruncatedSVD(InteropMixin,
             self,
             X,
             dtype=self.components_.dtype,
-            convert_dtype=convert_dtype,
             order="F",
         )
 

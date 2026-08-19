@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -88,7 +88,6 @@ class NearestNeighbors(BaseEstimator):
         ncols,
         rank,
         n_neighbors,
-        convert_dtype,
     ):
         return model.kneighbors(
             index,
@@ -100,7 +99,6 @@ class NearestNeighbors(BaseEstimator):
             ncols,
             rank,
             n_neighbors,
-            convert_dtype,
         )
 
     @staticmethod
@@ -206,7 +204,6 @@ class NearestNeighbors(BaseEstimator):
                         self.n_cols,
                         worker_info[worker]["rank"],
                         n_neighbors,
-                        False,
                         key="%s-%s" % (key, idx),
                         workers=[worker],
                     ),
