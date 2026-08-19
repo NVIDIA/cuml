@@ -41,8 +41,7 @@ def test_ordinal_encoder(kind, dtype):
     pd.testing.assert_frame_equal(res, sol)
 
 
-@pytest.mark.parametrize("handle_unknown", ["error", "ignore"])
-def test_ordinal_encoder_all_dtypes(handle_unknown):
+def test_ordinal_encoder_all_dtypes():
     X = pd.DataFrame(
         {
             "bool": pd.Series([False, True, False, True, False], dtype="bool"),
@@ -56,14 +55,8 @@ def test_ordinal_encoder_all_dtypes(handle_unknown):
             ),
         }
     )
-    cu_enc = OrdinalEncoder(output_type="numpy", handle_unknown=handle_unknown)
-    if handle_unknown == "ignore":
-        sk_enc = sklearn.preprocessing.OrdinalEncoder()
-    else:
-        sk_enc = sklearn.preprocessing.OrdinalEncoder(
-            handle_unknown="use_encoded_value",
-            unknown_value=np.nan,
-        )
+    cu_enc = OrdinalEncoder(output_type="numpy")
+    sk_enc = sklearn.preprocessing.OrdinalEncoder()
     cu_enc.fit(X)
     sk_enc.fit(X)
 

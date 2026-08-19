@@ -58,8 +58,7 @@ def test_onehot_encoder(kind, drop, dtype, sparse_output):
 @pytest.mark.parametrize(
     "drop", [None, "first", [True, 2, 2, float("nan"), 2, "banana", "b"]]
 )
-@pytest.mark.parametrize("handle_unknown", ["error", "ignore"])
-def test_onehot_encoder_all_dtypes(drop, handle_unknown):
+def test_onehot_encoder_all_dtypes(drop):
     X = pd.DataFrame(
         {
             "bool": pd.Series([False, True, False, True, False], dtype="bool"),
@@ -73,22 +72,14 @@ def test_onehot_encoder_all_dtypes(drop, handle_unknown):
             ),
         }
     )
-    kwargs = {"drop": drop, "handle_unknown": handle_unknown}
-    cu_enc = OneHotEncoder(**kwargs).fit(X)
-    sk_enc = sklearn.preprocessing.OneHotEncoder(**kwargs).fit(X)
+    cu_enc = OneHotEncoder(drop=drop).fit(X)
+    sk_enc = sklearn.preprocessing.OneHotEncoder(drop=drop).fit(X)
 
     # Check fitted attributes
     assert len(cu_enc.categories_) == len(sk_enc.categories_)
     for res, sol in zip(cu_enc.categories_, sk_enc.categories_):
         assert res.dtype == sol.dtype
-        # XXX: assert_array_equal doesn't compar NaN == NaN, we need to handle
-        # this case manually. Only need to check last element since NaN should
-        # always be last.
-        if res.dtype == "O" and isinstance(res[-1], float):
-            assert np.isnan(res[-1])
-            assert np.isnan(sol[-1])
-            res, sol = res[:-1], sol[:-1]
-        np.testing.assert_array_equal(res, sol)
+        pd.testing.assert_series_equal(pd.Series(res), pd.Series(sol))
 
     if drop is not None:
         np.testing.assert_array_equal(cu_enc.drop_idx_, sk_enc.drop_idx_)
@@ -193,6 +184,17 @@ def test_onehot_encoder_invalid_parameters():
 
     with pytest.raises(ValueError, match="Nan should be the last element"):
         OneHotEncoder(categories=[[1, 2], [1, 2, 3], [float("nan"), 2]]).fit(X)
+
+    X2 = pd.DataFrame(
+        {
+            "x": [1.0, 2.0, 1.0, 2.0],
+            "y": ["a", None, "b", None],
+        }
+    )
+    with pytest.raises(ValueError, match="Nan should be the last element"):
+        OneHotEncoder(categories=[[1, 2], ["a", float("nan"), "b"]]).fit(X2)
+    with pytest.raises(ValueError, match="Nan should be the last element"):
+        OneHotEncoder(categories=[[1, 2], ["a", float("nan"), "b"]]).fit(X2)
 
     with pytest.raises(ValueError, match="In column 1, .* duplicate elements"):
         OneHotEncoder(

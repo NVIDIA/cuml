@@ -112,8 +112,12 @@ def _compute_categories(
                 else np.asarray(cats, dtype=dtype)
             )
 
-            # `nan` must be the last stated category
-            if cats.dtype.kind == "f" and np.isnan(cats[:-1]).any():
+            # `nan` may only exist in floating or object dtypes, and must be
+            # the last stated category
+            if (cats.dtype.kind == "f" and np.isnan(cats[:-1]).any()) or (
+                cats.dtype.kind == "O"
+                and any(_safe_is_nan(c) for c in cats[:-1])
+            ):
                 raise ValueError(
                     "Nan should be the last element in user"
                     f" provided categories, see categories {cats}"
@@ -235,27 +239,19 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
 
     Examples
     --------
-    Given a dataset with two features, we let the encoder find the unique
-    values per feature and transform the data to a binary one-hot encoding.
-
-    >>> from sklearn.preprocessing import OneHotEncoder
-
-    One can discard categories not seen during `fit`:
-
-    >>> enc = OneHotEncoder(handle_unknown='ignore')
-    >>> X = [['Male', 1], ['Female', 3], ['Female', 2]]
-    >>> enc.fit(X)
-    OneHotEncoder(handle_unknown='ignore')
+    >>> import cudf
+    >>> from cuml.preprocessing import OneHotEncoder
+    >>> X = cudf.DataFrame({"fruit": ["apple", "banana", "apple"], "group": [1, 3, 2]})
+    >>> enc = OneHotEncoder().fit(X)
     >>> enc.categories_
-    [array(['Female', 'Male'], dtype=object), array([1, 2, 3], dtype=object)]
-    >>> enc.transform([['Female', 1], ['Male', 4]]).toarray()
+    [array(['apple', 'banana'], dtype=object), array([1, 2, 3])]
+    >>> enc.transform(X).toarray()
     array([[1., 0., 1., 0., 0.],
-           [0., 1., 0., 0., 0.]])
-    >>> enc.inverse_transform([[0, 1, 1, 0, 0], [0, 0, 0, 1, 0]])
-    array([['Male', 1],
-           [None, 2]], dtype=object)
-    >>> enc.get_feature_names_out(['gender', 'group'])
-    array(['gender_Female', 'gender_Male', 'group_1', 'group_2', 'group_3'], ...)
+           [0., 1., 0., 0., 1.],
+           [1., 0., 0., 1., 0.]], dtype=float32)
+    >>> enc.inverse_transform([[0, 1, 1, 0, 0], [1, 0, 0, 1, 0]])
+    array([['banana', 1],
+           ['apple', 2]], dtype=object)
     """
 
     def __init__(
@@ -631,23 +627,19 @@ class OrdinalEncoder(Base):
 
     Examples
     --------
-    Given a dataset with two features, we let the encoder find the unique
-    values per feature and transform the data to an ordinal encoding.
-
-    >>> from sklearn.preprocessing import OrdinalEncoder
-    >>> enc = OrdinalEncoder()
-    >>> X = [['Male', 1], ['Female', 3], ['Female', 2]]
-    >>> enc.fit(X)
-    OrdinalEncoder()
+    >>> import cudf
+    >>> from cuml.preprocessing import OrdinalEncoder
+    >>> X = cudf.DataFrame({"fruit": ["apple", "banana", "apple"], "group": [1, 3, 2]})
+    >>> enc = OrdinalEncoder(output_type="numpy").fit(X)
     >>> enc.categories_
-    [array(['Female', 'Male'], dtype=object), array([1, 2, 3], dtype=object)]
-    >>> enc.transform([['Female', 3], ['Male', 1]])
-    array([[0., 2.],
-           [1., 0.]])
-
+    [array(['apple', 'banana'], dtype=object), array([1, 2, 3])]
+    >>> enc.transform(X)
+    array([[0., 0.],
+           [1., 2.],
+           [0., 1.]])
     >>> enc.inverse_transform([[1, 0], [0, 1]])
-    array([['Male', 1],
-           ['Female', 2]], dtype=object)
+    array([['banana', 1],
+           ['apple', 2]], dtype=object)
     """
 
     def __init__(
