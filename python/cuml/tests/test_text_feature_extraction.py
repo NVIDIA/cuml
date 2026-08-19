@@ -423,6 +423,22 @@ def test_tfidf_vectorizer_get_feature_names():
     assert vectorizer.get_feature_names().to_arrow().to_pylist() == output
 
 
+def test_tfidf_vectorizer_char_wb_ngrams():
+    # Regression test for #8416: get_char_ngrams misaligned padded tokens
+    # across documents once index alignment relied on the original
+    # per-document index instead of a reset range index.
+    vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 6))
+    tfidf_mat = vectorizer.fit_transform(DOCS_GPU)
+
+    ref_vectorizer = SkTfidfVect(analyzer="char_wb", ngram_range=(2, 6))
+    ref = ref_vectorizer.fit_transform(DOCS)
+
+    cp.testing.assert_array_almost_equal(tfidf_mat.todense(), ref.toarray())
+    assert vectorizer.get_feature_names().to_arrow().to_pylist() == list(
+        ref_vectorizer.get_feature_names_out()
+    )
+
+
 # ----------------------------------------------------------------
 # HashingVectorizer tests
 # ----------------------------------------------------------------
