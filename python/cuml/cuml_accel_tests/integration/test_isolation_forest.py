@@ -37,17 +37,22 @@ def test_isolation_forest_fit_predict_agreement(blobs_with_outliers):
     assert np.mean(expected_labels == result_labels) >= 0.9
 
 
-def test_isolation_forest_gpu_fit_attrs_raise_until_conversion_supported(
+def test_isolation_forest_gpu_fit_attrs_available_after_conversion(
     blobs_with_outliers,
 ):
-    # Conversion of a fitted cuML IsolationForest back to a CPU estimator
-    # is not yet supported (tracked in #8420). Accessing fit attributes or
-    # pickling a GPU-fitted proxy must raise clearly rather than silently
-    # operating on an unfitted CPU estimator.
-    result = IsolationForest(n_estimators=50, random_state=0).fit(
-        blobs_with_outliers
-    )
+    # Regression test: conversion of a fitted GPU IsolationForest back to a
+    # CPU estimator is now supported (landed in #8483, tracked by #8420).
+    # Accessing fit attributes on a GPU-fitted proxy must trigger that
+    # conversion and expose the real synced values instead of raising.
+    X = blobs_with_outliers
+    result = IsolationForest(n_estimators=50, random_state=0).fit(X)
     assert result._gpu is not None
 
-    with pytest.raises(ValueError, match="not supported"):
-        _ = result.offset_
+    gpu_scores = result.decision_function(X)  # dispatched to GPU
+
+    assert len(result.estimators_) == 50
+    assert result.offset_ == pytest.approx(float(result._gpu.offset_))
+
+    np.testing.assert_allclose(
+        result._cpu.decision_function(X), gpu_scores, atol=1e-5
+    )

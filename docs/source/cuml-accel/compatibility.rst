@@ -238,11 +238,11 @@ To compare results between estimators, we recommend comparing scores like
    Additional notes:
 
    - Conversion of a fitted GPU ``IsolationForest`` back to a CPU estimator
-     is not yet supported. Accessing fit attributes (``offset_``,
-     ``max_samples_``, ``estimators_``, and others) or pickling a
-     GPU-fitted model raises a clear ``ValueError`` explaining this,
-     rather than silently returning results from an unfitted CPU
-     estimator.
+     is supported. Accessing fit attributes (``offset_``, ``max_samples_``,
+     ``estimators_``, and others) or pickling a GPU-fitted model triggers
+     this conversion automatically.
+   - ``estimators_samples_`` is not available on the converted model,
+     since cuML does not record per-tree sample indices.
 
 
 sklearn.kernel_ridge
