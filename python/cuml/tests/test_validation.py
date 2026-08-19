@@ -793,7 +793,8 @@ def test_check_array_array_protocol_preserves_dtype(dtype, mem_type):
     assert out.dtype == dtype
 
 
-def test_check_array_non_numpy_dtype_attribute():
+@pytest.mark.parametrize("mem_type", ["host", "device"])
+def test_check_array_non_numpy_dtype_attribute(mem_type):
     """Some array implementations (pytorch) have non-numpy-compatible `dtype`
     attributes. This test checks that these objects may still be ingested
     through other protocols, and that their unsupported `dtype` attribute
@@ -802,22 +803,44 @@ def test_check_array_non_numpy_dtype_attribute():
     class Float32:
         pass
 
-    class ArrayLike:
-        def __init__(self, array):
-            self.array = array
-            self.dtype = Float32()
+    if mem_type == "host":
 
-        def __array__(self, dtype=None, copy=None):
-            return self.array
+        class ArrayLike:
+            """A array-like class like torch-cpu"""
 
-    array = ArrayLike(np.array([[1, 2, 3]], dtype="float32"))
+            def __init__(self, array):
+                self.array = np.asarray(array, dtype="float32")
+                self.dtype = Float32()
 
-    out = check_array(array, dtype=("float32", "float64"))
+            def __array__(self, dtype=None, copy=None):
+                return self.array
+
+    else:
+
+        class ArrayLike:
+            """A array-like class like torch-gpu"""
+
+            def __init__(self, array):
+                self.array = cp.asarray(array, dtype="float32")
+                self.dtype = Float32()
+
+            def __array__(self, dtype=None, copy=None):
+                raise ValueError("This can't actually be called")
+
+            @property
+            def __cuda_array_interface__(self):
+                return self.array.__cuda_array_interface__
+
+    source_cls = np.ndarray if mem_type == "host" else cp.ndarray
+
+    array = ArrayLike([[1, 2, 3]])
+
+    out = check_array(array, dtype=("float64", "float32"), mem_type=None)
     assert out.dtype == "float32"
-    out = check_array(array, dtype=("float64", "float32"))
-    assert out.dtype == "float32"
-    out = check_array(array, dtype="float64")
+    assert isinstance(out, source_cls)
+    out = check_array(array, dtype="float64", mem_type=None)
     assert out.dtype == "float64"
+    assert isinstance(out, source_cls)
 
 
 @example(mem_type="device", dtype="int32", order="C", shape=(3, 4))

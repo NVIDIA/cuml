@@ -700,10 +700,14 @@ def check_array(
                 else:
                     array_dtype = None
         if not isinstance(array_dtype, np.dtype):
-            # Objects implementing the numpy array protocol may not expose a
-            # ``dtype`` attribute themselves. Normalize these before selecting
-            # from the supported dtypes so their represented dtype is preserved.
-            if hasattr(array, "__array__"):
+            # Objects implementing __cuda_array_interface__ or __array__ may
+            # not expose a valid ``dtype`` attribute themselves. Normalize
+            # these before selecting from the supported dtypes so their
+            # represented dtype is preserved.
+            if hasattr(array, "__cuda_array_interface__"):
+                array = cp.asarray(array)
+                array_dtype = array.dtype
+            elif hasattr(array, "__array__"):
                 array = np.asarray(array)
                 array_dtype = array.dtype
             else:
