@@ -58,7 +58,9 @@ def convert(dataset, output_type):
     if output_type == "cudf":
         renaming = {i: f"c{i}" for i in range(dataset.shape[1])}
         converted_dataset = converted_dataset.rename(columns=renaming)
-    dataset = cp.asnumpy(dataset)
+        dataset = converted_dataset.to_pandas()
+    else:
+        dataset = cp.asnumpy(dataset)
     return dataset, converted_dataset
 
 

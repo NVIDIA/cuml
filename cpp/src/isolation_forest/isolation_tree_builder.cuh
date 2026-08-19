@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <cuml/common/utils.hpp>
+
 #include <raft/core/handle.hpp>
 #include <raft/util/cudart_utils.hpp>
 
@@ -246,25 +248,25 @@ __device__ void build_tree_iterative_global(const T* __restrict__ local_data,
 }
 
 template <typename T>
-__global__ void build_isolation_trees_global_kernel(const T* __restrict__ data,
-                                                    size_t n_rows,
-                                                    int n_cols,
-                                                    int n_trees,
-                                                    int max_samples,
-                                                    int max_features,
-                                                    int max_depth,
-                                                    int max_nodes_per_tree,
-                                                    bool bootstrap,
-                                                    uint64_t seed,
-                                                    int* __restrict__ feature_indices,
-                                                    IFNode<T>* __restrict__ nodes,
-                                                    int* __restrict__ tree_offsets,
-                                                    int* __restrict__ tree_n_nodes,
-                                                    int* __restrict__ tree_max_depth,
-                                                    T* __restrict__ subsample_buffer,
-                                                    size_t* __restrict__ sample_indices,
-                                                    int* __restrict__ work_indices,
-                                                    StackEntry* __restrict__ stack)
+CUML_KERNEL void build_isolation_trees_global_kernel(const T* __restrict__ data,
+                                                     size_t n_rows,
+                                                     int n_cols,
+                                                     int n_trees,
+                                                     int max_samples,
+                                                     int max_features,
+                                                     int max_depth,
+                                                     int max_nodes_per_tree,
+                                                     bool bootstrap,
+                                                     uint64_t seed,
+                                                     int* __restrict__ feature_indices,
+                                                     IFNode<T>* __restrict__ nodes,
+                                                     int* __restrict__ tree_offsets,
+                                                     int* __restrict__ tree_n_nodes,
+                                                     int* __restrict__ tree_max_depth,
+                                                     T* __restrict__ subsample_buffer,
+                                                     size_t* __restrict__ sample_indices,
+                                                     int* __restrict__ work_indices,
+                                                     StackEntry* __restrict__ stack)
 {
   int tree_id = blockIdx.x;
   if (tree_id >= n_trees) return;
@@ -353,13 +355,13 @@ __device__ T traverse_global_tree(const IFNode<T>* tree_nodes, const T* sample, 
 }
 
 template <typename T>
-__global__ void compute_path_lengths_global_kernel(const T* __restrict__ data,
-                                                   size_t n_samples,
-                                                   int n_cols,
-                                                   const IFNode<T>* __restrict__ nodes,
-                                                   const int* __restrict__ tree_offsets,
-                                                   int n_trees,
-                                                   T* __restrict__ path_lengths)
+CUML_KERNEL void compute_path_lengths_global_kernel(const T* __restrict__ data,
+                                                    size_t n_samples,
+                                                    int n_cols,
+                                                    const IFNode<T>* __restrict__ nodes,
+                                                    const int* __restrict__ tree_offsets,
+                                                    int n_trees,
+                                                    T* __restrict__ path_lengths)
 {
   size_t sample_idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (sample_idx >= n_samples) return;
@@ -424,12 +426,12 @@ void build_isolation_forest_global(const raft::handle_t& handle,
 }
 
 template <typename T>
-__global__ void compact_global_trees_kernel(const IFNode<T>* __restrict__ nodes,
-                                            int n_trees,
-                                            int max_nodes_per_tree,
-                                            const int* __restrict__ tree_n_nodes,
-                                            const int* __restrict__ compact_offsets,
-                                            IFNode<T>* __restrict__ compact_nodes)
+CUML_KERNEL void compact_global_trees_kernel(const IFNode<T>* __restrict__ nodes,
+                                             int n_trees,
+                                             int max_nodes_per_tree,
+                                             const int* __restrict__ tree_n_nodes,
+                                             const int* __restrict__ compact_offsets,
+                                             IFNode<T>* __restrict__ compact_nodes)
 {
   int tree_id = blockIdx.x;
   if (tree_id >= n_trees) return;

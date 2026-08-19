@@ -24,6 +24,7 @@ from itertools import chain, compress
 
 import cudf
 import cupy as np
+import numpy as cpu_np
 import numba
 import pandas as pd
 import scipy.sparse as sp_sparse
@@ -35,7 +36,13 @@ from sklearn.utils import Bunch
 
 import cuml
 from cuml.internals.global_settings import _global_settings_data
-from cuml.internals.validation import check_is_fitted, check_features, check_array
+from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
+from cuml.internals.validation import (
+    check_is_fitted,
+    check_features,
+    check_array,
+    check_input_features,
+)
 
 from ..preprocessing._function_transformer import FunctionTransformer
 from ..utils.skl_dependencies import (
@@ -421,7 +428,12 @@ def _message_with_time(source, message, time):
     return "%s%s%s" % (start_message, dots_len * '.', end_message)
 
 
-class ColumnTransformer(TransformerMixin, BaseComposition, BaseEstimator):
+class ColumnTransformer(
+    DeprecatedGetFeatureNamesMixin,
+    TransformerMixin,
+    BaseComposition,
+    BaseEstimator,
+):
     """Applies transformers to columns of an array or dataframe.
 
     This estimator allows different columns or column subsets of the input
@@ -747,38 +759,58 @@ class ColumnTransformer(TransformerMixin, BaseComposition, BaseEstimator):
         return Bunch(**{name: trans for name, trans, _
                         in self.transformers_})
 
-    def get_feature_names(self):
-        """Get feature names from all transformers.
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input feature names.
 
         Returns
         -------
-        feature_names : list of strings
-            Names of the features produced by transform.
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
         """
         check_is_fitted(self)
-        feature_names = []
-        for name, trans, column, _ in self._iter(fitted=True):
-            if trans == 'drop' or (
-                    hasattr(column, '__len__') and not len(column)):
+        input_features = check_input_features(self, input_features)
+        out = []
+        for trans_name, trans, col, _ in self._iter(fitted=True):
+            if trans == "drop":
                 continue
-            if trans == 'passthrough':
-                if hasattr(self, '_df_columns'):
-                    if ((not isinstance(column, slice))
-                            and all(isinstance(col, str) for col in column)):
-                        feature_names.extend(column)
-                    else:
-                        feature_names.extend(self._df_columns[column])
+
+            # Determine column subset to pass to trans
+            if isinstance(col, slice):
+                inputs = input_features[col].tolist()
+            elif isinstance(col, int):
+                inputs = [input_features[col]]
+            elif isinstance(col, str):
+                inputs = [col]
+            else:
+                col = cpu_np.asarray(col, dtype=object)
+                if all(isinstance(c, str) for c in col):
+                    inputs = col.tolist()
+                elif all(isinstance(c, bool) for c in col):
+                    inputs = input_features[col.astype(bool)].tolist()
                 else:
-                    indices = np.arange(self._n_features)
-                    feature_names.extend(['x%d' % i for i in indices[column]])
+                    inputs = [input_features[c] for c in col]
+
+            if not len(inputs):
                 continue
-            if not hasattr(trans, 'get_feature_names'):
-                raise AttributeError("Transformer %s (type %s) does not "
-                                     "provide get_feature_names."
-                                     % (str(name), type(trans).__name__))
-            feature_names.extend([name + "__" + f for f in
-                                  trans.get_feature_names()])
-        return feature_names
+
+            if trans == 'passthrough':
+                names = inputs
+            elif not hasattr(trans, 'get_feature_names_out'):
+                raise AttributeError(
+                    f"Transformer {trans_name!s} (type {type(trans).__name__}) "
+                    "does not provide get_feature_names_out."
+                )
+            else:
+                names = trans.get_feature_names_out(inputs)
+
+            out.extend([f"{trans_name}__{name}" for name in names])
+
+        return cpu_np.array(out, dtype=object)
 
     def _update_fitted_transformers(self, transformers):
         # transformers are fitted; excludes 'drop' cases

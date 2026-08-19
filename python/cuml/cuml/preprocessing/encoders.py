@@ -13,8 +13,13 @@ from cudf import Index
 import cuml
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
+from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.outputs import mlfunc
-from cuml.internals.validation import check_features, check_is_fitted
+from cuml.internals.validation import (
+    check_features,
+    check_input_features,
+    check_is_fitted,
+)
 from cuml.preprocessing._label import LabelEncoder
 
 
@@ -112,7 +117,7 @@ class BaseEncoder(Base):
         return [self._encoders[f].classes_ for f in self._features]
 
 
-class OneHotEncoder(BaseEncoder):
+class OneHotEncoder(DeprecatedGetFeatureNamesMixin, BaseEncoder):
     """
     Encode categorical features as a one-hot numeric array.
     The input to this estimator should be a :py:class:`cuDF.DataFrame` or a
@@ -479,41 +484,39 @@ class OneHotEncoder(BaseEncoder):
                 )
         return result
 
-    def get_feature_names(self, input_features=None):
-        """Return feature names for output features.
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
 
         Parameters
         ----------
-        input_features : list of str of shape (n_features,)
-            String names for input features if available. By default,
-            "x0", "x1", ... "xn_features" is used.
+        input_features : array-like of str or None, default=None
+            Input feature names.
 
         Returns
         -------
-        output_feature_names : ndarray of shape (n_output_features,)
-            Array of feature names.
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
         """
         check_is_fitted(self)
 
         cats = self.categories_
-        if input_features is None:
-            input_features = ["x%d" % i for i in range(len(cats))]
-        elif len(input_features) != len(self.categories_):
-            raise ValueError(
-                "input_features should have length equal to number of "
-                "features ({}), got {}".format(
-                    len(self.categories_), len(input_features)
-                )
-            )
+        input_features = check_input_features(self, input_features)
 
-        feature_names = []
-        for i in range(len(cats)):
-            names = [input_features[i] + "_" + str(t) for t in cats[i]]
-            if self.drop_idx_ is not None and self.drop_idx_[i] is not None:
-                names.pop(self.drop_idx_[i])
-            feature_names.extend(names)
+        out = []
+        for i, (col, cats) in enumerate(zip(input_features, self.categories_)):
+            # TODO: when `drop_idx_` is actually implemented properly, this can
+            # be simplified to
+            # drop_idx = None if self.drop_idx_ is None else self.drop_idx_[i]
+            drop_idx = cp.asnumpy(
+                None
+                if self.drop_idx_ is None
+                else self.drop_idx_[self._features[i]]
+            ).item()
+            if drop_idx is not None:
+                cats = np.delete(cats, drop_idx)
+            out.extend(f"{col}_{val!s}" for val in cats)
 
-        return np.array(feature_names, dtype=object)
+        return np.array(out, dtype=object)
 
     @classmethod
     def _get_param_names(cls):
