@@ -10,7 +10,7 @@
 #include <raft/core/resource/comms.hpp>
 #include <raft/core/resource/cuda_stream.hpp>
 
-namespace ML {
+namespace ML::detail {
 
 inline void cuml_rf_allreduce_validation_status(const raft::handle_t& handle,
                                                 const int* local_status,
@@ -23,4 +23,4 @@ inline void cuml_rf_allreduce_validation_status(const raft::handle_t& handle,
                "Input validation status all-reduce failed");
 }
 
-}  // namespace ML
+}  // namespace ML::detail

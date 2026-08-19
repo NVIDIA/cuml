@@ -37,7 +37,7 @@ from cuml.internals.treelite cimport (
 )
 
 
-cdef extern from "cuml/ensemble/randomforest_mg_utils.hpp" namespace "ML" nogil:
+cdef extern from "cuml/ensemble/randomforest_mg_utils.hpp" namespace "ML::detail" nogil:
     void cuml_rf_allreduce_validation_status(
         const handle_t& handle,
         const int* local_status,
