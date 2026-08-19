@@ -37,6 +37,14 @@ from cuml.internals.treelite cimport (
 )
 
 
+cdef extern from "cuml/ensemble/randomforest_mg_utils.hpp" namespace "ML" nogil:
+    void cuml_rf_allreduce_validation_status(
+        const handle_t& handle,
+        const int* local_status,
+        int* global_status,
+    ) except + nogil
+
+
 cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
     cdef enum CRITERION:
         GINI,
@@ -625,6 +633,29 @@ class BaseRandomForestModel(InteropMixin, Base):
 
         self.feature_importances_ = feature_importances
         return self
+
+    def _allreduce_validation_status(self, int local_status):
+        """Return whether input validation failed on any distributed rank."""
+        handle = getattr(self, "_raft_handle", None)
+        if handle is None:
+            return local_status != 0
+
+        local_status_array = cp.asarray([local_status], dtype=cp.int32)
+        global_status_array = cp.empty_like(local_status_array)
+        cdef const int* local_status_ptr = (
+            <const int*><uintptr_t>local_status_array.data.ptr
+        )
+        cdef int* global_status_ptr = (
+            <int*><uintptr_t>global_status_array.data.ptr
+        )
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+
+        with nogil:
+            cuml_rf_allreduce_validation_status(
+                handle_[0], local_status_ptr, global_status_ptr
+            )
+
+        return global_status_array.item() != 0
 
     def _get_inference_nvforest_model(
         self,

@@ -171,6 +171,17 @@ def _func_fit(session_id, model, input_data, total_rows, classes):
     if classes is not None:
         model._distributed_classes = classes
     try:
+        validation_error = None
+        try:
+            model._prepare_fit_inputs(X, y)
+        except Exception as error:
+            validation_error = error
+
+        if model._allreduce_validation_status(validation_error is not None):
+            if validation_error is not None:
+                raise validation_error
+            raise RuntimeError("Input validation failed on another worker")
+
         return model.fit(X, y)
     finally:
         del model._raft_handle
