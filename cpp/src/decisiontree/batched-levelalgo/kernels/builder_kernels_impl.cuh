@@ -9,6 +9,7 @@
 #include <common/grid_sync.cuh>
 
 #include <cuml/common/checked_arithmetic.hpp>
+#include <cuml/common/utils.hpp>
 
 #include <raft/core/handle.hpp>
 #include <raft/util/cuda_utils.cuh>
@@ -49,17 +50,17 @@ struct NodeSplitPartitionScanOp {
 };
 
 template <typename DataT>
-static __global__ void resetLocalLeftCountsKernel(Split<DataT>* splits, std::size_t n_splits)
+CUML_KERNEL void resetLocalLeftCountsKernel(Split<DataT>* splits, std::size_t n_splits)
 {
   const auto idx = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
   if (idx < n_splits) { splits[idx].local_nLeft = 0; }
 }
 
 template <typename DataT, typename LabelT, int TPB>
-static __global__ void countLocalLeftKernel(const Dataset<DataT, LabelT> dataset,
-                                            const NodeWorkItem* work_items,
-                                            Split<DataT>* splits,
-                                            const WorkloadInfo* workload_info)
+CUML_KERNEL void countLocalLeftKernel(const Dataset<DataT, LabelT> dataset,
+                                      const NodeWorkItem* work_items,
+                                      Split<DataT>* splits,
+                                      const WorkloadInfo* workload_info)
 {
   using BlockReduce = cub::BlockReduce<std::int64_t, TPB>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -121,11 +122,11 @@ struct NodeSplitPartitionWriter {
 // Copy back only ranges for nodes that actually split. Leaf/invalid nodes keep
 // their existing row-id order because the scan writer skips them too.
 template <typename DataT, typename LabelT, int TPB>
-static __global__ void nodeSplitCopyBackKernel(const Dataset<DataT, LabelT> dataset,
-                                               const NodeWorkItem* work_items,
-                                               const Split<DataT>* splits,
-                                               const WorkloadInfo* workload_info,
-                                               const std::int64_t* partition_row_ids)
+CUML_KERNEL void nodeSplitCopyBackKernel(const Dataset<DataT, LabelT> dataset,
+                                         const NodeWorkItem* work_items,
+                                         const Split<DataT>* splits,
+                                         const WorkloadInfo* workload_info,
+                                         const std::int64_t* partition_row_ids)
 {
   const auto workload_info_cta = workload_info[blockIdx.x];
   const auto nid               = workload_info_cta.nodeid;
@@ -213,11 +214,11 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
 }
 
 template <typename DatasetT, typename NodeT, typename ObjectiveT>
-static __global__ void buildLeafHistogramsKernel(ObjectiveT objective,
-                                                 DatasetT dataset,
-                                                 const NodeT* tree,
-                                                 const InstanceRange* instance_ranges,
-                                                 typename ObjectiveT::BinT* leaf_histograms)
+CUML_KERNEL void buildLeafHistogramsKernel(ObjectiveT objective,
+                                           DatasetT dataset,
+                                           const NodeT* tree,
+                                           const InstanceRange* instance_ranges,
+                                           typename ObjectiveT::BinT* leaf_histograms)
 {
   using BinT = typename ObjectiveT::BinT;
   extern __shared__ char shared_memory[];
@@ -258,10 +259,10 @@ void launchBuildLeafHistogramsKernel(ObjectiveT objective,
 }
 
 template <typename ObjectiveT, typename DataT>
-static __global__ void finalizeLeafKernel(const typename ObjectiveT::BinT* leaf_histograms,
-                                          DataT* leaves,
-                                          int num_outputs,
-                                          int batch_size)
+CUML_KERNEL void finalizeLeafKernel(const typename ObjectiveT::BinT* leaf_histograms,
+                                    DataT* leaves,
+                                    int num_outputs,
+                                    int batch_size)
 {
   auto node_id = int(blockIdx.x) * blockDim.x + threadIdx.x;
   if (node_id >= batch_size) return;
@@ -309,16 +310,16 @@ DI BinT pdf_to_cdf(BinT* histogram, std::int64_t n_bins)
 }
 
 template <typename DataT, typename LabelT, int TPB, typename ObjectiveT>
-static __global__ void buildHistogramsKernel(typename ObjectiveT::BinT* histograms,
-                                             std::int64_t max_n_bins,
-                                             const Dataset<DataT, LabelT> dataset,
-                                             const Quantiles<DataT> quantiles,
-                                             const NodeWorkItem* work_items,
-                                             std::int64_t colStart,
-                                             const std::int64_t* column_samples,
-                                             ObjectiveT objective,
-                                             const WorkloadInfo* workload_info,
-                                             bool use_global_memory_histogram)
+CUML_KERNEL void buildHistogramsKernel(typename ObjectiveT::BinT* histograms,
+                                       std::int64_t max_n_bins,
+                                       const Dataset<DataT, LabelT> dataset,
+                                       const Quantiles<DataT> quantiles,
+                                       const NodeWorkItem* work_items,
+                                       std::int64_t colStart,
+                                       const std::int64_t* column_samples,
+                                       ObjectiveT objective,
+                                       const WorkloadInfo* workload_info,
+                                       bool use_global_memory_histogram)
 {
   using BinT = typename ObjectiveT::BinT;
   extern __shared__ char smem[];
@@ -384,15 +385,15 @@ static __global__ void buildHistogramsKernel(typename ObjectiveT::BinT* histogra
 }
 
 template <typename DataT, typename LabelT, int TPB, typename ObjectiveT>
-static __global__ void findBestSplitsKernel(typename ObjectiveT::BinT* histograms,
-                                            std::int64_t max_n_bins,
-                                            const Dataset<DataT, LabelT> dataset,
-                                            const Quantiles<DataT> quantiles,
-                                            std::int64_t colStart,
-                                            const std::int64_t* column_samples,
-                                            int* mutex,
-                                            volatile Split<DataT>* splits,
-                                            ObjectiveT objective)
+CUML_KERNEL void findBestSplitsKernel(typename ObjectiveT::BinT* histograms,
+                                      std::int64_t max_n_bins,
+                                      const Dataset<DataT, LabelT> dataset,
+                                      const Quantiles<DataT> quantiles,
+                                      std::int64_t colStart,
+                                      const std::int64_t* column_samples,
+                                      int* mutex,
+                                      volatile Split<DataT>* splits,
+                                      ObjectiveT objective)
 {
   using BinT                  = typename ObjectiveT::BinT;
   constexpr int n_split_warps = (TPB + raft::WarpSize - 1) / raft::WarpSize;

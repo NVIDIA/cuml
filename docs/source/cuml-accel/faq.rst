@@ -15,7 +15,7 @@ used together from the command line:
 In Jupyter, load both extensions before importing the libraries they
 accelerate:
 
-.. code-block:: python
+.. code-block:: ipython
 
    %load_ext cudf.pandas
    %load_ext cuml.accel

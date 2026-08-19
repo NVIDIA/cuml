@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import numbers
@@ -15,6 +15,7 @@ from sklearn.exceptions import NotFittedError
 import cuml.internals.logger as logger
 from cuml.common.sparse import csr_row_normalize_l1, csr_row_normalize_l2
 from cuml.feature_extraction._stop_words import ENGLISH_STOP_WORDS
+from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 
 CUPY_SPARSE_DTYPES = [cp.float32, cp.float64, cp.complex64, cp.complex128]
 
@@ -384,7 +385,7 @@ def _term_frequency(X):
     return term_freq["count"].values
 
 
-class CountVectorizer(_VectorizerMixin):
+class CountVectorizer(DeprecatedGetFeatureNamesMixin, _VectorizerMixin):
     """
     Convert a collection of text documents to a matrix of token counts
 
@@ -752,18 +753,21 @@ class CountVectorizer(_VectorizerMixin):
         vocab = Series(self.vocabulary_)
         return [vocab[X[i, :].indices] for i in range(X.shape[0])]
 
-    def get_feature_names(self):
-        """
-        Array mapping from feature integer indices to feature name.
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Not used, present here for API consistency by convention.
 
         Returns
         -------
-
-        feature_names : Series
-            A list of feature names.
-
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
         """
-        return self.vocabulary_
+        # TODO: use `check_is_fitted` once this class subclasses from `Base`
+        return self.vocabulary_.to_numpy(dtype=object)
 
 
 class HashingVectorizer(_VectorizerMixin):

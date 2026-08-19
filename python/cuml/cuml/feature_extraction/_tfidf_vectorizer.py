@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Portions of this code are derived from the scikit-learn feature_extraction
@@ -282,14 +282,3 @@ class TfidfVectorizer(CountVectorizer):
         """
         X = super().transform(raw_documents)
         return self._tfidf.transform(X, copy=False)
-
-    def get_feature_names(self):
-        """
-        Array mapping from feature integer indices to feature name.
-
-        Returns
-        -------
-        feature_names : Series
-            A list of feature names.
-        """
-        return super().get_feature_names()

@@ -1,7 +1,8 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <cuml/common/utils.hpp>
 #include <cuml/prims/opg/matrix/matrix_utils.hpp>
 
 #include <raft/linalg/transpose.cuh>
@@ -223,7 +224,7 @@ void reset(const raft::handle_t& h,
 }
 
 template <typename T>
-static __global__ void printRaw2DKernel(T* buffer, int rows, int cols, bool isColMajor)
+CUML_KERNEL void printRaw2DKernel(T* buffer, int rows, int cols, bool isColMajor)
 {
   for (int r = 0; r < rows; r++) {
     for (int c = 0; c < cols; c++) {

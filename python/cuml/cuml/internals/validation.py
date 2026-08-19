@@ -22,6 +22,7 @@ __all__ = (
     "check_is_fitted",
     "check_random_seed",
     "check_features",
+    "check_input_features",
     "check_consistent_length",
     "check_all_finite",
     "check_non_negative",
@@ -331,6 +332,54 @@ def check_features(estimator, X, reset=False) -> None:
             f"X has {n_features} features, but {estimator.__class__.__name__} "
             f"is expecting {estimator.n_features_in_} features as input."
         )
+
+
+def check_input_features(estimator, input_features=None):
+    """Check `input_features` and generate names if needed.
+
+    Mainly useful when implementing `get_feature_names_out`.
+
+    Parameters
+    ----------
+    input_features : array-like of str or None, default=None
+        Input features.
+
+        - If `input_features` is `None`, then `feature_names_in_` is used as
+          input feature names. If `feature_names_in_` is not defined, then the
+          following input feature names are generated: `["x0", "x1", ...,
+          "x(n_features_in_ - 1)"]`.
+        - If `input_features` is an array-like, then `input_features` must
+          match `feature_names_in_` if `feature_names_in_` is defined.
+
+    Returns
+    -------
+    feature_names_in : numpy.ndarray[str] or None
+        Validated input feature names.
+    """
+    feature_names_in = getattr(estimator, "feature_names_in_", None)
+
+    if input_features is not None:
+        input_features = np.asarray(input_features, dtype=object)
+        if feature_names_in is not None and not np.array_equal(
+            feature_names_in, input_features
+        ):
+            raise ValueError(
+                "input_features is not equal to feature_names_in_"
+            )
+
+        elif len(input_features) != estimator.n_features_in_:
+            raise ValueError(
+                "input_features should have length equal to number of "
+                f"features ({estimator.n_features_in_}), got {len(input_features)}"
+            )
+        return input_features
+
+    if feature_names_in is not None:
+        return feature_names_in
+
+    return np.asarray(
+        [f"x{i}" for i in range(estimator.n_features_in_)], dtype=object
+    )
 
 
 def check_consistent_length(*arrays) -> None:
