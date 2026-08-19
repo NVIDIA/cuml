@@ -1,17 +1,14 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-from collections.abc import Sequence
-
-from dask_cudf import DataFrame as dcDataFrame
-from dask_cudf import Series as dcSeries
-from toolz import first
+import dask_cudf
 
 from cuml.dask.common.base import (
     BaseEstimator,
     DelayedInverseTransformMixin,
     DelayedTransformMixin,
 )
+from cuml.dask.common.dask_arr_utils import to_dask_cudf
 
 
 class DelayedFitTransformMixin:
@@ -41,55 +38,57 @@ class OneHotEncoder(
 ):
     """
     Encode categorical features as a one-hot numeric array.
-    The input to this transformer should be a dask_cuDF.DataFrame or cupy
-    dask.Array, denoting the values taken on by categorical features.
+
+    The input to this transformer should be an array-like of integers or
+    strings, denoting the values taken on by categorical (discrete) features.
     The features are encoded using a one-hot (aka 'one-of-K' or 'dummy')
     encoding scheme. This creates a binary column for each category and
-    returns a sparse matrix or dense array (depending on the ``sparse``
+    returns a sparse matrix or dense array (depending on the ``sparse_output``
     parameter).
+
     By default, the encoder derives the categories based on the unique values
     in each feature. Alternatively, you can also specify the `categories`
     manually.
 
     Parameters
     ----------
-    categories : 'auto', cupy.ndarray or cudf.DataFrame, default='auto'
-        Categories (unique values) per feature. All categories are expected to
-        fit on one GPU.
+    categories : 'auto' or a list of array-like, default='auto'
+        Categories (unique values) per feature:
 
         - 'auto' : Determine categories automatically from the training data.
+        - list : ``categories[i]`` holds the categories expected in the ith
+          column.
 
-        - DataFrame/ndarray : ``categories[col]`` holds the categories expected
-          in the feature col.
-
-    drop : 'first', None or a dict, default=None
+    drop : 'first', None, or array-like of shape (n_features,), default=None
         Specifies a methodology to use to drop one of the categories per
         feature. This is useful in situations where perfectly collinear
         features cause problems, such as when feeding the resulting data
-        into a neural network or an unregularized regression.
+        into an unregularized linear regression model.
+
+        However, dropping one category breaks the symmetry of the original
+        representation and can therefore induce a bias in downstream models,
+        for instance for penalized linear classification or regression models.
 
         - None : retain all features (the default).
-
         - 'first' : drop the first category in each feature. If only one
           category is present, the feature will be dropped entirely.
-
-        - Dict : ``drop[col]`` is the category in feature col that
+        - array : ``drop[i]`` is the category in feature ``X[:, i]`` that
           should be dropped.
 
-    sparse : bool, default=False
-        This feature was deactivated and will give an exception when True.
-        The reason is because sparse matrix are not fully supported by cupy
-        yet, causing incorrect values when computing one hot encodings.
-        See https://github.com/cupy/cupy/issues/3223
-    dtype : number type, default=np.float
-        Desired datatype of transform's output.
+    sparse_output : bool, default=True
+        When ``True``, transform returns a sparse matrix/array in CSR format.
+
+    dtype : dtype, default=np.float32
+        Desired dtype of transformed output.
+
     handle_unknown : {'error', 'ignore'}, default='error'
-        Whether to raise an error or ignore if an unknown categorical feature
-        is present during transform (default is to raise). When this parameter
-        is set to 'ignore' and an unknown category is encountered during
-        transform, the resulting one-hot encoded columns for this feature
-        will be all zeros. In the inverse transform, an unknown category
-        will be denoted as None.
+        Specifies the way unknown categories are handled during :meth:`transform`.
+
+        - 'error' : Raise an error if an unknown category is present during transform.
+        - 'ignore' : When an unknown category is encountered during
+          transform, the resulting one-hot encoded columns for this feature
+          will be all zeros. In the inverse transform, an unknown category
+          will be denoted as None.
     """
 
     def fit(self, X):
@@ -104,14 +103,22 @@ class OneHotEncoder(
         -------
         self
         """
-        from cuml.preprocessing.onehotencoder_mg import OneHotEncoderMG
+        from cuml.preprocessing import OneHotEncoder
 
-        el = first(X) if isinstance(X, Sequence) else X
-        self.datatype = (
-            "cudf" if isinstance(el, (dcDataFrame, dcSeries)) else "cupy"
+        model = OneHotEncoder(**self.kwargs)
+
+        if isinstance(X, dask_cudf.DataFrame):
+            self.datatype = model._input_type = model.output_type = "cudf"
+        else:
+            self.datatype = model._input_type = model.output_type = "cupy"
+            X = to_dask_cudf(X, client=self.client)
+
+        X_list = self.client.compute(
+            [X.iloc[:, i].drop_duplicates() for i in range(X.shape[1])],
+            sync=True,
         )
-
-        self._set_internal_model(OneHotEncoderMG(**self.kwargs).fit(X))
+        model._fit(X_list, unique=True)
+        self._set_internal_model(model)
 
         return self
 
@@ -130,18 +137,19 @@ class OneHotEncoder(
         out : Dask cuDF DataFrame or CuPy backed Dask Array
             Distributed object containing the transformed input.
         """
+        output_collection_type = (
+            "cupy" if self.kwargs.get("sparse_output", True) else self.datatype
+        )
         return self._transform(
             X,
             n_dims=2,
             delayed=delayed,
             output_dtype=self._get_internal_model().dtype,
-            output_collection_type="cupy",
+            output_collection_type=output_collection_type,
         )
 
     def inverse_transform(self, X, delayed=True):
-        """Convert the data back to the original representation. In case unknown
-        categories are encountered (all zeros in the one-hot encoding), ``None`` is used
-        to represent this category.
+        """Convert the data back to the original representation.
 
         Parameters
         ----------
@@ -173,29 +181,30 @@ class OrdinalEncoder(
 ):
     """Encode categorical features as an integer array.
 
-    The input to this transformer should be an :py:class:`dask_cudf.DataFrame` or a
-    :py:class:`dask.array.Array` backed by cupy, denoting the unique values taken on by
-    categorical (discrete) features. The features are converted to ordinal
-    integers. This results in a single column of integers (0 to n_categories - 1) per
-    feature.
+    The input to this transformer should be an array-like of integers or
+    strings, denoting the values taken on by categorical (discrete) features.
+    The features are converted to ordinal integers. This results in
+    a single column of integers (0 to n_categories - 1) per feature.
 
     Parameters
     ----------
-    categories : :py:class:`cupy.ndarray` or :py:class`cudf.DataFrameq, default='auto'
-        Categories (unique values) per feature. All categories are expected to
-        fit on one GPU.
+    categories : 'auto' or a list of array-like, default='auto'
+        Categories (unique values) per feature:
+
         - 'auto' : Determine categories automatically from the training data.
-        - DataFrame/ndarray : ``categories[col]`` holds the categories expected
-          in the feature col.
+        - list : ``categories[i]`` holds the categories expected in the ith
+          column.
+
+        The used categories can be found in the ``categories_`` attribute.
+
+    dtype : number type, default=np.float64
+        Desired dtype of output.
+
     handle_unknown : {'error', 'ignore'}, default='error'
-        Whether to raise an error or ignore if an unknown categorical feature is
-        present during transform (default is to raise). When this parameter is set
-        to 'ignore' and an unknown category is encountered during transform, the
-        resulting encoded value would be null when output type is cudf
-        dataframe.
-    verbose : int or boolean, default=False
-        Sets logging level. It must be one of `cuml.common.logger.level_*`.  See
-        :ref:`verbosity-levels` for more info.
+        When set to 'error' an error will be raised in case an unknown
+        categorical feature is present during transform. When set to 'ignore',
+        the encoded value of unknown categories will be set to NaN. In
+        :meth:`inverse_transform`, an unknown category will be denoted as None.
     """
 
     def fit(self, X):
@@ -211,14 +220,22 @@ class OrdinalEncoder(
         -------
         self
         """
-        from cuml.preprocessing.ordinalencoder_mg import OrdinalEncoderMG
+        from cuml.preprocessing import OrdinalEncoder
 
-        el = first(X) if isinstance(X, Sequence) else X
-        self.datatype = (
-            "cudf" if isinstance(el, (dcDataFrame, dcSeries)) else "cupy"
+        model = OrdinalEncoder(**self.kwargs)
+
+        if isinstance(X, dask_cudf.DataFrame):
+            self.datatype = model._input_type = model.output_type = "cudf"
+        else:
+            self.datatype = model._input_type = model.output_type = "cupy"
+            X = to_dask_cudf(X, client=self.client)
+
+        X_list = self.client.compute(
+            [X.iloc[:, i].drop_duplicates() for i in range(X.shape[1])],
+            sync=True,
         )
-
-        self._set_internal_model(OrdinalEncoderMG(**self.kwargs).fit(X))
+        model._fit(X_list, unique=True)
+        self._set_internal_model(model)
 
         return self
 
