@@ -680,6 +680,7 @@ def check_array(
     # Extract original array type and dtype (when possible)
     array_type = type(array)
     if isinstance(array, (cudf.DataFrame, pd.DataFrame)):
+        # Unify dataframe dtypes when possible, None otherwise
         if all(isinstance(dt, np.dtype) for dt in array.dtypes):
             array_dtype = np.result_type(*array.dtypes)
         elif any(dt == "object" or is_string_dtype(dt) for dt in array.dtypes):
@@ -687,11 +688,11 @@ def check_array(
         else:
             array_dtype = None
     else:
+        # Extract and normalize the `dtype` attribute if present. If `dtype` is
+        # present but doesn't coerce to a numpy dtype, fall back to None. For
+        # example, pytorch arrays have a non-numpy-compatible `dtype` attr.
         array_dtype = getattr(array, "dtype", None)
         if array_dtype is not None and not isinstance(array_dtype, np.dtype):
-            # Try to coerce the dtype to numpy, falling back to None if it's
-            # not a support dtype (pytorch for example has a `dtype` attribute,
-            # but it can't be directly coerced to numpy's.
             try:
                 array_dtype = np.dtype(array_dtype)
             except TypeError:
@@ -699,19 +700,20 @@ def check_array(
                     array_dtype = np.dtype("object")
                 else:
                     array_dtype = None
-        if not isinstance(array_dtype, np.dtype):
-            # Objects implementing __cuda_array_interface__ or __array__ may
-            # not expose a valid ``dtype`` attribute themselves. Normalize
-            # these before selecting from the supported dtypes so their
-            # represented dtype is preserved.
+
+        # Non-Series objects implementing __cuda_array_interface__ or __array__
+        # may not expose a valid ``dtype`` attribute themselves. Normalize
+        # these before selecting from the supported dtypes so their represented
+        # dtype is preserved.
+        if array_dtype is None and not isinstance(
+            array, (cudf.Series, pd.Series)
+        ):
             if hasattr(array, "__cuda_array_interface__"):
                 array = cp.asarray(array)
                 array_dtype = array.dtype
             elif hasattr(array, "__array__"):
                 array = np.asarray(array)
                 array_dtype = array.dtype
-            else:
-                array_dtype = None
 
     # Infer proper output dtype
     if array_dtype is not None:
