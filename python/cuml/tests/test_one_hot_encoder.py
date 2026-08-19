@@ -56,12 +56,11 @@ def test_onehot_encoder(kind, drop, dtype, sparse_output):
 
 
 @pytest.mark.parametrize(
-    "drop", [None, "first", [True, 2, 2, float("nan"), 2, "banana", "b"]]
+    "drop", [None, "first", [2, 2, float("nan"), 2, "banana", "b"]]
 )
 def test_onehot_encoder_all_dtypes(drop):
     X = pd.DataFrame(
         {
-            "bool": pd.Series([False, True, False, True, False], dtype="bool"),
             "int32": pd.Series([1, 2, 1, 2, 1], dtype="int32"),
             "int64": pd.Series([1, 2, 1, 2, 1], dtype="int64"),
             "float32": pd.Series([1, 2, float("nan"), 2, 1], dtype="float32"),

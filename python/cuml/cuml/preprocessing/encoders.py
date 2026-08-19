@@ -399,7 +399,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
                 # cudf's CategoricalDtype doesn't allow encoding null values,
                 # we have to handle these manually.
                 codes = Xi.astype(cudf.CategoricalDtype(cats[:-1])).cat.codes
-                if Xi.has_nulls:
+                if Xi.has_nulls or Xi.hasnans:
                     codes[Xi.isnull()] = len(cats) - 1
             else:
                 codes = Xi.astype(cudf.CategoricalDtype(cats)).cat.codes
@@ -724,7 +724,10 @@ class OrdinalEncoder(Base):
             if (
                 self.handle_unknown == "error"
                 and codes.has_nulls
-                and (not Xi.has_nulls or codes[Xi.notnull()].has_nulls)
+                and (
+                    (not Xi.has_nulls and not Xi.hasnans)
+                    or codes[Xi.notnull()].has_nulls
+                )
             ):
                 present = (
                     Xi.drop_duplicates().dropna().sort_values().to_numpy()

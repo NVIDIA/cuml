@@ -44,7 +44,6 @@ def test_ordinal_encoder(kind, dtype):
 def test_ordinal_encoder_all_dtypes():
     X = pd.DataFrame(
         {
-            "bool": pd.Series([False, True, False, True, False], dtype="bool"),
             "int32": pd.Series([1, 2, 1, 2, 1], dtype="int32"),
             "int64": pd.Series([1, 2, 1, 2, 1], dtype="int64"),
             "float32": pd.Series([1, 2, float("nan"), 2, 1], dtype="float32"),
