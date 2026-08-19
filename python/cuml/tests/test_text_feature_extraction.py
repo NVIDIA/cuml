@@ -443,8 +443,9 @@ def test_tfidf_vectorizer_char_wb_ngrams():
     ref = ref_vectorizer.fit_transform(DOCS)
 
     cp.testing.assert_array_almost_equal(tfidf_mat.todense(), ref.toarray())
-    assert vectorizer.get_feature_names().to_arrow().to_pylist() == list(
-        ref_vectorizer.get_feature_names_out()
+    assert_array_equal(
+        vectorizer.get_feature_names_out(),
+        ref_vectorizer.get_feature_names_out(),
     )
 
 
