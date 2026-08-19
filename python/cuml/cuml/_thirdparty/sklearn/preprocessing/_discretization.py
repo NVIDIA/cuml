@@ -231,7 +231,7 @@ class KBinsDiscretizer(TransformerMixin,
 
         if 'onehot' in self.encode:
             self._encoder = OneHotEncoder(
-                categories=np.array([np.arange(i) for i in self.n_bins_]),
+                categories=[np.arange(i) for i in self.n_bins_],
                 sparse_output=self.encode == 'onehot', output_type='cupy')
             # Fit the OneHotEncoder with toy datasets
             # so that it's ready for use after the KBinsDiscretizer is fitted
