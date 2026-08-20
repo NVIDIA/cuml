@@ -3,6 +3,7 @@
 import cupy as cp
 import cupyx.scipy.sparse as sp
 import numpy as np
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
@@ -45,7 +46,11 @@ def johnson_lindenstrauss_min_dim(n_samples, eps=0.1):
     )
 
 
-class _BaseRandomProjection(SparseInputTagMixin, Base):
+class _BaseRandomProjection(
+    SparseInputTagMixin,
+    ClassNamePrefixFeaturesOutMixin,
+    Base,
+):
     """Base class for RandomProjection estimators."""
 
     components_ = ReflectedAttr()
@@ -75,6 +80,11 @@ class _BaseRandomProjection(SparseInputTagMixin, Base):
 
     def _gen_random_matrix(self, n_components, n_features, dtype):
         raise NotImplementedError
+
+    @property
+    @mlfunc(convert_output=False)
+    def _n_features_out(self):
+        return self.components_.shape[0]
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
