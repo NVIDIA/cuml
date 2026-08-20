@@ -94,7 +94,7 @@ class BaseRandomForestModel(object):
             client=self.client,
             streams_per_handle=1,
         )
-        futures = []
+        futures = {}
         try:
             comms.init(workers=data.workers)
             for worker, worker_data in data.worker_to_parts.items():
@@ -109,16 +109,16 @@ class BaseRandomForestModel(object):
                     workers=[worker],
                     pure=False,
                 )
-                futures.append(future)
-                self.rfs[worker] = future
+                futures[worker] = future
 
-            wait_and_raise_from_futures(futures)
+            wait_and_raise_from_futures(futures.values())
+            self.rfs = futures
         finally:
             comms.destroy()
 
         # Every distributed rank owns the same complete forest. Keep one
         # worker future as the canonical model for inference and serialization.
-        self._set_internal_model(futures[0])
+        self._set_internal_model(next(iter(futures.values())))
         return self
 
     def _predict_using_nvforest(self, X, delayed, **kwargs):

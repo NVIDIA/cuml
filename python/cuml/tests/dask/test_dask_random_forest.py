@@ -167,25 +167,32 @@ def test_rf_regression_nan_on_one_worker(client):
     if len(workers) < 2:
         pytest.skip("This test requires at least two workers")
 
-    X_parts = []
-    y_parts = []
-    for rank, worker in enumerate(workers):
-        X_part = cudf.DataFrame(
-            np.arange(80, dtype=np.float32).reshape(20, 4) + rank
-        )
-        y_part = cudf.Series(np.arange(20, dtype=np.float32) + rank)
-        if rank == 0:
-            X_part.iloc[0, 0] = np.nan
+    def build_data(*, set_nan):
+        X_parts = []
+        y_parts = []
+        for rank, worker in enumerate(workers):
+            X_part = cudf.DataFrame(
+                np.arange(80, dtype=np.float32).reshape(20, 4) + rank
+            )
+            y_part = cudf.Series(np.arange(20, dtype=np.float32) + rank)
+            if rank == 0 and set_nan:
+                X_part.iloc[0, 0] = np.nan
 
-        X_parts.append(client.scatter(X_part, workers=[worker]))
-        y_parts.append(client.scatter(y_part, workers=[worker]))
+            X_parts.append(client.scatter(X_part, workers=[worker]))
+            y_parts.append(client.scatter(y_part, workers=[worker]))
 
-    X = dask_cudf.from_delayed(X_parts, meta=X_part.iloc[:0])
-    y = dask_cudf.from_delayed(y_parts, meta=y_part.iloc[:0])
+        X = dask_cudf.from_delayed(X_parts, meta=X_part.iloc[:0])
+        y = dask_cudf.from_delayed(y_parts, meta=y_part.iloc[:0])
+        return X, y
 
     model = cuRFR_mg(n_estimators=5, max_depth=3)
+    X, y = build_data(set_nan=True)
     with pytest.raises(RuntimeError, match="Input X contains NaN"):
         model.fit(X, y)
+
+    # Re-fitting with valid data should succeed
+    X, y = build_data(set_nan=False)
+    _ = model.fit(X, y)
 
 
 @pytest.mark.parametrize("partitions_per_worker", [5])
