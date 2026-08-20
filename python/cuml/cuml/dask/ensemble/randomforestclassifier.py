@@ -191,16 +191,26 @@ class RandomForestClassifier(
                 stacklevel=2,
             )
         if isinstance(y, dask.array.Array):
-            unique_vals = dask.array.unique(y).compute()
+            unique_vals, class_counts = dask.array.unique(
+                y, return_counts=True
+            )
+            unique_vals, class_counts = dask.compute(unique_vals, class_counts)
+            unique_vals = cp.asarray(unique_vals)
+            class_counts = cp.asarray(class_counts)
+            order = cp.argsort(unique_vals)
+            classes = cp.asnumpy(unique_vals[order])
+            class_counts = cp.asnumpy(class_counts[order])
         else:
-            unique_vals = y.unique().compute().sort_values(ignore_index=True)
-        classes = cp.asnumpy(cp.sort(cp.asarray(unique_vals)))
+            counts_by_class = y.value_counts().compute().sort_index()
+            classes = cp.asnumpy(cp.asarray(counts_by_class.index))
+            class_counts = cp.asnumpy(cp.asarray(counts_by_class))
         self.classes_ = classes
         self._set_internal_model(None)
         self._fit(
             model=self.rfs,
             dataset=(X, y),
             classes=classes,
+            class_counts=class_counts,
         )
         return self
 

@@ -75,7 +75,7 @@ class BaseRandomForestModel(object):
 
         wait_and_raise_from_futures(list(self.rfs.values()))
 
-    def _fit(self, model, dataset, classes=None):
+    def _fit(self, model, dataset, classes=None, class_counts=None):
         data = DistributedDataHandler.create(dataset, client=self.client)
         self.datatype = data.datatype
 
@@ -105,6 +105,7 @@ class BaseRandomForestModel(object):
                     worker_data,
                     total_rows,
                     classes,
+                    class_counts,
                     workers=[worker],
                     pure=False,
                 )
@@ -162,7 +163,9 @@ class BaseRandomForestModel(object):
 
 
 @mnmg_import
-def _func_fit(session_id, model, input_data, total_rows, classes):
+def _func_fit(
+    session_id, model, input_data, total_rows, classes, class_counts
+):
     handle = get_raft_comm_state(session_id, get_worker())["handle"]
     X = concatenate([item[0] for item in input_data])
     y = concatenate([item[1] for item in input_data])
@@ -170,6 +173,8 @@ def _func_fit(session_id, model, input_data, total_rows, classes):
     model._distributed_n_rows = total_rows
     if classes is not None:
         model._distributed_classes = classes
+    if class_counts is not None:
+        model._distributed_class_counts = class_counts
     try:
         validation_error = None
         try:
@@ -188,6 +193,8 @@ def _func_fit(session_id, model, input_data, total_rows, classes):
         del model._distributed_n_rows
         if classes is not None:
             del model._distributed_classes
+        if class_counts is not None:
+            del model._distributed_class_counts
 
 
 def _func_get_params(model, deep):

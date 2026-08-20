@@ -278,10 +278,18 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         )
         self.classes_ = classes
         self.n_classes_ = len(classes)
+        class_weight = self.class_weight
+        class_counts = getattr(self, "_distributed_class_counts", None)
+        if class_weight == "balanced" and class_counts is not None:
+            class_counts = np.asarray(class_counts)
+            balanced_weights = class_counts.sum() / (
+                self.n_classes_ * class_counts
+            )
+            class_weight = dict(zip(classes, balanced_weights, strict=True))
         _, sample_weight = process_class_weight(
             classes,
             y,
-            class_weight=self.class_weight,
+            class_weight=class_weight,
             sample_weight=sample_weight,
             dtype=np.float64,
         )

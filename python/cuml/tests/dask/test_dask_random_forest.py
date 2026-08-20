@@ -5,6 +5,7 @@ import json
 
 import cudf
 import cupy as cp
+import dask
 import dask_cudf
 import numpy as np
 import pandas as pd
@@ -336,6 +337,73 @@ def test_rf_classification_uses_global_classes(client):
 
     np.testing.assert_array_equal(
         model.get_combined_model().classes_, np.arange(n_workers)
+    )
+
+
+def test_rf_classification_balanced_class_weight(client):
+    """
+    Ensure that class_weight='balanced' uses global class distributions.
+    Test the functionality with class-segregated partitions.
+    """
+    workers = list(client.scheduler_info(n_workers=-1)["workers"])[:2]
+    if len(workers) < 2:
+        pytest.skip("This test requires at least two workers")
+
+    def distributed_data(y_parts):
+        X_partitions = []
+        y_partitions = []
+        for y_part, worker in zip(y_parts, workers):
+            X_part = np.zeros((len(y_part), 1), dtype=np.float32)
+            X_future = client.scatter(
+                cudf.DataFrame(X_part), workers=[worker], hash=False
+            )
+            y_future = client.scatter(
+                cudf.Series(y_part), workers=[worker], hash=False
+            )
+            with dask.annotate(workers=[worker]):
+                X_partitions.append(
+                    dask_cudf.from_delayed(
+                        [X_future], meta=cudf.DataFrame(X_part).iloc[:0]
+                    )
+                )
+                y_partitions.append(
+                    dask_cudf.from_delayed(
+                        [y_future], meta=cudf.Series(y_part).iloc[:0]
+                    )
+                )
+        return (
+            dask_cudf.concat(X_partitions),
+            dask_cudf.concat(y_partitions),
+        )
+
+    # Both layouts contain the same imbalanced dataset (24 zeros and 8 ones).
+    # The constant feature isolates differences in the weighted leaf values.
+    labels_per_worker = np.array([0] * 12 + [1] * 4, dtype=np.int32)
+    X_even, y_even = distributed_data([labels_per_worker, labels_per_worker])
+    X_segregated, y_segregated = distributed_data(
+        [
+            np.ones(8, dtype=np.int32),
+            np.zeros(24, dtype=np.int32),
+        ]
+    )
+
+    params = {
+        "workers": workers,
+        "n_estimators": 1,
+        "bootstrap": False,
+        "max_depth": 1,
+        "max_features": 1.0,
+        "n_bins": 2,
+        "random_state": 42,
+        "class_weight": "balanced",
+    }
+    with dask.annotate(workers=workers):
+        even_model = cuRFC_mg(**params).fit(X_even, y_even)
+        segregated_model = cuRFC_mg(**params).fit(X_segregated, y_segregated)
+
+    assert (
+        even_model.get_combined_model()._treelite_model_bytes
+        == segregated_model.get_combined_model()._treelite_model_bytes
     )
 
 
