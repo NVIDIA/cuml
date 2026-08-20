@@ -330,6 +330,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     PCA(),
     IncrementalPCA(),
     TruncatedSVD(n_components=2),
+    KMeans(),
     OneHotEncoder(),
     PolynomialFeatures(),
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
