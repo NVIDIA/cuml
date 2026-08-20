@@ -24,6 +24,7 @@ from cuml.internals.treelite import safe_treelite_call
 from cuml.internals.validation import check_is_fitted, check_random_seed
 from cuml.metrics import accuracy_score, r2_score
 
+from libc.stddef cimport size_t
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
@@ -42,6 +43,22 @@ cdef extern from "cuml/ensemble/randomforest_mg_utils.hpp" namespace "ML::detail
         const handle_t& handle,
         const int* local_status,
         int* global_status,
+    ) except + nogil
+
+    void cuml_rf_allreduce_oob_stats(
+        const handle_t& handle,
+        const double* local_stats,
+        double* global_stats,
+        size_t count,
+    ) except + nogil
+
+    void cuml_rf_allgather_oob_predictions(
+        const handle_t& handle,
+        const double* local_predictions,
+        double* global_predictions,
+        size_t local_num_rows,
+        size_t num_outputs,
+        size_t global_num_rows,
     ) except + nogil
 
 
@@ -657,6 +674,74 @@ class BaseRandomForestModel(InteropMixin, Base):
 
         return global_status_array.item() != 0
 
+    def _allreduce_oob_stats(self, local_stats):
+        """Sum OOB statistics across distributed ranks."""
+        local_stats = cp.asarray(local_stats, dtype=cp.float64)
+        handle = getattr(self, "_raft_handle", None)
+        if handle is None:
+            return local_stats
+
+        global_stats = cp.empty_like(local_stats)
+        cdef const double* local_stats_ptr = (
+            <const double*><uintptr_t>local_stats.data.ptr
+        )
+        cdef double* global_stats_ptr = (
+            <double*><uintptr_t>global_stats.data.ptr
+        )
+        cdef size_t count = local_stats.size
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+
+        with nogil:
+            cuml_rf_allreduce_oob_stats(
+                handle_[0], local_stats_ptr, global_stats_ptr, count
+            )
+
+        return global_stats
+
+    def _allgather_oob_predictions(self, local_predictions):
+        """Gather rank-local OOB predictions onto every distributed rank."""
+        handle = getattr(self, "_raft_handle", None)
+        if handle is None:
+            return local_predictions
+
+        local_predictions = cp.ascontiguousarray(
+            local_predictions, dtype=cp.float64
+        )
+        local_num_rows = local_predictions.shape[0]
+        num_outputs = (
+            local_predictions.shape[1]
+            if local_predictions.ndim > 1
+            else 1
+        )
+        global_num_rows = self._distributed_n_rows
+        global_shape = (global_num_rows,) + local_predictions.shape[1:]
+        global_predictions = cp.empty(
+            global_shape, dtype=cp.float64, order="C"
+        )
+
+        cdef const double* local_predictions_ptr = (
+            <const double*><uintptr_t>local_predictions.data.ptr
+        )
+        cdef double* global_predictions_ptr = (
+            <double*><uintptr_t>global_predictions.data.ptr
+        )
+        cdef size_t local_num_rows_ = local_num_rows
+        cdef size_t num_outputs_ = num_outputs
+        cdef size_t global_num_rows_ = global_num_rows
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+
+        with nogil:
+            cuml_rf_allgather_oob_predictions(
+                handle_[0],
+                local_predictions_ptr,
+                global_predictions_ptr,
+                local_num_rows_,
+                num_outputs_,
+                global_num_rows_,
+            )
+
+        return global_predictions
+
     def _get_inference_nvforest_model(
         self,
         layout="depth_first",
@@ -725,14 +810,57 @@ class BaseRandomForestModel(InteropMixin, Base):
         # Assign OOB predictions to the appropriate attribute based on estimator
         # type and compute the OOB score
         if self._estimator_type == "classifier":
-            self.oob_decision_function_ = oob_predictions
-
             # Compute accuracy score for classification
             oob_pred_classes = cp.argmax(oob_predictions[valid_oob], axis=1)
             y_valid = y[valid_oob]
-            self.oob_score_ = float(accuracy_score(y_valid, oob_pred_classes))
+            if getattr(self, "_raft_handle", None) is None:
+                self.oob_score_ = float(
+                    accuracy_score(y_valid, oob_pred_classes)
+                )
+            else:
+                local_stats = cp.empty(2, dtype=cp.float64)
+                local_stats[0] = cp.count_nonzero(
+                    y_valid == oob_pred_classes
+                )
+                local_stats[1] = y_valid.size
+                global_stats = self._allreduce_oob_stats(local_stats)
+                self.oob_score_ = (
+                    global_stats[0] / global_stats[1]
+                ).item()
+            self.oob_decision_function_ = self._allgather_oob_predictions(
+                oob_predictions
+            )
         else:
-            self.oob_prediction_ = oob_predictions
-
             # Compute R² score for regression
-            self.oob_score_ = float(r2_score(y[valid_oob], oob_predictions[valid_oob]))
+            predictions_valid = oob_predictions[valid_oob]
+            y_valid = y[valid_oob]
+            if getattr(self, "_raft_handle", None) is None:
+                self.oob_score_ = float(
+                    r2_score(y_valid, predictions_valid)
+                )
+            else:
+                y_valid = y_valid.astype(cp.float64, copy=False)
+                local_mean_stats = cp.empty(2, dtype=cp.float64)
+                local_mean_stats[0] = y_valid.sum()
+                local_mean_stats[1] = y_valid.size
+                mean_stats = self._allreduce_oob_stats(local_mean_stats)
+                global_mean = mean_stats[0] / mean_stats[1]
+                local_score_stats = cp.empty(2, dtype=cp.float64)
+                local_score_stats[0] = cp.sum(
+                    (y_valid - predictions_valid) ** 2
+                )
+                local_score_stats[1] = cp.sum(
+                    (y_valid - global_mean) ** 2
+                )
+                score_stats = self._allreduce_oob_stats(local_score_stats)
+                if score_stats[0] == 0:
+                    self.oob_score_ = 1.0
+                elif score_stats[1] == 0:
+                    self.oob_score_ = 0.0
+                else:
+                    self.oob_score_ = float(
+                        1 - score_stats[0] / score_stats[1]
+                    )
+            self.oob_prediction_ = self._allgather_oob_predictions(
+                oob_predictions
+            )

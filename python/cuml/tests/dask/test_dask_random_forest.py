@@ -45,6 +45,16 @@ def _get_treelite_bytes(model):
     return model._treelite_model_bytes
 
 
+def _get_rank_local_oob_score(model):
+    return model.oob_score_
+
+
+def _get_rank_local_oob_prediction(model):
+    if model._estimator_type == "regressor":
+        return model.oob_prediction_
+    return model.oob_decision_function_
+
+
 @pytest.mark.parametrize("partitions_per_worker", [3])
 def test_rf_classification_multi_class(partitions_per_worker, cluster):
     # Use CUDA_VISIBLE_DEVICES to control the number of workers
@@ -405,6 +415,128 @@ def test_rf_classification_balanced_class_weight(client):
         even_model.get_combined_model()._treelite_model_bytes
         == segregated_model.get_combined_model()._treelite_model_bytes
     )
+
+
+@pytest.mark.parametrize("mode", ["classification", "regression"])
+def test_random_forest_oob_score(client, mode):
+    """
+    Ensure that Out-of-bag (OOB) scoring is correct.
+    Distributed RF must perform an all-reduce over OOB estimates from each rank.
+    Test: The first rank gets an easy dataset (X, y), while the second rank
+          gets a noisy dataset (X, y). Two ranks will perform all-reduce to
+          obtain the global OOB score.
+    """
+    workers = list(client.scheduler_info(n_workers=-1)["workers"])[:2]
+    if len(workers) < 2:
+        pytest.skip("This test requires at least two workers")
+
+    n_samples_per_worker = 500
+    if mode == "classification":
+        X_easy, y_easy = make_classification(
+            n_samples=n_samples_per_worker,
+            n_features=10,
+            n_informative=8,
+            n_redundant=0,
+            class_sep=3.0,
+            flip_y=0.0,
+            random_state=42,
+        )
+        model_cls = cuRFC_mg
+        y_dtype = np.int32
+    else:
+        X_easy, y_easy = make_regression(
+            n_samples=n_samples_per_worker,
+            n_features=10,
+            n_informative=8,
+            random_state=42,
+        )
+        model_cls = cuRFR_mg
+        y_dtype = np.float32
+
+    rng = np.random.default_rng(42)
+    X_noisy = rng.standard_normal((n_samples_per_worker, 10))
+    if mode == "classification":
+        y_noisy = rng.integers(0, 2, n_samples_per_worker)
+    else:
+        y_noisy = rng.uniform(0, 2, n_samples_per_worker)
+
+    X_partitions = []
+    y_partitions = []
+    for worker, X_part, y_part in zip(
+        workers, [X_easy, X_noisy], [y_easy, y_noisy]
+    ):
+        X_part = X_part.astype(np.float32)
+        y_part = y_part.astype(y_dtype)
+        X_future = client.scatter(
+            cudf.DataFrame(X_part), workers=[worker], hash=False
+        )
+        y_future = client.scatter(
+            cudf.Series(y_part), workers=[worker], hash=False
+        )
+        with dask.annotate(workers=[worker]):
+            X_partitions.append(
+                dask_cudf.from_delayed(
+                    [X_future], meta=cudf.DataFrame(X_part).iloc[:0]
+                )
+            )
+            y_partitions.append(
+                dask_cudf.from_delayed(
+                    [y_future], meta=cudf.Series(y_part).iloc[:0]
+                )
+            )
+
+    X = dask_cudf.concat(X_partitions)
+    y = dask_cudf.concat(y_partitions)
+    with dask.annotate(workers=workers):
+        model = model_cls(
+            workers=workers,
+            n_estimators=50,
+            bootstrap=True,
+            oob_score=True,
+            max_samples=0.8,
+            max_depth=10,
+            random_state=42,
+        ).fit(X, y)
+
+    rank_oob_scores = client.gather(
+        [
+            client.submit(
+                _get_rank_local_oob_score,
+                model.rfs[worker],
+                workers=[worker],
+            )
+            for worker in workers
+        ]
+    )
+    assert model.oob_score_ == pytest.approx(rank_oob_scores[0])
+    assert model.oob_score_ == pytest.approx(rank_oob_scores[1])
+
+    rank_oob_preds = client.gather(
+        [
+            client.submit(
+                _get_rank_local_oob_prediction,
+                model.rfs[worker],
+                workers=[worker],
+            )
+            for worker in workers
+        ]
+    )
+    if mode == "regression":
+        np.testing.assert_almost_equal(
+            model.oob_prediction_.to_numpy(), rank_oob_preds[0].to_numpy()
+        )
+        np.testing.assert_almost_equal(
+            model.oob_prediction_.to_numpy(), rank_oob_preds[1].to_numpy()
+        )
+    else:
+        np.testing.assert_almost_equal(
+            model.oob_decision_function_.to_numpy(),
+            rank_oob_preds[0].to_numpy(),
+        )
+        np.testing.assert_almost_equal(
+            model.oob_decision_function_.to_numpy(),
+            rank_oob_preds[1].to_numpy(),
+        )
 
 
 def test_single_input_regression(client):
