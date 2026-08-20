@@ -333,6 +333,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     KMeans(),
     GaussianRandomProjection(n_components=2),
     SparseRandomProjection(n_components=2),
+    UMAP(n_components=2),
     OneHotEncoder(),
     PolynomialFeatures(),
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
