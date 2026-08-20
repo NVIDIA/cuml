@@ -324,3 +324,9 @@ class RandomForestClassifier(
         params : dict of new params.
         """
         return self._set_params(**params)
+
+    @property
+    def oob_decision_function_(self):
+        raise NotImplementedError(
+            "oob_decision_function_ is not yet supported in Dask RandomForestClassifier"
+        )

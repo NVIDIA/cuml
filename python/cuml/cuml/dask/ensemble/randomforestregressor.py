@@ -253,3 +253,9 @@ class RandomForestRegressor(
         params : dict of new params.
         """
         return self._set_params(**params)
+
+    @property
+    def oob_prediction_(self):
+        raise NotImplementedError(
+            "oob_prediction_ is not yet supported in Dask RandomForestRegressor"
+        )

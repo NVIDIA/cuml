@@ -49,12 +49,6 @@ def _get_rank_local_oob_score(model):
     return model.oob_score_
 
 
-def _get_rank_local_oob_prediction(model):
-    if model._estimator_type == "regressor":
-        return model.oob_prediction_
-    return model.oob_decision_function_
-
-
 @pytest.mark.parametrize("partitions_per_worker", [3])
 def test_rf_classification_multi_class(partitions_per_worker, cluster):
     # Use CUDA_VISIBLE_DEVICES to control the number of workers
@@ -518,32 +512,18 @@ def test_random_forest_oob_score(client, mode):
     assert model.oob_score_ == pytest.approx(rank_oob_scores[0])
     assert model.oob_score_ == pytest.approx(rank_oob_scores[1])
 
-    rank_oob_preds = client.gather(
-        [
-            client.submit(
-                _get_rank_local_oob_prediction,
-                model.rfs[worker],
-                workers=[worker],
-            )
-            for worker in workers
-        ]
-    )
     if mode == "regression":
-        np.testing.assert_almost_equal(
-            model.oob_prediction_.to_numpy(), rank_oob_preds[0].to_numpy()
-        )
-        np.testing.assert_almost_equal(
-            model.oob_prediction_.to_numpy(), rank_oob_preds[1].to_numpy()
-        )
+        with pytest.raises(
+            NotImplementedError,
+            match=".*oob_prediction_ is not yet supported.*",
+        ):
+            _ = model.oob_prediction_
     else:
-        np.testing.assert_almost_equal(
-            model.oob_decision_function_.to_numpy(),
-            rank_oob_preds[0].to_numpy(),
-        )
-        np.testing.assert_almost_equal(
-            model.oob_decision_function_.to_numpy(),
-            rank_oob_preds[1].to_numpy(),
-        )
+        with pytest.raises(
+            NotImplementedError,
+            match=".*oob_decision_function_ is not yet supported.*",
+        ):
+            _ = model.oob_decision_function_
 
 
 def test_single_input_regression(client):

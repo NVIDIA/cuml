@@ -52,15 +52,6 @@ cdef extern from "cuml/ensemble/randomforest_mg_utils.hpp" namespace "ML::detail
         size_t count,
     ) except + nogil
 
-    void cuml_rf_allgather_oob_predictions(
-        const handle_t& handle,
-        const double* local_predictions,
-        double* global_predictions,
-        size_t local_num_rows,
-        size_t num_outputs,
-        size_t global_num_rows,
-    ) except + nogil
-
 
 cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
     cdef enum CRITERION:
@@ -698,50 +689,6 @@ class BaseRandomForestModel(InteropMixin, Base):
 
         return global_stats
 
-    def _allgather_oob_predictions(self, local_predictions):
-        """Gather rank-local OOB predictions onto every distributed rank."""
-        handle = getattr(self, "_raft_handle", None)
-        if handle is None:
-            return local_predictions
-
-        local_predictions = cp.ascontiguousarray(
-            local_predictions, dtype=cp.float64
-        )
-        local_num_rows = local_predictions.shape[0]
-        num_outputs = (
-            local_predictions.shape[1]
-            if local_predictions.ndim > 1
-            else 1
-        )
-        global_num_rows = self._distributed_n_rows
-        global_shape = (global_num_rows,) + local_predictions.shape[1:]
-        global_predictions = cp.empty(
-            global_shape, dtype=cp.float64, order="C"
-        )
-
-        cdef const double* local_predictions_ptr = (
-            <const double*><uintptr_t>local_predictions.data.ptr
-        )
-        cdef double* global_predictions_ptr = (
-            <double*><uintptr_t>global_predictions.data.ptr
-        )
-        cdef size_t local_num_rows_ = local_num_rows
-        cdef size_t num_outputs_ = num_outputs
-        cdef size_t global_num_rows_ = global_num_rows
-        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
-
-        with nogil:
-            cuml_rf_allgather_oob_predictions(
-                handle_[0],
-                local_predictions_ptr,
-                global_predictions_ptr,
-                local_num_rows_,
-                num_outputs_,
-                global_num_rows_,
-            )
-
-        return global_predictions
-
     def _get_inference_nvforest_model(
         self,
         layout="depth_first",
@@ -810,6 +757,8 @@ class BaseRandomForestModel(InteropMixin, Base):
         # Assign OOB predictions to the appropriate attribute based on estimator
         # type and compute the OOB score
         if self._estimator_type == "classifier":
+            self.oob_decision_function_ = oob_predictions
+
             # Compute accuracy score for classification
             oob_pred_classes = cp.argmax(oob_predictions[valid_oob], axis=1)
             y_valid = y[valid_oob]
@@ -827,10 +776,9 @@ class BaseRandomForestModel(InteropMixin, Base):
                 self.oob_score_ = (
                     global_stats[0] / global_stats[1]
                 ).item()
-            self.oob_decision_function_ = self._allgather_oob_predictions(
-                oob_predictions
-            )
         else:
+            self.oob_prediction_ = oob_predictions
+
             # Compute R² score for regression
             predictions_valid = oob_predictions[valid_oob]
             y_valid = y[valid_oob]
@@ -861,6 +809,3 @@ class BaseRandomForestModel(InteropMixin, Base):
                     self.oob_score_ = float(
                         1 - score_stats[0] / score_stats[1]
                     )
-            self.oob_prediction_ = self._allgather_oob_predictions(
-                oob_predictions
-            )
