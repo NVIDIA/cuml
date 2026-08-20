@@ -5,6 +5,7 @@
 import cupy as cp
 import cupyx.scipy.sparse
 import numpy as np
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse, sparse_cov_and_mean
@@ -83,6 +84,7 @@ cdef extern from "cuml/decomposition/pca.hpp" namespace "ML" nogil:
 class PCA(InteropMixin,
           FMajorInputTagMixin,
           SparseInputTagMixin,
+          ClassNamePrefixFeaturesOutMixin,
           Base):
 
     """

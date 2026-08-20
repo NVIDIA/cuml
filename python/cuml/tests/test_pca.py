@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -305,3 +305,12 @@ def test_exceptions():
     with pytest.raises(NotFittedError):
         X = cp.random.random((10, 10))
         cuPCA().inverse_transform(X)
+
+
+def test_get_feature_names_out():
+    X, _ = make_blobs(n_features=5)
+    cu_model = cuPCA(n_components=2).fit(X)
+    sk_model = skPCA(n_components=2).fit(X)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)
