@@ -279,6 +279,7 @@ class TruncatedSVD(InteropMixin,
         self.tol = tol
 
     @property
+    @mlfunc(convert_output=False)
     def _n_features_out(self):
         """Number of transformed output features."""
         # Exposed to support sklearn's `get_feature_names_out`
