@@ -345,6 +345,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     StandardScaler(),
     OneHotEncoder(),
     PolynomialFeatures(),
+    KBinsDiscretizer(),
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
 ]
 

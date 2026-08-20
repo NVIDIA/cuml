@@ -1304,8 +1304,7 @@ def test_get_feature_names_out(cu_cls, sk_cls, params):
     np.testing.assert_array_equal(res, sol)
 
 
-def test_get_feature_names_out_kernel_centerer():
-    """Test that kernel centerer `feature_names_out`."""
+def test_kernel_centerer_get_feature_names_out():
     from sklearn.metrics.pairwise import linear_kernel
 
     rng = np.random.RandomState(0)
@@ -1314,6 +1313,34 @@ def test_get_feature_names_out_kernel_centerer():
 
     cu_model = cuKernelCenterer().fit(X_pairwise)
     sk_model = cuKernelCenterer().fit(X_pairwise)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)
+
+
+@pytest.mark.parametrize(
+    "encode",
+    [
+        pytest.param(
+            "onehot",
+            marks=pytest.mark.xfail(
+                reason="Bug in OneHotEncoder, fixed by #8490", strict=True
+            ),
+        ),
+        pytest.param(
+            "onehot-dense",
+            marks=pytest.mark.xfail(
+                reason="Bug in OneHotEncoder, fixed by #8490", strict=True
+            ),
+        ),
+        "ordinal",
+    ],
+)
+def test_kbins_discretizer_get_feature_names_out(encode):
+    X = np.array([[-2, 1, -4], [-1, 2, -3], [0, 3, -2], [1, 4, -1]])
+
+    cu_model = cuKBinsDiscretizer(n_bins=4, encode=encode).fit(X)
+    sk_model = skKBinsDiscretizer(n_bins=4, encode=encode).fit(X)
     res = cu_model.get_feature_names_out()
     sol = sk_model.get_feature_names_out()
     np.testing.assert_array_equal(res, sol)
