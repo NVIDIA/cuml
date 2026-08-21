@@ -226,6 +226,26 @@ def test_ordinal_encoder_transform_missing():
     np.testing.assert_array_equal(res.to_numpy(), sol)
 
 
+def test_ordinal_encoder_transform_missing_unknown():
+    """Check error raised if unknown category is NaN"""
+    X1 = pd.DataFrame({"x": ["a", "b", "a"], "y": [1, 2, 1]})
+    X2 = pd.DataFrame({"x": ["b", None], "y": [2, 1]})
+    X3 = pd.DataFrame({"x": ["b", "a"], "y": [2, np.nan]})
+
+    enc = OrdinalEncoder().fit(X1)
+
+    with pytest.raises(
+        ValueError,
+        match="Found unknown categories \\[nan\\] in column 0 during transform",
+    ):
+        enc.transform(X2)
+    with pytest.raises(
+        ValueError,
+        match="Found unknown categories \\[nan\\] in column 1 during transform",
+    ):
+        enc.transform(X3)
+
+
 def test_ordinal_encoder_transform_unknown():
     X1 = pd.DataFrame({"x": ["a", "b", "a"]})
     X2 = pd.DataFrame({"x": ["b", "c"]})

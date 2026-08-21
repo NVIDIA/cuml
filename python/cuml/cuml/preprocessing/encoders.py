@@ -421,7 +421,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
                 # cudf's CategoricalDtype doesn't allow encoding null values,
                 # we have to handle these manually.
                 codes = Xi.astype(cudf.CategoricalDtype(cats[:-1])).cat.codes
-                if Xi.has_nulls or Xi.hasnans:
+                if Xi.hasnans:
                     codes[Xi.isnull()] = len(cats) - 1
             else:
                 codes = Xi.astype(cudf.CategoricalDtype(cats)).cat.codes
@@ -754,25 +754,24 @@ class OrdinalEncoder(Base):
                 cats = cats[:-1]
             codes = Xi.astype(cudf.CategoricalDtype(cats)).cat.codes
 
-            if (
-                self.handle_unknown == "error"
-                and codes.has_nulls
-                and (
-                    (not Xi.has_nulls and not Xi.hasnans)
-                    or codes[Xi.notnull()].has_nulls
-                )
-            ):
-                present = (
-                    Xi.drop_duplicates().dropna().sort_values().to_numpy()
-                )
-                diff = _get_diff(present, self.categories_[i])
-                raise ValueError(
-                    f"Found unknown categories {diff} in column {i}"
-                    " during transform"
-                )
-
             if codes.has_nulls:
+                if self.handle_unknown == "error":
+                    # If NaN is a known category and all nulls map to NaN in
+                    # the input then there's no need to error. Otherwise error.
+                    if not (
+                        i in self._missing_indices
+                        and Xi.hasnans
+                        and not codes[Xi.notnull()].has_nulls
+                    ):
+                        present = Xi.drop_duplicates().sort_values().to_numpy()
+                        diff = _get_diff(present, self.categories_[i])
+                        raise ValueError(
+                            f"Found unknown categories {diff} in column {i}"
+                            " during transform"
+                        )
+
                 codes = codes.to_cupy()
+
             out[:, i] = codes
 
         return out
