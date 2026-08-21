@@ -50,14 +50,14 @@ def _cats_to_series(cats):
 
 
 def _compute_categories(
-    X_list, unique=False, categories="auto", handle_unknown="error"
+    X, unique=False, categories="auto", handle_unknown="error"
 ):
     """Compute `categories_` for an encoder.
 
     Parameters
     ----------
-    X_list : list[cudf.Series]
-        A list of columns in the input X.
+    X : cudf.DataFrame or list[cudf.Series]
+        A cudf.DataFrame or list[cudf.Series] of the input X.
     unique : bool, default=False
         Whether the columns already are reduced to only their unique entries.
     categories : 'auto' or list[array-like], default='auto'
@@ -72,6 +72,10 @@ def _compute_categories(
     categories_ : list[numpy.ndarray]
         A list of the categories determined per-column.
     """
+    if isinstance(X, list):
+        X_list = X
+    else:
+        X_list = [X.iloc[:, i] for i in range(X.shape[1])]
     n_features = len(X_list)
 
     if handle_unknown not in ("ignore", "error"):
@@ -295,12 +299,30 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         """Fit OneHotEncoder to X."""
         check_features(self, X, reset=True)
         X = check_cudf(X, input_name="X")
-        X_list = [X.iloc[:, i] for i in range(X.shape[1])]
-        return self._fit(X_list)
+        return self._fit(X)
 
-    def _fit(self, X_list, unique=False):
+    @mlfunc(set_input_type=True, preserve_index=True)
+    @generate_docstring(
+        y=None,
+        return_values={
+            "name": "X_out",
+            "description": (
+                "Transformed input. A sparse matrix if ``sparse_output=True``, "
+                "dense otherwise."
+            ),
+            "type": "dense_sparse",
+            "shape": "(n_samples, n_encoded_features)",
+        },
+    )
+    def fit_transform(self, X, y=None):
+        """Fit OneHotEncoder to X, then transform X."""
+        check_features(self, X, reset=True)
+        X = check_cudf(X, input_name="X")
+        return self._fit(X).transform(X)
+
+    def _fit(self, X, unique=False):
         categories = _compute_categories(
-            X_list,
+            X,
             unique=unique,
             categories=self.categories,
             handle_unknown=self.handle_unknown,
@@ -450,24 +472,6 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         if self.sparse_output:
             return out
         return out.toarray()
-
-    @mlfunc(preserve_index=True)
-    @generate_docstring(
-        y=None,
-        return_values={
-            "name": "X_out",
-            "description": (
-                "Transformed input. A sparse matrix if ``sparse_output=True``, "
-                "dense otherwise."
-            ),
-            "type": "dense_sparse",
-            "shape": "(n_samples, n_encoded_features)",
-        },
-    )
-    def fit_transform(self, X, y=None):
-        """Fit OneHotEncoder to X, then transform X."""
-        X = check_cudf(X, input_name="X")
-        return self.fit(X).transform(X)
 
     @mlfunc(preserve_index=True)
     def inverse_transform(self, X):
@@ -677,12 +681,27 @@ class OrdinalEncoder(Base):
         """Fit OrdinalEncoder to X."""
         check_features(self, X, reset=True)
         X = check_cudf(X, input_name="X")
-        X_list = [X.iloc[:, i] for i in range(X.shape[1])]
-        return self._fit(X_list)
+        return self._fit(X)
 
-    def _fit(self, X_list, unique=False):
+    @mlfunc(set_input_type=True, preserve_index=True)
+    @generate_docstring(
+        y=None,
+        return_values={
+            "name": "X_out",
+            "description": "Transformed input.",
+            "type": "dense",
+            "shape": "(n_samples, n_features)",
+        },
+    )
+    def fit_transform(self, X, y=None):
+        """Fit OrdinalEncoder to X, then transform X."""
+        check_features(self, X, reset=True)
+        X = check_cudf(X, input_name="X")
+        return self._fit(X).transform(X)
+
+    def _fit(self, X, unique=False):
         self.categories_ = _compute_categories(
-            X_list,
+            X,
             unique=unique,
             categories=self.categories,
             handle_unknown=self.handle_unknown,
@@ -743,21 +762,6 @@ class OrdinalEncoder(Base):
             out[:, i] = codes
 
         return out
-
-    @mlfunc(preserve_index=True)
-    @generate_docstring(
-        y=None,
-        return_values={
-            "name": "X_out",
-            "description": "Transformed input.",
-            "type": "dense",
-            "shape": "(n_samples, n_features)",
-        },
-    )
-    def fit_transform(self, X, y=None):
-        """Fit OrdinalEncoder to X, then transform X."""
-        X = check_cudf(X, input_name="X")
-        return self.fit(X).transform(X)
 
     @mlfunc(preserve_index=True)
     def inverse_transform(self, X):

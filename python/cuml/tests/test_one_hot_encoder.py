@@ -55,6 +55,29 @@ def test_onehot_encoder(kind, drop, dtype, sparse_output):
     pd.testing.assert_frame_equal(res, sol)
 
 
+@pytest.mark.parametrize("kind", ["numpy", "pandas"])
+def test_onehot_encoder_fit_transform(kind):
+    X = np.array(
+        [
+            [2, 2, 2, 2],
+            [1, 2, 1, 2],
+            [3, 2, 1, 1],
+        ]
+    ).T
+    if kind == "pandas":
+        X = pd.DataFrame(X, columns=["a", "b", "c"])
+    enc1 = OneHotEncoder(sparse_output=False).fit(X)
+    Xt1 = enc1.transform(X)
+    enc2 = OneHotEncoder(sparse_output=False)
+    Xt2 = enc2.fit_transform(X)
+    assert enc1._input_type == kind
+    assert enc2._input_type == kind
+    if kind == "pandas":
+        pd.testing.assert_frame_equal(Xt1, Xt2)
+    else:
+        np.testing.assert_array_equal(Xt1, Xt2)
+
+
 @pytest.mark.parametrize(
     "drop", [None, "first", [2, 2, float("nan"), 2, "banana", "b"]]
 )

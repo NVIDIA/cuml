@@ -41,6 +41,29 @@ def test_ordinal_encoder(kind, dtype):
     pd.testing.assert_frame_equal(res, sol)
 
 
+@pytest.mark.parametrize("kind", ["numpy", "pandas"])
+def test_ordinal_encoder_fit_transform(kind):
+    X = np.array(
+        [
+            [2, 2, 2, 2],
+            [1, 2, 1, 2],
+            [3, 2, 1, 1],
+        ]
+    ).T
+    if kind == "pandas":
+        X = pd.DataFrame(X, columns=["a", "b", "c"])
+    enc1 = OrdinalEncoder().fit(X)
+    Xt1 = enc1.transform(X)
+    enc2 = OrdinalEncoder()
+    Xt2 = enc2.fit_transform(X)
+    assert enc1._input_type == kind
+    assert enc2._input_type == kind
+    if kind == "pandas":
+        pd.testing.assert_frame_equal(Xt1, Xt2)
+    else:
+        np.testing.assert_array_equal(Xt1, Xt2)
+
+
 def test_ordinal_encoder_all_dtypes():
     X = pd.DataFrame(
         {
