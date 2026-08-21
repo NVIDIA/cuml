@@ -51,4 +51,5 @@
   marker: cuml_accel_sklearn_pin
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
   tests:
+  - "umap.tests.test_umap_metrics::test_sokalmichener"
   - "umap.tests.test_umap_validation_params::test_umap_custom_distance_w_grad"
