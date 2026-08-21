@@ -56,3 +56,4 @@
   strict: false
   tests:
   - "umap.tests.test_umap_metrics::test_sokalmichener"
+  - "umap.tests.test_umap_metrics::test_sparse_sokalmichener"
