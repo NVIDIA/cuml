@@ -27,6 +27,7 @@ from cuml.metrics import accuracy_score, r2_score
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
+
 import nvforest
 
 from cuml.internals.logger cimport level_enum
@@ -35,6 +36,8 @@ from cuml.internals.treelite cimport (
     TreeliteModelHandle,
     TreeliteSerializeModelToBytes,
 )
+
+from cuml.ensemble._gpu_tree import _build_gpu_estimators
 
 
 cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
@@ -345,8 +348,30 @@ class BaseRandomForestModel(InteropMixin, Base):
         self.n_streams = n_streams
         self.oob_score = oob_score
 
+    @property
+    def estimators_(self):
+        """List of GPU-backed DecisionTree proxy objects for each tree.
+
+        Each estimator exposes the same API as sklearn's
+        ``DecisionTreeClassifier`` / ``DecisionTreeRegressor`` and routes
+        inference through FIL on the GPU.
+
+        The list is constructed lazily on first access and cached.
+        """
+        if not hasattr(self, "_treelite_model_bytes"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute 'estimators_'"
+            )
+        if (cached := getattr(self, "_estimators_cache", None)) is not None:
+            return cached
+        self._estimators_cache = _build_gpu_estimators(self)
+        return self._estimators_cache
+
     def __getstate__(self):
         state = self.__dict__.copy()
+        # FIL model isn't currently pickleable
+        state.pop("_fil_model", None)
+        state.pop("_estimators_cache", None)
         # nvForest model isn't currently pickleable
         state.pop("_nvforest_model", None)
         return state
@@ -611,6 +636,9 @@ class BaseRandomForestModel(InteropMixin, Base):
         )
         self.n_outputs_ = 1
         self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
+        # Ensure cached models are reset
+        self._fil_model = None
+        self._estimators_cache = None
         # Reload nvforest model
         self._nvforest_model = self.as_nvforest()
 
