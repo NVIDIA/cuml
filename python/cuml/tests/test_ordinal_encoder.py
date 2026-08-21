@@ -156,6 +156,15 @@ def test_ordinal_encoder_invalid_parameters():
     ):
         OrdinalEncoder(handle_unknown="bad").fit(X)
 
+    with pytest.raises(
+        ValueError,
+        match=(
+            "When handle_unknown='ignore', the dtype parameter should be a "
+            "float dtype. Got int32."
+        ),
+    ):
+        OrdinalEncoder(dtype="int32", handle_unknown="ignore").fit(X)
+
     # Invalid `categories` errors
     with pytest.raises(ValueError, match="Expected `categories` .* got 'bad'"):
         OrdinalEncoder(categories="bad").fit(X)
@@ -172,6 +181,22 @@ def test_ordinal_encoder_invalid_parameters():
         OrdinalEncoder(
             categories=[[1, 2], [1, 2, 3, 3], [2, float("nan")]]
         ).fit(X)
+
+
+def test_ordinal_encoder_int_dtype():
+    X1 = pd.DataFrame({"x": [1, 2, np.nan]})
+    X2 = pd.DataFrame({"x": [1, 2, 1], "y": [1, 3, 2]})
+
+    with pytest.raises(
+        ValueError,
+        match="There are missing values in features \\[0\\].",
+    ):
+        OrdinalEncoder(dtype="int32").fit(X1)
+
+    res = OrdinalEncoder(dtype="int32").fit_transform(X2)
+    np.testing.assert_array_equal(
+        res, np.array([[0, 0], [1, 2], [0, 1]], dtype="int32")
+    )
 
 
 def test_ordinal_encoder_unknown_categories_in_fit():

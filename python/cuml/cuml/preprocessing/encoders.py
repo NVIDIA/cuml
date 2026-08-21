@@ -707,11 +707,25 @@ class OrdinalEncoder(Base):
             handle_unknown=self.handle_unknown,
         )
 
+        out_dtype = np.dtype(self.dtype)
+        if self.handle_unknown == "ignore" and out_dtype.kind != "f":
+            raise ValueError(
+                f"When handle_unknown='ignore', the dtype parameter "
+                f"should be a float dtype. Got {self.dtype}."
+            )
+
         self._missing_indices = {
             i: len(cats) - 1
             for i, cats in enumerate(self.categories_)
             if _safe_is_nan(cats[-1])
         }
+
+        if self._missing_indices and out_dtype.kind != "f":
+            raise ValueError(
+                "There are missing values in features "
+                f"{list(self._missing_indices)}. Please "
+                "set dtype to a float."
+            )
 
         return self
 
