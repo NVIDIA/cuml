@@ -191,12 +191,20 @@ class RandomForestClassifier(
                 stacklevel=2,
             )
         if isinstance(y, dask.array.Array):
-            unique_vals, class_counts = dask.array.unique(
-                y, return_counts=True
-            )
-            unique_vals, class_counts = dask.compute(unique_vals, class_counts)
-            unique_vals = cp.asarray(unique_vals)
-            class_counts = cp.asarray(class_counts)
+            # Dask implements ``unique(return_counts=True)`` using structured
+            # arrays, which CuPy does not support. Compute the unique labels
+            # first, then count all labels together with scalar reductions.
+            unique_vals = cp.asarray(dask.array.unique(y).compute())
+            if unique_vals.size == 0:
+                class_counts = cp.empty(0, dtype=cp.int64)
+            else:
+                class_counts = dask.array.stack(
+                    [
+                        (y == class_value).sum()
+                        for class_value in cp.asnumpy(unique_vals)
+                    ]
+                ).compute()
+                class_counts = cp.asarray(class_counts)
             order = cp.argsort(unique_vals)
             classes = cp.asnumpy(unique_vals[order])
             class_counts = cp.asnumpy(class_counts[order])

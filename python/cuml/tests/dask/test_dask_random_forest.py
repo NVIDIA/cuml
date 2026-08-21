@@ -658,3 +658,30 @@ def test_rf_get_model_right_after_fit(client, estimator_type):
         assert isinstance(single_gpu_model, cuRFR_sg)
     else:
         assert False
+
+
+def test_dask_cupy_inputs(client):
+    from cuml.dask.datasets import (
+        make_classification as cuml_dask_make_classification,
+    )
+
+    n_workers = len(client.scheduler_info()["workers"])
+
+    # Generate classification dataset
+    n_samples = 5000
+    n_features = 30
+    n_classes = 3
+
+    X, y = cuml_dask_make_classification(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_informative=int(n_features * 0.7),
+        n_redundant=int(n_features * 0.2),
+        n_classes=n_classes,
+        random_state=42,
+        n_parts=n_workers * 2,
+    )
+
+    rf = cuRFC_mg(n_estimators=100, max_depth=16, n_bins=32, random_state=42)
+    # This should succeed
+    rf.fit(X, y)
