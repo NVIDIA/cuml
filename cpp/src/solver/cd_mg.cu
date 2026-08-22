@@ -116,11 +116,11 @@ int fit_impl(raft::handle_t& handle,
 
     MLCommon::Matrix::Data<T>* rs_data = new MLCommon::Matrix::Data<T>();
     rs_data->ptr                       = rs;
-    rs_data->totalSize                 = partsToRanks[i]->size;
+    rs_data->setNumElements(partsToRanks[i]->size);
     residual_temp.push_back(rs_data);
 
     MLCommon::Matrix::Data<T>* temp_data = new MLCommon::Matrix::Data<T>();
-    temp_data->totalSize                 = partsToRanks[i]->size;
+    temp_data->setNumElements(partsToRanks[i]->size);
     input_data_temp.push_back(temp_data);
 
     rs += partsToRanks[i]->size;
@@ -156,7 +156,7 @@ int fit_impl(raft::handle_t& handle,
         input_col_loc = input_data[k]->ptr + (ci * partsToRanks[k]->size);
 
         input_data_temp[k]->ptr       = input_col_loc;
-        input_data_temp[k]->totalSize = partsToRanks[k]->size;
+        input_data_temp[k]->setNumElements(partsToRanks[k]->size);
 
         raft::linalg::multiplyScalar(
           pred_loc, input_col_loc, h_coef[ci], partsToRanks[k]->size, streams[k % n_streams]);
@@ -173,7 +173,7 @@ int fit_impl(raft::handle_t& handle,
       }
 
       coef_loc_data.ptr       = coef_loc;
-      coef_loc_data.totalSize = size_t(1);
+      coef_loc_data.setNumElements(size_t(1));
       MLCommon::LinAlg::opg::mv_aTb(
         handle, coef_loc_data, input_data_temp, input_desc_temp, residual_temp, streams, n_streams);
 

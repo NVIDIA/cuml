@@ -50,7 +50,7 @@ void lstsqEig_impl(const raft::handle_t& handle,
 
   for (size_t i = 0; i < partsToRanks.size(); i++) {
     Matrix::Data<T> d;
-    d.totalSize = partsToRanks[i]->size;
+    d.setNumElements(partsToRanks[i]->size);
     d.ptr       = curr_ptr;
     curr_ptr    = curr_ptr + (partsToRanks[i]->size * ADesc.N);
     U_temp.push_back(d);
@@ -66,7 +66,7 @@ void lstsqEig_impl(const raft::handle_t& handle,
 
   Matrix::Data<T> w_out;
   w_out.ptr       = tmp_vector.data();
-  w_out.totalSize = ADesc.N;
+  w_out.setNumElements(ADesc.N);
 
   mv_aTb(handle, w_out, U, ADesc, b, streams, n_streams);
 
