@@ -214,11 +214,17 @@ class _VectorizerMixin:
             tokens = str_series.str.tokenize(self.delimiter)
             del str_series
 
-            padding = Series(self.delimiter).repeat(len(tokens))
-            tokens = tokens.str.cat(padding)
-            padding = padding.reset_index(drop=True)
-            tokens = padding.str.cat(tokens)
+            # tokens keeps the original per-document index (repeated per
+            # token); reset both to a plain range first so the two str.cat()
+            # calls below align positionally instead of by that index.
             tokens = tokens.reset_index(drop=True)
+            padding = (
+                Series(self.delimiter)
+                .repeat(len(tokens))
+                .reset_index(drop=True)
+            )
+            tokens = tokens.str.cat(padding)
+            tokens = padding.str.cat(tokens)
 
             ngram_sr = tokens.str.character_ngrams(n=ngram_size)
 
