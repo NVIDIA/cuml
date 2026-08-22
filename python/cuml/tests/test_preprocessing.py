@@ -1312,7 +1312,7 @@ def test_kernel_centerer_get_feature_names_out():
     X_pairwise = linear_kernel(X)
 
     cu_model = cuKernelCenterer().fit(X_pairwise)
-    sk_model = cuKernelCenterer().fit(X_pairwise)
+    sk_model = skKernelCenterer().fit(X_pairwise)
     res = cu_model.get_feature_names_out()
     sol = sk_model.get_feature_names_out()
     np.testing.assert_array_equal(res, sol)
