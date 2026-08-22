@@ -18,13 +18,18 @@ import cupy as cp
 import numpy as np
 import nvforest
 import treelite
+from sklearn.exceptions import NotFittedError
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.mixins import CMajorInputTagMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.treelite import safe_treelite_call
-from cuml.internals.validation import check_inputs, check_random_seed
+from cuml.internals.validation import (
+    check_inputs,
+    check_is_fitted,
+    check_random_seed,
+)
 
 from libc.stddef cimport size_t
 from libc.stdint cimport uint64_t, uintptr_t
@@ -455,6 +460,18 @@ def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
     return rebuilt
 
 
+# Baseline values (matching ``__init__``) restored whenever the fitted state
+# is dropped.
+_UNFITTED_BASELINE = {
+    "_model": None,
+    "_dtype": None,
+    "_treelite_model_bytes": None,
+    "_nvforest_model": None,
+    "_c_normalization": None,
+    "_n_features_per_tree": None,
+}
+
+
 class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     """
     GPU-accelerated Isolation Forest for anomaly detection.
@@ -661,7 +678,9 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         # A failed `fit` can leave `n_features_in_` set (making the model look
         # fitted to `InteropMixin`) while no serialized forest exists yet.
         if self._treelite_model_bytes is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+            raise NotFittedError(
+                "Model has not been fitted. Call fit() first."
+            )
 
         tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
         exported = treelite.sklearn.export_model(tl_model)
@@ -699,15 +718,22 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         }
 
     def __getstate__(self):
-        """Pickle support - serialize state."""
+        """Pickle support: the native model cannot be serialized, so the
+        fitted state is dropped entirely and the unpickled estimator is
+        unfitted, keeping only its constructor parameters."""
         state = self.__dict__.copy()
-        # The native model is not currently serialized.
-        state["_model"] = None
-        state.pop("_nvforest_model", None)
-        warnings.warn(
-            "IsolationForest model serialization is not fully supported. "
-            "The model will need to be re-fitted after unpickling."
-        )
+        if self._model is not None:
+            warnings.warn(
+                "cuML IsolationForest does not serialize its fitted "
+                "state. The unpickled estimator is unfitted; call fit() "
+                "again before using it."
+            )
+        state.update(_UNFITTED_BASELINE)
+        # Fitted attributes follow the sklearn naming convention.
+        for attr in list(state):
+            if attr.endswith("_") and not attr.startswith("_"):
+                del state[attr]
+        state.pop("_n_samples_per_tree", None)
         return state
 
     def __setstate__(self, state):
@@ -935,8 +961,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         -------
         treelite.Model
         """
-        if self._treelite_model_bytes is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+        check_is_fitted(self)
 
         return treelite.Model.deserialize_bytes(self._treelite_model_bytes)
 
@@ -951,8 +976,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         nvforest_model : nvforest.ForestInference
             A forest inference model that predicts average path length.
         """
-        if self._treelite_model_bytes is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+        check_is_fitted(self)
 
         return nvforest.load_from_treelite_model(
             tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
@@ -997,8 +1021,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         are added. Public ``score_samples`` continues to use the existing C++
         scoring path.
         """
-        if self._treelite_model_bytes is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+        check_is_fitted(self)
 
         X_m = check_inputs(
             self,
@@ -1050,9 +1073,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             Typical range is approximately [-1.0, 0.0], where values below
             ``offset_`` are predicted as anomalies.
         """
+        check_is_fitted(self)
         cdef _IsolationForestModel model = self._model
-        if model is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         # Convert input to a row-major device array for inference.
         X_m = check_inputs(
@@ -1140,9 +1162,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         labels : ndarray of shape (n_samples,)
             1 for inliers, -1 for outliers.
         """
+        check_is_fitted(self)
         cdef _IsolationForestModel model = self._model
-        if model is None:
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         # Convert input to a row-major device array for inference.
         X_m = check_inputs(

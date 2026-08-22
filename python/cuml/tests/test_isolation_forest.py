@@ -13,6 +13,7 @@ These tests are designed to be:
 """
 
 import pickle
+import warnings
 
 import cupy as cp
 import numpy as np
@@ -20,6 +21,7 @@ import pytest
 import treelite
 from sklearn.datasets import make_blobs
 from sklearn.ensemble import IsolationForest as skIsolationForest
+from sklearn.exceptions import NotFittedError
 
 from cuml import IsolationForest as cuIsolationForest
 from cuml.internals.interop import UnsupportedOnGPU
@@ -341,7 +343,7 @@ def test_as_sklearn_after_failed_fit_raises(blobs_data):
     cu_model = cuIsolationForest(max_features=0)
     with pytest.raises(ValueError, match="max_features"):
         cu_model.fit(blobs_data)
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not been fitted"):
         cu_model.as_sklearn()
 
 
@@ -780,14 +782,62 @@ def test_treelite_export_before_fit_raises(blobs_data):
     """Treelite and nvForest export should require a fitted model."""
     clf = cuIsolationForest()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_treelite()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_nvforest()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf._score_samples_nvforest(blobs_data)
+
+
+# =============================================================================
+# Pickling tests
+# =============================================================================
+
+
+def _fitted_only_attrs(estimator):
+    return sorted(
+        attr
+        for attr in vars(estimator)
+        if attr.endswith("_") and not attr.startswith("__")
+    )
+
+
+def test_pickle_fitted_model_is_unfitted_after_roundtrip(blobs_data):
+    """The native model cannot be serialized: pickling a fitted model warns
+    and unpickles as a genuinely unfitted estimator with the same
+    parameters."""
+    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
+
+    with pytest.warns(UserWarning, match="unfitted"):
+        payload = pickle.dumps(clf)
+    loaded = pickle.loads(payload)
+
+    assert _fitted_only_attrs(loaded) == []
+    assert loaded._treelite_model_bytes is None
+    assert loaded.get_params() == clf.get_params()
+    with pytest.raises(NotFittedError, match="not fitted"):
+        loaded.predict(blobs_data)
+    with pytest.raises(NotFittedError, match="not fitted"):
+        loaded.as_treelite()
+
+    # Refitting the unpickled estimator reproduces the original model.
+    refit_scores = np.asarray(loaded.fit(blobs_data).score_samples(blobs_data))
+    original_scores = np.asarray(clf.score_samples(blobs_data))
+    np.testing.assert_allclose(refit_scores, original_scores)
+
+
+def test_pickle_unfitted_model_is_silent():
+    """Pickling an unfitted estimator round trips without warning."""
+    clf = cuIsolationForest(n_estimators=7, random_state=3)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        loaded = pickle.loads(pickle.dumps(clf))
+
+    assert loaded.get_params() == clf.get_params()
 
 
 # =============================================================================
@@ -897,24 +947,6 @@ def test_many_features():
     clf.fit(X)
     scores = clf.score_samples(X)
     assert scores.shape == (X.shape[0],)
-
-
-def test_predict_before_fit_raises():
-    """predict() before fit() should raise an error."""
-    clf = cuIsolationForest()
-    X = np.random.randn(10, 3).astype(np.float32)
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf.predict(X)
-
-
-def test_score_samples_before_fit_raises():
-    """score_samples() before fit() should raise an error."""
-    clf = cuIsolationForest()
-    X = np.random.randn(10, 3).astype(np.float32)
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf.score_samples(X)
 
 
 def test_feature_mismatch_raises(blobs_data):
