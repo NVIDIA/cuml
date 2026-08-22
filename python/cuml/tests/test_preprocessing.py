@@ -1321,18 +1321,8 @@ def test_kernel_centerer_get_feature_names_out():
 @pytest.mark.parametrize(
     "encode",
     [
-        pytest.param(
-            "onehot",
-            marks=pytest.mark.xfail(
-                reason="Bug in OneHotEncoder, fixed by #8490", strict=True
-            ),
-        ),
-        pytest.param(
-            "onehot-dense",
-            marks=pytest.mark.xfail(
-                reason="Bug in OneHotEncoder, fixed by #8490", strict=True
-            ),
-        ),
+        "onehot",
+        "onehot-dense",
         "ordinal",
     ],
 )

@@ -349,11 +349,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
 ]
 
-GET_FEATURE_NAMES_OUT_XFAILS = {
-    OneHotEncoder: {
-        "check_transformer_get_feature_names_out": "Estimator errors for array inputs",
-    },
-}
+GET_FEATURE_NAMES_OUT_XFAILS = {}
 
 
 def gen_get_feature_names_out_tests():
