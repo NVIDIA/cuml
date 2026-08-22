@@ -6,6 +6,7 @@ import cudf
 import cupy as cp
 import cupyx.scipy.sparse as cp_sp
 import numpy as np
+from sklearn.base import OneToOneFeatureMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
@@ -577,7 +578,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         return np.array(out, dtype=object)
 
 
-class OrdinalEncoder(Base):
+class OrdinalEncoder(OneToOneFeatureMixin, Base):
     """Encode categorical features as an integer array.
 
     The input to this transformer should be an array-like of integers or

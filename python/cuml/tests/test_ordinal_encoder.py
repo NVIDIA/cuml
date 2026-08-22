@@ -313,3 +313,17 @@ def test_ordinal_encoder_inverse_transform():
         ValueError, match="Samples \\[0\\] can not be inverted"
     ):
         enc.inverse_transform(Xt)
+
+
+def test_ordinal_encoder_get_feature_names_out():
+    X = pd.DataFrame(
+        {
+            "fruits": ["apple", "banana", "apple"],
+            "counts": [0, 1, 2],
+        }
+    )
+    cu_model = OrdinalEncoder().fit(X)
+    sk_model = sklearn.preprocessing.OrdinalEncoder().fit(X)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    assert np.array_equal(res, sol)
