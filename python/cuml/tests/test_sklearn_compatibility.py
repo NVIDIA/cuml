@@ -190,9 +190,6 @@ XFAILS = {
         "check_estimators_unfitted": (
             "Unfitted methods raise RuntimeError instead of NotFittedError"
         ),
-        "check_estimators_pickle": (
-            "Pickling does not preserve the fitted model state"
-        ),
     },
     KMeans: {
         "check_sample_weight_equivalence_on_dense_data": "Sample weights not equal to repeating data",

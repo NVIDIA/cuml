@@ -543,8 +543,8 @@ def test_float_dtypes(dtype):
     assert predictions.shape == (X.shape[0],)
 
 
-def test_refit_replaces_native_model():
-    """Refitting should replace the native model, including across dtypes."""
+def test_refit_replaces_model():
+    """Refitting should replace the fitted model, including across dtypes."""
     rng = np.random.RandomState(42)
     X = rng.randn(100, 4)
     clf = cuIsolationForest(n_estimators=10, random_state=42)
@@ -748,32 +748,14 @@ def test_as_nvforest_loads(blobs_data):
     assert bool(cp.all(cp.isfinite(avg_path_lengths)))
 
 
-def test_nvforest_score_parity(blobs_data):
-    """nvForest-backed scores should match the current C++ scoring path."""
-    X = cp.asarray(blobs_data)
-    clf = cuIsolationForest(n_estimators=25, random_state=42)
-    clf.fit(X)
-
-    cpp_scores = cp.asarray(clf.score_samples(X))
-    nvforest_scores = cp.asarray(clf._score_samples_nvforest(X))
-
-    cp.testing.assert_allclose(
-        cpp_scores, nvforest_scores, rtol=1e-5, atol=1e-6
-    )
-
-
-def test_nvforest_score_parity_single_sample():
-    """c(1)=0 should produce the neutral -0.5 score on both paths."""
+def test_score_samples_single_sample():
+    """c(1)=0 should produce the neutral -0.5 score."""
     X = cp.asarray([[1.0, 2.0]], dtype=cp.float32)
     clf = cuIsolationForest(n_estimators=2, random_state=42).fit(X)
 
-    cpp_scores = cp.asarray(clf.score_samples(X))
-    nvforest_scores = cp.asarray(clf._score_samples_nvforest(X))
-
     cp.testing.assert_allclose(
-        cpp_scores, cp.asarray([-0.5], dtype=cp.float32)
+        cp.asarray(clf.score_samples(X)), cp.asarray([-0.5], dtype=cp.float32)
     )
-    cp.testing.assert_allclose(cpp_scores, nvforest_scores)
 
 
 def test_treelite_export_before_fit_raises(blobs_data):
@@ -787,7 +769,65 @@ def test_treelite_export_before_fit_raises(blobs_data):
         clf.as_nvforest()
 
     with pytest.raises(RuntimeError, match="not been fitted"):
-        clf._score_samples_nvforest(blobs_data)
+        clf.score_samples(blobs_data)
+
+    with pytest.raises(RuntimeError, match="not been fitted"):
+        clf.predict(blobs_data)
+
+
+# =============================================================================
+# Pickling tests
+# =============================================================================
+
+
+def test_pickle_preserves_fitted_model(blobs_data):
+    """The Treelite bytes are the whole fitted model, so an unpickled
+    estimator predicts identically without refitting."""
+    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
+    loaded = pickle.loads(pickle.dumps(clf))
+
+    assert loaded.get_params() == clf.get_params()
+    assert loaded.offset_ == clf.offset_
+    assert loaded.max_samples_ == clf.max_samples_
+    assert loaded.n_features_in_ == clf.n_features_in_
+
+    np.testing.assert_array_equal(
+        np.asarray(loaded.score_samples(blobs_data)),
+        np.asarray(clf.score_samples(blobs_data)),
+    )
+    np.testing.assert_array_equal(
+        np.asarray(loaded.decision_function(blobs_data)),
+        np.asarray(clf.decision_function(blobs_data)),
+    )
+    np.testing.assert_array_equal(
+        np.asarray(loaded.predict(blobs_data)),
+        np.asarray(clf.predict(blobs_data)),
+    )
+    assert loaded.as_treelite().num_tree == clf.as_treelite().num_tree
+
+
+def test_pickle_after_predict_preserves_fitted_model(blobs_data):
+    """The cached nvForest model is dropped on pickling and rebuilt on
+    demand, so predicting before pickling must not change the outcome."""
+    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
+    expected = np.asarray(clf.predict(blobs_data))
+
+    loaded = pickle.loads(pickle.dumps(clf))
+
+    assert loaded._nvforest_model is None
+    np.testing.assert_array_equal(
+        np.asarray(loaded.predict(blobs_data)), expected
+    )
+
+
+def test_pickle_unfitted_model(blobs_data):
+    """An unfitted estimator round trips and stays unfitted."""
+    clf = cuIsolationForest(n_estimators=7, random_state=3)
+    loaded = pickle.loads(pickle.dumps(clf))
+
+    assert loaded.get_params() == clf.get_params()
+    with pytest.raises(RuntimeError, match="not been fitted"):
+        loaded.predict(blobs_data)
 
 
 # =============================================================================
