@@ -120,6 +120,8 @@ ESTIMATORS = [
     SpectralClustering(),
     LogisticRegression(),
     StandardScaler(),
+    OneHotEncoder(),
+    OrdinalEncoder(),
 ]
 
 
@@ -164,8 +166,6 @@ EXCLUDED = {
     LabelEncoder: "Not yet tested for sklearn compat",
     TargetEncoder: "Not yet tested for sklearn compat",
     LabelBinarizer: "Not yet tested for sklearn compat",
-    OneHotEncoder: "Not yet tested for sklearn compat",
-    OrdinalEncoder: "Not yet tested for sklearn compat",
     # Preprocessing (vendored sklearn)
     MinMaxScaler: "Vendored sklearn preprocessing, not yet tested",
     MaxAbsScaler: "Vendored sklearn preprocessing, not yet tested",
