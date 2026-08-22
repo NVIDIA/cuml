@@ -1663,7 +1663,6 @@ def test_inverse_transform_dimension_mismatch():
 def test_get_feature_names_out():
     X, _ = make_blobs(n_features=5, random_state=42)
     cu_model = cuUMAP(n_components=2).fit(X)
-    sk_model = umap.UMAP(n_components=2).fit(X)
     res = cu_model.get_feature_names_out()
-    sol = sk_model.get_feature_names_out()
+    sol = np.array(["umap0", "umap1"], dtype=object)
     np.testing.assert_array_equal(res, sol)
