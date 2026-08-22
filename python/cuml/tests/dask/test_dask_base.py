@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -17,6 +17,7 @@ from sklearn.model_selection import train_test_split
 
 import cuml
 from cuml.dask.cluster import KMeans
+from cuml.dask.common.base import BaseEstimator
 from cuml.dask.common.input_utils import DistributedDataHandler
 from cuml.dask.datasets import make_blobs, make_regression
 from cuml.dask.linear_model import LinearRegression
@@ -169,6 +170,32 @@ def test_getattr(client):
 
     assert nb_model.feature_count_ is not None
     assert isinstance(nb_model.feature_count_, cupy.ndarray)
+
+
+def test_get_model_attr_chains_missing_attribute_error():
+    class Model:
+        pass
+
+    with pytest.raises(
+        AttributeError, match="does not exist on model"
+    ) as error:
+        BaseEstimator._get_model_attr(
+            Model(), "fitted_attribute", None
+        ).compute()
+
+    assert error.value.__cause__ is not None
+
+
+def test_get_model_attr_preserves_attribute_resolution_error():
+    class Model:
+        @property
+        def fitted_attribute(self):
+            raise AttributeError("attribute resolution failed")
+
+    with pytest.raises(AttributeError, match="attribute resolution failed"):
+        BaseEstimator._get_model_attr(
+            Model(), "fitted_attribute", None
+        ).compute()
 
 
 def _make_dask_data_with_empty_worker(client):

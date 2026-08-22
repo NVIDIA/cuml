@@ -94,6 +94,16 @@ class ElasticNet(BaseEstimator):
         self.solver.fit(X, y)
         return self
 
+    def __getattr__(self, attr):
+        if attr in ("coef_", "intercept_", "n_iter_"):
+            try:
+                return getattr(self.solver, attr)
+            except AttributeError as e:
+                raise AttributeError(
+                    "%s is not fitted" % type(self).__name__
+                ) from e
+        return super().__getattr__(attr)
+
     def predict(self, X, delayed=True):
         """
         Predicts the y for X.
