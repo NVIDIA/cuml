@@ -50,6 +50,7 @@ from cuml.linear_model.logistic_regression import LogisticRegression
 from cuml.linear_model.mbsgd_classifier import MBSGDClassifier
 from cuml.linear_model.mbsgd_regressor import MBSGDRegressor
 from cuml.linear_model.ridge import Ridge
+from cuml.linear_model.ridge_cv import RidgeCV
 from cuml.manifold.t_sne import TSNE
 from cuml.manifold.umap import UMAP
 from cuml.metrics import accuracy_score, adjusted_rand_score, r2_score
@@ -155,6 +156,7 @@ __all__ = [
     "RandomForestClassifier",
     "RandomForestRegressor",
     "Ridge",
+    "RidgeCV",
     "SGD",
     "SparseRandomProjection",
     "SVC",
