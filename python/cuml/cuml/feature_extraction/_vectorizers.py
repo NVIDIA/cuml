@@ -241,6 +241,13 @@ class _VectorizerMixin:
             ngram_count = doc_id_df.groupby("doc_id", sort=True).sum()[
                 "ngram_count"
             ]
+            # A document that tokenizes to zero tokens (e.g. an empty string)
+            # never appears in the groupby above, so its doc_id is silently
+            # missing from ngram_count's index instead of being present with
+            # a count of 0. Reindex onto token_count's full per-document
+            # index so the two stay aligned for get_ngrams' later
+            # ngram_count[not_empty_docs] boolean filter.
+            ngram_count = ngram_count.reindex(token_count.index, fill_value=0)
             return ngram_sr, ngram_count, token_count
 
         if ngram_size == 1:
