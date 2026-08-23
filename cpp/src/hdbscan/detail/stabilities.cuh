@@ -6,7 +6,7 @@
 #pragma once
 
 #include "kernels/stabilities.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 

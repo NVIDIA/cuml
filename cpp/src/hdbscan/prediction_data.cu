@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "detail/utils.h"
+#include "detail/utils.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 

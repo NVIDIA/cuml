@@ -7,7 +7,7 @@
 
 #include "kernels/soft_clustering.cuh"
 #include "select.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 #include <cuml/common/distance_type.hpp>

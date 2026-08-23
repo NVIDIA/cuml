@@ -8,7 +8,7 @@
 #include "membership.cuh"
 #include "select.cuh"
 #include "stabilities.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 

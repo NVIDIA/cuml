@@ -5,7 +5,7 @@
 
 #include "detail/condense.cuh"
 #include "detail/predict.cuh"
-#include "runner.h"
+#include "runner.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 #include <cuml/common/distance_type.hpp>

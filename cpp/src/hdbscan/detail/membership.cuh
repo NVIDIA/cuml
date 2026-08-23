@@ -6,7 +6,7 @@
 #pragma once
 
 #include "kernels/membership.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 
