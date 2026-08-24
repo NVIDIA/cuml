@@ -24,8 +24,8 @@
 
 .benchmark-heatmap object {
   display: block;
-  max-width: none;
-  width: 895px;
+  min-width: 680px;
+  width: 100%;
 }
 
 .benchmark-heatmap object[data$="training-heatmap.svg"] {
@@ -70,7 +70,7 @@
 
 table.benchmark-result-table,
 table.benchmark-workload-table {
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   width: 100%;
 }
 
@@ -78,6 +78,24 @@ table.benchmark-result-table th,
 table.benchmark-result-table td,
 table.benchmark-workload-table th,
 table.benchmark-workload-table td {
+  padding: 0.3rem 0.35rem;
+  vertical-align: middle;
+}
+
+table.benchmark-result-table th,
+table.benchmark-workload-table th {
+  line-height: 1.2;
+  white-space: normal;
+}
+
+table.benchmark-result-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+table.benchmark-result-table td:first-child,
+table.benchmark-result-table td:nth-child(2),
+table.benchmark-result-table td:nth-last-child(2),
+table.benchmark-result-table td:nth-last-child(3) {
   white-space: nowrap;
 }
 
