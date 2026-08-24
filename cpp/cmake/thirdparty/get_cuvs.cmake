@@ -7,16 +7,19 @@
 
 set(CUML_MIN_VERSION_cuvs "${CUML_VERSION_MAJOR}.${CUML_VERSION_MINOR}.00")
 
+# Prefix CMake messages with the project context to make CI logs easier to diagnose.
+list(APPEND CMAKE_MESSAGE_CONTEXT "CUML")
+
 function(find_and_configure_cuvs)
     set(oneValueArgs VERSION FORK PINNED_TAG EXCLUDE_FROM_ALL USE_CUVS_STATIC COMPILE_LIBRARY CLONE_ON_PIN)
     cmake_parse_arguments(PKG "${options}" "${oneValueArgs}"
             "${multiValueArgs}" ${ARGN} )
 
     if(PKG_CLONE_ON_PIN AND NOT PKG_PINNED_TAG STREQUAL "${rapids-cmake-checkout-tag}")
-        message(STATUS "CUML: CUVS pinned tag found: ${PKG_PINNED_TAG}. Cloning cuvs locally.")
+        message(STATUS "CUVS pinned tag found: ${PKG_PINNED_TAG}. Cloning cuvs locally.")
         set(CPM_DOWNLOAD_cuvs ON)
     elseif(PKG_USE_CUVS_STATIC AND (NOT CPM_cuvs_SOURCE))
-        message(STATUS "CUML: Cloning cuvs locally to build static libraries.")
+        message(STATUS "Cloning cuvs locally to build static libraries.")
         set(CPM_DOWNLOAD_cuvs ON)
     else()
         message(STATUS "Not cloning cuvs locally")
@@ -49,9 +52,9 @@ function(find_and_configure_cuvs)
     )
 
     if(cuvs_ADDED)
-        message(VERBOSE "CUML: Using CUVS located in ${cuvs_SOURCE_DIR}")
+        message(VERBOSE "Using CUVS located in ${cuvs_SOURCE_DIR}")
     else()
-        message(VERBOSE "CUML: Using CUVS located in ${cuvs_DIR}")
+        message(VERBOSE "Using CUVS located in ${cuvs_DIR}")
     endif()
 
 
@@ -71,3 +74,6 @@ find_and_configure_cuvs(VERSION          ${CUML_MIN_VERSION_cuvs}
       COMPILE_LIBRARY  ${CUML_CUVS_COMPILED}
       USE_CUVS_STATIC  ${CUML_USE_CUVS_STATIC}
       )
+
+# Restore the outer CMAKE_MESSAGE_CONTEXT.
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)

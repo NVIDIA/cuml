@@ -7,13 +7,16 @@
 
 set(CUML_MIN_VERSION_raft "${CUML_VERSION_MAJOR}.${CUML_VERSION_MINOR}.00")
 
+# Prefix CMake messages with the project context to make CI logs easier to diagnose.
+list(APPEND CMAKE_MESSAGE_CONTEXT "CUML")
+
 function(find_and_configure_raft)
     set(oneValueArgs VERSION FORK PINNED_TAG EXCLUDE_FROM_ALL CLONE_ON_PIN NVTX)
     cmake_parse_arguments(PKG "${options}" "${oneValueArgs}"
             "${multiValueArgs}" ${ARGN} )
 
     if(PKG_CLONE_ON_PIN AND NOT PKG_PINNED_TAG STREQUAL "${rapids-cmake-checkout-tag}")
-        message(STATUS "CUML: RAFT pinned tag found: ${PKG_PINNED_TAG}. Cloning raft locally.")
+        message(STATUS "RAFT pinned tag found: ${PKG_PINNED_TAG}. Cloning raft locally.")
         set(CPM_DOWNLOAD_raft ON)
     endif()
 
@@ -26,7 +29,7 @@ function(find_and_configure_raft)
     # the raft-config.cmake re-evaluates the RAFT_NVTX value
     set(RAFT_NVTX ${PKG_NVTX})
 
-    message(VERBOSE "CUML: raft FIND_PACKAGE_ARGUMENTS COMPONENTS ${RAFT_COMPONENTS}")
+    message(VERBOSE "raft FIND_PACKAGE_ARGUMENTS COMPONENTS ${RAFT_COMPONENTS}")
 
     rapids_cpm_find(raft ${PKG_VERSION}
       GLOBAL_TARGETS      raft::raft
@@ -44,9 +47,9 @@ function(find_and_configure_raft)
     )
 
     if(raft_ADDED)
-        message(VERBOSE "CUML: Using RAFT located in ${raft_SOURCE_DIR}")
+        message(VERBOSE "Using RAFT located in ${raft_SOURCE_DIR}")
     else()
-        message(VERBOSE "CUML: Using RAFT located in ${raft_DIR}")
+        message(VERBOSE "Using RAFT located in ${raft_DIR}")
     endif()
 
 
@@ -65,3 +68,6 @@ find_and_configure_raft(VERSION          ${CUML_MIN_VERSION_raft}
       CLONE_ON_PIN     ${CUML_RAFT_CLONE_ON_PIN}
       NVTX             ${NVTX}
       )
+
+# Restore the outer CMAKE_MESSAGE_CONTEXT.
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)

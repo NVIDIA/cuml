@@ -7,13 +7,16 @@
 
 set(CUML_MIN_VERSION_nvforest "${CUML_VERSION_MAJOR}.${CUML_VERSION_MINOR}.00")
 
+# Prefix CMake messages with the project context to make CI logs easier to diagnose.
+list(APPEND CMAKE_MESSAGE_CONTEXT "CUML")
+
 function(find_and_configure_nvforest)
     set(oneValueArgs VERSION FORK PINNED_TAG EXCLUDE_FROM_ALL CLONE_ON_PIN)
     cmake_parse_arguments(PKG "${options}" "${oneValueArgs}"
             "${multiValueArgs}" ${ARGN} )
 
     if(PKG_CLONE_ON_PIN AND NOT PKG_PINNED_TAG STREQUAL "${rapids-cmake-checkout-tag}")
-        message(STATUS "CUML: nvForest pinned tag found: ${PKG_PINNED_TAG}. Cloning nvForest locally.")
+        message(STATUS "nvForest pinned tag found: ${PKG_PINNED_TAG}. Cloning nvForest locally.")
         set(CPM_DOWNLOAD_nvforest ON)
     endif()
 
@@ -31,9 +34,9 @@ function(find_and_configure_nvforest)
     )
 
     if(nvforest_ADDED)
-        message(VERBOSE "CUML: Using nvForest located in ${nvforest_SOURCE_DIR}")
+        message(VERBOSE "Using nvForest located in ${nvforest_SOURCE_DIR}")
     else()
-        message(VERBOSE "CUML: Using nvForest located in ${nvforest_DIR}")
+        message(VERBOSE "Using nvForest located in ${nvforest_DIR}")
     endif()
 
 endfunction()
@@ -50,3 +53,6 @@ find_and_configure_nvforest(VERSION          ${CUML_MIN_VERSION_nvforest}
         # even if it's already installed.
         CLONE_ON_PIN     ${CUML_NVFOREST_CLONE_ON_PIN}
 )
+
+# Restore the outer CMAKE_MESSAGE_CONTEXT.
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)
