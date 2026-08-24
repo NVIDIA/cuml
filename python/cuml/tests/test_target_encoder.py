@@ -197,6 +197,7 @@ def test_targetencoder_smooth():
     )
     smooths = [0, 1, 2, 10000]
     for smooth, answer in zip(smooths, answers):
+        answer = np.array(answer)[:, None]
         encoder = TargetEncoder(smooth=smooth)
         train_encoded = encoder.fit_transform(train, label)
         assert array_equal(train_encoded, answer)

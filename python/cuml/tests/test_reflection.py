@@ -631,6 +631,30 @@ def test_array_like_inputs_treated_as_numpy_by_reflection():
     assert_output_type(model_fit_cupy.example_no_args(), "cupy")
 
 
+@pytest.mark.parametrize("output_type", ["pandas", "cudf"])
+def test_one_col_2d_array_not_coerced_to_series_in_transform(output_type):
+    """For legacy reasons, cuml will coerce a 1 column 2D output to a Series
+    instead of a DataFrame when outputting pandas/cudf types. In the long run
+    we want to deprecate and remove this (See #7893). However, the output of
+    `transform` should _always_ be a 2D output. Here we test that this coercion
+    is skipped for `transform`/`fit_transform`.
+    """
+
+    class MyEstimator(Base):
+        @mlfunc
+        def transform(self, X):
+            return cp.ones((X.shape[0], 1))
+
+        @mlfunc
+        def fit_transform(self, X):
+            return cp.ones((X.shape[0], 1))
+
+    model = MyEstimator(output_type=output_type)
+    X = cp.ones((3, 4))
+    assert model.fit_transform(X).ndim == 2
+    assert model.transform(X).ndim == 2
+
+
 def test_estimator_method_with_no_array_input():
     X = rand_array("numpy", shape=(10, 5))
     model = DummyEstimator().fit(X)
