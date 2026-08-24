@@ -352,6 +352,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
     SimpleImputer(),
     MissingIndicator(),
+    TargetEncoder(multi_feature_mode="independent"),
 ]
 
 GET_FEATURE_NAMES_OUT_XFAILS = {}

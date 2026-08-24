@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import cudf
@@ -321,3 +321,18 @@ def test_target_encoder_target_type_and_classes():
     enc = TargetEncoder().fit(X, y)
     assert enc.target_type_ == "continuous"
     assert enc.classes_ is None
+
+
+def test_get_feature_names_out():
+    X = np.array([[0, 1], [1, 2], [2, 3]])
+    y = np.array(["a", "b", "a"], dtype="object")
+
+    model = TargetEncoder(multi_feature_mode="combination").fit(X, y)
+    res = model.get_feature_names_out()
+    sol = np.array(["targetencoder0"], dtype=object)
+    np.testing.assert_array_equal(res, sol)
+
+    model = TargetEncoder(multi_feature_mode="independent").fit(X, y)
+    res = model.get_feature_names_out(["a", "b"])
+    sol = np.array(["a", "b"], dtype=object)
+    np.testing.assert_array_equal(res, sol)
