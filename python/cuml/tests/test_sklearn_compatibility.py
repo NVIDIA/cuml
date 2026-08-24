@@ -334,6 +334,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     GaussianRandomProjection(n_components=2),
     SparseRandomProjection(n_components=2),
     UMAP(n_components=2),
+    TSNE(n_components=2),
     Binarizer(),
     KernelCenterer(),
     MaxAbsScaler(),

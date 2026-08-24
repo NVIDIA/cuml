@@ -454,3 +454,11 @@ def test_tsne_n_iter(algorithm):
     model = TSNE(n_components=2, random_state=42).fit(X)
     assert model.n_iter_ > 0
     assert model.n_iter_ <= model.max_iter
+
+
+def test_get_feature_names_out():
+    X, _ = make_blobs(n_features=5, random_state=42)
+    model = TSNE(n_components=2).fit(X)
+    res = model.get_feature_names_out()
+    sol = np.array(["tsne0", "tsne1"], dtype=object)
+    np.testing.assert_array_equal(res, sol)
