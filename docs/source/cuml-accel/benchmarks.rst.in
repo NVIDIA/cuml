@@ -97,29 +97,31 @@ shape.
 
 @@ESTIMATOR_SECTIONS@@
 
-Choose workloads that can amortize acceleration overhead
----------------------------------------------------------
+What determines GPU speedup
+---------------------------
 
 .. grid:: 1 1 3 3
    :gutter: 2
 
-   .. grid-item-card:: Best candidates
+   .. grid-item-card:: Compute intensity
 
-      Compute-heavy fitting, forests, nearest-neighbor search, clustering, and
-      sufficiently large matrices give GPU work room to dominate dispatch and
-      data-conversion costs.
+      GPU acceleration has more room to pay off when estimator work dominates
+      dispatch and data-conversion overhead. Compute-heavy fitting, clustering,
+      nearest-neighbor search, forests, and high-rank decomposition are often
+      strong candidates.
 
-   .. grid-item-card:: Measure inference separately
+   .. grid-item-card:: Operation and shape
 
-      A fast fit does not guarantee a fast prediction or transform. Small and
-      narrow inference workloads often remain latency-bound; benchmark the
-      operation used in production.
+      Rows alone do not determine performance. Feature count, retained
+      components, and the exact operation also matter. Evaluate fit, predict,
+      and transform separately; these benchmark points are not a controlled
+      scaling curve.
 
-   .. grid-item-card:: Treat timeouts as unknown
+   .. grid-item-card:: End-to-end workflow
 
-      A CPU-only timeout can show that the accelerated run finished within
-      policy, but it does not provide a numeric speedup. Use the detailed
-      status and actual shape when planning capacity.
+      Realized application performance also depends on data location,
+      conversions, batching, and repeated calls. Use these results to identify
+      promising candidates, then measure the production path.
 
 Methodology and reproducibility
 -------------------------------
