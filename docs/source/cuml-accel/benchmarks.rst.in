@@ -16,10 +16,6 @@ and the dataset's size and shape, ranging from overhead-dominated small
 inference workloads to **@@UMAP_SPEEDUP@@ for UMAP** and
 **@@HDBSCAN_SPEEDUP@@ for HDBSCAN**.
 
-These claims cover completed comparisons on this tested system, not every
-workload. Timeouts remain unavailable—never estimated—and inference and
-transforms are reported separately below.
-
 Speedup by operation and workload
 ---------------------------------
 
@@ -29,14 +25,10 @@ or a CPU-only timeout where the accelerated run completed, gray is centered at
 
 .. rst-class:: benchmark-footnote
 
-**What “timeout” means.** A timeout means the **complete isolated benchmark
-case** exceeded its wall-clock limit: **@@DEFAULT_TIMEOUT_MIN@@ minutes** for
-small and medium workloads and PCA's ``large`` fit-transform, or
-**@@LARGE_TIMEOUT_MIN@@ minutes** for the other ``large`` workloads. That
-budget included process startup, data preparation, estimator setup, one
-warmup, all three measured repetitions, and correctness validation—not just
-one estimator call. The worker process was then terminated, and no speedup was
-inferred.
+A timeout indicates that the complete isolated benchmark case—not a single
+estimator call—exceeded its wall-clock limit: **@@DEFAULT_TIMEOUT_MIN@@
+minutes** for small and medium workloads and PCA's ``large`` fit-transform, or
+**@@LARGE_TIMEOUT_MIN@@ minutes** for other ``large`` workloads.
 
 Training and combined operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -134,9 +126,8 @@ Methodology and reproducibility
 
 These benchmarks compare scikit-learn CPU execution with ``cuml.accel`` on
 NVIDIA RTX Pro 6000 Blackwell across five workload shapes. Each isolated case
-used one warmup and the median of three measured repetitions,
-operation-appropriate correctness validation, and a complete-case timeout;
-unavailable comparisons were retained without inferred speedups.
+used one warmup, the median of three measured repetitions,
+operation-appropriate correctness validation, and a complete-case timeout.
 
 .. dropdown:: Test system, validation, and timing policy
 
@@ -154,8 +145,7 @@ unavailable comparisons were retained without inferred speedups.
    PCA ``fit_transform``. The limit covered process startup, data preparation,
    estimator setup, one warmup, three measured repetitions, and correctness
    validation. The results retain @@CPU_TIMEOUTS@@ CPU-only, @@GPU_TIMEOUTS@@
-   GPU-only, and @@BOTH_TIMEOUTS@@ both-side timeouts without inferred
-   speedups.
+   GPU-only, and @@BOTH_TIMEOUTS@@ both-side timeouts.
 
    **Execution and correctness.** Successful accelerated measurements were
    instrumented to verify GPU-only execution. The benchmark runner applied
@@ -164,10 +154,12 @@ unavailable comparisons were retained without inferred speedups.
 
    **Packages.** @@PACKAGES@@.
 
-   **Coverage.** All @@CASES@@ cases are included, including all
+   **Coverage and scope.** All @@CASES@@ cases are included, including all
    @@UNAVAILABLE@@ unavailable comparisons and every completed result below
-   1×. PCA's operation-specific ``large`` fit-transform uses 5,000 rows,
-   2,048 features, and 1,024 retained components.
+   1×. These measurements describe the tested cases on this system; results
+   for other workloads and systems will vary. PCA's operation-specific
+   ``large`` fit-transform uses 5,000 rows, 2,048 features, and 1,024 retained
+   components.
 
 Continue with cuml.accel
 ------------------------
