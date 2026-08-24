@@ -272,7 +272,9 @@ def setup_redirects(app, docname):
 
 def setup(app):
     app.add_css_file("custom.css")
+    app.add_css_file("cuml-accel-benchmarks.css")
     app.add_js_file("open-details-on-fragment.js")
+    app.add_js_file("cuml-accel-benchmarks.js")
     app.connect("build-finished", setup_redirects)
 
 
