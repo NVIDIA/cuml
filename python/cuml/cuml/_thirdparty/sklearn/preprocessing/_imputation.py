@@ -30,7 +30,11 @@ from cuml.internals.mixins import (
     _ensure_transformer_tags,
 )
 from cuml.internals.outputs import mlfunc, ReflectedAttr
-from cuml.internals.validation import check_is_fitted, check_inputs
+from cuml.internals.validation import (
+    check_is_fitted,
+    check_inputs,
+    check_input_features,
+)
 
 from ....thirdparty_adapters import (
     _get_mask,
@@ -488,6 +492,29 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
         X = super()._concatenate_indicator(X, X_indicator)
         return X
 
+    @mlfunc(convert_output=False)
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input feature names.
+
+        Returns
+        -------
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
+        """
+        check_is_fitted(self)
+        input_features = check_input_features(self, input_features)
+        non_missing_mask = np.logical_not(_get_mask(self.statistics_, np.nan)).get()
+        names = input_features[non_missing_mask]
+        if self.add_indicator:
+            indicator_names = self.indicator_.get_feature_names_out(input_features)
+            names = cpu_np.concatenate([names, indicator_names])
+        return names
+
 
 class MissingIndicator(AllowNaNTagMixin,
                        SparseInputTagMixin,
@@ -757,6 +784,31 @@ class MissingIndicator(AllowNaNTagMixin,
                 imputer_mask = imputer_mask[:, self.features_]
 
         return imputer_mask
+
+    @mlfunc(convert_output=False)
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input feature names.
+
+        Returns
+        -------
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
+        """
+        check_is_fitted(self)
+        input_features = check_input_features(self, input_features)
+        prefix = self.__class__.__name__.lower()
+        return cpu_np.asarray(
+            [
+                f"{prefix}_{feature_name}"
+                for feature_name in input_features[self.features_.get()]
+            ],
+            dtype=object,
+        )
 
     @mlfunc(set_input_type=True)
     def fit_transform(self, X, y=None):

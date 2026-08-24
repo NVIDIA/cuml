@@ -350,6 +350,8 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     PolynomialFeatures(),
     KBinsDiscretizer(),
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
+    SimpleImputer(),
+    MissingIndicator(),
 ]
 
 GET_FEATURE_NAMES_OUT_XFAILS = {}
