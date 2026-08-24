@@ -145,6 +145,10 @@ class CumlAccelBenchmarkDocsTests(TestCase):
         self.assertNotIn("feature_wide_1024", self.page)
         self.assertNotIn("cuml.accel 26.10.0a69", self.page)
         self.assertNotIn('class="numeric slowdown"', self.page)
+        self.assertNotIn("Case limit", self.page)
+        self.assertNotIn("Speedup / status", self.page)
+        self.assertIn("CPU timeout (10 min)", self.page)
+        self.assertIn("GPU timeout (3 min)", self.page)
         for forbidden in (
             "artifact",
             "benchmark-data",
@@ -153,6 +157,19 @@ class CumlAccelBenchmarkDocsTests(TestCase):
             ".json",
         ):
             self.assertNotIn(forbidden.lower(), self.page.lower())
+
+    def test_presentation_assets_fit_normal_desktop_widths(self) -> None:
+        css = (
+            generator.ROOT / "docs/source/_static/cuml-accel-benchmarks.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn("min-width: 680px", css)
+        self.assertIn("width: 100%", css)
+        self.assertNotIn("width: 895px", css)
+        self.assertNotIn("nth-last-child(-n + 3)", css)
+        self.assertNotRegex(
+            css,
+            r"benchmark-result-table td,[^}]+white-space: nowrap",
+        )
 
     def test_heatmaps_preserve_current_selection_and_links(self) -> None:
         namespace = {"svg": "http://www.w3.org/2000/svg"}
