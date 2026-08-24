@@ -1,102 +1,1838 @@
-Benchmarks
-==========
+.. SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+.. SPDX-License-Identifier: Apache-2.0
+.. This file is the editable template for benchmarks.rst. Run
+.. docs/benchmarks/generate_cuml_accel_benchmarks.py render after editing it.
 
-cuML provides GPU-accelerated inference and training for classical machine learning
-models. With ``cuml.accel``, existing scikit-learn, UMAP, and HDBSCAN scripts can
-benefit from similar acceleration without code changes. Exact speedups depend on
-the model, dataset size, and hyperparameters, but the following benchmarks give a
-general sense of the performance improvements you can expect.
+Accelerate familiar scikit-learn workflows
+===========================================
 
-Training
---------
+.. rst-class:: benchmark-lede
 
-Both training and inference benefit from GPU acceleration, but cuML tends to
-provide larger gains for training. Training with cuML is typically 2x to 80x
-faster, especially with large datasets. ``cuml.accel`` provides similar speedups
-without requiring cuML-specific code changes.
+Zero-code change acceleration with ``cuml.accel`` brings familiar
+scikit-learn workflows to the GPU, delivering a **4.3× median
+speedup** across completed training and combined-operation comparisons on
+NVIDIA RTX Pro 6000 Blackwell. Measured performance depends on the operation
+and the dataset's size and shape, ranging from overhead-dominated small
+inference workloads to **92× for UMAP** and
+**460× for HDBSCAN**.
 
-Relatively complex manifold algorithms such as HDBSCAN, t-SNE, and UMAP tend to
-benefit most from ``cuml.accel``. Speedups of 60x to 300x are typical for
-realistic workloads. Simpler algorithms such as KMeans and Random Forest can
-also see speedups of 15x to 80x. Even algorithms such as Logistic Regression,
-Lasso, PCA, and Ridge typically achieve speedups of 2x to 10x.
+These claims cover completed comparisons on this tested system, not every
+workload. Timeouts remain unavailable—never estimated—and inference and
+transforms are reported separately below.
 
-The following chart shows the relative speedup from running the same code with
-and without ``cuml.accel``. The datasets range from 8 to 512 features.
-``cuml.accel`` provides the largest improvement for HDBSCAN, with a 179x
-speedup, while KNeighborsRegressor still achieves a 2x speedup.
+Speedup by operation and workload
+---------------------------------
 
-.. image:: ../img/overall_speedup.png
-   :alt: Overall speedup
+Rows are ranked by median completed speedup. Green indicates a measured gain
+or a CPU-only timeout where the accelerated run completed, gray is centered at
+1×, warm colors indicate a slowdown, and hatching marks every timeout.
 
+.. rst-class:: benchmark-footnote
 
-What’s the overhead compared to invoking cuML directly?
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**What “timeout” means.** A timeout means the **complete isolated benchmark
+case** exceeded its wall-clock limit: **3 minutes** for
+small and medium workloads and PCA's ``large`` fit-transform, or
+**10 minutes** for the other ``large`` workloads. That
+budget included process startup, data preparation, estimator setup, one
+warmup, all three measured repetitions, and correctness validation—not just
+one estimator call. The worker process was then terminated, and no speedup was
+inferred.
 
-Although ``cuml.accel`` aims to provide as much acceleration as cuML-specific
-code, it introduces some overhead relative to calling cuML directly. Whether it
-is worth rewriting code to use cuML directly depends on the estimator,
-parameters, and data size. The overhead is typically low for model training,
-although it varies by algorithm:
+Training and combined operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. image:: ../img/overall_overhead.png
-   :alt: Overall overhead
+54 of 70 comparisons completed;
+41 reached at least 2×.
 
-Training is typically computationally expensive, so data transfers between the
-CPU and GPU and the accelerator's other overhead do not significantly affect
-the total runtime. The overhead is more noticeable for simpler tasks, such as
-training ``KNeighbors`` models. Calling cuML directly can be significantly
-faster for these workloads when maximum GPU performance is required, although
-the difference in execution time may be a matter of seconds versus
-milliseconds.
+.. raw:: html
 
-Dataset shape also influences these gains. Skinny datasets have relatively few
-features but many rows. GPU acceleration still provides a substantial
-performance improvement for these datasets, although the relative advantage may
-be smaller for simpler algorithms that are already fast on the CPU. The
-following benchmark shows speedups for datasets with 8 and 16 features:
+   <div class="benchmark-heatmap" tabindex="0" aria-label="Scrollable training heatmap">
+     <object data="../../_static/cuml-accel-benchmarks/training-heatmap.svg" type="image/svg+xml" aria-label="Training speedup heatmap. Operation labels link to estimator details; exact values and timeout labels are present in the graphic and detailed tables.">
+       <a href="../../_static/cuml-accel-benchmarks/training-heatmap.svg">Open the training speedup heatmap</a>
+     </object>
+   </div>
 
-.. image:: ../img/skinny_speedup.png
-   :alt: Skinny speedup
+Inference and transforms
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Wide datasets particularly benefit from the accelerator. High-dimensional tasks
-often require substantial computation and can be impractical in CPU-based
-workflows. cuML and ``cuml.accel`` provide some of their largest speedups for
-these datasets, especially for dimensionality reduction methods such as t-SNE
-and UMAP. This can make it practical to incorporate UMAP and HDBSCAN into
-complex, high-dimensional workflows. The following benchmark shows speedups for
-datasets with 128, 256, and 512 features:
+The completed median is **0.81×**;
+33 of 65 completed comparisons are
+below 1×. Neighbor and forest operations still show strong gains at suitable
+scales.
 
-.. image:: ../img/wide_speedup.png
-   :alt: Wide speedup
+.. raw:: html
 
+   <div class="benchmark-heatmap" tabindex="0" aria-label="Scrollable inference heatmap">
+     <object data="../../_static/cuml-accel-benchmarks/inference-heatmap.svg" type="image/svg+xml" aria-label="Inference and transform speedup heatmap. Operation labels link to estimator details; exact values and timeout labels are present in the graphic and detailed tables.">
+       <a href="../../_static/cuml-accel-benchmarks/inference-heatmap.svg">Open the inference speedup heatmap</a>
+     </object>
+   </div>
 
-Inference
-----------
+Detailed benchmark results
+--------------------------
 
+Use the workload guide to interpret the heatmaps, then open an estimator for
+exact shapes, wall times, slowdowns, and timeouts.
 
-The accelerator also speeds up inference, although the gains tend to be smaller
-because inference is usually much faster than training. A 2x to 7x improvement,
-as observed with KNeighbors and Random Forest, can still be important for
-large-scale or real-time predictions. GPU acceleration can be particularly
-valuable for large-batch or repeated inference.
+Five workload shapes, from transfer-bound to compute-heavy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Every operation uses the same five labels. The first four shapes are fixed;
+``large`` is operation-specific because algorithms have very different
+dimensionality, memory, and runtime behavior.
 
-.. image:: ../img/inference_speedup.png
-   :alt: Inference Speedup
+.. list-table:: Workload dimensions and decimal float32 X size
+   :header-rows: 1
+   :class: benchmark-workload-table
 
+   * - Label
+     - Rows
+     - Features
+     - X size
+   * - ``small.balanced``
+     - 19,531
+     - 128
+     - 10 MB
+   * - ``medium.thin``
+     - 195,312
+     - 16
+     - 12.5 MB
+   * - ``medium.balanced``
+     - 195,312
+     - 128
+     - 100 MB
+   * - ``medium.wide``
+     - 195,312
+     - 512
+     - 400 MB
+   * - ``large *``
+     - 5,000–19,531,250
+     - 128–2,048
+     - 41 MB–10 GB
 
-For smaller datasets, data transfer accounts for a larger portion of the total
-runtime. With many small batches, this overhead may offset most or all of the
-benefit of running an accelerated algorithm on the GPU. These workloads benefit
-from keeping inputs and outputs on the GPU, for example as CuPy arrays. Because
-accelerator mode does not support this optimization, consider calling cuML
-directly with GPU-native data types for these workflows.
+.. rst-class:: benchmark-footnote
 
-.. image:: ../img/inference_overhead.png
-   :alt: Inference overhead
+\* The actual rows, features, input size, and timeout for ``large`` are
+operation-specific. Exact values appear in each estimator table.
 
+Results by estimator
+~~~~~~~~~~~~~~~~~~~~
 
-Overall, these benchmarks show that ``cuml.accel`` can reduce training times
-across a range of machine learning tasks while also improving inference, without
-requiring changes to existing code.
+Open an estimator for every workload, wall time, slowdown, timeout, and actual
+shape.
+
+.. raw:: html
+
+   <div class="benchmark-detail-controls" aria-label="Estimator detail controls">
+     <button type="button" data-benchmark-details="expand">Expand all</button>
+     <button type="button" data-benchmark-details="collapse">Collapse all</button>
+   </div>
+
+.. container:: benchmark-estimator-details
+
+   .. rubric:: Linear models
+
+   .. dropdown:: LinearRegression
+      :name: benchmark-linearregression
+
+      .. list-table:: LinearRegression results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 21.8 ms
+           - 5.0 ms
+           - 4.34×
+           - 3 min
+         * - ``fit``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 16.5 ms
+           - 3.9 ms
+           - 4.28×
+           - 3 min
+         * - ``fit``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 265.6 ms
+           - 21.5 ms
+           - 12.4×
+           - 3 min
+         * - ``fit``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 1.3 s
+           - 51.3 ms
+           - 25.3×
+           - 3 min
+         * - ``fit``
+           - ``large``
+           - 7,812,500
+           - 128
+           - 4 GB
+           - 15.7 s
+           - 1.73 s
+           - 9.08×
+           - 10 min
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 0.11 ms
+           - 0.40 ms
+           - 0.27×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 0.13 ms
+           - 0.38 ms
+           - 0.35×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 3.0 ms
+           - 1.2 ms
+           - 2.49×
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 2.9 ms
+           - 3.8 ms
+           - 0.76×
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 7,812,500
+           - 128
+           - 4 GB
+           - 23.8 ms
+           - 32.8 ms
+           - 0.73×
+           - 10 min
+
+   .. dropdown:: LogisticRegression
+      :name: benchmark-logisticregression
+
+      .. list-table:: LogisticRegression results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 30.0 ms
+           - 4.9 ms
+           - 6.12×
+           - 3 min
+         * - ``fit``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 164.9 ms
+           - 6.2 ms
+           - 26.6×
+           - 3 min
+         * - ``fit``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 137.0 ms
+           - 13.3 ms
+           - 10.3×
+           - 3 min
+         * - ``fit``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 294.7 ms
+           - 43.0 ms
+           - 6.86×
+           - 3 min
+         * - ``fit``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 11.6 s
+           - 1.18 s
+           - 9.81×
+           - 10 min
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 0.17 ms
+           - 0.51 ms
+           - 0.33×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 0.24 ms
+           - 0.61 ms
+           - 0.39×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 0.57 ms
+           - 1.3 ms
+           - 0.44×
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 2.9 ms
+           - 3.6 ms
+           - 0.81×
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 49.5 ms
+           - 81.3 ms
+           - 0.61×
+           - 10 min
+
+   .. dropdown:: Ridge
+      :name: benchmark-ridge
+
+      .. list-table:: Ridge results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 8.8 ms
+           - 4.1 ms
+           - 2.14×
+           - 3 min
+         * - ``fit``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 14.7 ms
+           - 3.6 ms
+           - 4.08×
+           - 3 min
+         * - ``fit``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 94.3 ms
+           - 22.7 ms
+           - 4.16×
+           - 3 min
+         * - ``fit``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 563.0 ms
+           - 56.3 ms
+           - 10.00×
+           - 3 min
+         * - ``fit``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 5.78 s
+           - 1.99 s
+           - 2.90×
+           - 10 min
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 0.10 ms
+           - 0.34 ms
+           - 0.30×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 0.17 ms
+           - 0.45 ms
+           - 0.39×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 0.52 ms
+           - 1.3 ms
+           - 0.40×
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 1.9 ms
+           - 3.8 ms
+           - 0.50×
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 54.1 ms
+           - 81.1 ms
+           - 0.67×
+           - 10 min
+
+   .. rubric:: Clustering and manifold learning
+
+   .. dropdown:: DBSCAN
+      :name: benchmark-dbscan
+
+      .. list-table:: DBSCAN results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 142.2 ms
+           - 8.3 ms
+           - 17.2×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 1.77 s
+           - 315.0 ms
+           - 5.61×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 5.63 s
+           - 587.2 ms
+           - 9.59×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 22.7 s
+           - 2.41 s
+           - 9.41×
+           - 3 min
+         * - ``fit_predict``
+           - ``large``
+           - 1,953,125
+           - 128
+           - 1 GB
+           - —
+           - 70.1 s
+           - CPU timeout
+           - 10 min
+
+   .. dropdown:: HDBSCAN
+      :name: benchmark-hdbscan
+
+      .. list-table:: HDBSCAN results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 12.9 s
+           - 28.0 ms
+           - 460×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 15.5 s
+           - 678.1 ms
+           - 22.9×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - —
+           - 1.51 s
+           - CPU timeout
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 4.76 s
+           - CPU timeout
+           - 3 min
+         * - ``fit_predict``
+           - ``large``
+           - 976,562
+           - 128
+           - 500 MB
+           - —
+           - 37 s
+           - CPU timeout
+           - 10 min
+
+   .. dropdown:: KMeans
+      :name: benchmark-kmeans
+
+      .. list-table:: KMeans results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 26.5 ms
+           - 14.1 ms
+           - 1.87×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 67.1 ms
+           - 20.4 ms
+           - 3.30×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 217.1 ms
+           - 63.4 ms
+           - 3.43×
+           - 3 min
+         * - ``fit_predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 2.2 s
+           - 202.9 ms
+           - 10.9×
+           - 3 min
+         * - ``fit_predict``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 59 s
+           - 5.06 s
+           - 11.7×
+           - 10 min
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 0.23 ms
+           - 0.60 ms
+           - 0.38×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 0.80 ms
+           - 0.73 ms
+           - 1.10×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 0.98 ms
+           - 1.5 ms
+           - 0.64×
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 2.6 ms
+           - 4.1 ms
+           - 0.63×
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 52.1 ms
+           - 85.0 ms
+           - 0.61×
+           - 10 min
+
+   .. dropdown:: UMAP
+      :name: benchmark-umap
+
+      .. list-table:: UMAP results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 5.16 s
+           - 207.7 ms
+           - 24.8×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - —
+           - 299.8 ms
+           - CPU timeout
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - —
+           - 1.14 s
+           - CPU timeout
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 3.05 s
+           - CPU timeout
+           - 3 min
+         * - ``fit_transform``
+           - ``large``
+           - 1,953,125
+           - 128
+           - 1 GB
+           - —
+           - 56.4 s
+           - CPU timeout
+           - 10 min
+         * - ``transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 607.6 ms
+           - 11.2 ms
+           - 54.5×
+           - 3 min
+         * - ``transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 1.59 s
+           - 17.3 ms
+           - 92.2×
+           - 3 min
+         * - ``transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 5.52 s
+           - 72.4 ms
+           - 76.2×
+           - 3 min
+         * - ``transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 277.7 ms
+           - CPU timeout
+           - 3 min
+         * - ``transform``
+           - ``large``
+           - 1,953,125
+           - 128
+           - 1 GB
+           - —
+           - 5.48 s
+           - CPU timeout
+           - 10 min
+
+   .. rubric:: Neighbors
+
+   .. dropdown:: KNeighborsClassifier
+      :name: benchmark-kneighborsclassifier
+
+      .. list-table:: KNeighborsClassifier results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 27.5 ms
+           - 1.5 ms
+           - 18.2×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 314.1 ms
+           - 9.8 ms
+           - 32.2×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 1.15 s
+           - 53.3 ms
+           - 21.5×
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 3.58 s
+           - 219.4 ms
+           - 16.3×
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 7,812,500
+           - 128
+           - 4 GB
+           - —
+           - 88.8 s
+           - CPU timeout
+           - 10 min
+
+   .. dropdown:: NearestNeighbors
+      :name: benchmark-nearestneighbors
+
+      .. list-table:: NearestNeighbors results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``kneighbors``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 19.0 ms
+           - 1.3 ms
+           - 15.1×
+           - 3 min
+         * - ``kneighbors``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 384.0 ms
+           - 9.5 ms
+           - 40.4×
+           - 3 min
+         * - ``kneighbors``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 1.28 s
+           - 53.2 ms
+           - 24.0×
+           - 3 min
+         * - ``kneighbors``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 3.59 s
+           - 217.1 ms
+           - 16.5×
+           - 3 min
+         * - ``kneighbors``
+           - ``large``
+           - 7,812,500
+           - 128
+           - 4 GB
+           - —
+           - 88.7 s
+           - CPU timeout
+           - 10 min
+
+   .. rubric:: Decomposition
+
+   .. dropdown:: PCA
+      :name: benchmark-pca
+
+      .. list-table:: PCA results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - Retained components
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - —
+           - 6.9 ms
+           - 8.8 ms
+           - 0.79×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - —
+           - 8.0 ms
+           - 9.5 ms
+           - 0.85×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - —
+           - 55.5 ms
+           - 243.0 ms
+           - 0.23×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 653.5 ms
+           - 1.03 s
+           - 0.64×
+           - 3 min
+         * - ``fit_transform``
+           - ``large``
+           - 5,000
+           - 2,048
+           - 41 MB
+           - 1,024
+           - 1.56 s
+           - 127.3 ms
+           - 12.2×
+           - 3 min
+         * - ``transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - —
+           - 0.17 ms
+           - 0.64 ms
+           - 0.26×
+           - 3 min
+         * - ``transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - —
+           - 0.51 ms
+           - 0.74 ms
+           - 0.68×
+           - 3 min
+         * - ``transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - —
+           - 2.1 ms
+           - 3.8 ms
+           - 0.56×
+           - 3 min
+         * - ``transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 3.1 ms
+           - 39.9 ms
+           - 0.08×
+           - 3 min
+         * - ``transform``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - —
+           - 81.8 ms
+           - 1.39 s
+           - 0.06×
+           - 10 min
+
+   .. dropdown:: TruncatedSVD
+      :name: benchmark-truncatedsvd
+
+      .. list-table:: TruncatedSVD results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 29.4 ms
+           - 6.4 ms
+           - 4.60×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 102.7 ms
+           - 7.0 ms
+           - 14.7×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 195.7 ms
+           - 131.5 ms
+           - 1.49×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 369.6 ms
+           - 524.7 ms
+           - 0.70×
+           - 3 min
+         * - ``fit_transform``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 19.1 s
+           - 13.3 s
+           - 1.43×
+           - 10 min
+         * - ``transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 0.14 ms
+           - 0.58 ms
+           - 0.24×
+           - 3 min
+         * - ``transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 0.17 ms
+           - 0.79 ms
+           - 0.22×
+           - 3 min
+         * - ``transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 1.4 ms
+           - 3.9 ms
+           - 0.37×
+           - 3 min
+         * - ``transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 2.8 ms
+           - 37.5 ms
+           - 0.08×
+           - 3 min
+         * - ``transform``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 68.7 ms
+           - 1.38 s
+           - 0.05×
+           - 10 min
+
+   .. rubric:: Ensembles
+
+   .. dropdown:: RandomForestClassifier
+      :name: benchmark-randomforestclassifier
+
+      .. list-table:: RandomForestClassifier results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 143.0 ms
+           - 108.5 ms
+           - 1.32×
+           - 3 min
+         * - ``fit``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 690.3 ms
+           - 205.0 ms
+           - 3.37×
+           - 3 min
+         * - ``fit``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 1.73 s
+           - 402.8 ms
+           - 4.30×
+           - 3 min
+         * - ``fit``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 3.38 s
+           - 592.0 ms
+           - 5.70×
+           - 3 min
+         * - ``fit``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - —
+           - 7.91 s
+           - CPU timeout
+           - 10 min
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 13.5 ms
+           - 0.61 ms
+           - 22.3×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 13.7 ms
+           - 0.63 ms
+           - 21.7×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 14.1 ms
+           - 1.8 ms
+           - 8.05×
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 15.5 ms
+           - 5.0 ms
+           - 3.14×
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 569.0 ms
+           - 118.0 ms
+           - 4.82×
+           - 10 min
+
+   .. dropdown:: RandomForestRegressor
+      :name: benchmark-randomforestregressor
+
+      .. list-table:: RandomForestRegressor results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 1.04 s
+           - 255.8 ms
+           - 4.06×
+           - 3 min
+         * - ``fit``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 1.7 s
+           - 744.5 ms
+           - 2.28×
+           - 3 min
+         * - ``fit``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 13.9 s
+           - 1.5 s
+           - 9.27×
+           - 3 min
+         * - ``fit``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 4.21 s
+           - CPU timeout
+           - 3 min
+         * - ``fit``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - —
+           - 85.7 s
+           - CPU timeout
+           - 10 min
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 13.5 ms
+           - 0.53 ms
+           - 25.4×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 13.5 ms
+           - 0.48 ms
+           - 28.3×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 14.0 ms
+           - 1.5 ms
+           - 9.54×
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 15.4 ms
+           - 4.7 ms
+           - 3.24×
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - —
+           - 115.6 ms
+           - CPU timeout
+           - 10 min
+
+   .. rubric:: Preprocessing
+
+   .. dropdown:: PolynomialFeatures
+      :name: benchmark-polynomialfeatures
+
+      .. list-table:: PolynomialFeatures results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 136.5 ms
+           - 74.7 ms
+           - 1.83×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 85.4 ms
+           - 14.8 ms
+           - 5.77×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 2.06 s
+           - 593.5 ms
+           - 3.48×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - —
+           - CPU + GPU timeout
+           - 3 min
+         * - ``fit_transform``
+           - ``large``
+           - 1,953,125
+           - 128
+           - 1 GB
+           - 27.8 s
+           - 21.1 s
+           - 1.31×
+           - 10 min
+         * - ``transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 14.2 ms
+           - 11.2 ms
+           - 1.26×
+           - 3 min
+         * - ``transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 5.1 ms
+           - 2.4 ms
+           - 2.16×
+           - 3 min
+         * - ``transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 153.9 ms
+           - 78.5 ms
+           - 1.96×
+           - 3 min
+         * - ``transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 2.47 s
+           - 1.05 s
+           - 2.35×
+           - 3 min
+         * - ``transform``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 41.9 s
+           - —
+           - GPU timeout
+           - 10 min
+
+   .. dropdown:: StandardScaler
+      :name: benchmark-standardscaler
+
+      .. list-table:: StandardScaler results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit_transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 7.5 ms
+           - 7.2 ms
+           - 1.04×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 16.2 ms
+           - 11.1 ms
+           - 1.46×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 103.9 ms
+           - 37.9 ms
+           - 2.74×
+           - 3 min
+         * - ``fit_transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 326.3 ms
+           - 104.2 ms
+           - 3.13×
+           - 3 min
+         * - ``fit_transform``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 8.41 s
+           - 3.7 s
+           - 2.27×
+           - 10 min
+         * - ``transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 0.19 ms
+           - 0.62 ms
+           - 0.30×
+           - 3 min
+         * - ``transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 0.31 ms
+           - 0.69 ms
+           - 0.44×
+           - 3 min
+         * - ``transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 2.2 ms
+           - 2.1 ms
+           - 1.04×
+           - 3 min
+         * - ``transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 9.3 ms
+           - 7.9 ms
+           - 1.18×
+           - 3 min
+         * - ``transform``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 222.8 ms
+           - 166.9 ms
+           - 1.34×
+           - 10 min
+
+   .. dropdown:: TargetEncoder
+      :name: benchmark-targetencoder
+
+      .. list-table:: TargetEncoder results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``transform``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 17.4 ms
+           - 2.03 s
+           - 0.01×
+           - 3 min
+         * - ``transform``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 11.1 ms
+           - 89.2 ms
+           - 0.12×
+           - 3 min
+         * - ``transform``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - 100.4 ms
+           - 2.02 s
+           - 0.05×
+           - 3 min
+         * - ``transform``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - 520.6 ms
+           - —
+           - GPU timeout
+           - 3 min
+         * - ``transform``
+           - ``large``
+           - 19,531,250
+           - 128
+           - 10 GB
+           - 13.9 s
+           - 10 s
+           - 1.38×
+           - 10 min
+
+   .. rubric:: Kernel methods
+
+   .. dropdown:: SVC
+      :name: benchmark-svc
+
+      .. list-table:: SVC results for all measured operations and workloads
+         :header-rows: 1
+         :class: benchmark-result-table
+
+         * - Operation
+           - Workload
+           - Rows
+           - Features
+           - float32 X
+           - CPU median
+           - GPU median
+           - Speedup / status
+           - Case limit
+         * - ``fit``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 5.96 s
+           - 65.5 ms
+           - 91.0×
+           - 3 min
+         * - ``fit``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - —
+           - 315.4 ms
+           - CPU timeout
+           - 3 min
+         * - ``fit``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - —
+           - 979.8 ms
+           - CPU timeout
+           - 3 min
+         * - ``fit``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 2.1 s
+           - CPU timeout
+           - 3 min
+         * - ``fit``
+           - ``large``
+           - 1,953,125
+           - 128
+           - 1 GB
+           - —
+           - 39.7 s
+           - CPU timeout
+           - 10 min
+         * - ``predict``
+           - ``small.balanced``
+           - 19,531
+           - 128
+           - 10 MB
+           - 606.2 ms
+           - 1.7 ms
+           - 354×
+           - 3 min
+         * - ``predict``
+           - ``medium.thin``
+           - 195,312
+           - 16
+           - 12.5 MB
+           - 6.52 s
+           - 19.9 ms
+           - 327×
+           - 3 min
+         * - ``predict``
+           - ``medium.balanced``
+           - 195,312
+           - 128
+           - 100 MB
+           - —
+           - 35.5 ms
+           - CPU timeout
+           - 3 min
+         * - ``predict``
+           - ``medium.wide``
+           - 195,312
+           - 512
+           - 400 MB
+           - —
+           - 88.8 ms
+           - CPU timeout
+           - 3 min
+         * - ``predict``
+           - ``large``
+           - 1,953,125
+           - 128
+           - 1 GB
+           - —
+           - 962.8 ms
+           - CPU timeout
+           - 10 min
+
+Choose workloads that can amortize acceleration overhead
+---------------------------------------------------------
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+
+   .. grid-item-card:: Best candidates
+
+      Compute-heavy fitting, forests, nearest-neighbor search, clustering, and
+      sufficiently large matrices give GPU work room to dominate dispatch and
+      data-conversion costs.
+
+   .. grid-item-card:: Measure inference separately
+
+      A fast fit does not guarantee a fast prediction or transform. Small and
+      narrow inference workloads often remain latency-bound; benchmark the
+      operation used in production.
+
+   .. grid-item-card:: Treat timeouts as unknown
+
+      A CPU-only timeout can show that the accelerated run finished within
+      policy, but it does not provide a numeric speedup. Use the detailed
+      status and actual shape when planning capacity.
+
+Methodology and reproducibility
+-------------------------------
+
+These benchmarks compare scikit-learn CPU execution with ``cuml.accel`` on
+NVIDIA RTX Pro 6000 Blackwell across five workload shapes. Each isolated case
+used one warmup and the median of three measured repetitions,
+operation-appropriate correctness validation, and a complete-case timeout;
+unavailable comparisons were retained without inferred speedups.
+
+.. dropdown:: Test system, validation, and timing policy
+
+   **System.** NVIDIA RTX PRO 6000 Blackwell Workstation Edition (102.0 GB), AMD Ryzen Threadripper PRO 7975WX 32-Cores, and
+   134.1 GB of system memory.
+
+   **Timing.** One warmup followed by three measured repetitions; tables use
+   the median end-to-end wall time. Speedup is CPU median wall time divided by
+   accelerated median wall time.
+
+   **Scale and timeout policy.** Fixed decimal-byte small and medium shapes
+   plus operation-specific large shapes. Each backend ran every case in a
+   separate worker with a 3-minute wall-clock limit,
+   extended to 10 minutes for large workloads other than
+   PCA ``fit_transform``. The limit covered process startup, data preparation,
+   estimator setup, one warmup, three measured repetitions, and correctness
+   validation. The results retain 23 CPU-only, 2
+   GPU-only, and 1 both-side timeouts without inferred
+   speedups.
+
+   **Execution and correctness.** Successful accelerated measurements were
+   instrumented to verify GPU-only execution. The benchmark runner applied
+   each case's operation-appropriate parity check. A timeout means validation
+   could not complete.
+
+   **Packages.** ``cuml 26.10.0a69``, ``cupy 14.1.1``, ``hdbscan 0.8.44``, ``numpy 2.4.6``, ``scikit-learn 1.9.0``, ``scipy 1.16.3``, ``umap-learn 0.5.12``.
+
+   **Coverage.** All 145 cases are included, including all
+   26 unavailable comparisons and every completed result below
+   1×. PCA's operation-specific ``large`` fit-transform uses 5,000 rows,
+   2,048 features, and 1,024 retained components.
+
+Continue with cuml.accel
+------------------------
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+
+   .. grid-item-card:: Getting started
+      :link: usage
+      :link-type: doc
+
+      Installation and zero-code-change usage.
+
+   .. grid-item-card:: Compatibility
+      :link: compatibility
+      :link-type: doc
+
+      Supported estimators and parameter behavior.
+
+   .. grid-item-card:: Profiling
+      :link: logging-and-profiling
+      :link-type: doc
+
+      Find GPU execution and fallback behavior.
