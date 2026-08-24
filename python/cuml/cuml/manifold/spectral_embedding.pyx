@@ -4,6 +4,7 @@
 #
 import cupy as cp
 import cupyx.scipy.sparse as cp_sp
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
@@ -50,7 +51,12 @@ cdef extern from "cuml/manifold/spectral_embedding.hpp" \
         device_matrix_view[float, int, col_major] embedding) except +
 
 
-class SpectralEmbedding(InteropMixin, CMajorInputTagMixin, Base):
+class SpectralEmbedding(
+    InteropMixin,
+    CMajorInputTagMixin,
+    ClassNamePrefixFeaturesOutMixin,
+    Base,
+):
     """Spectral embedding for non-linear dimensionality reduction.
 
     Forms an affinity matrix given by the specified function and
@@ -172,6 +178,13 @@ class SpectralEmbedding(InteropMixin, CMajorInputTagMixin, Base):
             "embedding_": self.embedding_.get(order="F"),
             **super()._attrs_to_cpu(model),
         }
+
+    @property
+    @mlfunc(convert_output=False)
+    def _n_features_out(self):
+        """Number of transformed output features."""
+        # Exposed to support sklearn's `get_feature_names_out`
+        return self.embedding_.shape[1]
 
     @mlfunc(preserve_index=True)
     def fit_transform(self, X, y=None):

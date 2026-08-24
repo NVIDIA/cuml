@@ -335,6 +335,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     SparseRandomProjection(n_components=2),
     UMAP(n_components=2),
     TSNE(n_components=2),
+    SpectralEmbedding(n_components=2),
     Binarizer(),
     KernelCenterer(),
     MaxAbsScaler(),
