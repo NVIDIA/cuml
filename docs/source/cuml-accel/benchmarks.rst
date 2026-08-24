@@ -88,7 +88,7 @@ dimensionality, memory, and runtime behavior.
    * - Label
      - Rows
      - Features
-     - X size
+     - Input
    * - ``small.balanced``
      - 19,531
      - 128
@@ -143,11 +143,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit``
            - ``small.balanced``
            - 19,531
@@ -156,7 +155,6 @@ shape.
            - 21.8 ms
            - 5.0 ms
            - 4.34×
-           - 3 min
          * - ``fit``
            - ``medium.thin``
            - 195,312
@@ -165,7 +163,6 @@ shape.
            - 16.5 ms
            - 3.9 ms
            - 4.28×
-           - 3 min
          * - ``fit``
            - ``medium.balanced``
            - 195,312
@@ -174,7 +171,6 @@ shape.
            - 265.6 ms
            - 21.5 ms
            - 12.4×
-           - 3 min
          * - ``fit``
            - ``medium.wide``
            - 195,312
@@ -183,7 +179,6 @@ shape.
            - 1.3 s
            - 51.3 ms
            - 25.3×
-           - 3 min
          * - ``fit``
            - ``large``
            - 7,812,500
@@ -192,7 +187,6 @@ shape.
            - 15.7 s
            - 1.73 s
            - 9.08×
-           - 10 min
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -201,7 +195,6 @@ shape.
            - 0.11 ms
            - 0.40 ms
            - 0.27×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -210,7 +203,6 @@ shape.
            - 0.13 ms
            - 0.38 ms
            - 0.35×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -219,7 +211,6 @@ shape.
            - 3.0 ms
            - 1.2 ms
            - 2.49×
-           - 3 min
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -228,7 +219,6 @@ shape.
            - 2.9 ms
            - 3.8 ms
            - 0.76×
-           - 3 min
          * - ``predict``
            - ``large``
            - 7,812,500
@@ -237,7 +227,6 @@ shape.
            - 23.8 ms
            - 32.8 ms
            - 0.73×
-           - 10 min
 
    .. dropdown:: LogisticRegression
       :name: benchmark-logisticregression
@@ -250,11 +239,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit``
            - ``small.balanced``
            - 19,531
@@ -263,7 +251,6 @@ shape.
            - 30.0 ms
            - 4.9 ms
            - 6.12×
-           - 3 min
          * - ``fit``
            - ``medium.thin``
            - 195,312
@@ -272,7 +259,6 @@ shape.
            - 164.9 ms
            - 6.2 ms
            - 26.6×
-           - 3 min
          * - ``fit``
            - ``medium.balanced``
            - 195,312
@@ -281,7 +267,6 @@ shape.
            - 137.0 ms
            - 13.3 ms
            - 10.3×
-           - 3 min
          * - ``fit``
            - ``medium.wide``
            - 195,312
@@ -290,7 +275,6 @@ shape.
            - 294.7 ms
            - 43.0 ms
            - 6.86×
-           - 3 min
          * - ``fit``
            - ``large``
            - 19,531,250
@@ -299,7 +283,6 @@ shape.
            - 11.6 s
            - 1.18 s
            - 9.81×
-           - 10 min
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -308,7 +291,6 @@ shape.
            - 0.17 ms
            - 0.51 ms
            - 0.33×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -317,7 +299,6 @@ shape.
            - 0.24 ms
            - 0.61 ms
            - 0.39×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -326,7 +307,6 @@ shape.
            - 0.57 ms
            - 1.3 ms
            - 0.44×
-           - 3 min
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -335,7 +315,6 @@ shape.
            - 2.9 ms
            - 3.6 ms
            - 0.81×
-           - 3 min
          * - ``predict``
            - ``large``
            - 19,531,250
@@ -344,7 +323,6 @@ shape.
            - 49.5 ms
            - 81.3 ms
            - 0.61×
-           - 10 min
 
    .. dropdown:: Ridge
       :name: benchmark-ridge
@@ -357,11 +335,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit``
            - ``small.balanced``
            - 19,531
@@ -370,7 +347,6 @@ shape.
            - 8.8 ms
            - 4.1 ms
            - 2.14×
-           - 3 min
          * - ``fit``
            - ``medium.thin``
            - 195,312
@@ -379,7 +355,6 @@ shape.
            - 14.7 ms
            - 3.6 ms
            - 4.08×
-           - 3 min
          * - ``fit``
            - ``medium.balanced``
            - 195,312
@@ -388,7 +363,6 @@ shape.
            - 94.3 ms
            - 22.7 ms
            - 4.16×
-           - 3 min
          * - ``fit``
            - ``medium.wide``
            - 195,312
@@ -397,7 +371,6 @@ shape.
            - 563.0 ms
            - 56.3 ms
            - 10.00×
-           - 3 min
          * - ``fit``
            - ``large``
            - 19,531,250
@@ -406,7 +379,6 @@ shape.
            - 5.78 s
            - 1.99 s
            - 2.90×
-           - 10 min
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -415,7 +387,6 @@ shape.
            - 0.10 ms
            - 0.34 ms
            - 0.30×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -424,7 +395,6 @@ shape.
            - 0.17 ms
            - 0.45 ms
            - 0.39×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -433,7 +403,6 @@ shape.
            - 0.52 ms
            - 1.3 ms
            - 0.40×
-           - 3 min
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -442,7 +411,6 @@ shape.
            - 1.9 ms
            - 3.8 ms
            - 0.50×
-           - 3 min
          * - ``predict``
            - ``large``
            - 19,531,250
@@ -451,7 +419,6 @@ shape.
            - 54.1 ms
            - 81.1 ms
            - 0.67×
-           - 10 min
 
    .. rubric:: Clustering and manifold learning
 
@@ -466,11 +433,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit_predict``
            - ``small.balanced``
            - 19,531
@@ -479,7 +445,6 @@ shape.
            - 142.2 ms
            - 8.3 ms
            - 17.2×
-           - 3 min
          * - ``fit_predict``
            - ``medium.thin``
            - 195,312
@@ -488,7 +453,6 @@ shape.
            - 1.77 s
            - 315.0 ms
            - 5.61×
-           - 3 min
          * - ``fit_predict``
            - ``medium.balanced``
            - 195,312
@@ -497,7 +461,6 @@ shape.
            - 5.63 s
            - 587.2 ms
            - 9.59×
-           - 3 min
          * - ``fit_predict``
            - ``medium.wide``
            - 195,312
@@ -506,7 +469,6 @@ shape.
            - 22.7 s
            - 2.41 s
            - 9.41×
-           - 3 min
          * - ``fit_predict``
            - ``large``
            - 1,953,125
@@ -514,8 +476,7 @@ shape.
            - 1 GB
            - —
            - 70.1 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
 
    .. dropdown:: HDBSCAN
       :name: benchmark-hdbscan
@@ -528,11 +489,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit_predict``
            - ``small.balanced``
            - 19,531
@@ -541,7 +501,6 @@ shape.
            - 12.9 s
            - 28.0 ms
            - 460×
-           - 3 min
          * - ``fit_predict``
            - ``medium.thin``
            - 195,312
@@ -550,7 +509,6 @@ shape.
            - 15.5 s
            - 678.1 ms
            - 22.9×
-           - 3 min
          * - ``fit_predict``
            - ``medium.balanced``
            - 195,312
@@ -558,8 +516,7 @@ shape.
            - 100 MB
            - —
            - 1.51 s
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit_predict``
            - ``medium.wide``
            - 195,312
@@ -567,8 +524,7 @@ shape.
            - 400 MB
            - —
            - 4.76 s
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit_predict``
            - ``large``
            - 976,562
@@ -576,8 +532,7 @@ shape.
            - 500 MB
            - —
            - 37 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
 
    .. dropdown:: KMeans
       :name: benchmark-kmeans
@@ -590,11 +545,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit_predict``
            - ``small.balanced``
            - 19,531
@@ -603,7 +557,6 @@ shape.
            - 26.5 ms
            - 14.1 ms
            - 1.87×
-           - 3 min
          * - ``fit_predict``
            - ``medium.thin``
            - 195,312
@@ -612,7 +565,6 @@ shape.
            - 67.1 ms
            - 20.4 ms
            - 3.30×
-           - 3 min
          * - ``fit_predict``
            - ``medium.balanced``
            - 195,312
@@ -621,7 +573,6 @@ shape.
            - 217.1 ms
            - 63.4 ms
            - 3.43×
-           - 3 min
          * - ``fit_predict``
            - ``medium.wide``
            - 195,312
@@ -630,7 +581,6 @@ shape.
            - 2.2 s
            - 202.9 ms
            - 10.9×
-           - 3 min
          * - ``fit_predict``
            - ``large``
            - 19,531,250
@@ -639,7 +589,6 @@ shape.
            - 59 s
            - 5.06 s
            - 11.7×
-           - 10 min
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -648,7 +597,6 @@ shape.
            - 0.23 ms
            - 0.60 ms
            - 0.38×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -657,7 +605,6 @@ shape.
            - 0.80 ms
            - 0.73 ms
            - 1.10×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -666,7 +613,6 @@ shape.
            - 0.98 ms
            - 1.5 ms
            - 0.64×
-           - 3 min
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -675,7 +621,6 @@ shape.
            - 2.6 ms
            - 4.1 ms
            - 0.63×
-           - 3 min
          * - ``predict``
            - ``large``
            - 19,531,250
@@ -684,7 +629,6 @@ shape.
            - 52.1 ms
            - 85.0 ms
            - 0.61×
-           - 10 min
 
    .. dropdown:: UMAP
       :name: benchmark-umap
@@ -697,11 +641,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit_transform``
            - ``small.balanced``
            - 19,531
@@ -710,7 +653,6 @@ shape.
            - 5.16 s
            - 207.7 ms
            - 24.8×
-           - 3 min
          * - ``fit_transform``
            - ``medium.thin``
            - 195,312
@@ -718,8 +660,7 @@ shape.
            - 12.5 MB
            - —
            - 299.8 ms
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit_transform``
            - ``medium.balanced``
            - 195,312
@@ -727,8 +668,7 @@ shape.
            - 100 MB
            - —
            - 1.14 s
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit_transform``
            - ``medium.wide``
            - 195,312
@@ -736,8 +676,7 @@ shape.
            - 400 MB
            - —
            - 3.05 s
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit_transform``
            - ``large``
            - 1,953,125
@@ -745,8 +684,7 @@ shape.
            - 1 GB
            - —
            - 56.4 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
          * - ``transform``
            - ``small.balanced``
            - 19,531
@@ -755,7 +693,6 @@ shape.
            - 607.6 ms
            - 11.2 ms
            - 54.5×
-           - 3 min
          * - ``transform``
            - ``medium.thin``
            - 195,312
@@ -764,7 +701,6 @@ shape.
            - 1.59 s
            - 17.3 ms
            - 92.2×
-           - 3 min
          * - ``transform``
            - ``medium.balanced``
            - 195,312
@@ -773,7 +709,6 @@ shape.
            - 5.52 s
            - 72.4 ms
            - 76.2×
-           - 3 min
          * - ``transform``
            - ``medium.wide``
            - 195,312
@@ -781,8 +716,7 @@ shape.
            - 400 MB
            - —
            - 277.7 ms
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``transform``
            - ``large``
            - 1,953,125
@@ -790,8 +724,7 @@ shape.
            - 1 GB
            - —
            - 5.48 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
 
    .. rubric:: Neighbors
 
@@ -806,11 +739,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -819,7 +751,6 @@ shape.
            - 27.5 ms
            - 1.5 ms
            - 18.2×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -828,7 +759,6 @@ shape.
            - 314.1 ms
            - 9.8 ms
            - 32.2×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -837,7 +767,6 @@ shape.
            - 1.15 s
            - 53.3 ms
            - 21.5×
-           - 3 min
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -846,7 +775,6 @@ shape.
            - 3.58 s
            - 219.4 ms
            - 16.3×
-           - 3 min
          * - ``predict``
            - ``large``
            - 7,812,500
@@ -854,8 +782,7 @@ shape.
            - 4 GB
            - —
            - 88.8 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
 
    .. dropdown:: NearestNeighbors
       :name: benchmark-nearestneighbors
@@ -868,11 +795,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``kneighbors``
            - ``small.balanced``
            - 19,531
@@ -881,7 +807,6 @@ shape.
            - 19.0 ms
            - 1.3 ms
            - 15.1×
-           - 3 min
          * - ``kneighbors``
            - ``medium.thin``
            - 195,312
@@ -890,7 +815,6 @@ shape.
            - 384.0 ms
            - 9.5 ms
            - 40.4×
-           - 3 min
          * - ``kneighbors``
            - ``medium.balanced``
            - 195,312
@@ -899,7 +823,6 @@ shape.
            - 1.28 s
            - 53.2 ms
            - 24.0×
-           - 3 min
          * - ``kneighbors``
            - ``medium.wide``
            - 195,312
@@ -908,7 +831,6 @@ shape.
            - 3.59 s
            - 217.1 ms
            - 16.5×
-           - 3 min
          * - ``kneighbors``
            - ``large``
            - 7,812,500
@@ -916,8 +838,7 @@ shape.
            - 4 GB
            - —
            - 88.7 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
 
    .. rubric:: Decomposition
 
@@ -932,12 +853,11 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - Retained components
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - Components
+           - CPU
+           - GPU
+           - Result
          * - ``fit_transform``
            - ``small.balanced``
            - 19,531
@@ -947,7 +867,6 @@ shape.
            - 6.9 ms
            - 8.8 ms
            - 0.79×
-           - 3 min
          * - ``fit_transform``
            - ``medium.thin``
            - 195,312
@@ -957,7 +876,6 @@ shape.
            - 8.0 ms
            - 9.5 ms
            - 0.85×
-           - 3 min
          * - ``fit_transform``
            - ``medium.balanced``
            - 195,312
@@ -967,7 +885,6 @@ shape.
            - 55.5 ms
            - 243.0 ms
            - 0.23×
-           - 3 min
          * - ``fit_transform``
            - ``medium.wide``
            - 195,312
@@ -977,7 +894,6 @@ shape.
            - 653.5 ms
            - 1.03 s
            - 0.64×
-           - 3 min
          * - ``fit_transform``
            - ``large``
            - 5,000
@@ -987,7 +903,6 @@ shape.
            - 1.56 s
            - 127.3 ms
            - 12.2×
-           - 3 min
          * - ``transform``
            - ``small.balanced``
            - 19,531
@@ -997,7 +912,6 @@ shape.
            - 0.17 ms
            - 0.64 ms
            - 0.26×
-           - 3 min
          * - ``transform``
            - ``medium.thin``
            - 195,312
@@ -1007,7 +921,6 @@ shape.
            - 0.51 ms
            - 0.74 ms
            - 0.68×
-           - 3 min
          * - ``transform``
            - ``medium.balanced``
            - 195,312
@@ -1017,7 +930,6 @@ shape.
            - 2.1 ms
            - 3.8 ms
            - 0.56×
-           - 3 min
          * - ``transform``
            - ``medium.wide``
            - 195,312
@@ -1027,7 +939,6 @@ shape.
            - 3.1 ms
            - 39.9 ms
            - 0.08×
-           - 3 min
          * - ``transform``
            - ``large``
            - 19,531,250
@@ -1037,7 +948,6 @@ shape.
            - 81.8 ms
            - 1.39 s
            - 0.06×
-           - 10 min
 
    .. dropdown:: TruncatedSVD
       :name: benchmark-truncatedsvd
@@ -1050,11 +960,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit_transform``
            - ``small.balanced``
            - 19,531
@@ -1063,7 +972,6 @@ shape.
            - 29.4 ms
            - 6.4 ms
            - 4.60×
-           - 3 min
          * - ``fit_transform``
            - ``medium.thin``
            - 195,312
@@ -1072,7 +980,6 @@ shape.
            - 102.7 ms
            - 7.0 ms
            - 14.7×
-           - 3 min
          * - ``fit_transform``
            - ``medium.balanced``
            - 195,312
@@ -1081,7 +988,6 @@ shape.
            - 195.7 ms
            - 131.5 ms
            - 1.49×
-           - 3 min
          * - ``fit_transform``
            - ``medium.wide``
            - 195,312
@@ -1090,7 +996,6 @@ shape.
            - 369.6 ms
            - 524.7 ms
            - 0.70×
-           - 3 min
          * - ``fit_transform``
            - ``large``
            - 19,531,250
@@ -1099,7 +1004,6 @@ shape.
            - 19.1 s
            - 13.3 s
            - 1.43×
-           - 10 min
          * - ``transform``
            - ``small.balanced``
            - 19,531
@@ -1108,7 +1012,6 @@ shape.
            - 0.14 ms
            - 0.58 ms
            - 0.24×
-           - 3 min
          * - ``transform``
            - ``medium.thin``
            - 195,312
@@ -1117,7 +1020,6 @@ shape.
            - 0.17 ms
            - 0.79 ms
            - 0.22×
-           - 3 min
          * - ``transform``
            - ``medium.balanced``
            - 195,312
@@ -1126,7 +1028,6 @@ shape.
            - 1.4 ms
            - 3.9 ms
            - 0.37×
-           - 3 min
          * - ``transform``
            - ``medium.wide``
            - 195,312
@@ -1135,7 +1036,6 @@ shape.
            - 2.8 ms
            - 37.5 ms
            - 0.08×
-           - 3 min
          * - ``transform``
            - ``large``
            - 19,531,250
@@ -1144,7 +1044,6 @@ shape.
            - 68.7 ms
            - 1.38 s
            - 0.05×
-           - 10 min
 
    .. rubric:: Ensembles
 
@@ -1159,11 +1058,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit``
            - ``small.balanced``
            - 19,531
@@ -1172,7 +1070,6 @@ shape.
            - 143.0 ms
            - 108.5 ms
            - 1.32×
-           - 3 min
          * - ``fit``
            - ``medium.thin``
            - 195,312
@@ -1181,7 +1078,6 @@ shape.
            - 690.3 ms
            - 205.0 ms
            - 3.37×
-           - 3 min
          * - ``fit``
            - ``medium.balanced``
            - 195,312
@@ -1190,7 +1086,6 @@ shape.
            - 1.73 s
            - 402.8 ms
            - 4.30×
-           - 3 min
          * - ``fit``
            - ``medium.wide``
            - 195,312
@@ -1199,7 +1094,6 @@ shape.
            - 3.38 s
            - 592.0 ms
            - 5.70×
-           - 3 min
          * - ``fit``
            - ``large``
            - 19,531,250
@@ -1207,8 +1101,7 @@ shape.
            - 10 GB
            - —
            - 7.91 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -1217,7 +1110,6 @@ shape.
            - 13.5 ms
            - 0.61 ms
            - 22.3×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -1226,7 +1118,6 @@ shape.
            - 13.7 ms
            - 0.63 ms
            - 21.7×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -1235,7 +1126,6 @@ shape.
            - 14.1 ms
            - 1.8 ms
            - 8.05×
-           - 3 min
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -1244,7 +1134,6 @@ shape.
            - 15.5 ms
            - 5.0 ms
            - 3.14×
-           - 3 min
          * - ``predict``
            - ``large``
            - 19,531,250
@@ -1253,7 +1142,6 @@ shape.
            - 569.0 ms
            - 118.0 ms
            - 4.82×
-           - 10 min
 
    .. dropdown:: RandomForestRegressor
       :name: benchmark-randomforestregressor
@@ -1266,11 +1154,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit``
            - ``small.balanced``
            - 19,531
@@ -1279,7 +1166,6 @@ shape.
            - 1.04 s
            - 255.8 ms
            - 4.06×
-           - 3 min
          * - ``fit``
            - ``medium.thin``
            - 195,312
@@ -1288,7 +1174,6 @@ shape.
            - 1.7 s
            - 744.5 ms
            - 2.28×
-           - 3 min
          * - ``fit``
            - ``medium.balanced``
            - 195,312
@@ -1297,7 +1182,6 @@ shape.
            - 13.9 s
            - 1.5 s
            - 9.27×
-           - 3 min
          * - ``fit``
            - ``medium.wide``
            - 195,312
@@ -1305,8 +1189,7 @@ shape.
            - 400 MB
            - —
            - 4.21 s
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit``
            - ``large``
            - 19,531,250
@@ -1314,8 +1197,7 @@ shape.
            - 10 GB
            - —
            - 85.7 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -1324,7 +1206,6 @@ shape.
            - 13.5 ms
            - 0.53 ms
            - 25.4×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -1333,7 +1214,6 @@ shape.
            - 13.5 ms
            - 0.48 ms
            - 28.3×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -1342,7 +1222,6 @@ shape.
            - 14.0 ms
            - 1.5 ms
            - 9.54×
-           - 3 min
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -1351,7 +1230,6 @@ shape.
            - 15.4 ms
            - 4.7 ms
            - 3.24×
-           - 3 min
          * - ``predict``
            - ``large``
            - 19,531,250
@@ -1359,8 +1237,7 @@ shape.
            - 10 GB
            - —
            - 115.6 ms
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
 
    .. rubric:: Preprocessing
 
@@ -1375,11 +1252,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit_transform``
            - ``small.balanced``
            - 19,531
@@ -1388,7 +1264,6 @@ shape.
            - 136.5 ms
            - 74.7 ms
            - 1.83×
-           - 3 min
          * - ``fit_transform``
            - ``medium.thin``
            - 195,312
@@ -1397,7 +1272,6 @@ shape.
            - 85.4 ms
            - 14.8 ms
            - 5.77×
-           - 3 min
          * - ``fit_transform``
            - ``medium.balanced``
            - 195,312
@@ -1406,7 +1280,6 @@ shape.
            - 2.06 s
            - 593.5 ms
            - 3.48×
-           - 3 min
          * - ``fit_transform``
            - ``medium.wide``
            - 195,312
@@ -1414,8 +1287,7 @@ shape.
            - 400 MB
            - —
            - —
-           - CPU + GPU timeout
-           - 3 min
+           - CPU + GPU timeout (3 min)
          * - ``fit_transform``
            - ``large``
            - 1,953,125
@@ -1424,7 +1296,6 @@ shape.
            - 27.8 s
            - 21.1 s
            - 1.31×
-           - 10 min
          * - ``transform``
            - ``small.balanced``
            - 19,531
@@ -1433,7 +1304,6 @@ shape.
            - 14.2 ms
            - 11.2 ms
            - 1.26×
-           - 3 min
          * - ``transform``
            - ``medium.thin``
            - 195,312
@@ -1442,7 +1312,6 @@ shape.
            - 5.1 ms
            - 2.4 ms
            - 2.16×
-           - 3 min
          * - ``transform``
            - ``medium.balanced``
            - 195,312
@@ -1451,7 +1320,6 @@ shape.
            - 153.9 ms
            - 78.5 ms
            - 1.96×
-           - 3 min
          * - ``transform``
            - ``medium.wide``
            - 195,312
@@ -1460,7 +1328,6 @@ shape.
            - 2.47 s
            - 1.05 s
            - 2.35×
-           - 3 min
          * - ``transform``
            - ``large``
            - 19,531,250
@@ -1468,8 +1335,7 @@ shape.
            - 10 GB
            - 41.9 s
            - —
-           - GPU timeout
-           - 10 min
+           - GPU timeout (10 min)
 
    .. dropdown:: StandardScaler
       :name: benchmark-standardscaler
@@ -1482,11 +1348,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit_transform``
            - ``small.balanced``
            - 19,531
@@ -1495,7 +1360,6 @@ shape.
            - 7.5 ms
            - 7.2 ms
            - 1.04×
-           - 3 min
          * - ``fit_transform``
            - ``medium.thin``
            - 195,312
@@ -1504,7 +1368,6 @@ shape.
            - 16.2 ms
            - 11.1 ms
            - 1.46×
-           - 3 min
          * - ``fit_transform``
            - ``medium.balanced``
            - 195,312
@@ -1513,7 +1376,6 @@ shape.
            - 103.9 ms
            - 37.9 ms
            - 2.74×
-           - 3 min
          * - ``fit_transform``
            - ``medium.wide``
            - 195,312
@@ -1522,7 +1384,6 @@ shape.
            - 326.3 ms
            - 104.2 ms
            - 3.13×
-           - 3 min
          * - ``fit_transform``
            - ``large``
            - 19,531,250
@@ -1531,7 +1392,6 @@ shape.
            - 8.41 s
            - 3.7 s
            - 2.27×
-           - 10 min
          * - ``transform``
            - ``small.balanced``
            - 19,531
@@ -1540,7 +1400,6 @@ shape.
            - 0.19 ms
            - 0.62 ms
            - 0.30×
-           - 3 min
          * - ``transform``
            - ``medium.thin``
            - 195,312
@@ -1549,7 +1408,6 @@ shape.
            - 0.31 ms
            - 0.69 ms
            - 0.44×
-           - 3 min
          * - ``transform``
            - ``medium.balanced``
            - 195,312
@@ -1558,7 +1416,6 @@ shape.
            - 2.2 ms
            - 2.1 ms
            - 1.04×
-           - 3 min
          * - ``transform``
            - ``medium.wide``
            - 195,312
@@ -1567,7 +1424,6 @@ shape.
            - 9.3 ms
            - 7.9 ms
            - 1.18×
-           - 3 min
          * - ``transform``
            - ``large``
            - 19,531,250
@@ -1576,7 +1432,6 @@ shape.
            - 222.8 ms
            - 166.9 ms
            - 1.34×
-           - 10 min
 
    .. dropdown:: TargetEncoder
       :name: benchmark-targetencoder
@@ -1589,11 +1444,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``transform``
            - ``small.balanced``
            - 19,531
@@ -1602,7 +1456,6 @@ shape.
            - 17.4 ms
            - 2.03 s
            - 0.01×
-           - 3 min
          * - ``transform``
            - ``medium.thin``
            - 195,312
@@ -1611,7 +1464,6 @@ shape.
            - 11.1 ms
            - 89.2 ms
            - 0.12×
-           - 3 min
          * - ``transform``
            - ``medium.balanced``
            - 195,312
@@ -1620,7 +1472,6 @@ shape.
            - 100.4 ms
            - 2.02 s
            - 0.05×
-           - 3 min
          * - ``transform``
            - ``medium.wide``
            - 195,312
@@ -1628,8 +1479,7 @@ shape.
            - 400 MB
            - 520.6 ms
            - —
-           - GPU timeout
-           - 3 min
+           - GPU timeout (3 min)
          * - ``transform``
            - ``large``
            - 19,531,250
@@ -1638,7 +1488,6 @@ shape.
            - 13.9 s
            - 10 s
            - 1.38×
-           - 10 min
 
    .. rubric:: Kernel methods
 
@@ -1653,11 +1502,10 @@ shape.
            - Workload
            - Rows
            - Features
-           - float32 X
-           - CPU median
-           - GPU median
-           - Speedup / status
-           - Case limit
+           - Input
+           - CPU
+           - GPU
+           - Result
          * - ``fit``
            - ``small.balanced``
            - 19,531
@@ -1666,7 +1514,6 @@ shape.
            - 5.96 s
            - 65.5 ms
            - 91.0×
-           - 3 min
          * - ``fit``
            - ``medium.thin``
            - 195,312
@@ -1674,8 +1521,7 @@ shape.
            - 12.5 MB
            - —
            - 315.4 ms
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit``
            - ``medium.balanced``
            - 195,312
@@ -1683,8 +1529,7 @@ shape.
            - 100 MB
            - —
            - 979.8 ms
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit``
            - ``medium.wide``
            - 195,312
@@ -1692,8 +1537,7 @@ shape.
            - 400 MB
            - —
            - 2.1 s
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``fit``
            - ``large``
            - 1,953,125
@@ -1701,8 +1545,7 @@ shape.
            - 1 GB
            - —
            - 39.7 s
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
          * - ``predict``
            - ``small.balanced``
            - 19,531
@@ -1711,7 +1554,6 @@ shape.
            - 606.2 ms
            - 1.7 ms
            - 354×
-           - 3 min
          * - ``predict``
            - ``medium.thin``
            - 195,312
@@ -1720,7 +1562,6 @@ shape.
            - 6.52 s
            - 19.9 ms
            - 327×
-           - 3 min
          * - ``predict``
            - ``medium.balanced``
            - 195,312
@@ -1728,8 +1569,7 @@ shape.
            - 100 MB
            - —
            - 35.5 ms
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``predict``
            - ``medium.wide``
            - 195,312
@@ -1737,8 +1577,7 @@ shape.
            - 400 MB
            - —
            - 88.8 ms
-           - CPU timeout
-           - 3 min
+           - CPU timeout (3 min)
          * - ``predict``
            - ``large``
            - 1,953,125
@@ -1746,8 +1585,7 @@ shape.
            - 1 GB
            - —
            - 962.8 ms
-           - CPU timeout
-           - 10 min
+           - CPU timeout (10 min)
 
 Choose workloads that can amortize acceleration overhead
 ---------------------------------------------------------

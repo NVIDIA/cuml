@@ -647,6 +647,13 @@ def _status_text(record: dict[str, Any]) -> str:
     return _fmt_speedup(record["speedup"])
 
 
+def _detail_status_text(record: dict[str, Any]) -> str:
+    status = _status_text(record)
+    if record["timeout_side"] is None:
+        return status
+    return f"{status} ({record['timeout_limit_sec'] / 60:g} min)"
+
+
 def _mix(
     a: tuple[int, int, int], b: tuple[int, int, int], amount: float
 ) -> str:
@@ -808,7 +815,7 @@ def _workload_guide_rst(records: list[dict[str, Any]]) -> str:
         )
     return _rst_list_table(
         "Workload dimensions and decimal float32 X size",
-        ["Label", "Rows", "Features", "X size"],
+        ["Label", "Rows", "Features", "Input"],
         rows,
         table_class="benchmark-workload-table",
     )
@@ -822,12 +829,10 @@ def _estimator_details_rst(
         record.get("components") is not None for record in subset
     )
     workload_order = {label: index for index, label in enumerate(WORKLOADS)}
-    headers = ["Operation", "Workload", "Rows", "Features", "float32 X"]
+    headers = ["Operation", "Workload", "Rows", "Features", "Input"]
     if show_components:
-        headers.append("Retained components")
-    headers.extend(
-        ["CPU median", "GPU median", "Speedup / status", "Case limit"]
-    )
+        headers.append("Components")
+    headers.extend(["CPU", "GPU", "Result"])
     rows = []
     for record in sorted(
         subset,
@@ -853,8 +858,7 @@ def _estimator_details_rst(
             [
                 _fmt_time(record["cpu_median_wall_time_sec"]),
                 _fmt_time(record["gpu_median_wall_time_sec"]),
-                _status_text(record),
-                f"{record['timeout_limit_sec'] / 60:g} min",
+                _detail_status_text(record),
             ]
         )
         rows.append(row)
