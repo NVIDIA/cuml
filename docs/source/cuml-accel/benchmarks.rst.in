@@ -3,8 +3,8 @@
 .. This file is the editable template for benchmarks.rst. Run
 .. docs/benchmarks/generate_cuml_accel_benchmarks.py render after editing it.
 
-Accelerate familiar scikit-learn workflows
-===========================================
+Performance and Speedups
+========================
 
 .. rst-class:: benchmark-lede
 
