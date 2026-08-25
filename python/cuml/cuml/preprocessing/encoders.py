@@ -10,6 +10,7 @@ from sklearn.base import OneToOneFeatureMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
+from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import (
@@ -48,6 +49,15 @@ def _cats_to_series(cats):
         cats = cats.copy()
         cats[-1] = None
     return cudf.Series(cats)
+
+
+def _as_numpy(x, dtype=None):
+    """Coerce an array-like `x` to a numpy array."""
+    if hasattr(x, "to_numpy"):
+        return x.to_numpy(dtype=dtype)
+    if hasattr(x, "__cuda_array_interface__"):
+        x = cp.asnumpy(x)
+    return np.asarray(x, dtype=dtype)
 
 
 def _compute_categories(
@@ -108,14 +118,7 @@ def _compute_categories(
             cats = Xi.sort_values().to_numpy()
         else:
             dtype = Xi.dtype if isinstance(Xi.dtype, np.dtype) else "O"
-            cats = categories[i]
-            cats = (
-                cats.to_numpy(dtype=dtype)
-                if hasattr(cats, "to_numpy")
-                else cats.get().astype(dtype, copy=False)
-                if isinstance(cats, cp.ndarray)
-                else np.asarray(cats, dtype=dtype)
-            )
+            cats = _as_numpy(categories[i], dtype=dtype)
 
             # `nan` may only exist in floating or object dtypes, and must be
             # the last stated category
@@ -155,7 +158,7 @@ def _compute_categories(
     return out
 
 
-class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
+class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
     """
     Encode categorical features as a one-hot numeric array.
 
@@ -259,6 +262,8 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
            ['apple', 2]], dtype=object)
     """
 
+    _cpu_class_path = "sklearn.preprocessing.OneHotEncoder"
+
     def __init__(
         self,
         *,
@@ -293,6 +298,62 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         tags.input_tags.categorical = True
         tags.input_tags.allow_nan = True
         return tags
+
+    @classmethod
+    def _params_from_cpu(cls, model):
+        if isinstance(model.drop, str) and model.drop == "if_binary":
+            raise UnsupportedOnGPU("`drop='if_binary'` is not supported")
+        if model.handle_unknown in ("infrequent_if_exist", "warn"):
+            raise UnsupportedOnGPU(
+                f"`handle_unknown={model.handle_unknown!r}` is not supported"
+            )
+        if model.min_frequency is not None:
+            raise UnsupportedOnGPU("`min_frequency` is not supported")
+        if model.max_categories is not None:
+            raise UnsupportedOnGPU("`min_categories` is not supported")
+        if (
+            not isinstance(model.feature_name_combiner, str)
+            and model.feature_name_combiner == "concat"
+        ):
+            raise UnsupportedOnGPU("`feature_name_combiner` is not supported")
+        return {
+            "categories": model.categories,
+            "drop": model.drop,
+            "sparse_output": model.sparse_output,
+            "dtype": model.dtype,
+            "handle_unknown": model.handle_unknown,
+        }
+
+    def _params_to_cpu(self):
+        categories = self.categories
+        if not (isinstance(categories, str) and categories == "auto"):
+            categories = [_as_numpy(c) for c in categories]
+
+        return {
+            "categories": categories,
+            "drop": _as_numpy(self.drop, dtype=object),
+            "sparse_output": self.sparse_output,
+            "dtype": self.dtype,
+            "handle_unknown": self.handle_unknown,
+        }
+
+    def _attrs_from_cpu(self, model):
+        return {
+            "categories_": model.categories_,
+            "drop_idx_": model.drop_idx_,
+            "_n_features_outs": model._n_features_outs,
+            **super()._attrs_from_cpu(model),
+        }
+
+    def _attrs_to_cpu(self, model):
+        return {
+            "categories_": self.categories_,
+            "drop_idx_": self.drop_idx_,
+            "_n_features_outs": self._n_features_outs,
+            "_infrequent_enabled": False,
+            "_drop_idx_after_grouping": self.drop_idx_,
+            **super()._attrs_to_cpu(model),
+        }
 
     @mlfunc(set_input_type=True)
     @generate_docstring(y=None)
@@ -341,7 +402,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
                     f"got {self.drop!r}"
                 )
         else:
-            drop = np.asarray(self.drop, dtype=object)
+            drop = _as_numpy(self.drop, dtype=object)
 
             if len(drop) != len(categories):
                 raise ValueError(

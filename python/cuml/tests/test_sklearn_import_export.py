@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import cudf
 import cupy as cp
 import numpy as np
 import pytest
@@ -1173,3 +1174,63 @@ def test_label_binarizer():
 
     np.testing.assert_array_equal(cu_out, sol)
     np.testing.assert_array_equal(sk_out, sol)
+
+
+@pytest.mark.parametrize("drop", [None, "first"])
+@pytest.mark.parametrize("sparse_output", [True, False])
+@pytest.mark.parametrize("handle_unknown", ["error", "ignore"])
+@pytest.mark.filterwarnings("ignore:Found unknown categories.*:UserWarning")
+def test_one_hot_encoder(drop, sparse_output, handle_unknown):
+    X = np.array(
+        [["x", "a"], ["x", "b"], ["y", "a"], ["x", "c"]], dtype="object"
+    )
+    kws = {
+        "drop": drop,
+        "sparse_output": sparse_output,
+        "handle_unknown": handle_unknown,
+    }
+    cu_model = cuml.preprocessing.OneHotEncoder(**kws).fit(X)
+    sk_model = sklearn.preprocessing.OneHotEncoder(**kws).fit(X)
+
+    cu_model2 = cuml.preprocessing.OneHotEncoder.from_sklearn(sk_model)
+    sk_model2 = cu_model.as_sklearn()
+
+    roundtrip = cuml.preprocessing.OneHotEncoder.from_sklearn(sk_model2)
+    assert_roundtrip_consistency(cu_model, roundtrip)
+
+    for c1, c2 in zip(cu_model.categories_, sk_model2.categories_):
+        np.testing.assert_array_equal(c1, c2)
+
+    cu_out = cu_model2.transform(X)
+    sk_out = sk_model2.transform(X)
+
+    if sparse_output:
+        np.testing.assert_array_equal(cu_out.toarray(), sk_out.toarray())
+    else:
+        np.testing.assert_array_equal(cu_out, sk_out)
+
+    if handle_unknown == "ignore":
+        X = np.array([["x", "d"], ["x", "a"], ["z", "c"]], dtype="object")
+        cu_out = cu_model2.transform(X)
+        sk_out = sk_model2.transform(X)
+        if sparse_output:
+            np.testing.assert_array_equal(cu_out.toarray(), sk_out.toarray())
+        else:
+            np.testing.assert_array_equal(cu_out, sk_out)
+
+
+def test_one_hot_encoder_cuda_array_like_params():
+    cats = [cp.array([1, 2]), cudf.Series([10, 20, 30])]
+    drop = cp.array([1, 20])
+    X = np.array([[1, 10], [1, 20], [2, 30], [2, 10]])
+    cu_model1 = cuml.preprocessing.OneHotEncoder(
+        categories=cats, drop=drop
+    ).fit(X)
+    sk_model = cu_model1.as_sklearn()
+    cu_model2 = cuml.preprocessing.OneHotEncoder.from_sklearn(sk_model)
+
+    cu_out1 = cu_model1.transform(X)
+    sk_out = sk_model.transform(X)
+    cu_out2 = cu_model2.transform(X)
+    np.testing.assert_array_equal(cu_out1.toarray(), sk_out.toarray())
+    np.testing.assert_array_equal(cu_out2.toarray(), sk_out.toarray())
