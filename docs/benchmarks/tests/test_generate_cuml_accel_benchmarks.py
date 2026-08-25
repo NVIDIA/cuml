@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
@@ -89,6 +89,7 @@ class CumlAccelBenchmarkDocsTests(TestCase):
             self.data["validation"]["successful_accelerated_execution"],
             "gpu_only",
         )
+        # rapids-pre-commit-hooks: disable-next-line[verify-hardcoded-version]
         self.assertEqual(self.data["packages"]["cuml"], "26.10.0a69")
         self.assertNotIn("cuml.accel", self.data["packages"])
         self.assertTrue(
@@ -143,7 +144,9 @@ class CumlAccelBenchmarkDocsTests(TestCase):
         self.assertEqual(self.page.count(".. dropdown:: "), 18)
         self.assertEqual(self.page.count("   :name: "), 17)
         self.assertNotIn("feature_wide_1024", self.page)
-        self.assertNotIn("cuml.accel 26.10.0a69", self.page)
+        self.assertNotIn(
+            f"cuml.accel {self.data['packages']['cuml']}", self.page
+        )
         self.assertNotIn('class="numeric slowdown"', self.page)
         self.assertNotIn("Case limit", self.page)
         self.assertNotIn("Speedup / status", self.page)
