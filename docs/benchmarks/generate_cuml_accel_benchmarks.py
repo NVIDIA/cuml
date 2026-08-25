@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Import and render the generated cuml.accel Sphinx benchmark page.
 
 ``import`` validates raw mlbench CPU/GPU result pairs and writes a compact,

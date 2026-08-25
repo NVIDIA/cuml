@@ -30,6 +30,8 @@ ignore_directives = [
     "autosummary",
     # rstcheck does not understand 'sphinx-design' directives
     "dropdown",
+    "grid",
+    "grid-item-card",
     # rstcheck does not understand 'doxygen' directives
     "doxygenenum",
     "doxygenfunction",
