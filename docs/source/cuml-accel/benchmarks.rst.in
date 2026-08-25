@@ -112,10 +112,9 @@ What determines GPU speedup
 
    .. grid-item-card:: Operation and shape
 
-      Rows alone do not determine performance. Feature count, retained
-      components, and the exact operation also matter. Evaluate fit, predict,
-      and transform separately; these benchmark points are not a controlled
-      scaling curve.
+      Rows alone do not determine performance. Feature count and the exact
+      operation also matter. Evaluate fit, predict, and transform separately;
+      these benchmark points are not a controlled scaling curve.
 
    .. grid-item-card:: End-to-end workflow
 
@@ -160,8 +159,8 @@ operation-appropriate correctness validation, and a complete-case timeout.
    @@UNAVAILABLE@@ unavailable comparisons and every completed result below
    1×. These measurements describe the tested cases on this system; results
    for other workloads and systems will vary. PCA's operation-specific
-   ``large`` fit-transform uses 5,000 rows, 2,048 features, and 1,024 retained
-   components.
+   ``large`` fit-transform uses @@PCA_LARGE_ROWS@@ rows and
+   @@PCA_LARGE_FEATURES@@ features.
 
 Continue with cuml.accel
 ------------------------

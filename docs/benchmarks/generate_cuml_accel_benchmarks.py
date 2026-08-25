@@ -2,19 +2,22 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Import and render the generated cuml.accel Sphinx benchmark page.
+"""Synchronize and render the generated cuml.accel Sphinx benchmark page.
 
-``import`` validates raw mlbench CPU/GPU result pairs and writes a compact,
-presentation-oriented data file. ``render`` converts that checked-in data and
-the editable RST template into the published page and SVG heatmaps.
+``sync`` validates portable publication data produced by cumlbench-dash,
+copies it into the documentation tree, and renders the page and heatmaps.
+``render`` uses the checked-in publication data for normal documentation
+builds.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import html
 import json
 import math
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -26,20 +29,8 @@ DEFAULT_DATA = ROOT / "docs/benchmarks/cuml-accel/benchmark-data.json"
 DEFAULT_TEMPLATE = ROOT / "docs/source/cuml-accel/benchmarks.rst.in"
 DEFAULT_PAGE = ROOT / "docs/source/cuml-accel/benchmarks.rst"
 DEFAULT_STATIC = ROOT / "docs/source/_static/cuml-accel-benchmarks"
-
-PCA_ULTRA_WIDE_CASES = {
-    "pca.fit_transform.feature_wide_1024": {
-        "rows": 50_000,
-        "features": 1_024,
-        "components": 512,
-    },
-    "pca.fit_transform.feature_wide_2048": {
-        "rows": 5_000,
-        "features": 2_048,
-        "components": 1_024,
-    },
-}
-PCA_ULTRA_WIDE_TOLERANCE = 0.01
+PUBLICATION_SCHEMA_VERSION = 1
+SOURCE_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 WORKLOADS = (
     "small.balanced",
@@ -111,94 +102,143 @@ ANCHORS = {
 }
 
 
-def _median_wall_time(result: dict[str, Any]) -> float | None:
-    values = [
-        timing["value"]
-        for observation in result.get("observations", [])
-        if observation.get("role") == "measurement"
-        and observation.get("outcome", {}).get("status") == "success"
-        for timing in observation.get("timings", [])
-        if timing.get("name") == "wall_time"
-        and isinstance(timing.get("value"), (int, float))
-        and timing["value"] > 0
-    ]
-    return statistics.median(values) if values else None
+def _require_mapping(value: Any, location: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{location} must be an object")
+    return value
 
 
-def _is_timeout(result: dict[str, Any]) -> bool:
-    outcome = result.get("outcome", {})
+def _require_keys(
+    value: dict[str, Any], keys: set[str], location: str
+) -> None:
+    missing = sorted(keys - value.keys())
+    if missing:
+        raise ValueError(f"{location} is missing required fields: {missing}")
+
+
+def _is_source_id(value: Any) -> bool:
     return (
-        outcome.get("status") == "failed"
-        and outcome.get("error", {}).get("type") == "TimeoutExpired"
+        isinstance(value, str)
+        and SOURCE_ID_PATTERN.fullmatch(value) is not None
     )
 
 
-def _dimension(result: dict[str, Any], name: str) -> int:
-    return next(
-        item["size"]
-        for item in result["input"]["dimensions"]
-        if item["name"] == name
-    )
-
-
-def _execution_profile(result: dict[str, Any]) -> str:
-    profiles = {
-        observation.get("extensions", {})
-        .get("ai.rapids.cuml.accel", {})
-        .get("classification")
-        for observation in result.get("observations", [])
-        if observation.get("role") == "measurement"
-    }
-    profiles.discard(None)
-    return ", ".join(sorted(profiles)) if profiles else "unavailable"
-
-
-def _package_versions(artifact: dict[str, Any]) -> dict[str, str]:
-    return {
-        item["name"]: item["version"]
-        for item in artifact["run"]["software"].get("packages", [])
-        if item["name"] != "cuml.accel"
-    }
-
-
-def _image(artifact: dict[str, Any]) -> dict[str, str]:
-    return artifact["run"]["extensions"]["ai.rapids.mlbench"]["image"]
-
-
-def _metric(result: dict[str, Any], name: str) -> float:
-    values = [
-        metric["value"]
-        for observation in result.get("observations", [])
-        if observation.get("role") == "measurement"
-        and observation.get("outcome", {}).get("status") == "success"
-        for metric in observation.get("metrics", [])
-        if metric.get("name") == name
-        and isinstance(metric.get("value"), (int, float))
-    ]
-    if not values:
-        raise ValueError(f"expected at least one {name} value")
-    return statistics.median(values)
-
-
-def _timeout_metadata(artifact: dict[str, Any]) -> dict[str, Any]:
-    return artifact["run"]["extensions"]["ai.rapids.mlbench"]["timeouts"]
-
-
-def _validate_repetitions(result: dict[str, Any], case_label: str) -> None:
-    """Require the published one-warmup/three-measurement timing policy."""
-    if result.get("outcome", {}).get("status") != "success":
-        return
-    roles = [
-        observation.get("role")
-        for observation in result.get("observations", [])
-    ]
-    if roles.count("warmup") != 1 or roles.count("measurement") != 3:
+def validate_publication_data(data: Any) -> dict[str, Any]:
+    """Validate the portable publication contract consumed by the renderer."""
+    data = _require_mapping(data, "publication data")
+    version = data.get("schema_version")
+    if version != PUBLICATION_SCHEMA_VERSION:
         raise ValueError(
-            f"unexpected warmup or repetition count for {case_label}"
+            "unsupported benchmark publication schema version "
+            f"{version!r}; expected {PUBLICATION_SCHEMA_VERSION}"
         )
+    _require_keys(
+        data,
+        {
+            "definition",
+            "summary",
+            "system",
+            "methodology",
+            "packages",
+            "validation",
+            "sources",
+            "records",
+        },
+        "publication data",
+    )
+
+    sources = data["sources"]
+    if not isinstance(sources, list) or not sources:
+        raise ValueError("publication sources must be a non-empty array")
+    allowed_source_fields = {
+        "id",
+        "run_id",
+        "backend",
+        "completed_at",
+        "suite",
+        "tier",
+        "manifest_hash",
+        "resolved_plan_hash",
+    }
+    sources_by_id = {}
+    for index, source_value in enumerate(sources):
+        source = _require_mapping(source_value, f"sources[{index}]")
+        if set(source) != allowed_source_fields:
+            raise ValueError(
+                f"sources[{index}] has unsupported or missing provenance fields"
+            )
+        source_id = source["id"]
+        if not _is_source_id(source_id):
+            raise ValueError(f"sources[{index}].id is not a SHA-256 source ID")
+        if source_id in sources_by_id:
+            raise ValueError(f"duplicate publication source ID: {source_id}")
+        if source["backend"] not in {"cpu", "gpu"}:
+            raise ValueError(f"sources[{index}].backend is unsupported")
+        for field in ("manifest_hash", "resolved_plan_hash"):
+            if not _is_source_id(source[field]):
+                raise ValueError(
+                    f"sources[{index}].{field} is not a SHA-256 ID"
+                )
+        sources_by_id[source_id] = source
+
+    records = data["records"]
+    if not isinstance(records, list) or len(records) != 147:
+        raise ValueError(
+            "publication records must contain exactly 147 entries"
+        )
+    summary = _require_mapping(data["summary"], "summary")
+    if summary.get("cases") != len(records):
+        raise ValueError(
+            "summary case count does not match publication records"
+        )
+    record_source_fields = {"cpu_source_id": "cpu", "gpu_source_id": "gpu"}
+    case_labels = set()
+    for index, record_value in enumerate(records):
+        record = _require_mapping(record_value, f"records[{index}]")
+        _require_keys(
+            record,
+            {
+                "estimator",
+                "operation",
+                "workload_label",
+                "case_label",
+                "parameters",
+                "execution_profile",
+                "cpu_source_id",
+                "gpu_source_id",
+            },
+            f"records[{index}]",
+        )
+        _require_mapping(record["parameters"], f"records[{index}].parameters")
+        case_label = record["case_label"]
+        if case_label in case_labels:
+            raise ValueError(f"duplicate publication case label: {case_label}")
+        case_labels.add(case_label)
+        for field, backend in record_source_fields.items():
+            source_id = record[field]
+            if source_id not in sources_by_id:
+                raise ValueError(
+                    f"records[{index}].{field} references an unknown source"
+                )
+            if sources_by_id[source_id]["backend"] != backend:
+                raise ValueError(
+                    f"records[{index}].{field} references the wrong backend"
+                )
+
+    return data
 
 
-def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
+def load_publication_data(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            f"invalid publication JSON at {path}: {error}"
+        ) from error
+    return validate_publication_data(data)
+
+
+def _summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     phases: dict[str, dict[str, Any]] = {}
     for phase in ("training", "inference"):
         phase_records = [
@@ -222,391 +262,60 @@ def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             {(record["estimator"], record["operation"]) for record in records}
         ),
         "cases": len(records),
-        "unavailable": sum(record["speedup"] is None for record in records),
+        "unavailable": sum(
+            record["speedup"] is None for record in records
+        ),
         "timeouts": {
-            side: sum(record["timeout_side"] == side for record in records)
+            side: sum(
+                record["timeout_side"] == side for record in records
+            )
             for side in ("cpu", "gpu", "both")
         },
         "phases": phases,
     }
 
 
-def normalize(
-    reference: dict[str, Any], candidate: dict[str, Any]
-) -> dict[str, Any]:
-    left = {item["case_label"]: item for item in reference["results"]}
-    right = {item["case_label"]: item for item in candidate["results"]}
-    if set(left) != set(right):
-        missing_left = sorted(set(right) - set(left))
-        missing_right = sorted(set(left) - set(right))
-        raise ValueError(
-            f"artifact case labels differ (reference missing {missing_left}; candidate missing {missing_right})"
-        )
-    reference_timeouts = _timeout_metadata(reference)
-    candidate_timeouts = _timeout_metadata(candidate)
-    reference_effective_timeouts = reference_timeouts[
-        "effective_case_timeout_sec"
-    ]
-    candidate_effective_timeouts = candidate_timeouts[
-        "effective_case_timeout_sec"
-    ]
-    if reference_effective_timeouts != candidate_effective_timeouts:
-        raise ValueError("reference and candidate timeout policies differ")
-    reference_workflow = reference["run"]["extensions"]["ai.rapids.mlbench"]
-    candidate_workflow = candidate["run"]["extensions"]["ai.rapids.mlbench"]
-    if reference_workflow["backend"] != {"name": "sklearn", "device": "cpu"}:
-        raise ValueError("reference artifact has the wrong backend identity")
-    if candidate_workflow["backend"] != {
-        "name": "cuml_accel",
-        "device": "gpu",
-    }:
-        raise ValueError("candidate artifact has the wrong backend identity")
-    if reference_workflow["image"] != candidate_workflow["image"]:
-        raise ValueError("reference and candidate image provenance differ")
-    if _package_versions(reference) != _package_versions(candidate):
-        raise ValueError("reference and candidate package versions differ")
-
-    family_by_estimator = {
-        estimator: family
-        for family, estimators in FAMILIES.items()
-        for estimator in estimators
-    }
-    records: list[dict[str, Any]] = []
-    for case_label in sorted(left):
-        cpu, gpu = left[case_label], right[case_label]
-        if (
-            cpu["algorithm"] != gpu["algorithm"]
-            or cpu["operation"] != gpu["operation"]
-        ):
-            raise ValueError(f"artifact metadata differs for {case_label}")
-        if (
-            cpu["input"] != gpu["input"]
-            or cpu["parameters"]["declared"] != gpu["parameters"]["declared"]
-        ):
-            raise ValueError(
-                f"artifact input or parameters differ for {case_label}"
-            )
-        for result, backend in ((cpu, "CPU"), (gpu, "accelerated")):
-            if result.get("outcome", {}).get(
-                "status"
-            ) != "success" and not _is_timeout(result):
-                raise ValueError(
-                    f"{backend} result is neither successful nor a timeout for {case_label}"
-                )
-            _validate_repetitions(result, case_label)
-        if (
-            gpu.get("outcome", {}).get("status") == "success"
-            and _execution_profile(gpu) != "gpu_only"
-        ):
-            raise ValueError(
-                f"accelerated result did not record GPU-only execution for {case_label}"
-            )
-        operation = cpu["operation"]["name"]
-        phase = "training" if operation in TRAINING_OPERATIONS else "inference"
-        cpu_time, gpu_time = _median_wall_time(cpu), _median_wall_time(gpu)
-        cpu_timeout, gpu_timeout = _is_timeout(cpu), _is_timeout(gpu)
-        if cpu_timeout and gpu_timeout:
-            timeout_side = "both"
-        elif cpu_timeout:
-            timeout_side = "cpu"
-        elif gpu_timeout:
-            timeout_side = "gpu"
-        else:
-            timeout_side = None
-        speedup = (
-            None
-            if timeout_side or cpu_time is None or gpu_time is None
-            else cpu_time / gpu_time
-        )
-        label_prefix = f"{cpu['algorithm']}.{operation}."
-        workload = case_label.removeprefix(label_prefix)
-        records.append(
-            {
-                "estimator": cpu["algorithm"],
-                "estimator_name": DISPLAY_NAMES[cpu["algorithm"]],
-                "family": family_by_estimator[cpu["algorithm"]],
-                "operation": operation,
-                "phase": phase,
-                "workload_label": workload,
-                "rows": _dimension(cpu, "rows"),
-                "features": _dimension(cpu, "features"),
-                "input_bytes": cpu["input"]["attributes"][
-                    "estimated_input_size_bytes"
-                ],
-                "cpu_median_wall_time_sec": cpu_time,
-                "gpu_median_wall_time_sec": gpu_time,
-                "speedup": speedup,
-                "timeout_side": timeout_side,
-                "timeout_limit_sec": reference_effective_timeouts[case_label],
-                "execution_profile": _execution_profile(gpu),
-                "correctness_status": "validated"
-                if gpu.get("outcome", {}).get("status") == "success"
-                else "not completed",
-            }
-        )
-
-    return {
-        "schema_version": 1,
-        "definition": {
-            "speedup": "CPU median wall time / accelerated median wall time",
-            "training_operations": sorted(TRAINING_OPERATIONS),
-            "workload_order": list(WORKLOADS),
-        },
-        "summary": _summarize_records(records),
-        "system": candidate["run"]["system"],
-        "methodology": candidate["run"]["methodology"],
-        "timeout_policy": {
-            "scope": "complete isolated case",
-            "default_case_timeout_sec": reference_timeouts[
-                "default_case_timeout_sec"
-            ],
-            "large_balanced_timeout_sec": next(
-                iter(
-                    {
-                        value
-                        for label, value in reference_effective_timeouts.items()
-                        if label.endswith(".large.balanced")
-                    }
-                )
-            ),
-            "includes": [
-                "process startup",
-                "data preparation",
-                "estimator setup",
-                "one warmup repetition",
-                "three measured repetitions",
-                "correctness validation",
-            ],
-        },
-        "packages": _package_versions(candidate),
-        "validation": {
-            "paired": True,
-            "successful_accelerated_execution": "gpu_only",
-            "successful_results": "correctness validated",
-        },
-        "records": records,
-    }
-
-
-def normalize_supplemental(
-    reference: dict[str, Any],
-    candidate: dict[str, Any],
-    *,
-    core_reference: dict[str, Any],
-    core_candidate: dict[str, Any],
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Validate and normalize the publish-gated ultra-wide PCA pair."""
-    left = {item["case_label"]: item for item in reference["results"]}
-    right = {item["case_label"]: item for item in candidate["results"]}
-    expected = set(PCA_ULTRA_WIDE_CASES)
-    if set(left) != expected or set(right) != expected:
-        raise ValueError(
-            "supplemental artifacts must contain exactly the two ultra-wide PCA cases"
-        )
-
-    for artifact, backend, device in (
-        (reference, "sklearn", "cpu"),
-        (candidate, "cuml_accel", "gpu"),
-    ):
-        workflow = artifact["run"]["extensions"]["ai.rapids.mlbench"]
-        if workflow["backend"] != {"name": backend, "device": device}:
-            raise ValueError(
-                f"supplemental {backend} artifact has the wrong backend identity"
-            )
-        if (
-            workflow["suite"] != "accel_performance_pca_ultra_wide"
-            or workflow["tier"] != "standard"
-        ):
-            raise ValueError(
-                "supplemental artifact has the wrong suite or tier"
-            )
-        if set(
-            workflow["timeouts"]["effective_case_timeout_sec"].values()
-        ) != {180.0}:
-            raise ValueError(
-                "supplemental cases must use a 180-second complete-case timeout"
-            )
-
-    if _package_versions(reference) != _package_versions(core_reference):
-        raise ValueError(
-            "supplemental CPU packages differ from the fixed-scale CPU artifact"
-        )
-    if _package_versions(candidate) != _package_versions(core_candidate):
-        raise ValueError(
-            "supplemental accelerated packages differ from the fixed-scale accelerated artifact"
-        )
-    if _image(reference) != _image(core_reference) or _image(
-        candidate
-    ) != _image(core_candidate):
-        raise ValueError(
-            "supplemental image provenance differs from the fixed-scale artifacts"
-        )
-    if (
-        candidate["run"]["system"]["components"]
-        != core_candidate["run"]["system"]["components"]
-    ):
-        raise ValueError(
-            "supplemental accelerated system differs from the fixed-scale artifact"
-        )
-
-    records = []
-    excluded = []
-    for case_label in sorted(expected):
-        cpu, gpu = left[case_label], right[case_label]
-        _validate_repetitions(cpu, case_label)
-        _validate_repetitions(gpu, case_label)
-        spec = PCA_ULTRA_WIDE_CASES[case_label]
-        declared = {"components": spec["components"], "solver": "auto"}
-        if (
-            cpu["parameters"]["declared"] != declared
-            or gpu["parameters"]["declared"] != declared
-        ):
-            raise ValueError(
-                f"supplemental parameters differ for {case_label}"
-            )
-        if (
-            _dimension(cpu, "rows") != spec["rows"]
-            or _dimension(cpu, "features") != spec["features"]
-            or cpu["input"]["data_type"] != "float32"
-            or cpu["input"]["attributes"]["seed"] != 42
-        ):
-            raise ValueError(
-                f"supplemental input metadata differs for {case_label}"
-            )
-        cpu_time, gpu_time = _median_wall_time(cpu), _median_wall_time(gpu)
-        profile = _execution_profile(gpu)
-        cpu_quality = _metric(cpu, "decomposition_quality")
-        gpu_quality = _metric(gpu, "decomposition_quality")
-        delta = abs(cpu_quality - gpu_quality)
-        validated = delta <= PCA_ULTRA_WIDE_TOLERANCE
-        completed = (
-            cpu.get("outcome", {}).get("status") == "success"
-            and gpu.get("outcome", {}).get("status") == "success"
-            and cpu_time is not None
-            and gpu_time is not None
-        )
-        exclusion_reasons = []
-        if not completed:
-            exclusion_reasons.append("did not complete on both backends")
-        if profile != "gpu_only":
-            exclusion_reasons.append("did not record GPU-only execution")
-        if not validated:
-            exclusion_reasons.append(
-                f"decomposition-quality delta {delta:.6g} exceeds {PCA_ULTRA_WIDE_TOLERANCE:g}"
-            )
-        record = {
-            "case_label": case_label,
-            "estimator": "pca",
-            "estimator_name": "PCA",
-            "operation": "fit_transform",
-            "phase": "training",
-            "workload_label": case_label.rsplit(".", 1)[-1],
-            "supplemental": True,
-            "rows": spec["rows"],
-            "features": spec["features"],
-            "components": spec["components"],
-            "parameters": declared,
-            "input_bytes": cpu["input"]["attributes"][
-                "estimated_input_size_bytes"
-            ],
-            "cpu_median_wall_time_sec": cpu_time,
-            "gpu_median_wall_time_sec": gpu_time,
-            "speedup": cpu_time / gpu_time if completed else None,
-            "timeout_side": None,
-            "timeout_limit_sec": 180.0,
-            "execution_profile": profile,
-            "correctness_status": "validated" if validated else "failed",
-            "validation": {
-                "kind": "decomposition_quality",
-                "tolerance": PCA_ULTRA_WIDE_TOLERANCE,
-                "cpu_value": cpu_quality,
-                "gpu_value": gpu_quality,
-                "absolute_delta": delta,
-            },
-        }
-        if exclusion_reasons:
-            excluded.append(
-                {"case_label": case_label, "reasons": exclusion_reasons}
-            )
-        else:
-            records.append(record)
-    if not records:
-        raise ValueError(
-            "supplemental publication gate failed: no case passed correctness and GPU-only validation"
-        )
-    if not any(record["speedup"] >= 2 for record in records):
-        raise ValueError(
-            "supplemental publication gate failed: no aligned result reached 2×"
-        )
-
-    summary = {
-        "cases": len(records),
-        "measured_cases": len(expected),
-        "excluded": excluded,
-        "strongest_speedup": max(record["speedup"] for record in records),
-        "timeout_policy": {
-            "scope": "complete isolated case",
-            "case_timeout_sec": 180.0,
-        },
-        "validation": {
-            "paired": True,
-            "successful_accelerated_execution": "gpu_only",
-            "kind": "decomposition_quality",
-            "tolerance": PCA_ULTRA_WIDE_TOLERANCE,
-        },
-    }
-    return records, summary
-
-
-def merge_pca_ultra_wide(
-    data: dict[str, Any],
-    supplemental_records: list[dict[str, Any]],
-    supplemental_summary: dict[str, Any],
-) -> None:
-    selected_label = "pca.fit_transform.feature_wide_2048"
-    selected = [
+def prepare_publication_data(data: Any) -> dict[str, Any]:
+    """Select the widest measured PCA case for the documentation page."""
+    transport = validate_publication_data(data)
+    records = transport["records"]
+    pca_records = [
         record
-        for record in supplemental_records
-        if record["case_label"] == selected_label
-    ]
-    if len(selected) != 1:
-        raise ValueError(
-            f"supplemental publication gate failed: {selected_label} is not publishable"
-        )
-    target_indexes = [
-        index
-        for index, record in enumerate(data["records"])
+        for record in records
         if record["estimator"] == "pca"
         and record["operation"] == "fit_transform"
-        and record["workload_label"] == "large.balanced"
+    ]
+    if not pca_records:
+        raise ValueError("publication data has no PCA fit_transform records")
+    widest_pca = max(pca_records, key=lambda record: record["features"])
+    presentation = [
+        record
+        for record in records
+        if record["workload_label"] in WORKLOADS
+    ]
+    target_indexes = [
+        index
+        for index, record in enumerate(presentation)
+        if _is_pca_large(record)
     ]
     if len(target_indexes) != 1:
         raise ValueError(
-            "expected exactly one core PCA fit_transform large record"
+            "publication data must contain exactly one canonical PCA large case"
         )
-    replacement = {
-        **selected[0],
-        "family": "Decomposition",
-        "workload_label": "large.balanced",
-        "record_source": "supplemental",
-        "replaces_workload": "pca.fit_transform.large.balanced",
-    }
-    replacement.pop("supplemental", None)
-    data["records"][target_indexes[0]] = replacement
-    data["records"].sort(
+    replacement = copy.deepcopy(widest_pca)
+    replacement["workload_label"] = "large.balanced"
+    presentation[target_indexes[0]] = replacement
+    presentation.sort(
         key=lambda record: (
             record["estimator"],
             record["operation"],
             record["workload_label"],
         )
     )
-    data["summary"] = _summarize_records(data["records"])
-    data["supplemental_summary"] = {
-        **supplemental_summary,
-        "cases": 1,
-        "selected_case_label": selected_label,
-        "replaced_workload": "pca.fit_transform.large.balanced",
-    }
+    prepared = copy.deepcopy(transport)
+    prepared["records"] = presentation
+    prepared["summary"] = _summarize(presentation)
+    return prepared
 
 
 def _fmt_speedup(value: float) -> str:
@@ -828,13 +537,8 @@ def _estimator_details_rst(
     estimator: str, records: list[dict[str, Any]]
 ) -> str:
     subset = [record for record in records if record["estimator"] == estimator]
-    show_components = any(
-        record.get("components") is not None for record in subset
-    )
     workload_order = {label: index for index, label in enumerate(WORKLOADS)}
     headers = ["Operation", "Workload", "Rows", "Features", "Input"]
-    if show_components:
-        headers.append("Components")
     headers.extend(["CPU", "GPU", "Result"])
     rows = []
     for record in sorted(
@@ -851,12 +555,6 @@ def _estimator_details_rst(
             f"{record['features']:,}",
             _fmt_bytes(record["input_bytes"]),
         ]
-        if show_components:
-            row.append(
-                f"{record['components']:,}"
-                if record.get("components") is not None
-                else "—"
-            )
         row.extend(
             [
                 _fmt_time(record["cpu_median_wall_time_sec"]),
@@ -900,12 +598,51 @@ def _strongest(records: list[dict[str, Any]], estimator: str) -> float:
     )
 
 
+def _is_pca_large(record: dict[str, Any]) -> bool:
+    return (
+        record["estimator"] == "pca"
+        and record["operation"] == "fit_transform"
+        and record["workload_label"] == "large.balanced"
+    )
+
+
+def _timeout_limits(records: list[dict[str, Any]]) -> tuple[float, float]:
+    pca_large = {
+        record["timeout_limit_sec"]
+        for record in records
+        if _is_pca_large(record)
+    }
+    small_medium = {
+        record["timeout_limit_sec"]
+        for record in records
+        if record["workload_label"] != "large.balanced"
+    }
+    default_limits = small_medium | pca_large
+    if len(default_limits) != 1:
+        raise ValueError(
+            "default-timeout presentation cases use inconsistent limits"
+        )
+    other_large = {
+        record["timeout_limit_sec"]
+        for record in records
+        if record["workload_label"] == "large.balanced"
+        and not _is_pca_large(record)
+    }
+    if len(other_large) != 1:
+        raise ValueError(
+            "large-timeout presentation cases use inconsistent limits"
+        )
+    return next(iter(default_limits)), next(iter(other_large))
+
+
 def render_rst(data: dict[str, Any], template: str) -> str:
+    data = prepare_publication_data(data)
     records = data["records"]
     summary = data["summary"]
     training = summary["phases"]["training"]
     inference = summary["phases"]["inference"]
-    timeouts = data["timeout_policy"]
+    default_timeout, large_timeout = _timeout_limits(records)
+    pca_large = next(record for record in records if _is_pca_large(record))
     components = {item["type"]: item for item in data["system"]["components"]}
     gpu = components["gpu"]
     cpu = components["cpu"]
@@ -924,8 +661,8 @@ def render_rst(data: dict[str, Any], template: str) -> str:
         "INFERENCE_MEDIAN": f"{inference['median_speedup']:.2f}",
         "INFERENCE_SLOWDOWNS": str(inference["slowdowns"]),
         "INFERENCE_PAIRED": str(inference["paired"]),
-        "DEFAULT_TIMEOUT_MIN": f"{timeouts['default_case_timeout_sec'] / 60:g}",
-        "LARGE_TIMEOUT_MIN": f"{timeouts['large_balanced_timeout_sec'] / 60:g}",
+        "DEFAULT_TIMEOUT_MIN": f"{default_timeout / 60:g}",
+        "LARGE_TIMEOUT_MIN": f"{large_timeout / 60:g}",
         "WORKLOAD_TABLE": _workload_guide_rst(records),
         "ESTIMATOR_SECTIONS": "\n".join(
             f"   {line}" if line else ""
@@ -939,6 +676,8 @@ def render_rst(data: dict[str, Any], template: str) -> str:
         "CPU_TIMEOUTS": str(summary["timeouts"]["cpu"]),
         "GPU_TIMEOUTS": str(summary["timeouts"]["gpu"]),
         "BOTH_TIMEOUTS": str(summary["timeouts"]["both"]),
+        "PCA_LARGE_ROWS": f"{pca_large['rows']:,}",
+        "PCA_LARGE_FEATURES": f"{pca_large['features']:,}",
         "CASES": str(summary["cases"]),
         "UNAVAILABLE": str(summary["unavailable"]),
     }
@@ -953,39 +692,15 @@ def render_rst(data: dict[str, Any], template: str) -> str:
     return rendered.rstrip() + "\n"
 
 
-def build_data(
-    reference_path: Path,
-    candidate_path: Path,
-    supplemental_reference_path: Path,
-    supplemental_candidate_path: Path,
-) -> dict[str, Any]:
-    reference = json.loads(reference_path.read_text(encoding="utf-8"))
-    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
-    data = normalize(reference, candidate)
-    supplemental_reference = json.loads(
-        supplemental_reference_path.read_text(encoding="utf-8")
-    )
-    supplemental_candidate = json.loads(
-        supplemental_candidate_path.read_text(encoding="utf-8")
-    )
-    supplemental_records, supplemental_summary = normalize_supplemental(
-        supplemental_reference,
-        supplemental_candidate,
-        core_reference=reference,
-        core_candidate=candidate,
-    )
-    merge_pca_ultra_wide(data, supplemental_records, supplemental_summary)
-    return data
-
-
 def render_files(data: dict[str, Any], template: str) -> dict[Path, str]:
+    prepared = prepare_publication_data(data)
     return {
         DEFAULT_PAGE: render_rst(data, template),
         DEFAULT_STATIC / "training-heatmap.svg": render_heatmap(
-            data["records"], "training"
+            prepared["records"], "training"
         ),
         DEFAULT_STATIC / "inference-heatmap.svg": render_heatmap(
-            data["records"], "inference"
+            prepared["records"], "inference"
         ),
     }
 
@@ -1000,7 +715,7 @@ def _write_or_check(files: dict[Path, str], *, check: bool) -> bool:
                 path.write_text(content, encoding="utf-8")
     if check and differences:
         print(
-            "generated benchmark documentation is out of date: "
+            "cuml.accel benchmark files are out of date: "
             + ", ".join(map(str, differences)),
             file=sys.stderr,
         )
@@ -1011,46 +726,31 @@ def _write_or_check(files: dict[Path, str], *, check: bool) -> bool:
 def sphinx_main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    import_parser = subparsers.add_parser(
-        "import", help="validate raw results and write curated data"
+    sync_parser = subparsers.add_parser(
+        "sync", help="synchronize portable publication data and render outputs"
     )
-    import_parser.add_argument(
-        "--reference",
+    sync_parser.add_argument(
+        "--data",
         type=Path,
         required=True,
-        help="core CPU result artifact",
+        help="portable schema-v1 publication artifact from cumlbench-dash",
     )
-    import_parser.add_argument(
-        "--candidate",
-        type=Path,
-        required=True,
-        help="core accelerated result artifact",
+    sync_parser.add_argument(
+        "--template", type=Path, default=DEFAULT_TEMPLATE, help="RST template"
     )
-    import_parser.add_argument(
-        "--supplemental-reference",
-        type=Path,
-        required=True,
-        help="PCA CPU result artifact",
-    )
-    import_parser.add_argument(
-        "--supplemental-candidate",
-        type=Path,
-        required=True,
-        help="PCA accelerated result artifact",
-    )
-    import_parser.add_argument(
-        "--data", type=Path, default=DEFAULT_DATA, help="curated output JSON"
-    )
-    import_parser.add_argument(
+    sync_parser.add_argument(
         "--check",
         action="store_true",
-        help="fail instead of writing when curated data differs",
+        help="verify supplied data, checked-in data, and rendered files",
     )
     render_parser = subparsers.add_parser(
-        "render", help="render RST and SVGs from curated data"
+        "render", help="render RST and SVGs from checked-in publication data"
     )
     render_parser.add_argument(
-        "--data", type=Path, default=DEFAULT_DATA, help="curated input JSON"
+        "--data",
+        type=Path,
+        default=DEFAULT_DATA,
+        help="publication input JSON",
     )
     render_parser.add_argument(
         "--template", type=Path, default=DEFAULT_TEMPLATE, help="RST template"
@@ -1061,25 +761,19 @@ def sphinx_main(argv: list[str] | None = None) -> int:
         help="fail instead of writing when generated files differ",
     )
     args = parser.parse_args(argv)
-    if args.command == "import":
-        data = build_data(
-            args.reference.resolve(),
-            args.candidate.resolve(),
-            args.supplemental_reference.resolve(),
-            args.supplemental_candidate.resolve(),
-        )
-        content = (
-            json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False)
-            + "\n"
-        )
-        return (
-            0
-            if _write_or_check(
-                {args.data.resolve(): content}, check=args.check
-            )
-            else 1
-        )
-    data = json.loads(args.data.read_text(encoding="utf-8"))
+    if args.command == "sync":
+        supplied_path = args.data.resolve()
+        data = load_publication_data(supplied_path)
+        content = supplied_path.read_text(encoding="utf-8")
+        template = args.template.read_text(encoding="utf-8")
+        if args.check:
+            load_publication_data(DEFAULT_DATA)
+        files = {
+            DEFAULT_DATA: content,
+            **render_files(data, template),
+        }
+        return 0 if _write_or_check(files, check=args.check) else 1
+    data = load_publication_data(args.data)
     template = args.template.read_text(encoding="utf-8")
     return (
         0

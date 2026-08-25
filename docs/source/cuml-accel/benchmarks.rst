@@ -846,7 +846,6 @@ shape.
            - Rows
            - Features
            - Input
-           - Components
            - CPU
            - GPU
            - Result
@@ -855,7 +854,6 @@ shape.
            - 19,531
            - 128
            - 10 MB
-           - —
            - 6.9 ms
            - 8.8 ms
            - 0.79×
@@ -864,7 +862,6 @@ shape.
            - 195,312
            - 16
            - 12.5 MB
-           - —
            - 8.0 ms
            - 9.5 ms
            - 0.85×
@@ -873,7 +870,6 @@ shape.
            - 195,312
            - 128
            - 100 MB
-           - —
            - 55.5 ms
            - 243.0 ms
            - 0.23×
@@ -882,7 +878,6 @@ shape.
            - 195,312
            - 512
            - 400 MB
-           - —
            - 653.5 ms
            - 1.03 s
            - 0.64×
@@ -891,7 +886,6 @@ shape.
            - 5,000
            - 2,048
            - 41 MB
-           - 1,024
            - 1.56 s
            - 127.3 ms
            - 12.2×
@@ -900,7 +894,6 @@ shape.
            - 19,531
            - 128
            - 10 MB
-           - —
            - 0.17 ms
            - 0.64 ms
            - 0.26×
@@ -909,7 +902,6 @@ shape.
            - 195,312
            - 16
            - 12.5 MB
-           - —
            - 0.51 ms
            - 0.74 ms
            - 0.68×
@@ -918,7 +910,6 @@ shape.
            - 195,312
            - 128
            - 100 MB
-           - —
            - 2.1 ms
            - 3.8 ms
            - 0.56×
@@ -927,7 +918,6 @@ shape.
            - 195,312
            - 512
            - 400 MB
-           - —
            - 3.1 ms
            - 39.9 ms
            - 0.08×
@@ -936,7 +926,6 @@ shape.
            - 19,531,250
            - 128
            - 10 GB
-           - —
            - 81.8 ms
            - 1.39 s
            - 0.06×
@@ -1594,10 +1583,9 @@ What determines GPU speedup
 
    .. grid-item-card:: Operation and shape
 
-      Rows alone do not determine performance. Feature count, retained
-      components, and the exact operation also matter. Evaluate fit, predict,
-      and transform separately; these benchmark points are not a controlled
-      scaling curve.
+      Rows alone do not determine performance. Feature count and the exact
+      operation also matter. Evaluate fit, predict, and transform separately;
+      these benchmark points are not a controlled scaling curve.
 
    .. grid-item-card:: End-to-end workflow
 
@@ -1642,8 +1630,8 @@ operation-appropriate correctness validation, and a complete-case timeout.
    26 unavailable comparisons and every completed result below
    1×. These measurements describe the tested cases on this system; results
    for other workloads and systems will vary. PCA's operation-specific
-   ``large`` fit-transform uses 5,000 rows, 2,048 features, and 1,024 retained
-   components.
+   ``large`` fit-transform uses 5,000 rows and
+   2,048 features.
 
 Continue with cuml.accel
 ------------------------
