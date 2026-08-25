@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
+import sklearn.datasets
 from packaging.version import Version
 from sklearn.impute import MissingIndicator as skMissingIndicator
 from sklearn.impute import SimpleImputer as skSimpleImputer
@@ -1274,3 +1275,62 @@ def test__repr__():
     assert cuRobustScaler().__repr__() == "RobustScaler()"
     assert cuSimpleImputer().__repr__() == "SimpleImputer()"
     assert cuStandardScaler().__repr__() == "StandardScaler()"
+
+
+@pytest.mark.parametrize(
+    "cu_cls, sk_cls, params",
+    [
+        (cuMinMaxScaler, skMinMaxScaler, {}),
+        (cuMaxAbsScaler, skMaxAbsScaler, {}),
+        (cuRobustScaler, skRobustScaler, {}),
+        (cuStandardScaler, skStandardScaler, {}),
+        (cuQuantileTransformer, skQuantileTransformer, {"n_quantiles": 10}),
+        (cuPowerTransformer, skPowerTransformer, {}),
+        (cuNormalizer, skNormalizer, {}),
+        (cuBinarizer, skBinarizer, {}),
+    ],
+)
+def test_get_feature_names_out(cu_cls, sk_cls, params):
+    iris = sklearn.datasets.load_iris()
+    cu_model = cu_cls(**params).fit(iris.data)
+    sk_model = sk_cls(**params).fit(iris.data)
+
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)
+
+    res = cu_model.get_feature_names_out(iris.feature_names)
+    sol = sk_model.get_feature_names_out(iris.feature_names)
+    np.testing.assert_array_equal(res, sol)
+
+
+def test_kernel_centerer_get_feature_names_out():
+    from sklearn.metrics.pairwise import linear_kernel
+
+    rng = np.random.RandomState(0)
+    X = rng.random_sample((6, 4))
+    X_pairwise = linear_kernel(X)
+
+    cu_model = cuKernelCenterer().fit(X_pairwise)
+    sk_model = skKernelCenterer().fit(X_pairwise)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)
+
+
+@pytest.mark.parametrize(
+    "encode",
+    [
+        "onehot",
+        "onehot-dense",
+        "ordinal",
+    ],
+)
+def test_kbins_discretizer_get_feature_names_out(encode):
+    X = np.array([[-2, 1, -4], [-1, 2, -3], [0, 3, -2], [1, 4, -1]])
+
+    cu_model = cuKBinsDiscretizer(n_bins=4, encode=encode).fit(X)
+    sk_model = skKBinsDiscretizer(n_bins=4, encode=encode).fit(X)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)

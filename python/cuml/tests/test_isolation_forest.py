@@ -12,6 +12,8 @@ These tests are designed to be:
 4. Validating sklearn compatibility
 """
 
+import pickle
+
 import cupy as cp
 import numpy as np
 import pytest
@@ -20,7 +22,7 @@ from sklearn.datasets import make_blobs
 from sklearn.ensemble import IsolationForest as skIsolationForest
 
 from cuml import IsolationForest as cuIsolationForest
-from cuml.internals.interop import UnsupportedOnCPU, UnsupportedOnGPU
+from cuml.internals.interop import UnsupportedOnGPU
 from cuml.testing.utils import stress_param, unit_param
 
 # =============================================================================
@@ -40,6 +42,15 @@ def synthetic_data_small():
     # Labels: 1 for normal, -1 for outliers (sklearn convention)
     y_true = np.array([1] * 100 + [-1] * 10)
     return X, y_true
+
+
+@pytest.fixture(scope="module")
+def anomaly_data():
+    """Dataset large enough for every max_samples setting under test."""
+    rng = np.random.RandomState(7)
+    X = rng.randn(2000, 8).astype(np.float32)
+    X[:30] += 6.0
+    return X
 
 
 @pytest.fixture(scope="module")
@@ -285,22 +296,6 @@ def test_bootstrap_parameter(blobs_data, bootstrap):
     assert predictions.shape[0] == blobs_data.shape[0]
 
 
-def test_unsupported_sample_weight(blobs_data):
-    """sample_weight should fail explicitly until backend support is added."""
-    clf = cuIsolationForest(n_estimators=10, random_state=42)
-
-    with pytest.raises(UnsupportedOnGPU, match="sample_weight"):
-        clf.fit(blobs_data, sample_weight=np.ones(blobs_data.shape[0]))
-
-
-def test_unsupported_warm_start(blobs_data):
-    """warm_start=True should fail explicitly."""
-    clf = cuIsolationForest(n_estimators=10, random_state=42, warm_start=True)
-
-    with pytest.raises(UnsupportedOnGPU, match="warm_start"):
-        clf.fit(blobs_data)
-
-
 def test_unfitted_sklearn_conversion_preserves_parameters():
     """Unfitted estimators may still be converted in either direction."""
     cu_model = cuIsolationForest(n_estimators=7, random_state=42)
@@ -313,19 +308,189 @@ def test_unfitted_sklearn_conversion_preserves_parameters():
     assert roundtrip.random_state == 42
 
 
-def test_fitted_sklearn_conversion_is_explicitly_unsupported(blobs_data):
-    """Fitted conversion must not silently drop the trained forest."""
-    cu_model = cuIsolationForest(n_estimators=5, random_state=42).fit(
-        blobs_data
-    )
-    with pytest.raises(UnsupportedOnCPU, match="fitted"):
-        cu_model.as_sklearn()
-
+def test_fitted_from_sklearn_is_explicitly_unsupported(blobs_data):
+    """Importing a fitted sklearn model must not silently drop the forest."""
     sk_model = skIsolationForest(n_estimators=5, random_state=42).fit(
         blobs_data
     )
     with pytest.raises(UnsupportedOnGPU, match="fitted"):
         cuIsolationForest.from_sklearn(sk_model)
+
+
+def test_as_sklearn_respects_max_depth(anomaly_data):
+    """A configured ``max_depth`` must carry over to the reconstructed
+    estimators, and truncated trees (leaves holding many samples) must
+    still score identically."""
+    cu_model = cuIsolationForest(
+        n_estimators=20, max_samples=256, max_depth=4, random_state=11
+    ).fit(anomaly_data)
+    sk_model = cu_model.as_sklearn()
+    assert all(est.max_depth == 4 for est in sk_model.estimators_)
+    cu_scores = np.asarray(
+        cu_model.score_samples(anomaly_data), dtype=np.float64
+    )
+    np.testing.assert_allclose(
+        cu_scores, sk_model.score_samples(anomaly_data), atol=1e-5
+    )
+
+
+def test_as_sklearn_after_failed_fit_raises(blobs_data):
+    """A failed fit sets ``n_features_in_`` before raising, which makes the
+    model look fitted to ``InteropMixin``; conversion must still fail
+    loudly rather than deserialize a missing forest."""
+    cu_model = cuIsolationForest(max_features=0)
+    with pytest.raises(ValueError, match="max_features"):
+        cu_model.fit(blobs_data)
+    with pytest.raises(RuntimeError, match="not been fitted"):
+        cu_model.as_sklearn()
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"n_estimators": 100, "max_samples": 256},
+        {"n_estimators": 50, "max_samples": 128, "max_features": 0.5},
+        {"n_estimators": 50, "max_samples": "auto", "contamination": 0.05},
+        {"n_estimators": 20, "max_samples": 150, "bootstrap": True},
+    ],
+)
+def test_as_sklearn_scoring_parity(anomaly_data, params):
+    """A converted fitted model scores like the cuML model it came from."""
+    cu_model = cuIsolationForest(random_state=7, **params).fit(anomaly_data)
+    sk_model = cu_model.as_sklearn()
+    assert isinstance(sk_model, skIsolationForest)
+
+    cu_scores = np.asarray(
+        cu_model.score_samples(anomaly_data), dtype=np.float64
+    )
+    np.testing.assert_allclose(
+        sk_model.score_samples(anomaly_data), cu_scores, rtol=0, atol=1e-5
+    )
+    cu_decision = np.asarray(
+        cu_model.decision_function(anomaly_data), dtype=np.float64
+    )
+    np.testing.assert_allclose(
+        sk_model.decision_function(anomaly_data),
+        cu_decision,
+        rtol=0,
+        atol=1e-5,
+    )
+    np.testing.assert_array_equal(
+        sk_model.predict(anomaly_data),
+        np.asarray(cu_model.predict(anomaly_data)),
+    )
+
+
+def test_as_sklearn_float64_parity(anomaly_data):
+    """Conversion of a float64 fit matches to float64 precision."""
+    X = anomaly_data.astype(np.float64)
+    cu_model = cuIsolationForest(n_estimators=20, random_state=1).fit(X)
+    sk_model = cu_model.as_sklearn()
+    cu_scores = np.asarray(cu_model.score_samples(X), dtype=np.float64)
+    np.testing.assert_allclose(
+        sk_model.score_samples(X), cu_scores, rtol=0, atol=1e-10
+    )
+
+
+def test_as_sklearn_populates_fitted_attributes(blobs_data):
+    """The converted model carries the attributes a sklearn fit would set."""
+    cu_model = cuIsolationForest(
+        n_estimators=10, max_samples=64, random_state=0
+    ).fit(blobs_data)
+    sk_model = cu_model.as_sklearn()
+
+    assert sk_model.max_samples_ == 64
+    assert sk_model.offset_ == pytest.approx(float(cu_model.offset_))
+    assert sk_model.n_features_in_ == blobs_data.shape[1]
+    assert len(sk_model.estimators_) == 10
+    assert len(sk_model.estimators_features_) == 10
+    # The private fit caches sklearn scoring reads must exist and align.
+    assert isinstance(sk_model._average_path_length_per_tree, tuple)
+    assert isinstance(sk_model._decision_path_lengths, tuple)
+    assert len(sk_model._average_path_length_per_tree) == 10
+    for est, lengths in zip(
+        sk_model.estimators_, sk_model._decision_path_lengths
+    ):
+        assert est.tree_.node_count == len(lengths)
+        assert est.tree_.n_node_samples[0] == 64
+
+    # Sample indices are not recorded by cuML, so the sklearn property
+    # backed by `_seeds` stays unavailable rather than returning wrong ones.
+    with pytest.raises(AttributeError):
+        sk_model.estimators_samples_
+
+
+def test_as_sklearn_pickle_roundtrip(blobs_data):
+    """The converted model survives pickling with identical behavior."""
+    cu_model = cuIsolationForest(n_estimators=10, random_state=0).fit(
+        blobs_data
+    )
+    sk_model = cu_model.as_sklearn()
+    restored = pickle.loads(pickle.dumps(sk_model))
+    np.testing.assert_array_equal(
+        restored.score_samples(blobs_data), sk_model.score_samples(blobs_data)
+    )
+    np.testing.assert_array_equal(
+        restored.predict(blobs_data), sk_model.predict(blobs_data)
+    )
+
+
+def test_as_sklearn_constant_data():
+    """Degenerate single-node trees convert and score identically."""
+    X = np.ones((300, 4), dtype=np.float32)
+    cu_model = cuIsolationForest(
+        n_estimators=5, max_samples=32, random_state=0
+    ).fit(X)
+    sk_model = cu_model.as_sklearn()
+    np.testing.assert_allclose(
+        sk_model.score_samples(X),
+        np.asarray(cu_model.score_samples(X), dtype=np.float64),
+        rtol=0,
+        atol=1e-5,
+    )
+
+
+def test_sync_attrs_to_cpu_populates_target(blobs_data):
+    """The sync path `cuml.accel` relies on fills a target sklearn model."""
+    cu_model = cuIsolationForest(n_estimators=10, random_state=0).fit(
+        blobs_data
+    )
+    target = skIsolationForest(**cu_model._params_to_cpu())
+    cu_model._sync_attrs_to_cpu(target)
+    np.testing.assert_allclose(
+        target.score_samples(blobs_data),
+        np.asarray(cu_model.score_samples(blobs_data), dtype=np.float64),
+        rtol=0,
+        atol=1e-5,
+    )
+
+
+def test_invert_average_path_length_roundtrip():
+    """Recovered counts invert sklearn's average path length exactly."""
+    from sklearn.ensemble._iforest import _average_path_length
+
+    from cuml.ensemble.isolation_forest import _invert_average_path_length
+
+    for n in (1, 2, 3, 10, 256, 5000):
+        value = float(_average_path_length(np.asarray([n]))[0])
+        assert _invert_average_path_length(value) == n
+
+
+def test_invert_average_path_length_fails_loudly():
+    """Values matching no count, or more than one, raise a clear error."""
+    from sklearn.ensemble._iforest import _average_path_length
+
+    from cuml.ensemble.isolation_forest import _invert_average_path_length
+
+    with pytest.raises(ValueError, match="negative"):
+        _invert_average_path_length(-0.5)
+    # Between apl(4) and apl(5), far from both: no candidate matches.
+    with pytest.raises(ValueError, match="no integer count"):
+        _invert_average_path_length(1.95)
+    # At large counts adjacent values collapse within tolerance: ambiguous.
+    midpoint = float(_average_path_length(np.asarray([50000, 50001])).mean())
+    with pytest.raises(ValueError, match="more than one"):
+        _invert_average_path_length(midpoint)
 
 
 def test_contamination_float_sets_score_quantile_offset(blobs_data):

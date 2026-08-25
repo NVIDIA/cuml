@@ -1,16 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
-from copy import deepcopy
-from itertools import dropwhile
 from textwrap import dedent, indent
 
-import cudf
 import cupy as cp
 import numpy as np
-import pandas as pd
 import pytest
-from cudf.pandas import LOADED as cudf_pandas_active
 from numba import cuda
 
 from cuml.internals.base import Base
@@ -131,20 +126,6 @@ def assert_array_equal(a, b, unit_tol=1e-4, total_tol=1e-4, with_sign=True):
         raise AssertionError(assertion_error_msg)
 
 
-def normalize_clusters(a0, b0, n_clusters):
-    a = as_numpy(a0)
-    b = as_numpy(b0)
-
-    c = deepcopy(b)
-
-    for i in range(n_clusters):
-        (idx,) = np.where(a == i)
-        a_to_b = c[idx[0]]
-        b[c == a_to_b] = i
-
-    return a, b
-
-
 def as_type(output_type, *arrays):
     """Convert input arrays (cupy or numpy) to the requested output type"""
     out = convert_arrays(
@@ -181,11 +162,6 @@ def as_cupy(*arrays):
         else:
             out.append(cp.asarray(x))
     return out[0] if len(out) == 1 else tuple(out)
-
-
-def clusters_equal(a0, b0, n_clusters, tol=1e-4):
-    a, b = normalize_clusters(a0, b0, n_clusters)
-    return array_equal(a, b, total_tol=tol)
 
 
 def assert_dbscan_equal(ref, actual, X, core_indices, eps):
@@ -385,18 +361,6 @@ def generate_random_labels(random_generation_lambda, seed=1234, as_cupy=False):
         return cuda.to_device(a), cuda.to_device(b), a, b
 
 
-def get_number_positional_args(func, default=2):
-    # function to return number of positional arguments in func
-    if hasattr(func, "__code__"):
-        all_args = func.__code__.co_argcount
-        if func.__defaults__ is not None:
-            kwargs = len(func.__defaults__)
-        else:
-            kwargs = 0
-        return all_args - kwargs
-    return default
-
-
 def get_shap_values(
     model,
     explainer,
@@ -414,55 +378,6 @@ def get_shap_values(
         shap_values = explainer(explained_dataset)
 
     return explainer, shap_values
-
-
-def generate_inputs_from_categories(
-    categories=None, n_samples=10, seed=5060, as_array=False
-):
-    if categories is None:
-        if as_array:
-            categories = {
-                "strings": list(range(1000, 4000, 3)),
-                "integers": list(range(1000)),
-            }
-        else:
-            categories = {
-                "strings": ["Foo", "Bar", "Baz"],
-                "integers": list(range(1000)),
-            }
-
-    rd = np.random.RandomState(seed)
-    pandas_df = pd.DataFrame(
-        {name: rd.choice(cat, n_samples) for name, cat in categories.items()}
-    )
-    ary = from_df_to_numpy(pandas_df)
-    if as_array:
-        inp_ary = cp.array(ary)
-        return inp_ary, ary
-    else:
-        if cudf_pandas_active:
-            df = pandas_df
-        else:
-            df = cudf.DataFrame(pandas_df)
-        return df, ary
-
-
-def assert_inverse_equal(ours, ref, **kwargs):
-    if isinstance(ours, cp.ndarray):
-        cp.testing.assert_array_equal(ours, ref)
-    else:
-        if hasattr(ours, "to_pandas"):
-            ours = ours.to_pandas()
-        if hasattr(ref, "to_pandas"):
-            ref = ref.to_pandas()
-        pd.testing.assert_frame_equal(ours, ref, **kwargs)
-
-
-def from_df_to_numpy(df):
-    if isinstance(df, pd.DataFrame):
-        return list(zip(*[df[feature] for feature in df.columns]))
-    else:
-        return list(zip(*[df[feature].to_numpy() for feature in df.columns]))
 
 
 def compare_svm(
@@ -627,24 +542,3 @@ def svm_array_equal(a, b, tol=1e-6, relative_diff=True, report_summary=False):
             np.mean(b),
         )
     return equal
-
-
-def normalized_shape(shape):
-    """Normalize shape to tuple."""
-    return (shape,) if isinstance(shape, int) else shape
-
-
-def squeezed_shape(shape):
-    """Remove all trailing axes of length 1 from shape.
-
-    Similar to, but not exactly like np.squeeze().
-    """
-    return tuple(reversed(list(dropwhile(lambda d: d == 1, reversed(shape)))))
-
-
-def series_squeezed_shape(shape):
-    """Remove all but one axes of length 1 from shape."""
-    if shape:
-        return tuple([d for d in normalized_shape(shape) if d != 1]) or (1,)
-    else:
-        return ()
