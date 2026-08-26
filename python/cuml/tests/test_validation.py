@@ -2151,3 +2151,40 @@ def test_check_cudf_coerces_numeric_objects():
     s = check_cudf(x, ensure_ndim=1)
     assert (s == cudf.Series([1.0, 2.0, 3.0])).all()
     assert s.dtype == "float64"
+
+
+@pytest.mark.parametrize("kind", ["list", "array", "array-like"])
+def test_check_cudf_mixed_dtype_array_like_inputs(kind):
+    class ArrayLike:
+        def __init__(self, array):
+            self.array = array
+
+        def __array__(self, dtype=None, copy=None):
+            return self.array
+
+    data = [
+        [1, 2.0, "x", "a", None, np.nan],
+        [2, 4.0, "y", None, None, np.nan],
+    ]
+    sol = cudf.DataFrame(data)
+    if kind == "list":
+        X = data
+    elif kind == "array":
+        X = np.array(data, dtype=object)
+    else:
+        assert kind == "array-like"
+        X = ArrayLike(np.array(data, dtype=object))
+
+    res = check_cudf(X)
+    cudf.testing.assert_frame_equal(res, sol)
+
+
+@pytest.mark.parametrize("kind", ["list", "array"])
+def test_check_cudf_unsupported_object_inputs(kind):
+    data = [[{"x": 1}, 1], [1, 2]]
+
+    with pytest.raises(
+        TypeError,
+        match="An object dtype X argument must be composed of",
+    ):
+        check_cudf(data, input_name="X")
