@@ -20,6 +20,7 @@ from cuml.internals.validation import (
     check_consistent_length,
     check_cudf,
     check_features,
+    check_input_features,
     check_is_fitted,
     check_random_seed,
 )
@@ -256,6 +257,25 @@ class TargetEncoder(InteropMixin, Base):
         """
         self.fit(X, y, fold_ids=fold_ids)
         return self.train_encode
+
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input feature names.
+
+        Returns
+        -------
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
+        """
+        check_is_fitted(self)
+        input_features = check_input_features(self, input_features)
+        if self.multi_feature_mode == "independent":
+            return input_features
+        return np.asarray(["targetencoder0"], dtype=object)
 
     @mlfunc(preserve_index=True)
     def transform(self, X):
