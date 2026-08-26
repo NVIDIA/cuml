@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import numpy as np
@@ -17,6 +17,7 @@ __all__ = (
     "MinMaxScaler",
     "MaxAbsScaler",
     "PolynomialFeatures",
+    "OneHotEncoder",
     "TargetEncoder",
     "LabelEncoder",
     "LabelBinarizer",
@@ -53,6 +54,10 @@ class PolynomialFeatures(ArrayAPIProxyBase):
         if model.order == "F":
             raise UnsupportedOnGPU("order='F' is not supported")
         return model.get_params(deep=False)
+
+
+class OneHotEncoder(ProxyBase):
+    _gpu_class = cuml.preprocessing.OneHotEncoder
 
 
 class LabelEncoder(ProxyBase):
