@@ -1334,3 +1334,24 @@ def test_kbins_discretizer_get_feature_names_out(encode):
     res = cu_model.get_feature_names_out()
     sol = sk_model.get_feature_names_out()
     np.testing.assert_array_equal(res, sol)
+
+
+@pytest.mark.parametrize("names", [None, ["a", "b"]])
+def test_missing_indicator_get_feature_names_out(names):
+    X = np.array([[np.nan, 1], [0, 1], [1, np.nan]])
+    cu_model = cuMissingIndicator().fit(X)
+    sk_model = skMissingIndicator().fit(X)
+    res = cu_model.get_feature_names_out(names)
+    sol = sk_model.get_feature_names_out(names)
+    np.testing.assert_array_equal(res, sol)
+
+
+@pytest.mark.parametrize("names", [None, ["a", "b"]])
+@pytest.mark.parametrize("add_indicator", [False, True])
+def test_simple_imputer_get_feature_names_out(add_indicator, names):
+    X = np.array([[np.nan, 1], [0, 1], [1, np.nan]])
+    cu_model = cuSimpleImputer(add_indicator=add_indicator).fit(X)
+    sk_model = skSimpleImputer(add_indicator=add_indicator).fit(X)
+    res = cu_model.get_feature_names_out(names)
+    sol = sk_model.get_feature_names_out(names)
+    np.testing.assert_array_equal(res, sol)

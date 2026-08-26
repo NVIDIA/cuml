@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -174,7 +174,8 @@ bool check_outliers(const int* rows, int m, nnz_t nnz, int threshold, cudaStream
   dim3 blk(TPB_X, 1, 1);
   compute_degrees_kernel<<<grid_nnz, blk, 0, stream>>>(rows, nnz, graph_degree_head.data());
 
-  rmm::device_scalar<bool> has_outlier_d(0, stream);  // initialize to 0
+  rmm::device_scalar<bool> has_outlier_d(stream);
+  raft::linalg::zero(has_outlier_d.data(), 1, stream);
 
   dim3 grid_head_n(raft::ceildiv(static_cast<nnz_t>(m), static_cast<nnz_t>(TPB_X)), 1, 1);
   check_threshold_kernel<<<grid_head_n, blk, 0, stream>>>(
