@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -50,8 +50,6 @@ class Ridge(BaseEstimator, SyncFitMixinLinearModel, DelayedPredictionMixin):
     def __init__(self, *, client=None, verbose=False, **kwargs):
         super().__init__(client=client, verbose=verbose, **kwargs)
 
-        self.coef_ = None
-        self.intercept_ = None
         self._model_fit = False
         self._consec_call = 0
 

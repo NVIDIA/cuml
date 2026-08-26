@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -83,6 +83,16 @@ class Lasso(BaseEstimator):
         self.solver.fit(X, y)
 
         return self
+
+    def __getattr__(self, attr):
+        if attr in ("coef_", "intercept_", "n_iter_"):
+            try:
+                return getattr(self.solver, attr)
+            except AttributeError as e:
+                raise AttributeError(
+                    "%s is not fitted" % type(self).__name__
+                ) from e
+        return super().__getattr__(attr)
 
     def predict(self, X, delayed=True):
         """

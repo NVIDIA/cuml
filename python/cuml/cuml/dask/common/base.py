@@ -20,6 +20,7 @@ from cuml.dask.common import parts_to_ranks
 from cuml.dask.common.input_utils import DistributedDataHandler
 from cuml.dask.common.utils import get_client, wait_and_raise_from_futures
 from cuml.internals.base import Base
+from cuml.internals.global_settings import GlobalSettings
 
 
 class BaseEstimator:
@@ -164,16 +165,27 @@ class BaseEstimator:
 
     @staticmethod
     @dask.delayed
-    def _get_model_attr(model, name):
-        if hasattr(model, name):
-            return getattr(model, name)
-        # skip raising an error for ipython/jupyter related attributes
-        elif any([x in name for x in ("_ipython", "_repr")]):
-            pass
-        else:
-            raise AttributeError(
-                "Attribute %s does not exist on model %s" % (name, type(model))
-            )
+    def _get_model_attr(model, name, output_type):
+        # Global settings are thread-local, so propagate the client's selection.
+        settings = GlobalSettings()
+        previous_output_type = settings.output_type
+        settings.output_type = output_type
+        try:
+            try:
+                return getattr(model, name)
+            except AttributeError as e:
+                # skip raising an error for ipython/jupyter related attributes
+                if any([x in name for x in ("_ipython", "_repr")]):
+                    pass
+                elif e.name == name and e.obj is model:
+                    raise AttributeError(
+                        "Attribute %s does not exist on model %s"
+                        % (name, type(model))
+                    ) from e
+                else:
+                    raise
+        finally:
+            settings.output_type = previous_output_type
 
     def __getattr__(self, attr):
         """
@@ -212,7 +224,7 @@ class BaseEstimator:
                 # Otherwise, fetch the attribute from the distributed
                 # model and return it
                 ret_attr = BaseEstimator._get_model_attr(
-                    internal_model, attr
+                    internal_model, attr, GlobalSettings().output_type
                 ).compute()
         else:
             raise AttributeError(
