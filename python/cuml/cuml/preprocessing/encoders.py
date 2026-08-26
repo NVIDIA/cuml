@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import warnings
 from collections.abc import Sequence
 
 import cudf
@@ -115,30 +116,27 @@ def _compute_categories(
         if auto:
             if not unique:
                 Xi = Xi.drop_duplicates()
-            cats = Xi.sort_values().to_numpy()
+            cats = Xi.sort_values()
+            # XXX: cudf's object dtype uses None for NA, we want NaN everywhere
+            if cats.dtype == "object":
+                cats = cats.astype(str)
+            cats = cats.to_numpy()
         else:
-            dtype = Xi.dtype if isinstance(Xi.dtype, np.dtype) else "O"
-            cats = _as_numpy(categories[i], dtype=dtype)
+            cats_cudf = cudf.Series(categories[i], dtype=Xi.dtype)
+            if cats_cudf.dtype == "object":
+                cats_cudf = cats_cudf.astype(str)
+            cats = cats_cudf.to_numpy()
 
             # `nan` may only exist in floating or object dtypes, and must be
             # the last stated category
-            if (cats.dtype.kind == "f" and np.isnan(cats[:-1]).any()) or (
-                cats.dtype.kind == "O"
-                and any(_safe_is_nan(c) for c in cats[:-1])
-            ):
+            if cats_cudf[:-1].isnull().any():
                 raise ValueError(
                     "Nan should be the last element in user"
                     f" provided categories, see categories {cats}"
                     f" in column #{i}"
                 )
 
-            # Try using numpy.unique to check for uniqueness, falling back
-            # to pure python if that fails
-            try:
-                n_cats = len(np.unique(cats))
-            except (TypeError, ValueError):
-                n_cats = len(set(cats))
-            if cats.size != n_cats:
+            if not cats_cudf.is_unique:
                 raise ValueError(
                     f"In column {i}, the predefined categories"
                     " contain duplicate elements."
@@ -147,8 +145,9 @@ def _compute_categories(
             if handle_unknown == "error":
                 if not unique:
                     Xi = Xi.drop_duplicates()
-                present = Xi.sort_values().to_numpy()
-                diff = _get_diff(present, cats)
+                diff = (
+                    Xi[~Xi.isin(cats_cudf)].sort_values().to_numpy().tolist()
+                )
                 if diff:
                     raise ValueError(
                         f"Found unknown categories {diff} in column {i} during fit"
@@ -301,6 +300,8 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
 
     @classmethod
     def _params_from_cpu(cls, model):
+        if np.dtype(model.dtype).kind not in "fb":
+            raise UnsupportedOnGPU("`dtype={model.dtype!r}` is not supported")
         if isinstance(model.drop, str) and model.drop == "if_binary":
             raise UnsupportedOnGPU("`drop='if_binary'` is not supported")
         if model.handle_unknown in ("infrequent_if_exist", "warn"):
@@ -472,7 +473,8 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
         X = check_cudf(X, input_name="X")
 
         raw_inds = cp.zeros(X.shape, dtype="int32")
-        has_unknown = False
+        is_masked = False
+        columns_with_unknown = []
         drop_idx = self.drop_idx_
 
         for i in range(X.shape[1]):
@@ -488,23 +490,24 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
             else:
                 codes = Xi.astype(cudf.CategoricalDtype(cats)).cat.codes
 
-            if codes.has_nulls and self.handle_unknown == "error":
-                present = Xi.drop_duplicates().sort_values().to_numpy()
-                diff = _get_diff(present, self.categories_[i])
-                raise ValueError(
-                    f"Found unknown categories {diff} in column {i}"
-                    " during transform"
-                )
+            if codes.has_nulls:
+                if self.handle_unknown == "error":
+                    present = Xi.drop_duplicates().sort_values().to_numpy()
+                    diff = _get_diff(present, self.categories_[i])
+                    raise ValueError(
+                        f"Found unknown categories {diff} in column {i}"
+                        " during transform"
+                    )
+                is_masked = True
+                columns_with_unknown.append(i)
 
             if drop_idx is not None and drop_idx[i] is not None:
-                has_unknown = True
+                is_masked = True
                 if drop_idx[i] == 0:
                     codes -= 1
                 else:
                     codes[codes == drop_idx[i]] = -1
                     codes[codes > drop_idx[i]] -= 1
-            else:
-                has_unknown |= codes.has_nulls
             raw_inds[:, i] = codes.fillna(-1)
 
         n_samples, n_features = raw_inds.shape
@@ -512,7 +515,18 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
         feature_indices = np.cumsum([0, *self._n_features_outs])
         indices = (raw_inds + cp.asarray(feature_indices[:-1])).ravel()
 
-        if has_unknown:
+        if (
+            self.handle_unknown == "ignore"
+            and self.drop is not None
+            and columns_with_unknown
+        ):
+            warnings.warn(
+                "Found unknown categories in columns "
+                f"{columns_with_unknown} during transform. These "
+                "unknown categories will be encoded as all zeros",
+            )
+
+        if is_masked:
             mask = raw_inds != -1
             indices = indices[mask.ravel()]
 

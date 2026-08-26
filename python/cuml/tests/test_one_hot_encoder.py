@@ -79,15 +79,15 @@ def test_onehot_encoder_fit_transform(kind):
 
 
 @pytest.mark.parametrize(
-    "drop", [None, "first", [2, 2, float("nan"), 2, "banana", "b"]]
+    "drop", [None, "first", [2, 2, np.nan, 2, "banana", "b"]]
 )
 def test_onehot_encoder_all_dtypes(drop):
     X = pd.DataFrame(
         {
             "int32": pd.Series([1, 2, 1, 2, 1], dtype="int32"),
             "int64": pd.Series([1, 2, 1, 2, 1], dtype="int64"),
-            "float32": pd.Series([1, 2, float("nan"), 2, 1], dtype="float32"),
-            "float64": pd.Series([1, 2, float("nan"), 2, 1], dtype="float64"),
+            "float32": pd.Series([1, 2, np.nan, 2, 1], dtype="float32"),
+            "float64": pd.Series([1, 2, np.nan, 2, 1], dtype="float64"),
             "string": pd.Series(["apple", "banana", "carrot", "apple", None]),
             "category": pd.Series(
                 ["a", "b", "a", "b", None], dtype="category"
@@ -168,12 +168,13 @@ def test_onehot_encoder_cardinalities(cardinalities, drop):
     pd.testing.assert_frame_equal(res, pd.DataFrame(X))
 
 
-def test_onehot_encoder_invalid_parameters():
+@pytest.mark.parametrize("missing", [None, np.nan])
+def test_onehot_encoder_invalid_parameters(missing):
     X = pd.DataFrame(
         {
             "x": [1.0, 2.0, 1.0, 2.0],
             "y": [1.0, 2.0, 3.0, 1.0],
-            "z": [2.0, 2.0, float("nan"), 2.0],
+            "z": [2.0, 2.0, missing, 2.0],
         }
     )
 
@@ -205,51 +206,52 @@ def test_onehot_encoder_invalid_parameters():
         OneHotEncoder(categories=[[2], [1, 2]]).fit(X)
 
     with pytest.raises(ValueError, match="Nan should be the last element"):
-        OneHotEncoder(categories=[[1, 2], [1, 2, 3], [float("nan"), 2]]).fit(X)
+        OneHotEncoder(categories=[[1, 2], [1, 2, 3], [missing, 2]]).fit(X)
+
+    with pytest.raises(ValueError, match="Nan should be the last element"):
+        OneHotEncoder(categories=[[1, 2], [1, 2, 3], [2, None, np.nan]]).fit(X)
 
     X2 = pd.DataFrame(
         {
             "x": [1.0, 2.0, 1.0, 2.0],
-            "y": ["a", None, "b", None],
+            "y": ["a", missing, "b", missing],
         }
     )
     with pytest.raises(ValueError, match="Nan should be the last element"):
-        OneHotEncoder(categories=[[1, 2], ["a", float("nan"), "b"]]).fit(X2)
-    with pytest.raises(ValueError, match="Nan should be the last element"):
-        OneHotEncoder(categories=[[1, 2], ["a", float("nan"), "b"]]).fit(X2)
+        OneHotEncoder(categories=[[1, 2], ["a", missing, "b"]]).fit(X2)
 
     with pytest.raises(ValueError, match="In column 1, .* duplicate elements"):
-        OneHotEncoder(
-            categories=[[1, 2], [1, 2, 3, 3], [2, float("nan")]]
-        ).fit(X)
+        OneHotEncoder(categories=[[1, 2], [1, 2, 3, 3], [2, missing]]).fit(X)
 
 
-def test_onehot_encoder_unknown_categories_in_fit():
-    X = np.array([[1, 2, float("nan"), 2]]).T
+@pytest.mark.parametrize("missing", [np.nan, None])
+def test_onehot_encoder_unknown_categories_in_fit(missing):
+    X = np.array([[1, 2, missing, 2]]).T
 
     with pytest.raises(ValueError, match="Found unknown categories \\[nan\\]"):
         OneHotEncoder(categories=[[1, 2]]).fit(X)
 
     with pytest.raises(
-        ValueError, match="Found unknown categories \\[1.0, 2.0\\]"
+        ValueError, match="Found unknown categories \\[1.*, 2.*\\]"
     ):
-        OneHotEncoder(categories=[[float("nan")]]).fit(X)
+        OneHotEncoder(categories=[[missing]]).fit(X)
 
-    enc = OneHotEncoder(categories=[[1, 2, float("nan")]]).fit(X)
-    np.testing.assert_array_equal(enc.categories_[0], [1, 2, float("nan")])
+    enc = OneHotEncoder(categories=[[1, 2, missing]]).fit(X)
+    np.testing.assert_array_equal(enc.categories_[0], [1, 2, np.nan])
 
 
-@pytest.mark.parametrize("unknown_val", ["c", float("nan")])
-def test_onehot_encoder_transform_unknown(unknown_val):
+@pytest.mark.parametrize("unknown", ["c", np.nan, None])
+def test_onehot_encoder_transform_unknown(unknown):
     X1 = pd.DataFrame({"x": ["a", "b", "a"]})
-    X2 = pd.DataFrame({"x": ["b", unknown_val]})
+    X2 = pd.DataFrame({"x": ["b", unknown]})
 
     enc = OneHotEncoder().fit(X1)
 
     # Unknown value errors by default
+    unknown2 = np.nan if unknown is None else unknown
     with pytest.raises(
         ValueError,
-        match=f".* categories \\[{unknown_val!r}\\] in column 0 during transform",
+        match=f".* categories \\[{unknown2!r}\\] in column 0 during transform",
     ):
         enc.transform(X2)
 
@@ -262,12 +264,25 @@ def test_onehot_encoder_transform_unknown(unknown_val):
     np.testing.assert_array_equal(res.toarray(), sol.toarray())
 
     # Explicitly passing categories also fixes things
-    kwargs = {"categories": [["a", "b", unknown_val]]}
-    cu_enc = OneHotEncoder(**kwargs).fit(X1)
-    sk_enc = sklearn.preprocessing.OneHotEncoder(**kwargs).fit(X1)
+    cu_enc = OneHotEncoder(categories=[["a", "b", unknown]]).fit(X1)
+    sk_enc = sklearn.preprocessing.OneHotEncoder(
+        categories=[["a", "b", unknown2]]
+    ).fit(X1)
     res = cu_enc.transform(X2)
     sol = sk_enc.transform(X2)
     np.testing.assert_array_equal(res.toarray(), sol.toarray())
+
+
+@pytest.mark.parametrize("unknown", ["c", np.nan, None])
+def test_onehot_encoder_drop_handle_unknown_ignore_transform_warns(unknown):
+    X1 = pd.DataFrame({"x": ["a", "b", "a"]})
+    X2 = pd.DataFrame({"x": ["b", unknown]})
+
+    enc = OneHotEncoder(handle_unknown="ignore", drop="first").fit(X1)
+    with pytest.warns(
+        UserWarning, match="Found unknown categories in columns \\[0\\]"
+    ):
+        enc.transform(X2)
 
 
 @pytest.mark.parametrize("drop", [None, "first", ["b", 3, 1]])
