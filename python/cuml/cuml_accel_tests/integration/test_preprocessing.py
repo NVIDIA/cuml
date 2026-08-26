@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
@@ -13,6 +13,7 @@ from sklearn.preprocessing import (
     LabelEncoder,
     MaxAbsScaler,
     MinMaxScaler,
+    OneHotEncoder,
     PolynomialFeatures,
     StandardScaler,
 )
@@ -136,6 +137,33 @@ def test_polynomial_features():
     model.set_output(transform="pandas")
     out_df = model.transform(X)
     assert isinstance(out_df, pd.DataFrame)
+
+
+@pytest.mark.parametrize("sparse_output", [True, False])
+def test_one_hot_encoder(sparse_output):
+    X = np.array([["a", 1], ["b", 1], ["a", 2], ["a", 3]], dtype=object)
+
+    model = OneHotEncoder(sparse_output=sparse_output).fit(X)
+    np.testing.assert_array_equal(model.categories_[0], ["a", "b"])
+    np.testing.assert_array_equal(model.categories_[1], [1, 2, 3])
+
+    sol = np.array(
+        [
+            [1, 0, 1, 0, 0],
+            [0, 1, 1, 0, 0],
+            [1, 0, 0, 1, 0],
+            [1, 0, 0, 0, 1],
+        ]
+    )
+    Xt = model.transform(X)
+    if sparse_output:
+        assert sp.issparse(Xt)
+        np.testing.assert_array_equal(Xt.toarray(), sol)
+    else:
+        np.testing.assert_array_equal(Xt, sol)
+
+    inv_X = model.inverse_transform(Xt)
+    np.testing.assert_array_equal(X, inv_X)
 
 
 def test_label_encoder():
