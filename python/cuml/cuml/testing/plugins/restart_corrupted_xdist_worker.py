@@ -6,9 +6,9 @@
 """Keep a poisoned CUDA context from failing every later test in a worker.
 
 Load this from any test suite that runs under pytest-xdist by adding
-``pytest_plugins = "cuml.testing.plugins.sticky_cuda_errors"`` to its
-``conftest.py``. Suites in sibling directories do not share a ``conftest.py``,
-so each one has to register the plugin itself.
+``pytest_plugins = "cuml.testing.plugins.restart_corrupted_xdist_worker"`` to
+its ``conftest.py``. Suites in sibling directories do not share a
+``conftest.py``, so each one has to register the plugin itself.
 """
 
 import os

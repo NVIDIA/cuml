@@ -13,7 +13,7 @@ import pytest
 from cuml.accel import install
 from cuml.accel.core import logger
 
-pytest_plugins = "cuml.testing.plugins.sticky_cuda_errors"
+pytest_plugins = "cuml.testing.plugins.restart_corrupted_xdist_worker"
 
 # Install the accelerator
 install()
