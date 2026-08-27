@@ -12,6 +12,7 @@ import joblib
 import numpy as np
 import scipy.sparse
 import scipy.spatial
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse
@@ -655,7 +656,13 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
         params.build_params.nnd.intermediate_graph_degree = intermediate_graph_degree
 
 
-class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
+class UMAP(
+    InteropMixin,
+    CMajorInputTagMixin,
+    SparseInputTagMixin,
+    ClassNamePrefixFeaturesOutMixin,
+    Base,
+):
     """Uniform Manifold Approximation and Projection
 
     Finds a low dimensional embedding of the data that approximates
@@ -1104,6 +1111,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             "_disconnection_distance": disconnection_distance,
             "_initial_alpha": self.learning_rate,
             "_n_neighbors": self._n_neighbors,
+            "_n_features_out": self._n_features_out,
             "_supervised": self._supervised,
             "_small_data": False,
             "_knn_dists": knn_dists,
@@ -1195,6 +1203,11 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
         self.build_algo = build_algo
         self.build_kwds = build_kwds
         self.device_ids = device_ids
+
+    @property
+    @mlfunc(convert_output=False)
+    def _n_features_out(self):
+        return self.embedding_.array.shape[1]
 
     @generate_docstring(
         X="dense_sparse",

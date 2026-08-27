@@ -163,7 +163,6 @@ class BaseEstimator:
         return self.internal_model
 
     @staticmethod
-    @dask.delayed
     def _get_model_attr(model, name):
         if hasattr(model, name):
             return getattr(model, name)
@@ -211,7 +210,7 @@ class BaseEstimator:
             else:
                 # Otherwise, fetch the attribute from the distributed
                 # model and return it
-                ret_attr = BaseEstimator._get_model_attr(
+                ret_attr = dask.delayed(BaseEstimator._get_model_attr)(
                     internal_model, attr
                 ).compute()
         else:
