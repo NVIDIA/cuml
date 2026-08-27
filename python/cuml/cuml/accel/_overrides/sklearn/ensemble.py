@@ -116,9 +116,14 @@ class IsolationForest(ProxyBase):
             raise UnsupportedOnGPU("sample_weight is not supported")
         return self._gpu.fit(X, y=y)
 
-    def _gpu_fit_predict(self, X, y=None, sample_weight=None):
+    def _gpu_fit_predict(self, X, y=None, **kwargs):
+        # IsolationForest.fit_predict() doesn't declare sample_weight itself;
+        # it inherits OutlierMixin.fit_predict(self, X, y=None, **kwargs),
+        # which forwards kwargs straight to fit(). Match that signature here
+        # (rather than declaring sample_weight explicitly) so the proxy stays
+        # signature-compatible with the CPU method.
         self._validate_input(X)
-        if sample_weight is not None:
+        if kwargs.get("sample_weight") is not None:
             raise UnsupportedOnGPU("sample_weight is not supported")
         return self._gpu.fit_predict(X, y=y)
 
