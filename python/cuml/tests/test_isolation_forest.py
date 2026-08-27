@@ -269,7 +269,16 @@ def test_max_features_parameter(blobs_data, max_features, expected_features):
         n_estimators=10, max_features=max_features, random_state=42
     )
     clf.fit(blobs_data)
-    assert clf._n_features_per_tree == expected_features
+    # Each tree may only split on the features sampled for it, so the number
+    # of distinct split features per tree is the resolved `max_features`.
+    tl_model = clf.as_treelite()
+    for tree_id in range(tl_model.num_tree):
+        split_index = tl_model.get_tree_accessor(tree_id).get_field(
+            "split_index"
+        )
+        # Leaves carry ``split_index == -1``.
+        used = set(split_index[split_index >= 0].tolist())
+        assert len(used) == expected_features
     predictions = clf.predict(blobs_data)
     assert predictions.shape[0] == blobs_data.shape[0]
 
@@ -814,7 +823,7 @@ def test_pickle_after_predict_preserves_fitted_model(blobs_data):
 
     loaded = pickle.loads(pickle.dumps(clf))
 
-    assert loaded._nvforest_model is None
+    assert not hasattr(loaded, "_nvforest_model")
     np.testing.assert_array_equal(
         np.asarray(loaded.predict(blobs_data)), expected
     )

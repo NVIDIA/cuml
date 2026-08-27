@@ -299,11 +299,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         verbose=False,
         output_type=None,
     ):
-        self._treelite_model_bytes = None
-        self._nvforest_model = None
-        self._c_normalization = None
-        self._n_features_per_tree = None
-
         super().__init__(verbose=verbose, output_type=output_type)
 
         self.n_estimators = n_estimators
@@ -372,7 +367,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
 
         # A failed `fit` can leave `n_features_in_` set (making the model look
         # fitted to `InteropMixin`) while no serialized forest exists yet.
-        if self._treelite_model_bytes is None:
+        if not hasattr(self, "_treelite_model_bytes"):
             raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
@@ -415,7 +410,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         state = self.__dict__.copy()
         # nvForest model isn't currently pickleable. It's rebuilt on demand from
         # `_treelite_model_bytes`, which is the fitted model.
-        state["_nvforest_model"] = None
+        state.pop("_nvforest_model", None)
         return state
 
     def __setstate__(self, state):
@@ -481,7 +476,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                 "max_features must be an int in [1, n_features] or a float "
                 "in (0.0, 1.0]."
             )
-        self._n_features_per_tree = actual_max_features
 
         if isinstance(self.contamination, str):
             if self.contamination != "auto":
@@ -616,12 +610,10 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         except Exception:
             if tl_handle != NULL:
                 TreeliteFreeModel(tl_handle)
-            self._treelite_model_bytes = None
-            self._nvforest_model = None
             raise
 
         self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
-        self._c_normalization = c_normalization
+        self._normalization_constant = c_normalization
         # Load the inference model here rather than on first use, so that
         # `predict` and friends don't mutate the estimator. The lazy path in
         # `_get_inference_nvforest_model` then only covers unpickled models.
@@ -650,7 +642,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         -------
         treelite.Model
         """
-        if self._treelite_model_bytes is None:
+        if not hasattr(self, "_treelite_model_bytes"):
             raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         return treelite.Model.deserialize_bytes(self._treelite_model_bytes)
@@ -666,7 +658,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         nvforest_model : nvforest.ForestInference
             A forest inference model that predicts average path length.
         """
-        if self._treelite_model_bytes is None:
+        if not hasattr(self, "_treelite_model_bytes"):
             raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         return nvforest.load_from_treelite_model(
@@ -679,9 +671,9 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         )
 
     def _get_inference_nvforest_model(self):
-        if self._nvforest_model is None:
-            self._nvforest_model = self.as_nvforest()
-        return self._nvforest_model
+        if (nvforest_model := getattr(self, "_nvforest_model", None)) is None:
+            self._nvforest_model = nvforest_model = self.as_nvforest()
+        return nvforest_model
 
     def _score_samples(self, X):
         """
@@ -690,7 +682,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         Shared by ``score_samples``, ``decision_function`` and ``predict`` so
         that input validation runs exactly once per public call.
         """
-        if self._treelite_model_bytes is None:
+        if not hasattr(self, "_treelite_model_bytes"):
             raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         nvforest_model = self._get_inference_nvforest_model()
@@ -727,11 +719,11 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         #   - paper_score=0.5 (normal threshold) → sklearn_score=-0.5
         #   - paper_score=0.0 (v.normal) → sklearn_score=0.0
         #
-        if self._c_normalization <= 0:
+        if self._normalization_constant <= 0:
             # c(n) is 0 for a single training sample per tree, leaving every
             # sample at the neutral score.
             return cp.full(avg_path_lengths.shape, -0.5, dtype=dtype)
-        return -cp.exp2(-avg_path_lengths / self._c_normalization)
+        return -cp.exp2(-avg_path_lengths / self._normalization_constant)
 
     @mlfunc(preserve_index=True)
     def score_samples(self, X):
