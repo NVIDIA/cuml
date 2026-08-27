@@ -496,8 +496,12 @@ def _normalize_ivf_params(algo, params):
 
     out = {**defaults, **params}
 
-    if algo == "ivfpq" and out["pq_dim"] * out["pq_bits"] % 8:
-        raise ValueError("pq_dim * pq_bits must be a multiple of 8")
+    if algo == "ivfpq":
+        bits = out["pq_bits"]
+        if bits < 4 or bits > 8:
+            raise ValueError("pq_bits must be between 4 and 8")
+        if out["pq_dim"] * bits % 8:
+            raise ValueError("pq_dim * pq_bits must be a multiple of 8")
 
     return out
 
@@ -1222,7 +1226,8 @@ class NearestNeighbors(NeighborsBase):
               dataset used to train k-means
             - pq_dim: (int, default=0) product-quantization dimensionality;
               zero selects the value heuristically
-            - pq_bits: (int, default=8) bits per PQ encoded element
+            - pq_bits: (int, default=8) bits per PQ encoded element;
+              must be between 4 and 8
             - codebook_kind: ({'subspace', 'cluster'}, default='subspace')
               method used to construct PQ codebooks
             - codes_layout: ({'flat', 'interleaved'}, default='interleaved')

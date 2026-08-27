@@ -285,6 +285,30 @@ def test_ivf_cuvs_param_names(algorithm, algo_params):
     assert indices.shape == (32, 4)
 
 
+def test_ivfpq_invalid_encoding_size():
+    X, _ = make_blobs(n_samples=32, n_features=4, random_state=0)
+
+    with pytest.raises(
+        ValueError,
+        match=r"pq_dim \* pq_bits must be a multiple of 8",
+    ):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"pq_dim": 3, "pq_bits": 4},
+        ).fit(X)
+
+
+@pytest.mark.parametrize("pq_bits", [0, 3, 9])
+def test_ivfpq_invalid_pq_bits(pq_bits):
+    X, _ = make_blobs(n_samples=32, n_features=8, random_state=0)
+
+    with pytest.raises(ValueError, match="pq_bits must be between 4 and 8"):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"pq_dim": 8, "pq_bits": pq_bits},
+        ).fit(X)
+
+
 @pytest.mark.parametrize(
     "algorithm,algo_params",
     [
@@ -304,17 +328,6 @@ def test_ivf_cuvs_param_names(algorithm, algo_params):
         ),
     ],
 )
-def test_ivfpq_invalid_encoding_size():
-    with pytest.raises(
-        ValueError,
-        match=r"pq_dim \* pq_bits must be a multiple of 8",
-    ):
-        cuKNN(
-            algorithm="ivfpq",
-            algo_params={"pq_dim": 3, "pq_bits": 4},
-        )
-
-
 def test_ivf_legacy_param_names_warn(algorithm, algo_params):
     X, _ = make_blobs(
         n_samples=4000,
