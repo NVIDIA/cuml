@@ -497,9 +497,13 @@ def _normalize_ivf_params(algo, params):
     out = {**defaults, **params}
 
     if algo == "ivfpq":
+        if out["pq_dim"] < 0:
+            raise ValueError("pq_dim must be greater than or equal to 0")
+
         bits = out["pq_bits"]
         if bits < 4 or bits > 8:
             raise ValueError("pq_bits must be between 4 and 8")
+
         if out["pq_dim"] * bits % 8:
             raise ValueError("pq_dim * pq_bits must be a multiple of 8")
 

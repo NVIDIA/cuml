@@ -309,6 +309,19 @@ def test_ivfpq_invalid_pq_bits(pq_bits):
         ).fit(X)
 
 
+def test_ivfpq_negative_pq_dim():
+    X, _ = make_blobs(n_samples=32, n_features=8, random_state=0)
+
+    with pytest.raises(
+        ValueError,
+        match="pq_dim must be greater than or equal to 0",
+    ):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"pq_dim": -1, "pq_bits": 8},
+        ).fit(X)
+
+
 @pytest.mark.parametrize(
     "algorithm,algo_params",
     [
