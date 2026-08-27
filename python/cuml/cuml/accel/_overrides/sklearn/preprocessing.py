@@ -59,6 +59,9 @@ class PolynomialFeatures(ArrayAPIProxyBase):
 class OneHotEncoder(ProxyBase):
     _gpu_class = cuml.preprocessing.OneHotEncoder
 
+    def _gpu_fit_transform(self, X, y=None, **fit_params):
+        return self._gpu.fit_transform(X, y=y, **fit_params)
+
 
 class LabelEncoder(ProxyBase):
     _gpu_class = cuml.preprocessing.LabelEncoder
