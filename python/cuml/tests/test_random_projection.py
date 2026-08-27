@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import cupy as cp
 import cupyx.scipy.sparse as cp_sp
@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse as sp
+import sklearn.random_projection
 from scipy.spatial.distance import pdist
 
 from cuml.random_projection import (
@@ -220,3 +221,25 @@ def test_output_type_sparse_inputs(cls):
     else:
         assert isinstance(out, cp.ndarray)
         assert isinstance(model.components_, cp.ndarray)
+
+
+@pytest.mark.parametrize(
+    "cu_cls, sk_cls",
+    [
+        (
+            GaussianRandomProjection,
+            sklearn.random_projection.GaussianRandomProjection,
+        ),
+        (
+            SparseRandomProjection,
+            sklearn.random_projection.SparseRandomProjection,
+        ),
+    ],
+)
+def test_get_feature_names_out(cu_cls, sk_cls):
+    X = random_array(10, 100)
+    cu_model = cu_cls(n_components=5, random_state=42).fit(X)
+    sk_model = sk_cls(n_components=5, random_state=42).fit(X)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)

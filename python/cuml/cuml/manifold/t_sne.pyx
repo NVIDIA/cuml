@@ -3,6 +3,7 @@
 import warnings
 
 import cupy as cp
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse
@@ -235,6 +236,7 @@ cdef _init_params(self, int n_samples, TSNEParams &params):
 class TSNE(InteropMixin,
            CMajorInputTagMixin,
            SparseInputTagMixin,
+           ClassNamePrefixFeaturesOutMixin,
            Base):
     """
     t-SNE (T-Distributed Stochastic Neighbor Embedding) is an extremely
@@ -549,10 +551,11 @@ class TSNE(InteropMixin,
         self.precomputed_knn = precomputed_knn
 
     @property
+    @mlfunc(convert_output=False)
     def _n_features_out(self):
         """Number of transformed output features."""
         # Exposed to support sklearn's `get_feature_names_out`
-        return self.embedding_.shape[1]
+        return self.embedding_.array.shape[1]
 
     @generate_docstring(skip_parameters_heading=True,
                         X='dense_sparse')

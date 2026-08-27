@@ -128,13 +128,13 @@ def make_regression(
 
     Returns
     -------
-    out : device array of shape [n_samples, n_features]
+    X : array of shape (n_samples, n_features)
         The input samples.
 
-    values : device array of shape [n_samples, n_targets]
+    y : array of shape (n_samples,) or (n_samples, n_targets)
         The output values.
 
-    coef : device array of shape [n_features, n_targets], optional
+    coef : array of shape (n_features,) or (n_features, n_targets), optional
         The coefficient of the underlying linear model. It is returned only if
         coef is True.
     """  # noqa: E501
@@ -148,11 +148,11 @@ def make_regression(
     handle = get_handle()
     cdef handle_t* handle_ = <handle_t*><size_t>handle.getHandle()
 
-    out = cp.zeros((n_samples, n_features), dtype=dtype, order='C')
-    cdef uintptr_t out_ptr = out.data.ptr
+    X = cp.zeros((n_samples, n_features), dtype=dtype, order='C')
+    cdef uintptr_t out_ptr = X.data.ptr
 
-    values = cp.zeros((n_samples, n_targets), dtype=dtype, order='C')
-    cdef uintptr_t values_ptr = values.data.ptr
+    y = cp.zeros((n_samples, n_targets), dtype=dtype, order='C')
+    cdef uintptr_t values_ptr = y.data.ptr
 
     cdef uintptr_t coef_ptr
     coef_ptr = <uintptr_t> NULL
@@ -181,7 +181,12 @@ def make_regression(
                             <double> tail_strength, <double> noise,
                             <bool> shuffle, <uint64_t> random_state)
 
+    if n_targets == 1:
+        y = y.ravel()
+        if coef:
+            coefs = coefs.ravel()
+
     if coef:
-        return out, values, coefs
+        return X, y, coefs
     else:
-        return out, values
+        return X, y

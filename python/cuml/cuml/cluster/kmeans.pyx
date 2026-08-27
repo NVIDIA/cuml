@@ -5,6 +5,7 @@ from numbers import Integral
 
 import cupy as cp
 import numpy as np
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base, get_handle
@@ -434,10 +435,13 @@ cdef _kmeans_predict_host_chunked(
     return labels_host, total_inertia
 
 
-class KMeans(InteropMixin,
-             ClusterMixin,
-             CMajorInputTagMixin,
-             Base):
+class KMeans(
+    InteropMixin,
+    ClusterMixin,
+    CMajorInputTagMixin,
+    ClassNamePrefixFeaturesOutMixin,
+    Base,
+):
     """
     KMeans is a basic but powerful clustering method which is optimized via
     Expectation Maximization. It randomly selects K data points in X, and
@@ -717,10 +721,11 @@ class KMeans(InteropMixin,
         self.init_size = init_size
 
     @property
+    @mlfunc(convert_output=False)
     def _n_features_out(self):
         """Number of transformed output features."""
         # Exposed to support sklearn's `get_feature_names_out`
-        return self.n_clusters
+        return self.cluster_centers_.shape[0]
 
     @generate_docstring()
     @mlfunc(set_input_type=True)
