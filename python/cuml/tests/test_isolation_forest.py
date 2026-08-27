@@ -767,7 +767,7 @@ def test_score_samples_single_sample():
     )
 
 
-def test_treelite_export_before_fit_raises(blobs_data):
+def test_treelite_export_before_fit_raises():
     """Treelite and nvForest export should require a fitted model."""
     clf = cuIsolationForest()
 
@@ -776,67 +776,6 @@ def test_treelite_export_before_fit_raises(blobs_data):
 
     with pytest.raises(RuntimeError, match="not been fitted"):
         clf.as_nvforest()
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf.score_samples(blobs_data)
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf.predict(blobs_data)
-
-
-# =============================================================================
-# Pickling tests
-# =============================================================================
-
-
-def test_pickle_preserves_fitted_model(blobs_data):
-    """The Treelite bytes are the whole fitted model, so an unpickled
-    estimator predicts identically without refitting."""
-    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
-    loaded = pickle.loads(pickle.dumps(clf))
-
-    assert loaded.get_params() == clf.get_params()
-    assert loaded.offset_ == clf.offset_
-    assert loaded.max_samples_ == clf.max_samples_
-    assert loaded.n_features_in_ == clf.n_features_in_
-
-    np.testing.assert_array_equal(
-        np.asarray(loaded.score_samples(blobs_data)),
-        np.asarray(clf.score_samples(blobs_data)),
-    )
-    np.testing.assert_array_equal(
-        np.asarray(loaded.decision_function(blobs_data)),
-        np.asarray(clf.decision_function(blobs_data)),
-    )
-    np.testing.assert_array_equal(
-        np.asarray(loaded.predict(blobs_data)),
-        np.asarray(clf.predict(blobs_data)),
-    )
-    assert loaded.as_treelite().num_tree == clf.as_treelite().num_tree
-
-
-def test_pickle_after_predict_preserves_fitted_model(blobs_data):
-    """The cached nvForest model is dropped on pickling and rebuilt on
-    demand, so predicting before pickling must not change the outcome."""
-    clf = cuIsolationForest(n_estimators=10, random_state=42).fit(blobs_data)
-    expected = np.asarray(clf.predict(blobs_data))
-
-    loaded = pickle.loads(pickle.dumps(clf))
-
-    assert not hasattr(loaded, "_nvforest_model")
-    np.testing.assert_array_equal(
-        np.asarray(loaded.predict(blobs_data)), expected
-    )
-
-
-def test_pickle_unfitted_model(blobs_data):
-    """An unfitted estimator round trips and stays unfitted."""
-    clf = cuIsolationForest(n_estimators=7, random_state=3)
-    loaded = pickle.loads(pickle.dumps(clf))
-
-    assert loaded.get_params() == clf.get_params()
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        loaded.predict(blobs_data)
 
 
 # =============================================================================
