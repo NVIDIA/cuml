@@ -37,6 +37,34 @@ def test_isolation_forest_fit_predict_agreement(blobs_with_outliers):
     assert np.mean(expected_labels == result_labels) >= 0.9
 
 
+def test_isolation_forest_fit_sample_weight_falls_back_to_cpu(
+    blobs_with_outliers,
+):
+    # cuml.ensemble.IsolationForest.fit() has no sample_weight parameter,
+    # so a non-None sample_weight cannot be honored on GPU.
+    X = blobs_with_outliers
+    sample_weight = np.ones(len(X))
+
+    result = IsolationForest(n_estimators=10, random_state=0).fit(
+        X, sample_weight=sample_weight
+    )
+
+    assert result._gpu is None
+
+
+def test_isolation_forest_fit_predict_sample_weight_falls_back_to_cpu(
+    blobs_with_outliers,
+):
+    # Same as above, for fit_predict().
+    X = blobs_with_outliers
+    sample_weight = np.ones(len(X))
+
+    result = IsolationForest(n_estimators=10, random_state=0)
+    result.fit_predict(X, sample_weight=sample_weight)
+
+    assert result._gpu is None
+
+
 def test_isolation_forest_gpu_fit_attrs_available_after_conversion(
     blobs_with_outliers,
 ):

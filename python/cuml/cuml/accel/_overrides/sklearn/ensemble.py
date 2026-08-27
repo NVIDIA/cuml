@@ -112,11 +112,15 @@ class IsolationForest(ProxyBase):
 
     def _gpu_fit(self, X, y=None, sample_weight=None):
         self._validate_input(X)
-        return self._gpu.fit(X, y=y, sample_weight=sample_weight)
+        if sample_weight is not None:
+            raise UnsupportedOnGPU("sample_weight is not supported")
+        return self._gpu.fit(X, y=y)
 
     def _gpu_fit_predict(self, X, y=None, sample_weight=None):
         self._validate_input(X)
-        return self._gpu.fit_predict(X, y=y, sample_weight=sample_weight)
+        if sample_weight is not None:
+            raise UnsupportedOnGPU("sample_weight is not supported")
+        return self._gpu.fit_predict(X, y=y)
 
     def _gpu_predict(self, X):
         self._validate_input(X)
