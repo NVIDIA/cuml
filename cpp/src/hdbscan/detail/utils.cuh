@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -65,11 +65,12 @@ void cub_segmented_reduce(const value_t* in,
 {
   rmm::device_uvector<char> d_temp_storage(0, stream);
   size_t temp_storage_bytes = 0;
-  cub_reduce_func(nullptr, temp_storage_bytes, in, out, n_segments, offsets, offsets + 1, stream);
+  RAFT_CUDA_TRY(cub_reduce_func(
+    nullptr, temp_storage_bytes, in, out, n_segments, offsets, offsets + 1, stream));
   d_temp_storage.resize(temp_storage_bytes, stream);
 
-  cub_reduce_func(
-    d_temp_storage.data(), temp_storage_bytes, in, out, n_segments, offsets, offsets + 1, stream);
+  RAFT_CUDA_TRY(cub_reduce_func(
+    d_temp_storage.data(), temp_storage_bytes, in, out, n_segments, offsets, offsets + 1, stream));
 }
 
 /**
