@@ -258,7 +258,8 @@ def precision_score(
         present = cp.unique(
             cp.concatenate([cp.unique(y_true_t), cp.unique(y_pred_t)])
         )
-        present_labels = cp.asnumpy(present).tolist()
+        if average == "binary":
+            present_labels = cp.asnumpy(present).tolist()
         for name, arr in (("y_true", y_true_t), ("y_pred", y_pred_t)):
             if arr.dtype.kind == "f":
                 if bool(cp.isnan(arr).any()):
@@ -388,12 +389,10 @@ def precision_score(
     if average == "macro":
         return float(per_class.mean())
 
-    per_class = cp.asnumpy(per_class)
-    try:
-        return float(np.average(per_class, weights=cp.asnumpy(true_sum)))
-    except ZeroDivisionError:
+    if float(true_sum.sum()) == 0.0:
         # all-zero support: scikit-learn ignores the weights entirely
-        return float(np.average(per_class))
+        return float(per_class.mean())
+    return float(cp.average(per_class, weights=true_sum))
 
 
 def _labels_as_device_or_host(labels, numeric):
