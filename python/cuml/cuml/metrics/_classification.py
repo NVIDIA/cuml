@@ -6,7 +6,6 @@ import warnings
 
 import cudf
 import cupy as cp
-import cupyx
 import numpy as np
 from sklearn.exceptions import UndefinedMetricWarning
 
@@ -346,14 +345,18 @@ def precision_score(
         else sample_weight.astype(cp.float64, copy=False)
     )
 
-    cm = cupyx.scipy.sparse.coo_matrix(
-        (weights, (true_idx, pred_idx)),
-        shape=(n_labels_total, n_labels_total),
-    ).toarray()
-
-    tp_sum = cm[pos, pos]
-    pred_sum = cm[:, pos].sum(axis=0)
-    true_sum = cm[pos, :].sum(axis=1)
+    diag_mask = true_idx == pred_idx
+    tp_sum = cp.bincount(
+        true_idx[diag_mask],
+        weights=weights[diag_mask],
+        minlength=n_labels_total,
+    )[pos]
+    pred_sum = cp.bincount(
+        pred_idx, weights=weights, minlength=n_labels_total
+    )[pos]
+    true_sum = cp.bincount(
+        true_idx, weights=weights, minlength=n_labels_total
+    )[pos]
 
     empty = pred_sum == 0
     per_class = cp.where(
