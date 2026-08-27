@@ -545,6 +545,27 @@ def test_precision_score_one_column_input():
     assert precision_score(cp.array([[1]]), cp.array([[1]])) == 1.0
 
 
+def test_precision_score_single_class_default_pos_label():
+    # scikit-learn skips pos_label validation for one-class targets and
+    # scores the missing pos_label as no predicted samples
+    y_true = cudf.Series(["cat"])
+    y_pred = cudf.Series(["cat"])
+
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        res = precision_score(y_true, y_pred)
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        sol = sk_precision(["cat"], ["cat"])
+    assert res == sol == 0.0
+
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        res = precision_score(
+            cp.array([0], dtype=cp.int32), cp.array([0], dtype=cp.int32)
+        )
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        sol = sk_precision(np.array([0]), np.array([0]))
+    assert res == sol == 0.0
+
+
 @pytest.mark.parametrize("to_category", [False, True])
 def test_precision_score_string_labels(to_category):
     labels = np.array(["a", "b", "c"], dtype="object")

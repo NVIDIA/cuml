@@ -184,7 +184,9 @@ def precision_score(
 
     Notes
     -----
-    Numeric labels (integer, float and bool dtypes) are counted on the GPU.
+    Numeric labels (integer, whole-number float and bool dtypes) are
+    counted on the GPU. Fractional float targets are rejected, matching
+    scikit-learn's refusal of continuous targets.
     String, object and categorical labels are supported through a device-side
     encoding against the sorted union of the observed labels, which matches
     scikit-learn's label ordering. Null values are not supported. The
@@ -306,6 +308,11 @@ def precision_score(
                 f"pos_label={pos_label} is not a valid label. It should be "
                 f"one of {present_labels}"
             )
+        if pos_label not in present_labels:
+            # an absent positive label can never be predicted
+            if zero_division == "warn":
+                _warn_precision_undefined(1)
+            return zero_division_value
         out_labels = [pos_label] if not numeric else cp.array([pos_label])
     else:
         if pos_label not in (None, 1):
