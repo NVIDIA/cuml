@@ -49,7 +49,7 @@ def _input_to_cupy_or_cudf_series(x):
                     raise ValueError(
                         f"Expected 1 column but got {out.shape[1]} columns."
                     )
-                out = out.squeeze()  # ensure 1D
+                out = out.reshape(-1)
 
     return out
 
@@ -190,6 +190,8 @@ def precision_score(
     scikit-learn's label ordering. Null values are not supported. The
     ``'samples'`` averaging strategy, multilabel indicator input and
     ``zero_division=np.nan`` accepted by scikit-learn are not supported.
+    Unlike scikit-learn versions below 1.8, empty targets raise a
+    ``ValueError`` instead of being scored.
 
     Examples
     --------

@@ -533,6 +533,18 @@ def test_precision_score_single_class():
     assert res == sol == 0.0
 
 
+def test_precision_score_one_column_input():
+    # column vectors and single-sample (1, 1) inputs are flattened to 1D
+    y_true = cp.array([[0], [1], [1], [0]], dtype=cp.int32)
+    y_pred = cp.array([[0], [1], [0], [0]], dtype=cp.int32)
+
+    res = precision_score(y_true, y_pred)
+    sol = sk_precision(cp.asnumpy(y_true), cp.asnumpy(y_pred))
+    assert res == sol
+
+    assert precision_score(cp.array([[1]]), cp.array([[1]])) == 1.0
+
+
 @pytest.mark.parametrize("to_category", [False, True])
 def test_precision_score_string_labels(to_category):
     labels = np.array(["a", "b", "c"], dtype="object")
