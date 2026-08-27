@@ -1,10 +1,10 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-
 import cupy as cp
 import cupyx
+import numpy as np
 import pytest
 from sklearn.decomposition import IncrementalPCA as skIPCA
 from sklearn.exceptions import NotFittedError
@@ -207,3 +207,12 @@ def test_svd_flip():
 
     assert array_equal(reco_true, x)
     assert array_equal(reco_false, x)
+
+
+def test_get_feature_names_out():
+    X, _ = make_blobs(n_features=5)
+    cu_model = cuIPCA(n_components=2).fit(X)
+    sk_model = skIPCA(n_components=2).fit(X.get())
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)

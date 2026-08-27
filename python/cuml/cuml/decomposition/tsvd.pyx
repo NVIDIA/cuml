@@ -4,6 +4,7 @@
 #
 import cupy as cp
 import numpy as np
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base, get_handle
@@ -70,6 +71,7 @@ cdef extern from "cuml/decomposition/tsvd.hpp" namespace "ML" nogil:
 
 class TruncatedSVD(InteropMixin,
                    FMajorInputTagMixin,
+                   ClassNamePrefixFeaturesOutMixin,
                    Base):
     """
     TruncatedSVD is used to compute the top K singular values and vectors of a
@@ -277,6 +279,7 @@ class TruncatedSVD(InteropMixin,
         self.tol = tol
 
     @property
+    @mlfunc(convert_output=False)
     def _n_features_out(self):
         """Number of transformed output features."""
         # Exposed to support sklearn's `get_feature_names_out`

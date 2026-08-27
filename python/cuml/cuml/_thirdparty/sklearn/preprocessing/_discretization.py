@@ -25,15 +25,18 @@ from cuml.cluster import KMeans
 from cuml.internals.mixins import SparseInputTagMixin
 from cuml.preprocessing.encoders import OneHotEncoder
 from cuml.internals.outputs import using_output_type, mlfunc, ReflectedAttr
-from cuml.internals.validation import check_is_fitted, check_inputs, check_array
+from cuml.internals.validation import (
+    check_is_fitted,
+    check_input_features,
+    check_inputs,
+    check_array,
+)
 
 from ..utils.skl_dependencies import BaseEstimator, TransformerMixin
 from ..utils.validation import FLOAT_DTYPES
 
 
-class KBinsDiscretizer(TransformerMixin,
-                       BaseEstimator,
-                       SparseInputTagMixin):
+class KBinsDiscretizer(TransformerMixin, BaseEstimator, SparseInputTagMixin):
     """
     Bin continuous data into intervals.
 
@@ -131,20 +134,17 @@ class KBinsDiscretizer(TransformerMixin,
            [ 0.5,  3.5, -1.5,  1.5]])
 
     """
+
     n_bins_ = ReflectedAttr()
 
-    def __init__(self, n_bins=5, *, encode='onehot', strategy='quantile'):
+    def __init__(self, n_bins=5, *, encode="onehot", strategy="quantile"):
         self.n_bins = n_bins
         self.encode = encode
         self.strategy = strategy
 
     @classmethod
     def _get_param_names(cls):
-        return super()._get_param_names() + [
-            "n_bins",
-            "encode",
-            "strategy"
-        ]
+        return super()._get_param_names() + ["n_bins", "encode", "strategy"]
 
     @mlfunc(set_input_type=True)
     def fit(self, X, y=None) -> "KBinsDiscretizer":
@@ -166,16 +166,20 @@ class KBinsDiscretizer(TransformerMixin,
         """
         X = check_inputs(self, X, dtype=FLOAT_DTYPES, reset=True)
 
-        valid_encode = ('onehot', 'onehot-dense', 'ordinal')
+        valid_encode = ("onehot", "onehot-dense", "ordinal")
         if self.encode not in valid_encode:
-            raise ValueError("Valid options for 'encode' are {}. "
-                             "Got encode={!r} instead."
-                             .format(valid_encode, self.encode))
-        valid_strategy = ('uniform', 'quantile', 'kmeans')
+            raise ValueError(
+                "Valid options for 'encode' are {}. "
+                "Got encode={!r} instead.".format(valid_encode, self.encode)
+            )
+        valid_strategy = ("uniform", "quantile", "kmeans")
         if self.strategy not in valid_strategy:
-            raise ValueError("Valid options for 'strategy' are {}. "
-                             "Got strategy={!r} instead."
-                             .format(valid_strategy, self.strategy))
+            raise ValueError(
+                "Valid options for 'strategy' are {}. "
+                "Got strategy={!r} instead.".format(
+                    valid_strategy, self.strategy
+                )
+            )
 
         n_features = X.shape[1]
         n_bins = self._validate_n_bins(n_features)
@@ -187,29 +191,36 @@ class KBinsDiscretizer(TransformerMixin,
             col_min, col_max = column.min(), column.max()
 
             if col_min == col_max:
-                warnings.warn("Feature %d is constant and will be "
-                              "replaced with 0." % jj)
+                warnings.warn(
+                    "Feature %d is constant and will be replaced with 0." % jj
+                )
                 n_bins[jj] = 1
                 bin_edges[jj] = np.array([-np.inf, np.inf])
                 continue
 
-            if self.strategy == 'uniform':
-                bin_edges[jj] = np.linspace(col_min, col_max, int(n_bins[jj]) + 1)
+            if self.strategy == "uniform":
+                bin_edges[jj] = np.linspace(
+                    col_min, col_max, int(n_bins[jj]) + 1
+                )
 
-            elif self.strategy == 'quantile':
+            elif self.strategy == "quantile":
                 quantiles = np.linspace(0, 100, n_bins[jj] + 1)
                 bin_edges[jj] = np.asarray(np.percentile(column, quantiles))
 
-            elif self.strategy == 'kmeans':
+            elif self.strategy == "kmeans":
                 # Deterministic initialization with uniform spacing
                 uniform_edges = np.linspace(col_min, col_max, n_bins[jj] + 1)
                 init = (uniform_edges[1:] + uniform_edges[:-1])[:, None] * 0.5
 
                 # 1D k-means procedure
-                km = KMeans(n_clusters=n_bins[jj], init=init, n_init=1,
-                            output_type='cupy')
+                km = KMeans(
+                    n_clusters=n_bins[jj],
+                    init=init,
+                    n_init=1,
+                    output_type="cupy",
+                )
                 km = km.fit(column[:, None])
-                with using_output_type('cupy'):
+                with using_output_type("cupy"):
                     centers = km.cluster_centers_[:, 0]
                 # Must sort, centers may be unsorted even with sorted init
                 centers.sort()
@@ -217,60 +228,73 @@ class KBinsDiscretizer(TransformerMixin,
                 bin_edges[jj] = np.r_[col_min, bin_edges[jj], col_max]
 
             # Remove bins whose width are too small (i.e., <= 1e-8)
-            if self.strategy in ('quantile', 'kmeans'):
+            if self.strategy in ("quantile", "kmeans"):
                 mask = np.diff(bin_edges[jj], prepend=-np.inf) > 1e-8
                 bin_edges[jj] = bin_edges[jj][mask]
                 if len(bin_edges[jj]) - 1 != n_bins[jj]:
-                    warnings.warn('Bins whose width are too small (i.e., <= '
-                                  '1e-8) in feature %d are removed. Consider '
-                                  'decreasing the number of bins.' % jj)
+                    warnings.warn(
+                        "Bins whose width are too small (i.e., <= "
+                        "1e-8) in feature %d are removed. Consider "
+                        "decreasing the number of bins." % jj
+                    )
                     n_bins[jj] = len(bin_edges[jj]) - 1
 
         self.bin_edges_ = bin_edges
         self.n_bins_ = n_bins
 
-        if 'onehot' in self.encode:
+        if "onehot" in self.encode:
             self._encoder = OneHotEncoder(
-                categories=np.array([np.arange(i) for i in self.n_bins_]),
-                sparse_output=self.encode == 'onehot', output_type='cupy')
+                categories=[np.arange(i) for i in self.n_bins_],
+                sparse_output=self.encode == 'onehot',
+                output_type='cupy',
+            )
             # Fit the OneHotEncoder with toy datasets
             # so that it's ready for use after the KBinsDiscretizer is fitted
-            self._encoder.fit(np.zeros((1, len(self.n_bins_)), dtype=int))
+            self._encoder.fit(np.zeros((1, len(self.n_bins_))))
 
         return self
 
     def _validate_n_bins(self, n_features):
-        """Returns n_bins_, the number of bins per feature.
-        """
+        """Returns n_bins_, the number of bins per feature."""
         orig_bins = self.n_bins
         if isinstance(orig_bins, numbers.Number):
             if not isinstance(orig_bins, numbers.Integral):
-                raise ValueError("{} received an invalid n_bins type. "
-                                 "Received {}, expected int."
-                                 .format(KBinsDiscretizer.__name__,
-                                         type(orig_bins).__name__))
+                raise ValueError(
+                    "{} received an invalid n_bins type. "
+                    "Received {}, expected int.".format(
+                        KBinsDiscretizer.__name__, type(orig_bins).__name__
+                    )
+                )
             if orig_bins < 2:
-                raise ValueError("{} received an invalid number "
-                                 "of bins. Received {}, expected at least 2."
-                                 .format(KBinsDiscretizer.__name__, orig_bins))
+                raise ValueError(
+                    "{} received an invalid number "
+                    "of bins. Received {}, expected at least 2.".format(
+                        KBinsDiscretizer.__name__, orig_bins
+                    )
+                )
             return np.full(n_features, orig_bins, dtype=int)
 
-        n_bins = check_array(orig_bins, dtype=np.int, copy=True,
-                             ensure_2d=False)
+        n_bins = check_array(
+            orig_bins, dtype=np.int, copy=True, ensure_2d=False
+        )
 
         if n_bins.ndim > 1 or n_bins.shape[0] != n_features:
-            raise ValueError("n_bins must be a scalar or array "
-                             "of shape (n_features,).")
+            raise ValueError(
+                "n_bins must be a scalar or array of shape (n_features,)."
+            )
 
         bad_nbins_value = (n_bins < 2) | (n_bins != orig_bins)
 
         violating_indices = np.where(bad_nbins_value)[0]
         if violating_indices.shape[0] > 0:
             indices = ", ".join(str(i) for i in violating_indices)
-            raise ValueError("{} received an invalid number "
-                             "of bins at indices {}. Number of bins "
-                             "must be at least 2, and must be an int."
-                             .format(KBinsDiscretizer.__name__, indices))
+            raise ValueError(
+                "{} received an invalid number "
+                "of bins at indices {}. Number of bins "
+                "must be at least 2, and must be an int.".format(
+                    KBinsDiscretizer.__name__, indices
+                )
+            )
         return n_bins
 
     @mlfunc
@@ -294,11 +318,11 @@ class KBinsDiscretizer(TransformerMixin,
         bin_edges = self.bin_edges_
         for jj in range(Xt.shape[1]):
             Xt[:, jj] = np.searchsorted(
-                bin_edges[jj][1:-1], Xt[:, jj], side='right'
+                bin_edges[jj][1:-1], Xt[:, jj], side="right"
             )
 
         Xt = Xt.astype(np.int32)
-        if self.encode == 'ordinal':
+        if self.encode == "ordinal":
             return Xt
 
         Xt = self._encoder.transform(Xt)
@@ -324,15 +348,17 @@ class KBinsDiscretizer(TransformerMixin,
         """
         check_is_fitted(self)
 
-        if 'onehot' in self.encode:
-            Xt = check_array(Xt, accept_sparse=['csr', 'coo'], copy=True)
+        if "onehot" in self.encode:
+            Xt = check_array(Xt, accept_sparse=["csr", "coo"], copy=True)
             Xt = self._encoder.inverse_transform(Xt)
 
         Xinv = check_array(Xt, copy=True, dtype=FLOAT_DTYPES)
         n_features = self.n_bins_.shape[0]
         if Xinv.shape[1] != n_features:
-            raise ValueError("Incorrect number of features. Expecting {}, "
-                             "received {}.".format(n_features, Xinv.shape[1]))
+            raise ValueError(
+                "Incorrect number of features. Expecting {}, "
+                "received {}.".format(n_features, Xinv.shape[1])
+            )
 
         for jj in range(n_features):
             bin_edges = self.bin_edges_[jj]
@@ -341,3 +367,23 @@ class KBinsDiscretizer(TransformerMixin,
             Xinv[:, jj] = bin_centers[idxs.astype(np.int32)]
 
         return Xinv
+
+    def get_feature_names_out(self, input_features=None):
+        """Get output feature names for transformation.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input feature names.
+
+        Returns
+        -------
+        feature_names_out : numpy.ndarray of str objects.
+            Transformed feature names.
+        """
+        check_is_fitted(self)
+        input_features = check_input_features(self, input_features)
+        if "onehot" in self.encode:
+            return self._encoder.get_feature_names_out(input_features)
+
+        return input_features

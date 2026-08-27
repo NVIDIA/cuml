@@ -543,3 +543,12 @@ def test_kmeans_device_buffer_samples_host_path(
         rtol=1e-3,
     )
     assert adjusted_rand_score(dev_labels, host_labels) >= 0.97
+
+
+def test_get_feature_names_out():
+    X, _ = make_blobs(n_features=5)
+    cu_model = cuml.KMeans().fit(X)
+    sk_model = sklearn.cluster.KMeans().fit(X.get())
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)

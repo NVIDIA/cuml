@@ -52,3 +52,8 @@
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
   tests:
   - "umap.tests.test_umap_validation_params::test_umap_custom_distance_w_grad"
+- reason: Test fails with old scikit-learn OR old scipy, and doesn't test our umap anyway
+  strict: false
+  tests:
+  - "umap.tests.test_umap_metrics::test_sokalmichener"
+  - "umap.tests.test_umap_metrics::test_sparse_sokalmichener"
