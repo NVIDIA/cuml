@@ -163,6 +163,8 @@ void fit_treelite(const raft::handle_t& handle,
                   double* c_normalization,
                   rapids_logger::level_enum verbosity)
 {
+  ASSERT(c_normalization != nullptr, "Normalization output pointer cannot be null.");
+
   IsolationForestModel<T> forest;
   fit(handle, &forest, input, n_rows, n_cols, params, verbosity);
   *c_normalization = forest.c_normalization;
