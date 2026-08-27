@@ -128,13 +128,13 @@ def make_regression(
 
     Returns
     -------
-    X : device array of shape [n_samples, n_features]
+    X : array of shape (n_samples, n_features)
         The input samples.
 
-    y : device array of shape [n_samples, n_targets]
+    y : array of shape (n_samples,) or (n_samples, n_targets)
         The output values.
 
-    coef : device array of shape [n_features, n_targets], optional
+    coef : array of shape (n_features,) or (n_features, n_targets), optional
         The coefficient of the underlying linear model. It is returned only if
         coef is True.
     """  # noqa: E501
@@ -183,6 +183,8 @@ def make_regression(
 
     if n_targets == 1:
         y = y.ravel()
+        if coef:
+            coefs = coefs.ravel()
 
     if coef:
         return X, y, coefs

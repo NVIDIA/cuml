@@ -76,4 +76,7 @@ def test_make_regression(
         assert y.shape == (n_samples, n_targets)
 
     if coef:
-        assert coefs.shape == (n_features, n_targets)
+        if n_targets == 1:
+            assert coefs.shape == (n_features,)
+        else:
+            assert coefs.shape == (n_features, n_targets)
