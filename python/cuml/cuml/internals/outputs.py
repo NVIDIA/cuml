@@ -768,12 +768,13 @@ def mlfunc(
 
     # XXX: For legacy reasons, cuml will coerce a 1 column 2D output to a
     # Series instead of a DataFrame when outputting pandas/cudf types. In the
-    # long run we want to deprecate and remove this (See #7893). However, the
-    # output of `transform`/`fit_transform` should _always_ be a 2D output.
-    # Returning a 1D output from `transform` breaks the sklearn interface and
-    # makes it harder for sklearn to mix with cuml transformers. For now we
-    # disable this coercion for transform outputs.
-    one_col_2d_as_series = func.__name__ not in ("fit_transform", "transform")
+    # long run we want to deprecate and remove this (See #7893). However, many
+    # methods in sklearn have a defined expectation of whether they return a 1D
+    # or 2D output. For example, `transform` must always return a 2D output,
+    # coercing to a Series breaks the sklearn interface and makes it harder for
+    # sklearn to mix with cuml transformers. For now we restrict this legacy
+    # coercion to only `predict` methods.
+    one_col_2d_as_series = func.__name__.startswith(("predict", "fit_predict"))
 
     # Normalize model_arg to str | None
     if model_arg is ...:
