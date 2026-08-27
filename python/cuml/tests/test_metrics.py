@@ -443,7 +443,9 @@ def test_precision_score_zero_division_warn():
     np.testing.assert_allclose(res, sol)
 
 
-@pytest.mark.parametrize("zero_division", [0, 1])
+@pytest.mark.parametrize(
+    "zero_division", [0, 1, np.int64(0), np.int64(1), np.float32(1.0)]
+)
 def test_precision_score_zero_division_literal(zero_division):
     # classes 1 and 2 are never predicted
     y_true = np.array([0, 1, 2, 0, 1, 2])

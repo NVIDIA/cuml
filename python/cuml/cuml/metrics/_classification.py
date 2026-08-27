@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
 # SPDX-License-Identifier: Apache-2.0
 #
+import numbers
 import warnings
 
 import cudf
@@ -217,7 +218,7 @@ def precision_score(
 
     if isinstance(zero_division, str) and zero_division == "warn":
         zero_division_value = 0.0
-    elif isinstance(zero_division, (int, float)) and zero_division in (0, 1):
+    elif isinstance(zero_division, numbers.Real) and zero_division in (0, 1):
         zero_division_value = float(zero_division)
     else:
         raise ValueError(
