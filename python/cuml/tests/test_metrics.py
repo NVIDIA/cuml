@@ -450,16 +450,26 @@ def test_precision_score_zero_division_literal(zero_division):
     # classes 1 and 2 are never predicted
     y_true = np.array([0, 1, 2, 0, 1, 2])
     y_pred = np.array([0, 0, 0, 0, 0, 0])
+    literal = float(zero_division)
+
+    # scikit-learn 1.9 routes numpy scalar literals through the nan branch
+    # of _check_zero_division, so the substitution is only compared against
+    # sklearn for exact int and float inputs
+    compare_sklearn = isinstance(zero_division, (int, float))
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         res = precision_score(
             y_true, y_pred, average=None, zero_division=zero_division
         )
-        sol = sk_precision(
-            y_true, y_pred, average=None, zero_division=zero_division
-        )
-    np.testing.assert_allclose(res, sol)
+        if compare_sklearn:
+            sol = sk_precision(
+                y_true, y_pred, average=None, zero_division=zero_division
+            )
+    if compare_sklearn:
+        np.testing.assert_allclose(res, sol)
+    else:
+        np.testing.assert_allclose(res, [1 / 3, literal, literal])
 
     # binary case where pos_label is never predicted
     with warnings.catch_warnings():
@@ -467,10 +477,15 @@ def test_precision_score_zero_division_literal(zero_division):
         res = precision_score(
             np.array([0, 1]), np.array([0, 0]), zero_division=zero_division
         )
-        sol = sk_precision(
-            np.array([0, 1]), np.array([0, 0]), zero_division=zero_division
-        )
-    assert res == sol == float(zero_division)
+        if compare_sklearn:
+            sol = sk_precision(
+                np.array([0, 1]),
+                np.array([0, 0]),
+                zero_division=zero_division,
+            )
+    assert res == literal
+    if compare_sklearn:
+        assert sol == literal
 
 
 def test_precision_score_errors():

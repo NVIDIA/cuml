@@ -193,6 +193,8 @@ def precision_score(
     scikit-learn's label ordering. Null values are not supported. The
     ``'samples'`` averaging strategy, multilabel indicator input and
     ``zero_division=np.nan`` accepted by scikit-learn are not supported.
+    NumPy scalar literals such as ``np.int64(0)`` are accepted and
+    substituted as-is, where scikit-learn 1.9 substitutes ``np.nan``.
     Unlike scikit-learn versions below 1.8, empty targets raise a
     ``ValueError`` instead of being scored.
 
