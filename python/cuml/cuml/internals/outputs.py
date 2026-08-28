@@ -766,6 +766,16 @@ def mlfunc(
 
     sig = inspect.signature(func, follow_wrapped=True)
 
+    # XXX: For legacy reasons, cuml will coerce a 1 column 2D output to a
+    # Series instead of a DataFrame when outputting pandas/cudf types. In the
+    # long run we want to deprecate and remove this (See #7893). However, many
+    # methods in sklearn have a defined expectation of whether they return a 1D
+    # or 2D output. For example, `transform` must always return a 2D output,
+    # coercing to a Series breaks the sklearn interface and makes it harder for
+    # sklearn to mix with cuml transformers. For now we restrict this legacy
+    # coercion to only `predict` methods.
+    one_col_2d_as_series = func.__name__.startswith(("predict", "fit_predict"))
+
     # Normalize model_arg to str | None
     if model_arg is ...:
         model_arg = "self" if ("self" in sig.parameters) else None
@@ -844,6 +854,7 @@ def mlfunc(
                     res,
                     output_type,
                     index=index,
+                    one_col_2d_as_series=one_col_2d_as_series,
                 )
 
         return res
