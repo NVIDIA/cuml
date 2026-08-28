@@ -334,6 +334,8 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     GaussianRandomProjection(n_components=2),
     SparseRandomProjection(n_components=2),
     UMAP(n_components=2),
+    TSNE(n_components=2),
+    SpectralEmbedding(n_components=2),
     Binarizer(),
     KernelCenterer(),
     MaxAbsScaler(),
@@ -348,6 +350,9 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     PolynomialFeatures(),
     KBinsDiscretizer(),
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
+    SimpleImputer(),
+    MissingIndicator(),
+    TargetEncoder(multi_feature_mode="independent"),
 ]
 
 GET_FEATURE_NAMES_OUT_XFAILS = {}

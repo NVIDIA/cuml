@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Configure ``cuml.accel`` for its integration tests.
@@ -12,6 +12,8 @@ import pytest
 
 from cuml.accel import install
 from cuml.accel.core import logger
+
+pytest_plugins = "cuml.testing.plugins.restart_corrupted_xdist_worker"
 
 # Install the accelerator
 install()
