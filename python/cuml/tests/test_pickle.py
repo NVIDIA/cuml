@@ -208,10 +208,12 @@ def test_rf_regression_pickle(
 
     def assert_model(pickled_model, X_test):
         assert array_equal(result["rf_res"], pickled_model.predict(X_test))
-        # Confirm no crash from score
-        pickled_model.score(X_test, np.zeros(X_test.shape[0]))
+        if key != "IsolationForest":
+            # Confirm no crash from score. IsolationForest is an outlier
+            # detector and has no `score`, as in sklearn.
+            pickled_model.score(X_test, np.zeros(X_test.shape[0]))
 
-        pickle_save_load(tmpdir, create_mod, assert_model)
+    pickle_save_load(tmpdir, create_mod, assert_model)
 
 
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
