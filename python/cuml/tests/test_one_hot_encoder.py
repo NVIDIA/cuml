@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import cudf
 import numpy as np
 import pandas as pd
 import pytest
@@ -271,6 +272,44 @@ def test_onehot_encoder_transform_unknown(unknown):
     res = cu_enc.transform(X2)
     sol = sk_enc.transform(X2)
     np.testing.assert_array_equal(res.toarray(), sol.toarray())
+
+
+@pytest.mark.parametrize(
+    "kind", ["list", "numpy-float", "numpy-object", "cudf"]
+)
+def test_onehot_encoder_nan_and_null_equivalent(kind):
+    if kind == "list":
+        X = [[1], [2], [np.nan], [None]]
+    elif kind == "numpy-float":
+        X = np.array([[1], [2], [np.nan], [np.nan]], dtype="float32")
+    elif kind == "numpy-object":
+        X = np.array([[1], [2], [np.nan], [None]], dtype=object)
+    else:
+        assert kind == "cudf"
+        X = cudf.DataFrame({"x": [1, 2, np.nan, None]}, nan_as_null=False)
+
+    # Categories always normalize to NaN
+    enc = OneHotEncoder(output_type="numpy").fit(X)
+    np.testing.assert_array_equal(enc.categories_[0], [1, 2, np.nan])
+
+    # Transform works as expected
+    res = enc.transform(X).toarray()
+    sol = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 1]])
+    np.testing.assert_array_equal(res, sol)
+
+    # Manually specifying categories with either NaN or None works
+    enc = OneHotEncoder(categories=[[1, 2, None]]).fit(X)
+    np.testing.assert_array_equal(enc.categories_[0], [1, 2, np.nan])
+    enc = OneHotEncoder(categories=[[1, 2, np.nan]]).fit(X)
+    np.testing.assert_array_equal(enc.categories_[0], [1, 2, np.nan])
+
+    # Error normalizes doesn't double report NaN
+    enc = OneHotEncoder(categories=[[1, 2]])
+    with pytest.raises(
+        ValueError,
+        match="Found unknown categories \\[nan\\] in column 0 during fit",
+    ):
+        enc.fit(X)
 
 
 @pytest.mark.parametrize("unknown", ["c", np.nan, None])

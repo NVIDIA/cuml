@@ -2166,7 +2166,7 @@ def test_check_cudf_mixed_dtype_array_like_inputs(kind):
         [1, 2.0, "x", "a", None, np.nan],
         [2, 4.0, "y", None, None, np.nan],
     ]
-    sol = cudf.DataFrame(data)
+    sol = cudf.DataFrame(data, nan_as_null=True)
     if kind == "list":
         X = data
     elif kind == "array":
@@ -2177,6 +2177,27 @@ def test_check_cudf_mixed_dtype_array_like_inputs(kind):
 
     res = check_cudf(X)
     cudf.testing.assert_frame_equal(res, sol)
+
+
+@pytest.mark.parametrize("kind", ["list", "numpy-object", "numpy-float"])
+def test_check_cudf_nan_as_null(kind):
+    """cudf's default is to treat NaN as NULL in inputs, but that default
+    changes when `cudf.pandas` is active. Here we check that the code paths in
+    `check_cudf` hardcode the `nan_as_null` configuration so that behavior
+    doesn't change if cudf.pandas is active."""
+
+    if kind == "list":
+        X = [[1, None], [np.nan, 1]]
+    elif kind == "numpy-object":
+        X = np.array([[1, None], [np.nan, 1]], dtype=object)
+    else:
+        assert kind == "numpy-float"
+        X = np.array([[1, np.nan], [np.nan, 1]], dtype="float32")
+
+    res = check_cudf(X, ensure_ndim=None)
+    vals = cudf.Series([1, np.nan], nan_as_null=True)
+    assert res.iloc[:, 0].isin(vals).all()
+    assert res.iloc[:, 1].isin(vals).all()
 
 
 @pytest.mark.parametrize("kind", ["list", "array"])

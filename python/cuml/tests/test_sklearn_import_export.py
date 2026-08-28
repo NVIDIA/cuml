@@ -1194,6 +1194,9 @@ def test_one_hot_encoder(drop, sparse_output, handle_unknown):
 
     cu_model2 = cuml.preprocessing.OneHotEncoder.from_sklearn(sk_model)
     sk_model2 = cu_model.as_sklearn()
+    # XXX: np.array(drop) == drop is true, this assert ensures we don't
+    # accidentally coerce `drop` to an array.
+    assert type(sk_model2.drop) is type(drop)
 
     roundtrip = cuml.preprocessing.OneHotEncoder.from_sklearn(sk_model2)
     assert_roundtrip_consistency(cu_model, roundtrip)

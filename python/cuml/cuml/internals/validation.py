@@ -960,15 +960,17 @@ def check_cudf(
     # Coerce input to a cudf type.
     # XXX: cudf currently doesn't support float16, any float16 input is
     # automatically upcast here to float32.
+    # XXX: hardcode `nan_as_null=True` (cudf's default) so the behavior
+    # doesn't switch when cudf.pandas is active.
     if isinstance(array, pd.Series):
         if array.dtype == "float16":
             array = array.astype("float32")
-        array = cudf.Series(array)
+        array = cudf.Series(array, nan_as_null=True)
     elif isinstance(array, pd.DataFrame):
         f16_cols = array.select_dtypes("float16").columns.tolist()
         if f16_cols:
             array = array.astype({c: "float32" for c in f16_cols})
-        array = cudf.DataFrame(array)
+        array = cudf.DataFrame(array, nan_as_null=True)
 
     if not isinstance(array, (cudf.DataFrame, cudf.Series)):
         # Normalize to numpy or cupy array with minimal copying
@@ -994,14 +996,14 @@ def check_cudf(
             # cudf's per-column dtype inference. On failure raise an error
             # compatible with what sklearn's `check_dtype_object` expects.
             try:
-                array = cls(array.tolist())
+                array = cls(array.tolist(), nan_as_null=True)
             except Exception as exc:
                 raise TypeError(
                     f"An object dtype {input_name or 'input'} argument must be "
                     "composed of strings, numbers, booleans, or nulls."
                 ) from exc
         else:
-            array = cls(array)
+            array = cls(array, nan_as_null=True)
     else:
         array_shape = array.shape
 

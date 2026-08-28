@@ -49,7 +49,7 @@ def _cats_to_series(cats):
     if cats.dtype.kind == "O" and _safe_is_nan(cats[-1]):
         cats = cats.copy()
         cats[-1] = None
-    return cudf.Series(cats)
+    return cudf.Series(cats, nan_as_null=True)
 
 
 def _as_numpy(x, dtype=None):
@@ -116,19 +116,25 @@ def _compute_categories(
         if auto:
             if not unique:
                 Xi = Xi.drop_duplicates()
-            cats = Xi.sort_values()
-            # XXX: cudf's object dtype uses None for NA, we want NaN everywhere
-            if cats.dtype == "object":
-                cats = cats.astype(str)
-            cats = cats.to_numpy()
+            # For the edge case of floating inputs, we want to ensure NaN and null
+            # are treated equivalently (cudf's default). Coerce NaN to null
+            # and redrop duplicates in case the input had both NaN and null.
+            # This is cheaper than doing `nans_to_nulls` on the full input first.
+            if Xi.dtype.kind == "f":
+                Xi = Xi.nans_to_nulls().drop_duplicates()
+            # cudf's object dtype uses None for NA, we want NaN everywhere
+            if Xi.dtype == "object":
+                Xi = Xi.astype(str)
+            cats = Xi.sort_values().to_numpy()
         else:
-            cats_cudf = cudf.Series(categories[i], dtype=Xi.dtype)
+            cats_cudf = cudf.Series(
+                categories[i], dtype=Xi.dtype, nan_as_null=True
+            )
             if cats_cudf.dtype == "object":
                 cats_cudf = cats_cudf.astype(str)
             cats = cats_cudf.to_numpy()
 
-            # `nan` may only exist in floating or object dtypes, and must be
-            # the last stated category
+            # Any null values must be the last stated category
             if cats_cudf[:-1].isnull().any():
                 raise ValueError(
                     "Nan should be the last element in user"
@@ -145,10 +151,18 @@ def _compute_categories(
             if handle_unknown == "error":
                 if not unique:
                     Xi = Xi.drop_duplicates()
-                diff = (
-                    Xi[~Xi.isin(cats_cudf)].sort_values().to_numpy().tolist()
-                )
-                if diff:
+                if Xi.dtype.kind == "f":
+                    Xi = Xi.nans_to_nulls()
+                diff = Xi[~Xi.isin(cats_cudf)]
+                if len(diff):
+                    # XXX: need to repeat drop_duplicates just in case Xi had both
+                    # None & NaN earlier.
+                    diff = (
+                        diff.drop_duplicates()
+                        .sort_values()
+                        .to_numpy()
+                        .tolist()
+                    )
                     raise ValueError(
                         f"Found unknown categories {diff} in column {i} during fit"
                     )
@@ -312,8 +326,8 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
             raise UnsupportedOnGPU("`min_frequency` is not supported")
         if model.max_categories is not None:
             raise UnsupportedOnGPU("`min_categories` is not supported")
-        if (
-            not isinstance(model.feature_name_combiner, str)
+        if not (
+            isinstance(model.feature_name_combiner, str)
             and model.feature_name_combiner == "concat"
         ):
             raise UnsupportedOnGPU("`feature_name_combiner` is not supported")
@@ -330,9 +344,13 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
         if not (isinstance(categories, str) and categories == "auto"):
             categories = [_as_numpy(c) for c in categories]
 
+        drop = self.drop
+        if not (drop is None or (isinstance(drop, str) and drop == "first")):
+            drop = _as_numpy(drop, dtype=object)
+
         return {
             "categories": categories,
-            "drop": _as_numpy(self.drop, dtype=object),
+            "drop": drop,
             "sparse_output": self.sparse_output,
             "dtype": self.dtype,
             "handle_unknown": self.handle_unknown,
@@ -584,7 +602,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
 
             if len(cats) == 1 and drop_idx is not None:
                 columns[i] = (
-                    cudf.Series(cats[drop_idx])
+                    cudf.Series(cats[drop_idx], nan_as_null=True)
                     .repeat(X.shape[0])
                     .reset_index(drop=True)
                 )

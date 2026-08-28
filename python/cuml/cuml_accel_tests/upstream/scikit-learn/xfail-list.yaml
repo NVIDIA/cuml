@@ -878,13 +878,12 @@
   tests:
   - "sklearn.preprocessing.tests.test_encoders::test_ohe_more_informative_error_message"
   - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_set_output"
-- reason: cuml's encoder treat's NaN and None the same
+- reason: cuml's encoder treats NaN and None the same
   marker: onehotencoder_design_differences
   tests:
   - "sklearn.preprocessing.tests.test_encoders::test_ohe_missing_values_get_feature_names[None]"
   - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_categories[missing-float-nan-object]"
   - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_categories[missing-np.nan-object]"
-  - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_custom_feature_name_combiner"
   - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_inverse[None-False-ignore]"
   - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_specified_categories[object-None-and-nan-ignore]"
   - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_specified_categories[object-None-and-nan-infrequent_if_exist]"
