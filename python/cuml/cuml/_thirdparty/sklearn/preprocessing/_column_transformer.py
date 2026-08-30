@@ -37,6 +37,7 @@ from sklearn.utils import Bunch
 import cuml
 from cuml.internals.global_settings import _global_settings_data
 from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
+from cuml.internals.outputs import _is_object_dtype
 from cuml.internals.validation import (
     check_is_fitted,
     check_features,
@@ -1014,6 +1015,12 @@ class ColumnTransformer(
             return cu_sparse.hstack(converted_Xs).tocsr()
         else:
             Xs = [f.toarray() if issparse(f) else f for f in Xs]
+            if any(_is_object_dtype(X) for X in Xs):
+                # Object dtype (e.g. string columns from a categorical
+                # SimpleImputer) has no device representation - cupy has no
+                # way to store it. Stack on host instead.
+                Xs = [X.get() if isinstance(X, np.ndarray) else X for X in Xs]
+                return cpu_np.hstack(Xs)
             return np.hstack(Xs)
 
 

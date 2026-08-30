@@ -394,6 +394,72 @@ def test_convert_arrays_dataframe_with_index(
 
 
 @pytest.mark.parametrize(
+    ("output_type", "expected_type"),
+    [
+        ("pandas", pd.DataFrame),
+        ("cudf", cudf.DataFrame),
+    ],
+)
+def test_convert_arrays_object_array_dataframe_output_with_index(
+    output_type, expected_type
+):
+    arr = np.array([["a", "x"], ["b", "y"]], dtype=object)
+    index = pd.Index(["first", "second"])
+
+    result = convert_arrays(arr, output_type, index=index)
+
+    assert isinstance(result, expected_type)
+    cudf.testing.assert_frame_equal(
+        cudf.DataFrame(result),
+        cudf.from_pandas(pd.DataFrame(arr, index=index)),
+    )
+
+
+@pytest.mark.parametrize(
+    ("output_type", "expected_type"),
+    [
+        ("series", cudf.Series),
+        ("dataframe", cudf.DataFrame),
+    ],
+)
+def test_convert_arrays_object_array_explicit_dataframe_outputs(
+    output_type, expected_type
+):
+    arr = np.array(["a", "b"], dtype=object)
+    index = pd.Index(["first", "second"])
+
+    result = convert_arrays(arr, output_type, index=index)
+
+    assert isinstance(result, expected_type)
+    if output_type == "series":
+        cudf.testing.assert_series_equal(
+            result, cudf.from_pandas(pd.Series(arr, index=index))
+        )
+    else:
+        cudf.testing.assert_frame_equal(
+            result, cudf.from_pandas(pd.DataFrame(arr, index=index))
+        )
+
+
+@pytest.mark.parametrize("output_type", ["cupy", "numba"])
+def test_convert_arrays_object_array_device_output_error(output_type):
+    arr = np.array(["a", "b"], dtype=object)
+
+    with pytest.raises(
+        TypeError,
+        match=f"output_type={output_type!r} doesn't support outputs of dtype",
+    ):
+        convert_arrays(arr, output_type)
+
+
+@pytest.mark.parametrize("output_type", ["array", "cuml"])
+def test_convert_arrays_object_array_array_output(output_type):
+    arr = np.array(["a", "b"], dtype=object)
+
+    assert convert_arrays(arr, output_type) is arr
+
+
+@pytest.mark.parametrize(
     "construct",
     [
         pytest.param(lambda x, y: [x, 1, y], id="list"),

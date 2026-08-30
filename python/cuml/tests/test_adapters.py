@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -8,6 +8,7 @@ import platform
 import cupy as cp
 import cupyx as cpx
 import numpy as np
+import pandas as pd
 import pytest
 from scipy import stats
 from sklearn.utils._mask import _get_mask as sk_get_mask
@@ -108,6 +109,30 @@ def test_get_mask(failure_logger, mask_dataset):
     cu_mask = cu_get_mask(X, value_to_mask=mask_value)
     sk_mask = sk_get_mask(X_np, value_to_mask=mask_value)
     assert_allclose(cu_mask, sk_mask)
+
+
+def test_get_mask_nan_string_on_host_object_array():
+    X = np.array([1.0, np.nan, "present"], dtype=object)
+
+    np.testing.assert_array_equal(
+        cu_get_mask(X, value_to_mask="NaN"), [False, True, False]
+    )
+
+
+@pytest.mark.parametrize(
+    ("function", "expected"),
+    [
+        (_masked_column_mean, [3.0, 5.0]),
+        (_masked_column_median, [3.0, 5.0]),
+    ],
+)
+@pytest.mark.parametrize("missing_value", [pd.NA, "NaN"])
+def test_masked_column_numeric_na_sentinel(function, expected, missing_value):
+    X = cp.array([[1.0, cp.nan], [3.0, 4.0], [5.0, 6.0]])
+
+    result = function(X, missing_value)
+
+    np.testing.assert_allclose(result.get(), expected)
 
 
 def test_masked_column_median(failure_logger, mask_dataset):

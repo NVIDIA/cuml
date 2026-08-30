@@ -29,7 +29,7 @@ from cuml.internals.mixins import (
     StringInputTagMixin,
     _ensure_transformer_tags,
 )
-from cuml.internals.outputs import mlfunc, ReflectedAttr
+from cuml.internals.outputs import _is_object_dtype, mlfunc, ReflectedAttr
 from cuml.internals.validation import (
     check_is_fitted,
     check_inputs,
@@ -144,7 +144,6 @@ class _BaseImputer(TransformerMixin):
         if not self.add_indicator:
             return X_imputed
 
-        hstack = sparse.hstack if sparse.issparse(X_imputed) else np.hstack
         if X_indicator is None:
             raise ValueError(
                 "Data from the missing indicator are not provided. Call "
@@ -152,7 +151,17 @@ class _BaseImputer(TransformerMixin):
                 "implementation."
             )
 
-        return hstack((X_imputed, X_indicator))
+        if sparse.issparse(X_imputed):
+            return sparse.hstack((X_imputed, X_indicator))
+
+        if _is_object_dtype(X_imputed) or _is_object_dtype(X_indicator):
+            arrays = [
+                array.get() if isinstance(array, np.ndarray) else array
+                for array in (X_imputed, X_indicator)
+            ]
+            return cpu_np.hstack(arrays)
+
+        return np.hstack((X_imputed, X_indicator))
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()

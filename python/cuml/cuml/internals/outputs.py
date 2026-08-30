@@ -284,6 +284,28 @@ def infer_output_type(array, array_like="numpy"):
     return None
 
 
+def _is_object_dtype(res):
+    """Check for NumPy object dtype on an array-like or dataframe-like."""
+    dtype = getattr(res, "dtype", None)
+    if dtype is not None:
+        # Array-like or Series: a single (possibly extension) dtype. Only a
+        # plain numpy object dtype has no device representation; extension
+        # dtypes are a separate, unsupported case handled elsewhere.
+        return isinstance(dtype, np.dtype) and dtype.kind == "O"
+
+    dtypes = getattr(res, "dtypes", None)
+    if dtypes is not None:
+        # DataFrame-like: dtypes is per-column.
+        try:
+            return any(
+                isinstance(dt, np.dtype) and dt.kind == "O" for dt in dtypes
+            )
+        except TypeError:
+            return False
+
+    return False
+
+
 class ArrayIndexPair:
     """An array paired with an aligned index.
 
@@ -521,6 +543,57 @@ def convert_arrays(
                     return pd.Series(obj.flatten(), index=index)
                 return pd.DataFrame(obj, index=index)
             return pd.Series(obj, index=index)
+        elif _is_object_dtype(obj):
+            # NumPy object arrays have no device representation. Preserve
+            # host arrays for "array" and internal "cuml" outputs, or wrap
+            # them in a dataframe-like type.
+            if output_type in ("array", "cuml"):
+                return obj
+            elif output_type in ("cupy", "numba"):
+                raise TypeError(
+                    f"{output_type=!r} doesn't support outputs of dtype "
+                    f"object and shape {obj.shape}"
+                )
+
+            if hasattr(index, "to_pandas"):
+                index = index.to_pandas()
+            if output_type == "series":
+                if obj.ndim == 2:
+                    if obj.shape[1] == 1:
+                        obj = obj.flatten()
+                    else:
+                        raise ValueError(
+                            "Only single dimensional arrays can be transformed to"
+                            " Series."
+                        )
+                elif obj.ndim == 0:
+                    obj = obj[None]
+            elif output_type == "dataframe":
+                if obj.ndim == 1:
+                    obj = obj[:, None]
+                elif obj.ndim == 0:
+                    obj = obj[None, None]
+
+            if obj.ndim == 2:
+                if (
+                    one_col_2d_as_series
+                    and obj.shape[1] == 1
+                    and output_type != "dataframe"
+                ):
+                    host_df = pd.Series(obj.flatten(), index=index)
+                else:
+                    host_df = pd.DataFrame(obj, index=index)
+            else:
+                host_df = pd.Series(obj, index=index)
+
+            try:
+                return cudf.from_pandas(host_df)
+            except (TypeError, ValueError, NotImplementedError):
+                if isinstance(host_df, pd.DataFrame):
+                    # cudf cannot represent every mixed object DataFrame.
+                    # Preserve the host DataFrame instead of losing its data.
+                    return host_df
+                raise
         else:
             # Other output types use device memory, coerce to cupy and take
             # cupy code path.
