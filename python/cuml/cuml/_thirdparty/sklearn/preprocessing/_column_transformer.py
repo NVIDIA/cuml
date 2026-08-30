@@ -301,7 +301,8 @@ def _list_indexing(X, key, key_dtype):
 
 
 def _transform_one(transformer, X, y, weight, **fit_params):
-    with cuml.using_output_type("cupy"):
+    output_type = "numpy" if _is_object_dtype(X) else "cupy"
+    with cuml.using_output_type(output_type):
         res = transformer.transform(X)
 
     # if we have a weight for this transformer, multiply output
@@ -323,7 +324,8 @@ def _fit_transform_one(transformer,
     be multiplied by ``weight``.
     """
     with _print_elapsed_time(message_clsname, message):
-        with cuml.using_output_type("cupy"):
+        output_type = "numpy" if _is_object_dtype(X) else "cupy"
+        with cuml.using_output_type(output_type):
             transformer.accept_sparse = True
             if hasattr(transformer, 'fit_transform'):
                 res = transformer.fit_transform(X, y, **fit_params)

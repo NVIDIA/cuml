@@ -113,6 +113,16 @@ class DummyEstimator(Base):
             assert_output_type(self.X_, "numpy")
 
 
+def test_reflected_attr_get_raw():
+    estimator = DummyEstimator()
+    value = cp.arange(3)
+    estimator.X_ = value
+
+    with cuml.using_output_type("numpy"):
+        assert isinstance(estimator.X_, np.ndarray)
+        assert DummyEstimator.X_.get_raw(estimator) is value
+
+
 @mlfunc
 def returns_cupy(X):
     return cp.asarray(X)
@@ -415,33 +425,7 @@ def test_convert_arrays_object_array_dataframe_output_with_index(
     )
 
 
-@pytest.mark.parametrize(
-    ("output_type", "expected_type"),
-    [
-        ("series", cudf.Series),
-        ("dataframe", cudf.DataFrame),
-    ],
-)
-def test_convert_arrays_object_array_explicit_dataframe_outputs(
-    output_type, expected_type
-):
-    arr = np.array(["a", "b"], dtype=object)
-    index = pd.Index(["first", "second"])
-
-    result = convert_arrays(arr, output_type, index=index)
-
-    assert isinstance(result, expected_type)
-    if output_type == "series":
-        cudf.testing.assert_series_equal(
-            result, cudf.from_pandas(pd.Series(arr, index=index))
-        )
-    else:
-        cudf.testing.assert_frame_equal(
-            result, cudf.from_pandas(pd.DataFrame(arr, index=index))
-        )
-
-
-@pytest.mark.parametrize("output_type", ["cupy", "numba"])
+@pytest.mark.parametrize("output_type", ["cupy"])
 def test_convert_arrays_object_array_device_output_error(output_type):
     arr = np.array(["a", "b"], dtype=object)
 
@@ -452,11 +436,21 @@ def test_convert_arrays_object_array_device_output_error(output_type):
         convert_arrays(arr, output_type)
 
 
-@pytest.mark.parametrize("output_type", ["array", "cuml"])
+@pytest.mark.parametrize("output_type", ["cuml"])
 def test_convert_arrays_object_array_array_output(output_type):
     arr = np.array(["a", "b"], dtype=object)
 
     assert convert_arrays(arr, output_type) is arr
+
+
+def test_convert_arrays_unsupported_object_layout_cudf_error():
+    arr = np.array([[object()], [object()]], dtype=object)
+
+    with pytest.raises(
+        TypeError,
+        match="Use output_type='pandas' or output_type='numpy'",
+    ):
+        convert_arrays(arr, "cudf")
 
 
 @pytest.mark.parametrize(

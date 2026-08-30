@@ -20,6 +20,7 @@ import warnings
 
 import cupy as np
 import numpy as cpu_np
+import pandas as pd
 from cupyx.scipy import sparse
 
 import cuml
@@ -29,11 +30,11 @@ from cuml.internals.mixins import (
     StringInputTagMixin,
     _ensure_transformer_tags,
 )
-from cuml.internals.outputs import _is_object_dtype, mlfunc, ReflectedAttr
+from cuml.internals.outputs import ReflectedAttr, _is_object_dtype, mlfunc
 from cuml.internals.validation import (
-    check_is_fitted,
-    check_inputs,
     check_input_features,
+    check_inputs,
+    check_is_fitted,
 )
 
 from ....thirdparty_adapters import (
@@ -273,10 +274,12 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
     @classmethod
     def _get_param_names(cls):
         return super()._get_param_names() + [
+            "missing_values",
             "strategy",
             "fill_value",
             "verbose",
-            "copy"
+            "copy",
+            "add_indicator",
         ]
 
     def _validate_input(self, X, in_fit):
@@ -297,6 +300,7 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
             ensure_all_finite = "allow-nan"
 
         try:
+            mem_type = "host" if _is_object_dtype(X) else "device"
             X = check_inputs(
                 self,
                 X,
@@ -304,6 +308,7 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
                 dtype=dtype,
                 ensure_all_finite=ensure_all_finite,
                 copy=self.copy,
+                mem_type=mem_type,
                 reset=in_fit,
             )
         except ValueError as ve:
@@ -313,6 +318,18 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
                 raise new_ve from None
             else:
                 raise ve
+
+        # Object nulls reach this host path as NaN. Restore pd.NA for its
+        # identity-based path, but reject NaN when None was requested,
+        # matching scikit-learn's validation semantics.
+        if _is_object_dtype(X):
+            if hasattr(X, "flags") and not X.flags.writeable:
+                X = X.copy()
+            nan_mask = _get_mask(X, np.nan)
+            if self.missing_values is pd.NA:
+                X[nan_mask] = pd.NA
+            elif self.missing_values is None and nan_mask.any():
+                raise ValueError("Input contains NaN")
 
         _check_inputs_dtype(X, self.missing_values)
         if X.dtype.kind not in ("i", "u", "f", "O"):
@@ -436,7 +453,8 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
 
         # Constant
         elif strategy == "constant":
-            return np.full(X.shape[1], fill_value, dtype=X.dtype)
+            xp = np.get_array_module(X)
+            return xp.full(X.shape[1], fill_value, dtype=X.dtype)
 
     @mlfunc
     def transform(self, X):
@@ -452,24 +470,27 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
         X = self._validate_input(X, in_fit=False)
         X_indicator = super()._transform_indicator(X)
 
-        statistics = self.statistics_
+        # Use the stored value for internal computation. ColumnTransformer
+        # may request cupy output, which cannot reflect object statistics.
+        statistics = type(self).statistics_.get_raw(self)
 
         if X.shape[1] != statistics.shape[0]:
             raise ValueError("X has %d features per sample, expected %d"
-                             % (X.shape[1], self.statistics_.shape[0]))
+                             % (X.shape[1], statistics.shape[0]))
 
         # Delete the invalid columns if strategy is not constant
         if self.strategy == "constant":
             valid_statistics = statistics
         else:
+            xp = np.get_array_module(statistics)
             # same as np.isnan but also works for object dtypes
             invalid_mask = _get_mask(statistics, np.nan)
-            valid_mask = np.logical_not(invalid_mask)
+            valid_mask = xp.logical_not(invalid_mask)
             valid_statistics = statistics[valid_mask]
-            valid_statistics_indexes = np.flatnonzero(valid_mask)
+            valid_statistics_indexes = xp.flatnonzero(valid_mask)
 
             if invalid_mask.any():
-                missing = np.arange(X.shape[1])[invalid_mask]
+                missing = xp.arange(X.shape[1])[invalid_mask]
                 if self.verbose:
                     warnings.warn("Deleting features without "
                                   "observed values: %s" % missing)
@@ -494,9 +515,10 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
             if self.strategy == "constant":
                 X[mask] = valid_statistics[0]
             else:
-                for i, vi in enumerate(valid_statistics_indexes):
-                    feature_idxs = np.flatnonzero(mask[:, vi])
-                    X[feature_idxs, vi] = valid_statistics[i]
+                xp = np.get_array_module(mask)
+                for i in range(valid_statistics.shape[0]):
+                    feature_idxs = xp.flatnonzero(mask[:, i])
+                    X[feature_idxs, i] = valid_statistics[i]
 
         X = super()._concatenate_indicator(X, X_indicator)
         return X
@@ -517,7 +539,11 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
         """
         check_is_fitted(self)
         input_features = check_input_features(self, input_features)
-        non_missing_mask = np.logical_not(_get_mask(self.statistics_, np.nan)).get()
+        statistics = type(self).statistics_.get_raw(self)
+        xp = np.get_array_module(statistics)
+        non_missing_mask = xp.logical_not(_get_mask(statistics, np.nan))
+        if isinstance(non_missing_mask, np.ndarray):
+            non_missing_mask = non_missing_mask.get()
         names = input_features[non_missing_mask]
         if self.add_indicator:
             indicator_names = self.indicator_.get_feature_names_out(input_features)
@@ -666,9 +692,11 @@ class MissingIndicator(AllowNaNTagMixin,
                 imputer_mask = sparse.csc_matrix(imputer_mask)
 
         if self.features == 'all':
-            features_indices = np.arange(X.shape[1])
+            xp = np.get_array_module(imputer_mask)
+            features_indices = xp.arange(X.shape[1])
         else:
-            features_indices = np.flatnonzero(n_missing)
+            xp = np.get_array_module(n_missing)
+            features_indices = xp.flatnonzero(n_missing)
 
         return imputer_mask, features_indices
 
@@ -677,11 +705,13 @@ class MissingIndicator(AllowNaNTagMixin,
             ensure_all_finite = True
         else:
             ensure_all_finite = "allow-nan"
+        mem_type = "host" if _is_object_dtype(X) else "device"
         X = check_inputs(
             self,
             X,
             accept_sparse=('csc', 'csr'),
             ensure_all_finite=ensure_all_finite,
+            mem_type=mem_type,
             reset=in_fit,
         )
         _check_inputs_dtype(X, self.missing_values)
@@ -811,10 +841,13 @@ class MissingIndicator(AllowNaNTagMixin,
         check_is_fitted(self)
         input_features = check_input_features(self, input_features)
         prefix = self.__class__.__name__.lower()
+        features = type(self).features_.get_raw(self)
+        if isinstance(features, np.ndarray):
+            features = features.get()
         return cpu_np.asarray(
             [
                 f"{prefix}_{feature_name}"
-                for feature_name in input_features[self.features_.get()]
+                for feature_name in input_features[features]
             ],
             dtype=object,
         )

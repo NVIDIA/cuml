@@ -119,6 +119,20 @@ def test_get_mask_nan_string_on_host_object_array():
     )
 
 
+def test_get_mask_distinguishes_missing_sentinels():
+    X = np.array([None, np.nan, pd.NA, "present"], dtype=object)
+    masks = {
+        None: cu_get_mask(X, None),
+        "nan": cu_get_mask(X, np.nan),
+        "pd.NA": cu_get_mask(X, pd.NA),
+    }
+
+    np.testing.assert_array_equal(masks[None], [True, False, False, False])
+    np.testing.assert_array_equal(masks["nan"], [False, True, False, False])
+    np.testing.assert_array_equal(masks["pd.NA"], [False, False, True, False])
+    np.testing.assert_array_equal(sum(masks.values()), [1, 1, 1, 0])
+
+
 @pytest.mark.parametrize(
     ("function", "expected"),
     [
@@ -126,7 +140,7 @@ def test_get_mask_nan_string_on_host_object_array():
         (_masked_column_median, [3.0, 5.0]),
     ],
 )
-@pytest.mark.parametrize("missing_value", [pd.NA, "NaN"])
+@pytest.mark.parametrize("missing_value", [np.nan, "NaN"])
 def test_masked_column_numeric_na_sentinel(function, expected, missing_value):
     X = cp.array([[1.0, cp.nan], [3.0, 4.0], [5.0, 6.0]])
 
@@ -166,3 +180,11 @@ def test_masked_column_mode(failure_logger, mask_dataset):
         column_mask = mask[:, i]
         column_mode = stats.mode(X_np[:, i][column_mask], keepdims=True)[0][0]
         assert column_mode == mode[i]
+
+
+def test_masked_column_mode_numeric_nan_regression_guard():
+    X = np.array([[0.0], [np.nan], [np.nan], [1.0]])
+
+    result = _masked_column_mode(X, 0)
+
+    assert np.isnan(result[0])

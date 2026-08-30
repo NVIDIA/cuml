@@ -13,6 +13,7 @@ from sklearn.compose import make_column_selector as sk_make_column_selector
 from sklearn.compose import (
     make_column_transformer as sk_make_column_transformer,
 )
+from sklearn.impute import SimpleImputer as skSimpleImputer
 from sklearn.preprocessing import Normalizer as skNormalizer
 from sklearn.preprocessing import OneHotEncoder as skOneHotEncoder
 from sklearn.preprocessing import PolynomialFeatures as skPolynomialFeatures
@@ -24,6 +25,7 @@ from cuml.compose import make_column_transformer as cu_make_column_transformer
 from cuml.preprocessing import Normalizer as cuNormalizer
 from cuml.preprocessing import OneHotEncoder as cuOneHotEncoder
 from cuml.preprocessing import PolynomialFeatures as cuPolynomialFeatures
+from cuml.preprocessing import SimpleImputer as cuSimpleImputer
 from cuml.preprocessing import StandardScaler as cuStandardScaler
 from cuml.testing.test_preproc_utils import (  # noqa: F401
     assert_allclose,
@@ -462,7 +464,7 @@ def test_column_transformer_simple_imputer_categorical_cudf():
     )
     sk_result = sk_transformer.fit_transform(df_np)
 
-    np.testing.assert_array_equal(np.asarray(cu_result), sk_result)
+    np.testing.assert_array_equal(cu_result.to_numpy(), sk_result)
 
 
 def test_simple_imputer_add_indicator_object_cudf():
@@ -487,7 +489,25 @@ def test_simple_imputer_add_indicator_object_cudf():
     cu_result = cu_imp.fit_transform(df)
     sk_result = sk_imp.fit_transform(df_np)
 
-    np.testing.assert_array_equal(np.asarray(cu_result), np.asarray(sk_result))
+    np.testing.assert_array_equal(cu_result.to_numpy(), np.asarray(sk_result))
+
+
+def test_simple_imputer_drops_fully_missing_object_column_cudf():
+    df = cudf.DataFrame(
+        {
+            "all_missing": [None, None, None],
+            "observed": ["a", "b", "a"],
+        }
+    )
+    df_np = df.to_pandas()
+    cu_imp = cuSimpleImputer(strategy="most_frequent", missing_values=pd.NA)
+    sk_imp = skSimpleImputer(strategy="most_frequent", missing_values=pd.NA)
+
+    cu_result = cu_imp.fit_transform(df)
+    sk_result = sk_imp.fit_transform(df_np)
+
+    assert cu_result.shape == (3, 1)
+    np.testing.assert_array_equal(cu_result.to_numpy(), sk_result)
 
 
 def test_simple_imputer_add_indicator_clone_params():
@@ -500,13 +520,104 @@ def test_simple_imputer_add_indicator_clone_params():
     assert params["missing_values"] is pd.NA
 
 
+@pytest.mark.parametrize("input_type", ["pandas", "numpy"])
+@pytest.mark.parametrize("missing_values", [pd.NA, None, np.nan])
+def test_simple_imputer_missing_sentinel_parity(input_type, missing_values):
+    if input_type == "pandas":
+        X = pd.DataFrame({"cat": ["x", missing_values, "x", "y"]})
+    else:
+        X = np.array([["x"], [np.nan], ["x"], ["y"]], dtype=object)
+
+    cu_imputer = cuSimpleImputer(
+        strategy="most_frequent", missing_values=missing_values
+    )
+    sk_imputer = skSimpleImputer(
+        strategy="most_frequent", missing_values=missing_values
+    )
+
+    if missing_values is None:
+        with pytest.raises(ValueError) as sk_error:
+            sk_imputer.fit_transform(X)
+        with pytest.raises(ValueError) as cu_error:
+            cu_imputer.fit_transform(X)
+
+        assert str(cu_error.value) == str(sk_error.value)
+    else:
+        cu_result = cu_imputer.fit_transform(X)
+        sk_result = sk_imputer.fit_transform(X)
+
+        np.testing.assert_array_equal(np.asarray(cu_result), sk_result)
+
+
+@pytest.mark.parametrize("input_type", ["pandas", "readonly-numpy"])
+@pytest.mark.parametrize("copy", [False, True])
+@pytest.mark.parametrize("missing_values", [pd.NA, np.nan])
+def test_simple_imputer_copy_object_parity(input_type, copy, missing_values):
+    def make_input():
+        if input_type == "pandas":
+            return pd.DataFrame(
+                {
+                    "cat": pd.Series(
+                        ["x", missing_values, "x", "y"], dtype=object
+                    )
+                }
+            )
+
+        X = np.array([["x"], [np.nan], ["x"], ["y"]], dtype=object)
+        X.flags.writeable = False
+        return X
+
+    cu_imputer = cuSimpleImputer(
+        strategy="most_frequent", missing_values=missing_values, copy=copy
+    )
+    sk_imputer = skSimpleImputer(
+        strategy="most_frequent", missing_values=missing_values, copy=copy
+    )
+
+    cu_result = cu_imputer.fit_transform(make_input())
+    sk_result = sk_imputer.fit_transform(make_input())
+
+    np.testing.assert_array_equal(np.asarray(cu_result), sk_result)
+
+
+@pytest.mark.parametrize("add_indicator", [False, True])
+def test_simple_imputer_string_get_feature_names_out(add_indicator):
+    df = pd.DataFrame(
+        {
+            "cat": pd.Series(["x", pd.NA, "x"], dtype=object),
+            "other": pd.Series(["a", "b", "a"], dtype=object),
+        }
+    )
+    cu_imputer = cuSimpleImputer(
+        strategy="most_frequent",
+        missing_values=pd.NA,
+        add_indicator=add_indicator,
+    ).fit(df)
+    sk_imputer = skSimpleImputer(
+        strategy="most_frequent",
+        missing_values=pd.NA,
+        add_indicator=add_indicator,
+    ).fit(df)
+
+    np.testing.assert_array_equal(
+        cu_imputer.get_feature_names_out(),
+        sk_imputer.get_feature_names_out(),
+    )
+
+
 def test_is_object_dtype_handles_series_and_extension_dtypes():
     from cuml.internals.outputs import _is_object_dtype
+
+    pa = pytest.importorskip("pyarrow")
 
     assert _is_object_dtype(pd.Series(["a", "b"])) is True
     assert _is_object_dtype(pd.Series([1, 2, 3])) is False
     assert _is_object_dtype(pd.Series(pd.Categorical(["a", "b"]))) is False
-    assert _is_object_dtype(pd.Series(["a"], dtype="string")) is False
+    assert _is_object_dtype(pd.Series(["a"], dtype="string")) is True
+    assert (
+        _is_object_dtype(pd.Series(["a"], dtype=pd.ArrowDtype(pa.string())))
+        is True
+    )
     assert _is_object_dtype(pd.DataFrame({"a": ["x"], "b": [1]})) is True
     assert _is_object_dtype(np.array(["a", "b"], dtype=object)) is True
     assert _is_object_dtype(np.array([1, 2, 3])) is False
