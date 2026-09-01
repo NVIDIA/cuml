@@ -123,6 +123,7 @@ html_theme = "nvidia_sphinx_theme"
 # documentation.
 #
 html_theme_options = {
+    "public_docs_features": os.environ.get("CI") == "true",
     "external_links": [],
     "icon_links": [
         {
