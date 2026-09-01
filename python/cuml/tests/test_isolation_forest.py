@@ -269,7 +269,16 @@ def test_max_features_parameter(blobs_data, max_features, expected_features):
         n_estimators=10, max_features=max_features, random_state=42
     )
     clf.fit(blobs_data)
-    assert clf._n_features_per_tree == expected_features
+    # Each tree may only split on the features sampled for it, so the number
+    # of distinct split features per tree is the resolved `max_features`.
+    tl_model = clf.as_treelite()
+    for tree_id in range(tl_model.num_tree):
+        split_index = tl_model.get_tree_accessor(tree_id).get_field(
+            "split_index"
+        )
+        # Leaves carry ``split_index == -1``.
+        used = set(split_index[split_index >= 0].tolist())
+        assert len(used) == expected_features
     predictions = clf.predict(blobs_data)
     assert predictions.shape[0] == blobs_data.shape[0]
 
@@ -543,8 +552,8 @@ def test_float_dtypes(dtype):
     assert predictions.shape == (X.shape[0],)
 
 
-def test_refit_replaces_native_model():
-    """Refitting should replace the native model, including across dtypes."""
+def test_refit_replaces_model():
+    """Refitting should replace the fitted model, including across dtypes."""
     rng = np.random.RandomState(42)
     X = rng.randn(100, 4)
     clf = cuIsolationForest(n_estimators=10, random_state=42)
@@ -748,35 +757,17 @@ def test_as_nvforest_loads(blobs_data):
     assert bool(cp.all(cp.isfinite(avg_path_lengths)))
 
 
-def test_nvforest_score_parity(blobs_data):
-    """nvForest-backed scores should match the current C++ scoring path."""
-    X = cp.asarray(blobs_data)
-    clf = cuIsolationForest(n_estimators=25, random_state=42)
-    clf.fit(X)
-
-    cpp_scores = cp.asarray(clf.score_samples(X))
-    nvforest_scores = cp.asarray(clf._score_samples_nvforest(X))
-
-    cp.testing.assert_allclose(
-        cpp_scores, nvforest_scores, rtol=1e-5, atol=1e-6
-    )
-
-
-def test_nvforest_score_parity_single_sample():
-    """c(1)=0 should produce the neutral -0.5 score on both paths."""
+def test_score_samples_single_sample():
+    """c(1)=0 should produce the neutral -0.5 score."""
     X = cp.asarray([[1.0, 2.0]], dtype=cp.float32)
     clf = cuIsolationForest(n_estimators=2, random_state=42).fit(X)
 
-    cpp_scores = cp.asarray(clf.score_samples(X))
-    nvforest_scores = cp.asarray(clf._score_samples_nvforest(X))
-
     cp.testing.assert_allclose(
-        cpp_scores, cp.asarray([-0.5], dtype=cp.float32)
+        cp.asarray(clf.score_samples(X)), cp.asarray([-0.5], dtype=cp.float32)
     )
-    cp.testing.assert_allclose(cpp_scores, nvforest_scores)
 
 
-def test_treelite_export_before_fit_raises(blobs_data):
+def test_treelite_export_before_fit_raises():
     """Treelite and nvForest export should require a fitted model."""
     clf = cuIsolationForest()
 
@@ -785,9 +776,6 @@ def test_treelite_export_before_fit_raises(blobs_data):
 
     with pytest.raises(RuntimeError, match="not been fitted"):
         clf.as_nvforest()
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf._score_samples_nvforest(blobs_data)
 
 
 # =============================================================================
