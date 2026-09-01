@@ -1164,7 +1164,8 @@ class KMeans(
                         <double*>out_ptr,
                     )
         handle.sync()
-        return out
+        # C++/cuVS uses L2Expanded, which is squared Euclidean.
+        return cp.sqrt(out)
 
     @generate_docstring(return_values={'name': 'score',
                                        'type': 'float',

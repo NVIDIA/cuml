@@ -545,6 +545,36 @@ def test_kmeans_device_buffer_samples_host_path(
     assert adjusted_rand_score(dev_labels, host_labels) >= 0.97
 
 
+def test_kmeans_transform_euclidean():
+    """transform should return Euclidean distances, matching sklearn."""
+    X = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [10.0, 10.0],
+            [11.0, 11.0],
+            [12.0, 12.0],
+        ]
+    )
+    init = np.array([[1.0, 1.0], [11.0, 11.0]])
+    query = np.array([[0.0, 0.0], [10.0, 10.0]])
+
+    cuml_model = cuml.KMeans(
+        n_clusters=2, init=init, n_init=1, output_type="numpy"
+    )
+    cuml_model.fit(X)
+    cu_dist = cuml_model.transform(query)
+
+    sk_model = cluster.KMeans(n_clusters=2, init=init, n_init=1)
+    sk_model.fit(X)
+    sk_dist = sk_model.transform(query)
+
+    expected = np.sqrt(np.array([[2.0, 242.0], [162.0, 2.0]]))
+    np.testing.assert_allclose(cu_dist, expected)
+    np.testing.assert_allclose(cu_dist, sk_dist)
+
+
 def test_get_feature_names_out():
     X, _ = make_blobs(n_features=5)
     cu_model = cuml.KMeans().fit(X)
