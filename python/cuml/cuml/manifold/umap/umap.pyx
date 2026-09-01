@@ -31,7 +31,6 @@ from cuml.internals.validation import (
 )
 from cuml.manifold.utils import extract_knn_graph
 
-from cuda.bindings.cyruntime cimport cudaStream_t
 from libc.stdint cimport int64_t, uintptr_t
 from libcpp cimport bool
 from libcpp.memory cimport unique_ptr
@@ -312,9 +311,9 @@ cdef class RaftCOO:
 
         cdef RaftCOO self = RaftCOO.__new__(RaftCOO)
         cdef handle_t* handle_ = <handle_t*><size_t>handle.getHandle()
-        cdef lib.COO* coo = new lib.COO(handle_.get_stream())
+        cdef lib.COO* coo = new lib.COO(handle_.get_stream().get())
         self.ptr.reset(coo)
-        coo.allocate(arr.nnz, arr.shape[0], False, handle_.get_stream())
+        coo.allocate(arr.nnz, arr.shape[0], False, handle_.get_stream().get())
         handle_.sync_stream()
 
         copy_from_cupy(<uintptr_t>coo.vals(), arr.data, np.float32)
@@ -1345,7 +1344,7 @@ class UMAP(
                         init.data.ptr if isinstance(init, cp.ndarray) else init.ctypes.data
                     ),
                     <size_t> init.nbytes,
-                    <cudaStream_t> handle_.get_stream(),
+                    handle_.get_stream(),
                     any_resource[device_accessible](
                         get_current_device_resource().get_mr()
                     )

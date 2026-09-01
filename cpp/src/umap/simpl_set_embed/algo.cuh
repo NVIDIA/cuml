@@ -127,7 +127,7 @@ T create_rounding_factor(T max_abs, int n)
 
 template <typename T, typename nnz_t>
 T create_gradient_rounding_factor(
-  const int* head, nnz_t nnz, int n_samples, T alpha, rmm::cuda_stream_view stream)
+  const int* head, nnz_t nnz, int n_samples, T alpha, cuda::stream_ref stream)
 {
   rmm::device_uvector<T> buffer(n_samples, stream);
   // calculate the maximum number of edges connected to 1 vertex.
@@ -212,7 +212,7 @@ void optimize_layout(T* head_embedding,
   bool move_other = head_embedding == tail_embedding;
   T alpha         = params->initial_alpha;
 
-  auto stream_view = rmm::cuda_stream_view(stream);
+  auto stream_view = cuda::stream_ref(stream);
 
   T rounding = create_gradient_rounding_factor<T, nnz_t>(head, nnz, head_n, alpha, stream_view);
 
