@@ -1075,7 +1075,7 @@ class KMeans(
                                        'type': 'dense',
                                        'description': 'Transformed data',
                                        'shape': '(n_samples, n_clusters)'})
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Transform X to a cluster-distance space.
@@ -1185,7 +1185,7 @@ class KMeans(
                                        'type': 'dense',
                                        'description': 'Transformed data',
                                        'shape': '(n_samples, n_clusters)'})
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None, sample_weight=None):
         """
         Compute clustering and transform X to cluster-distance space.

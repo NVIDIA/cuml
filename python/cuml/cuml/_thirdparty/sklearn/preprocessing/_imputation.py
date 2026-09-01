@@ -429,7 +429,7 @@ class SimpleImputer(SparseInputTagMixin, AllowNaNTagMixin,
         elif strategy == "constant":
             return np.full(X.shape[1], fill_value, dtype=X.dtype)
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Impute all missing values in X.
 
@@ -745,7 +745,7 @@ class MissingIndicator(AllowNaNTagMixin,
 
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Generate missing values indicator for X.
 
@@ -810,7 +810,11 @@ class MissingIndicator(AllowNaNTagMixin,
             dtype=object,
         )
 
-    @mlfunc(set_input_type=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     def fit_transform(self, X, y=None):
         """Generate missing values indicator for X.
 

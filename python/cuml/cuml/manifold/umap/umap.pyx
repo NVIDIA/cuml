@@ -1434,7 +1434,7 @@ class UMAP(
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None, *, knn_graph=None):
         """
         Fit X into an embedded space and return that transformed
@@ -1467,7 +1467,7 @@ class UMAP(
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Transform X into the existing embedded space and return that
@@ -1592,7 +1592,7 @@ class UMAP(
             "shape": "(n_samples, n_features)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Transform X in the existing embedded space back into the input
         data space and return that transformed output.

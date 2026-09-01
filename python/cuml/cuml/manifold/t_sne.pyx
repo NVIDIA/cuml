@@ -682,7 +682,7 @@ class TSNE(InteropMixin,
                                                        data in \
                                                        low-dimensional space.',
                                        'shape': '(n_samples, n_components)'})
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None, *, knn_graph=None):
         """
         Fit X into an embedded space and return that transformed output.
