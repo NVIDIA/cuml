@@ -207,18 +207,18 @@ CUML_KERNEL void compute_membership_strength_kernel(
   if (idx < to_process) {
     int row = idx / n_neighbors;  // one neighbor per thread
 
-    double cur_rho   = rhos[row];
-    double cur_sigma = sigmas[row];
+    value_t cur_rho   = rhos[row];
+    value_t cur_sigma = sigmas[row];
 
     value_idx cur_knn_ind = knn_indices[idx];
-    double cur_knn_dist   = knn_dists[idx];
+    value_t cur_knn_dist  = knn_dists[idx];
 
     if (cur_knn_ind != -1) {
-      double val = 0.0;
+      value_t val = value_t(0.0);
       if (cur_knn_ind == row)
-        val = 0.0;
-      else if (cur_knn_dist - cur_rho <= 0.0 || cur_sigma == 0.0)
-        val = 1.0;
+        val = value_t(0.0);
+      else if (cur_knn_dist - cur_rho <= value_t(0.0) || cur_sigma == value_t(0.0))
+        val = value_t(1.0);
       else {
         val = exp(-((cur_knn_dist - cur_rho) / (cur_sigma)));
 
@@ -355,7 +355,7 @@ void symmetrize(raft::sparse::COO<value_t>& in,
     [set_op_mix_ratio] __device__(int row, int col, value_t result, value_t transpose) {
       value_t prod_matrix = result * transpose;
       value_t res         = set_op_mix_ratio * (result + transpose - prod_matrix) +
-                    (1.0 - set_op_mix_ratio) * prod_matrix;
+                    (value_t(1.0) - set_op_mix_ratio) * prod_matrix;
       return res;
     },
     stream);

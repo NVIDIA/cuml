@@ -125,7 +125,7 @@ void dist_membership_vector(const raft::handle_t& handle,
                                  samples_per_batch * n_selected_clusters),
                                [min_dist = min_dist.data_handle()] __device__(auto idx) {
                                  value_t val = min_dist[idx];
-                                 if (val != 0) { return value_t(exp(1.0 / val)); }
+                                 if (val != 0) { return exp(value_t(1.0) / val); }
                                  return std::numeric_limits<value_t>::max();
                                });
     }
@@ -139,7 +139,7 @@ void dist_membership_vector(const raft::handle_t& handle,
           samples_per_batch * n_selected_clusters),
         [min_dist = min_dist.data_handle(), n_selected_clusters] __device__(auto idx) {
           value_t val = min_dist[idx];
-          if (val > 0) { return value_t(1.0 / val); }
+          if (val > 0) { return value_t(1.0) / val; }
           return std::numeric_limits<value_t>::max() / n_selected_clusters;
         });
     }
@@ -197,7 +197,7 @@ void all_points_outlier_membership_vector(
     static_cast<value_idx>(n_selected_clusters),
     static_cast<value_idx>(m),
     [] __device__(value_t mat_in, value_t vec_in) {
-      return exp(-(vec_in + 1e-8) / mat_in);
+      return exp(-(vec_in + value_t(1e-8)) / mat_in);
     },  //+ 1e-8 to avoid zero lambda
     stream);
 
@@ -310,7 +310,7 @@ void outlier_membership_vector(const raft::handle_t& handle,
     n_prediction_points,
     [] __device__(value_t mat_in, value_t vec_in) {
       value_t denominator = vec_in - mat_in;
-      if (denominator <= 0) { denominator = 1e-8; }
+      if (denominator <= 0) { denominator = value_t(1e-8); }
       return vec_in / denominator;
     },
     stream);
@@ -359,7 +359,8 @@ void prob_in_some_cluster(const raft::handle_t& handle,
                                   n_selected_clusters] __device__(auto idx) {
     value_idx nearest_cluster = height_argmax[idx];
     value_t max_lambda =
-      max(prediction_lambdas[idx], deaths[selected_clusters[nearest_cluster] - n_leaves]) + 1e-8;
+      max(prediction_lambdas[idx], deaths[selected_clusters[nearest_cluster] - n_leaves]) +
+      value_t(1e-8);
     return merge_heights[idx * n_selected_clusters + nearest_cluster] / max_lambda;
   };
   raft::linalg::map_offset(
@@ -589,7 +590,8 @@ void membership_vector(const raft::handle_t& handle,
 
   auto combine_op = [membership_vec,
                      dist_membership_vec = dist_membership_vec.data()] __device__(auto idx) {
-    return pow(membership_vec[idx], 2) * pow(dist_membership_vec[idx], 0.5);
+    value_t m = membership_vec[idx];
+    return m * m * sqrt(dist_membership_vec[idx]);
   };
 
   raft::linalg::map_offset(handle,

@@ -146,7 +146,8 @@ void _build_condensed_hierarchy(const raft::handle_t& handle,
     value_idx left       = h_children[(node - n_samples) * 2];
     value_idx right      = h_children[(node - n_samples) * 2 + 1];
     value_t distance     = h_delta[node - n_samples];
-    value_t lambda_value = distance > 0.0 ? 1.0 / distance : std::numeric_limits<value_t>::max();
+    value_t lambda_value =
+      distance > value_t(0.0) ? value_t(1.0) / distance : std::numeric_limits<value_t>::max();
 
     value_idx left_count  = left >= n_samples ? h_sizes[left - n_samples] : 1;
     value_idx right_count = right >= n_samples ? h_sizes[right - n_samples] : 1;

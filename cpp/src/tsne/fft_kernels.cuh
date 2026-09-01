@@ -527,10 +527,10 @@ CUML_KERNEL void IntegrationKernel(volatile value_t* __restrict__ points,
     value_t dy =
       exaggeration * attr_forces[i + num_points] - (rep_forces[i + num_points] / normalization);
 
-    gx = signbit(dx) != signbit(ux) ? gx + 0.2 : gx * 0.8;
-    gy = signbit(dy) != signbit(uy) ? gy + 0.2 : gy * 0.8;
-    gx = gx < 0.01 ? 0.01 : gx;
-    gy = gy < 0.01 ? 0.01 : gy;
+    gx = signbit(dx) != signbit(ux) ? gx + value_t(0.2) : gx * value_t(0.8);
+    gy = signbit(dy) != signbit(uy) ? gy + value_t(0.2) : gy * value_t(0.8);
+    gx = gx < value_t(0.01) ? value_t(0.01) : gx;
+    gy = gy < value_t(0.01) ? value_t(0.01) : gy;
 
     ux = momentum * ux - eta * gx * dx;
     uy = momentum * uy - eta * gy * dy;
