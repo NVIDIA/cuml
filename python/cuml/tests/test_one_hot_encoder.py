@@ -123,6 +123,45 @@ def test_onehot_encoder_all_dtypes(drop):
     pd.testing.assert_frame_equal(res, sol)
 
 
+@pytest.mark.parametrize("handle_unknown", ["error", "ignore"])
+@pytest.mark.parametrize("explicit_categories", [True, False])
+def test_onehot_encoder_categorical_inputs(
+    handle_unknown, explicit_categories
+):
+    abc = cudf.DataFrame({"x": ["a", "b", "a", "c"]}).astype("category")
+    ab = cudf.DataFrame({"x": ["a", "b", "a", "b"]}).astype("category")
+    bcd = cudf.DataFrame({"x": ["b", "c", "d"]}).astype("category")
+
+    if explicit_categories:
+        categories = [["a", "b", "c"]]
+        X = ab
+    else:
+        categories = "auto"
+        X = abc
+
+    enc = OneHotEncoder(handle_unknown=handle_unknown, categories=categories)
+    enc.fit(X)
+
+    res = enc.transform(ab).toarray().get()
+    sol = np.array([[1, 0, 0], [0, 1, 0], [1, 0, 0], [0, 1, 0]])
+    np.testing.assert_array_equal(res, sol)
+
+    res = enc.transform(abc).toarray().get()
+    sol = np.array([[1, 0, 0], [0, 1, 0], [1, 0, 0], [0, 0, 1]])
+    np.testing.assert_array_equal(res, sol)
+
+    if handle_unknown == "ignore":
+        res = enc.transform(bcd).toarray().get()
+        sol = np.array([[0, 1, 0], [0, 0, 1], [0, 0, 0]])
+        np.testing.assert_array_equal(res, sol)
+    else:
+        with pytest.raises(
+            ValueError,
+            match="Found unknown categories \\['d'\\] in column 0 during transform",
+        ):
+            enc.transform(bcd)
+
+
 @pytest.mark.parametrize(
     "cardinalities",
     [

@@ -128,7 +128,9 @@ def _compute_categories(
             cats = Xi.sort_values().to_numpy()
         else:
             cats_cudf = cudf.Series(
-                categories[i], dtype=Xi.dtype, nan_as_null=True
+                categories[i],
+                dtype=(Xi.dtype if isinstance(Xi.dtype, np.dtype) else str),
+                nan_as_null=True,
             )
             if cats_cudf.dtype == "object":
                 cats_cudf = cats_cudf.astype(str)
@@ -315,7 +317,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
     @classmethod
     def _params_from_cpu(cls, model):
         if np.dtype(model.dtype).kind not in "fb":
-            raise UnsupportedOnGPU("`dtype={model.dtype!r}` is not supported")
+            raise UnsupportedOnGPU(f"`dtype={model.dtype!r}` is not supported")
         if isinstance(model.drop, str) and model.drop == "if_binary":
             raise UnsupportedOnGPU("`drop='if_binary'` is not supported")
         if model.handle_unknown in ("infrequent_if_exist", "warn"):
@@ -325,7 +327,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
         if model.min_frequency is not None:
             raise UnsupportedOnGPU("`min_frequency` is not supported")
         if model.max_categories is not None:
-            raise UnsupportedOnGPU("`min_categories` is not supported")
+            raise UnsupportedOnGPU("`max_categories` is not supported")
         if not (
             isinstance(model.feature_name_combiner, str)
             and model.feature_name_combiner == "concat"
