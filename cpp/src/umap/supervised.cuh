@@ -152,10 +152,10 @@ CUML_KERNEL void sset_intersection_kernel(int* row_ind1,
       }
 
       if (left_val > left_min || right_val > right_min) {
-        if (mix_weight < 0.5) {
-          result_vals[j] = left_val * powf(right_val, mix_weight / (1.0 - mix_weight));
+        if (mix_weight < 0.5f) {
+          result_vals[j] = left_val * powf(right_val, mix_weight / (1.0f - mix_weight));
         } else {
-          result_vals[j] = powf(left_val, (1.0 - mix_weight) / mix_weight) * right_val;
+          result_vals[j] = powf(left_val, (1.0f - mix_weight) / mix_weight) * right_val;
         }
       }
     }

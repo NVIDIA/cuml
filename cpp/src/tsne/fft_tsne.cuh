@@ -55,7 +55,7 @@ struct FunctionalSqrt {
   template <typename value_t>
   __host__ __device__ float operator()(const value_t& x) const
   {
-    return pow(x, 0.5);
+    return sqrtf(static_cast<float>(x));
   }
 };
 struct FunctionalSquare {

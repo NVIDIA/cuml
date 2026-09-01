@@ -36,7 +36,7 @@ CUML_KERNEL void map_kernel(T* output, T* X, int n_rows, T* coef, Lambda grad)
     T a         = coef[0];
     T b         = coef[1];
     output[row] = grad(x, a, b);
-    if (isnan(output[row])) output[row] = 0.0;
+    if (isnan(output[row])) output[row] = T(0.0);
   }
 }
 
@@ -52,7 +52,7 @@ void f(T* input, int n_rows, T* coef, T* preds)
 
   // Function: 1/1+ax^(2b)
   map_kernel<T, TPB_X><<<grid, blk>>>(preds, input, n_rows, coef, [] __device__(T x, T a, T b) {
-    return 1.0 / (1 + a * pow(x, 2.0 * b));
+    return T(1.0) / (T(1.0) + a * pow(x, T(2.0) * b));
   });
 }
 
@@ -83,7 +83,7 @@ void abLossGrads(
   raft::copy(a_deriv.data(), input, n_rows, stream);
   map_kernel<T, TPB_X><<<grid, blk, 0, stream>>>(
     a_deriv.data(), a_deriv.data(), n_rows, coef, [] __device__ __host__(T x, T a, T b) {
-      return -(pow(x, 2.0 * b)) / pow((1.0 + a * pow(x, 2.0 * b)), 2.0);
+      return -(pow(x, T(2.0) * b)) / pow((T(1.0) + a * pow(x, T(2.0) * b)), T(2.0));
     });
 
   raft::linalg::eltwiseMultiply(a_deriv.data(), a_deriv.data(), residuals.data(), n_rows, stream);
@@ -96,7 +96,8 @@ void abLossGrads(
   raft::copy(b_deriv.data(), input, n_rows, stream);
   map_kernel<T, TPB_X><<<grid, blk, 0, stream>>>(
     b_deriv.data(), b_deriv.data(), n_rows, coef, [] __device__ __host__(T x, T a, T b) {
-      return -(2.0 * a * pow(x, 2.0 * b) * log(x)) / pow(1 + a * pow(x, 2.0 * b), 2.0);
+      return -(T(2.0) * a * pow(x, T(2.0) * b) * log(x)) /
+             pow(T(1.0) + a * pow(x, T(2.0) * b), T(2.0));
     });
 
   /**
