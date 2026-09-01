@@ -697,6 +697,7 @@ def mlfunc(
     convert_output=True,
     set_input_type=False,
     preserve_index=False,
+    column_names=None,
 ):
     """A decorator for enabling common `cuml` machinery on a function/method.
 
@@ -753,6 +754,11 @@ def mlfunc(
         Whether to preserve the index of the ``array_arg`` argument (if any)
         in the function output. This should typically be set to ``True`` on
         any inference (predict/transform-like) methods.
+    column_names : {"features_names_in", "features_names_out", None}, default=None
+        Where to get the column names from when outputting a DataFrame. Options
+        are ``None`` (for default column names), ``"features_names_in"`` (to
+        use ``model.feature_names_in_``) or ``"features_names_out"`` (to
+        determine feature names from ``get_feature_names_out``.
     """
     if func is None:
         return lambda func: mlfunc(
@@ -762,6 +768,7 @@ def mlfunc(
             convert_output=convert_output,
             preserve_index=preserve_index,
             set_input_type=set_input_type,
+            column_names=column_names,
         )
 
     sig = inspect.signature(func, follow_wrapped=True)
@@ -803,6 +810,13 @@ def mlfunc(
     if preserve_index and array_arg is None:
         raise ValueError(
             "`preserve_index=True` is not valid with `array_arg=None`"
+        )
+
+    if column_names not in ("feature_names_in", "feature_names_out", None):
+        raise ValueError(f"`{column_names=}` is not valid")
+    elif column_names is not None and model_arg is None:
+        raise ValueError(
+            f"`{column_names=}` is not valid with `model_arg=None`"
         )
 
     @functools.wraps(func)
@@ -856,6 +870,14 @@ def mlfunc(
                     index=index,
                     one_col_2d_as_series=one_col_2d_as_series,
                 )
+
+                if output_type in ("cudf", "pandas"):
+                    if column_names == "feature_names_in":
+                        if hasattr(model, "feature_names_in_"):
+                            res.columns = model.feature_names_in_
+                    elif column_names == "feature_names_out":
+                        if hasattr(model, "get_feature_names_out"):
+                            res.columns = model.get_feature_names_out()
 
         return res
 
