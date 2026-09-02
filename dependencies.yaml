@@ -486,7 +486,7 @@ dependencies:
           # We always want nvJitLink >= whatever minor version was available in the build environment
           # nvJitLink tends to follow the CTK's minor versions, but check at https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html
           #
-          # ref: https://github.com/rapidsai/cudf/pull/20873
+          # ref: https://github.com/NVIDIA/cudf/pull/20873
           - matrix:
               cuda: "12.9"
               use_cuda_wheels: "true"

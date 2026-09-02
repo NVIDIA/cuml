@@ -33,7 +33,7 @@ These RAPIDS libraries must match the cuML version (e.g., all version 25.10 if b
 *Python Packages:*
 - [rmm](https://github.com/rapidsai/rmm) - RAPIDS Memory Manager (Python package)
 - [pylibraft](https://github.com/NVIDIA/raft) - RAPIDS CUDA accelerated algorithms (Python package)
-- [cuDF](https://github.com/rapidsai/cudf) - GPU DataFrame library (Python package)
+- [cuDF](https://github.com/NVIDIA/cudf) - GPU DataFrame library (Python package)
 
 **Python Build Dependencies:**
 - scikit-build-core
