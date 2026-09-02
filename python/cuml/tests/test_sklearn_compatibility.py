@@ -186,11 +186,6 @@ EXCLUDED = {
 
 
 XFAILS = {
-    IsolationForest: {
-        "check_estimators_unfitted": (
-            "Unfitted methods raise RuntimeError instead of NotFittedError"
-        ),
-    },
     KMeans: {
         "check_sample_weight_equivalence_on_dense_data": "Sample weights not equal to repeating data",
     },

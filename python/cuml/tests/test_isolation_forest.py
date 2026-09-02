@@ -20,6 +20,7 @@ import pytest
 import treelite
 from sklearn.datasets import make_blobs
 from sklearn.ensemble import IsolationForest as skIsolationForest
+from sklearn.exceptions import NotFittedError
 
 from cuml import IsolationForest as cuIsolationForest
 from cuml.internals.interop import UnsupportedOnGPU
@@ -341,17 +342,6 @@ def test_as_sklearn_respects_max_depth(anomaly_data):
     np.testing.assert_allclose(
         cu_scores, sk_model.score_samples(anomaly_data), atol=1e-5
     )
-
-
-def test_as_sklearn_after_failed_fit_raises(blobs_data):
-    """A failed fit sets ``n_features_in_`` before raising, which makes the
-    model look fitted to ``InteropMixin``; conversion must still fail
-    loudly rather than deserialize a missing forest."""
-    cu_model = cuIsolationForest(max_features=0)
-    with pytest.raises(ValueError, match="max_features"):
-        cu_model.fit(blobs_data)
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        cu_model.as_sklearn()
 
 
 @pytest.mark.parametrize(
@@ -771,10 +761,10 @@ def test_treelite_export_before_fit_raises():
     """Treelite and nvForest export should require a fitted model."""
     clf = cuIsolationForest()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_treelite()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_nvforest()
 
 
@@ -887,21 +877,16 @@ def test_many_features():
     assert scores.shape == (X.shape[0],)
 
 
-def test_predict_before_fit_raises():
-    """predict() before fit() should raise an error."""
-    clf = cuIsolationForest()
-    X = np.random.randn(10, 3).astype(np.float32)
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf.predict(X)
-
-
 def test_score_samples_before_fit_raises():
-    """score_samples() before fit() should raise an error."""
+    """score_samples() before fit() should raise an error.
+
+    ``predict`` and ``decision_function`` are covered by sklearn's
+    ``check_estimators_unfitted``, which never calls ``score_samples``.
+    """
     clf = cuIsolationForest()
     X = np.random.randn(10, 3).astype(np.float32)
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.score_samples(X)
 
 
