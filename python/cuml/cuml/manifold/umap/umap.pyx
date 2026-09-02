@@ -516,7 +516,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
         )
 
     if build_algo == "nn_descent" and n_rows < 150:
-        # https://github.com/rapidsai/cuvs/issues/184
+        # https://github.com/NVIDIA/cuvs/issues/184
         warnings.warn(
             "using build_algo='nn_descent' on a small dataset (< 150 samples) "
             "is unstable"
