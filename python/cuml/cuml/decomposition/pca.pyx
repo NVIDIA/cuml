@@ -5,6 +5,7 @@
 import cupy as cp
 import cupyx.scipy.sparse
 import numpy as np
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse, sparse_cov_and_mean
@@ -83,6 +84,7 @@ cdef extern from "cuml/decomposition/pca.hpp" namespace "ML" nogil:
 class PCA(InteropMixin,
           FMajorInputTagMixin,
           SparseInputTagMixin,
+          ClassNamePrefixFeaturesOutMixin,
           Base):
 
     """
@@ -333,6 +335,7 @@ class PCA(InteropMixin,
         self.whiten = whiten
 
     @property
+    @mlfunc(convert_output=False)
     def _n_features_out(self):
         """Number of transformed output features."""
         # Exposed to support sklearn's `get_feature_names_out`

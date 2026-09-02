@@ -131,10 +131,13 @@ std::pair<value_t, value_t> min_max(const value_t* Y, const value_idx n, cudaStr
   rmm::device_scalar<value_t> min_d(stream);
   rmm::device_scalar<value_t> max_d(stream);
 
-  value_t val = std::numeric_limits<value_t>::max();
-  min_d.set_value_async(val, stream);
-  val = std::numeric_limits<value_t>::lowest();
-  max_d.set_value_async(val, stream);
+  // Each copy needs its own host source, alive and unmodified until the stream
+  // is synchronized below, because rmm may defer reading it until the stream
+  // reaches the copy.
+  value_t const min_init = std::numeric_limits<value_t>::max();
+  value_t const max_init = std::numeric_limits<value_t>::lowest();
+  min_d.set_value_async(min_init, stream);
+  max_d.set_value_async(max_init, stream);
 
   auto nthreads = 256;
   auto nblocks  = raft::ceildiv(n, (value_idx)nthreads);

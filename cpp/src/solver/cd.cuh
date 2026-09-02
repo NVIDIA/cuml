@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -213,8 +213,9 @@ int cdFit(const raft::handle_t& handle,
   rmm::device_uvector<ConvState<math_t>> convStateBuf(1, stream);
   auto convStateLoc = convStateBuf.data();
 
-  rmm::device_scalar<math_t> cublas_alpha(1.0, stream);
-  rmm::device_scalar<math_t> cublas_beta(0.0, stream);
+  // Passed to gemv in host pointer mode, so cuBLAS reads them during the call.
+  math_t const cublas_alpha = 1.0;
+  math_t const cublas_beta  = 0.0;
 
   int n_iter = 0;
   while (n_iter < epochs) {
@@ -238,19 +239,19 @@ int cdFit(const raft::handle_t& handle,
         handle, n_rows, coef_loc, input_col_loc, 1, residual.data(), 1, stream);
 
       // coef[ci] = dot(X[:, ci], residual[:])
-      raft::linalg::gemv<math_t, true>(handle,
-                                       false,
-                                       1,
-                                       n_rows,
-                                       cublas_alpha.data(),
-                                       input_col_loc,
-                                       1,
-                                       residual.data(),
-                                       1,
-                                       cublas_beta.data(),
-                                       coef_loc,
-                                       1,
-                                       stream);
+      raft::linalg::gemv<math_t, false>(handle,
+                                        false,
+                                        1,
+                                        n_rows,
+                                        &cublas_alpha,
+                                        input_col_loc,
+                                        1,
+                                        residual.data(),
+                                        1,
+                                        &cublas_beta,
+                                        coef_loc,
+                                        1,
+                                        stream);
 
       // Calculate the new coefficient that minimizes f along coordinate line ci
       // coef[ci] = SoftTreshold(dot(X[:, ci], residual[:]), l1_alpha) /  dot(X[:, ci], X[:, ci]))

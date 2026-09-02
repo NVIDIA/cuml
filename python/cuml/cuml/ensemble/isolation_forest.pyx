@@ -18,18 +18,13 @@ import cupy as cp
 import numpy as np
 import nvforest
 import treelite
-from sklearn.exceptions import NotFittedError
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.mixins import CMajorInputTagMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.treelite import safe_treelite_call
-from cuml.internals.validation import (
-    check_inputs,
-    check_is_fitted,
-    check_random_seed,
-)
+from cuml.internals.validation import check_inputs, check_random_seed
 
 from libc.stddef cimport size_t
 from libc.stdint cimport uint64_t, uintptr_t
@@ -55,302 +50,16 @@ cdef extern from "cuml/ensemble/isolation_forest.hpp" namespace "ML" nogil:
         bool bootstrap
         uint64_t seed
 
-    # C++ struct declaration with default constructor
-    cdef cppclass IsolationForestModel[T]:
-        IsolationForestModel() except +  # Default constructor
-        int n_features
-        int n_samples_per_tree
-        double c_normalization
-
-    ctypedef IsolationForestModel[float] IsolationForestF
-    ctypedef IsolationForestModel[double] IsolationForestD
-
-    cdef void build_treelite_isolation_forest[T](
+    cdef void fit_treelite[T](
+        const handle_t& handle,
         TreeliteModelHandle* model_handle,
-        const handle_t& handle,
-        const IsolationForestModel[T]* forest
-    ) except +
-
-    cdef void fit(
-        const handle_t& handle,
-        IsolationForestF* forest,
-        const float* input,
+        const T* input,
         size_t n_rows,
         int n_cols,
         const IF_params& params,
+        double* c_normalization,
         level_enum verbosity
     ) except +
-
-    cdef void fit(
-        const handle_t& handle,
-        IsolationForestD* forest,
-        const double* input,
-        size_t n_rows,
-        int n_cols,
-        const IF_params& params,
-        level_enum verbosity
-    ) except +
-
-    cdef void score_samples(
-        const handle_t& handle,
-        const IsolationForestF* forest,
-        const float* input,
-        size_t n_rows,
-        int n_cols,
-        float* scores,
-        level_enum verbosity
-    ) except +
-
-    cdef void score_samples(
-        const handle_t& handle,
-        const IsolationForestD* forest,
-        const double* input,
-        size_t n_rows,
-        int n_cols,
-        double* scores,
-        level_enum verbosity
-    ) except +
-
-    cdef void predict(
-        const handle_t& handle,
-        const IsolationForestF* forest,
-        const float* input,
-        size_t n_rows,
-        int n_cols,
-        int* predictions,
-        float threshold,
-        level_enum verbosity
-    ) except +
-
-    cdef void predict(
-        const handle_t& handle,
-        const IsolationForestD* forest,
-        const double* input,
-        size_t n_rows,
-        int n_cols,
-        int* predictions,
-        double threshold,
-        level_enum verbosity
-    ) except +
-
-
-cdef class _IsolationForestModel:
-    """Common interface for dtype-specific native model owners."""
-
-    cdef void fit_and_build_treelite(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        const IF_params& params,
-        level_enum verbose,
-        TreeliteModelHandle* tl_handle,
-    ) except *:
-        raise NotImplementedError()
-
-    cdef int get_n_samples_per_tree(self) except -1:
-        raise NotImplementedError()
-
-    cdef double get_c_normalization(self) except *:
-        raise NotImplementedError()
-
-    cdef void score(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        uintptr_t scores_ptr,
-        level_enum verbose,
-    ) except *:
-        raise NotImplementedError()
-
-    cdef void predict_labels(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        uintptr_t predictions_ptr,
-        double threshold,
-        level_enum verbose,
-    ) except *:
-        raise NotImplementedError()
-
-
-cdef class _IsolationForestModelFloat32(_IsolationForestModel):
-    """Own a float32 native Isolation Forest model."""
-
-    cdef IsolationForestF* model
-
-    def __cinit__(self):
-        self.model = NULL
-        self.model = new IsolationForestF()
-
-    def __dealloc__(self):
-        if self.model != NULL:
-            del self.model
-            self.model = NULL
-
-    cdef void fit_and_build_treelite(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        const IF_params& params,
-        level_enum verbose,
-        TreeliteModelHandle* tl_handle,
-    ) except *:
-        with nogil:
-            fit(
-                handle,
-                self.model,
-                <float*>input_ptr,
-                n_rows,
-                n_cols,
-                params,
-                verbose,
-            )
-            build_treelite_isolation_forest[float](
-                tl_handle, handle, self.model
-            )
-
-    cdef int get_n_samples_per_tree(self) except -1:
-        return self.model.n_samples_per_tree
-
-    cdef double get_c_normalization(self) except *:
-        return self.model.c_normalization
-
-    cdef void score(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        uintptr_t scores_ptr,
-        level_enum verbose,
-    ) except *:
-        with nogil:
-            score_samples(
-                handle,
-                self.model,
-                <float*>input_ptr,
-                n_rows,
-                n_cols,
-                <float*>scores_ptr,
-                verbose,
-            )
-
-    cdef void predict_labels(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        uintptr_t predictions_ptr,
-        double threshold,
-        level_enum verbose,
-    ) except *:
-        with nogil:
-            predict(
-                handle,
-                self.model,
-                <float*>input_ptr,
-                n_rows,
-                n_cols,
-                <int*>predictions_ptr,
-                <float>threshold,
-                verbose,
-            )
-
-
-cdef class _IsolationForestModelFloat64(_IsolationForestModel):
-    """Own a float64 native Isolation Forest model."""
-
-    cdef IsolationForestD* model
-
-    def __cinit__(self):
-        self.model = NULL
-        self.model = new IsolationForestD()
-
-    def __dealloc__(self):
-        if self.model != NULL:
-            del self.model
-            self.model = NULL
-
-    cdef void fit_and_build_treelite(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        const IF_params& params,
-        level_enum verbose,
-        TreeliteModelHandle* tl_handle,
-    ) except *:
-        with nogil:
-            fit(
-                handle,
-                self.model,
-                <double*>input_ptr,
-                n_rows,
-                n_cols,
-                params,
-                verbose,
-            )
-            build_treelite_isolation_forest[double](
-                tl_handle, handle, self.model
-            )
-
-    cdef int get_n_samples_per_tree(self) except -1:
-        return self.model.n_samples_per_tree
-
-    cdef double get_c_normalization(self) except *:
-        return self.model.c_normalization
-
-    cdef void score(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        uintptr_t scores_ptr,
-        level_enum verbose,
-    ) except *:
-        with nogil:
-            score_samples(
-                handle,
-                self.model,
-                <double*>input_ptr,
-                n_rows,
-                n_cols,
-                <double*>scores_ptr,
-                verbose,
-            )
-
-    cdef void predict_labels(
-        self,
-        const handle_t& handle,
-        uintptr_t input_ptr,
-        size_t n_rows,
-        int n_cols,
-        uintptr_t predictions_ptr,
-        double threshold,
-        level_enum verbose,
-    ) except *:
-        with nogil:
-            predict(
-                handle,
-                self.model,
-                <double*>input_ptr,
-                n_rows,
-                n_cols,
-                <int*>predictions_ptr,
-                threshold,
-                verbose,
-            )
 
 
 _SAMPLE_COUNT_ATOL = 1e-4
@@ -458,18 +167,6 @@ def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
     tree.__setstate__({**state, "nodes": nodes})
     rebuilt.tree_ = tree
     return rebuilt
-
-
-# Baseline values (matching ``__init__``) restored whenever the fitted state
-# is dropped.
-_UNFITTED_BASELINE = {
-    "_model": None,
-    "_dtype": None,
-    "_treelite_model_bytes": None,
-    "_nvforest_model": None,
-    "_c_normalization": None,
-    "_n_features_per_tree": None,
-}
 
 
 class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
@@ -602,13 +299,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         verbose=False,
         output_type=None,
     ):
-        self._model = None
-        self._dtype = None
-        self._treelite_model_bytes = None
-        self._nvforest_model = None
-        self._c_normalization = None
-        self._n_features_per_tree = None
-
         super().__init__(verbose=verbose, output_type=output_type)
 
         self.n_estimators = n_estimators
@@ -677,10 +367,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
 
         # A failed `fit` can leave `n_features_in_` set (making the model look
         # fitted to `InteropMixin`) while no serialized forest exists yet.
-        if self._treelite_model_bytes is None:
-            raise NotFittedError(
-                "Model has not been fitted. Call fit() first."
-            )
+        if not hasattr(self, "_treelite_model_bytes"):
+            raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
         exported = treelite.sklearn.export_model(tl_model)
@@ -718,22 +406,11 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         }
 
     def __getstate__(self):
-        """Pickle support: the native model cannot be serialized, so the
-        fitted state is dropped entirely and the unpickled estimator is
-        unfitted, keeping only its constructor parameters."""
+        """Pickle support - serialize state."""
         state = self.__dict__.copy()
-        if self._model is not None:
-            warnings.warn(
-                "cuML IsolationForest does not serialize its fitted "
-                "state. The unpickled estimator is unfitted; call fit() "
-                "again before using it."
-            )
-        state.update(_UNFITTED_BASELINE)
-        # Fitted attributes follow the sklearn naming convention.
-        for attr in list(state):
-            if attr.endswith("_") and not attr.startswith("_"):
-                del state[attr]
-        state.pop("_n_samples_per_tree", None)
+        # nvForest model isn't currently pickleable. It's rebuilt on demand from
+        # `_treelite_model_bytes`, which is the fitted model.
+        state.pop("_nvforest_model", None)
         return state
 
     def __setstate__(self, state):
@@ -758,9 +435,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         self : IsolationForest
             Fitted estimator.
         """
-        # Release any existing native model.
-        self._model = None
-
         # Convert input to a column-major device array for fit.
         X_m = check_inputs(
             self,
@@ -776,7 +450,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         cdef double contamination_fraction = 0.0
         cdef bint use_contamination_quantile = False
         self.n_features_in_ = n_cols
-        self._dtype = X_m.dtype
 
         cdef int actual_max_features
         if isinstance(self.max_features, builtins.bool):
@@ -803,7 +476,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                 "max_features must be an int in [1, n_features] or a float "
                 "in (0.0, 1.0]."
             )
-        self._n_features_per_tree = actual_max_features
 
         if isinstance(self.contamination, str):
             if self.contamination != "auto":
@@ -890,29 +562,37 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
         cdef level_enum verbose = <level_enum>self._verbose_level
 
-        cdef _IsolationForestModel model
         cdef TreeliteModelHandle tl_handle = NULL
         cdef const char* tl_bytes = NULL
         cdef size_t tl_bytes_len
         cdef int tl_free_status
+        cdef double c_normalization = 0.0
+        cdef bint is_float32 = X_m.dtype == np.float32
 
         try:
-            if X_m.dtype == np.float32:
-                model = _IsolationForestModelFloat32()
-            else:
-                model = _IsolationForestModelFloat64()
-            self._model = model
-            model.fit_and_build_treelite(
-                handle_[0],
-                X_ptr,
-                n_rows,
-                n_cols,
-                params,
-                verbose,
-                &tl_handle,
-            )
-            self._n_samples_per_tree = model.get_n_samples_per_tree()
-            self._c_normalization = model.get_c_normalization()
+            with nogil:
+                if is_float32:
+                    fit_treelite[float](
+                        handle_[0],
+                        &tl_handle,
+                        <const float*>X_ptr,
+                        n_rows,
+                        n_cols,
+                        params,
+                        &c_normalization,
+                        verbose,
+                    )
+                else:
+                    fit_treelite[double](
+                        handle_[0],
+                        &tl_handle,
+                        <const double*>X_ptr,
+                        n_rows,
+                        n_cols,
+                        params,
+                        &c_normalization,
+                        verbose,
+                    )
 
             # Serialize the Treelite handle immediately, following the
             # RandomForest ABI-safe pattern for Python wheels/conda environments.
@@ -930,13 +610,14 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         except Exception:
             if tl_handle != NULL:
                 TreeliteFreeModel(tl_handle)
-            self._model = None
-            self._treelite_model_bytes = None
-            self._nvforest_model = None
             raise
 
         self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
-        self._nvforest_model = None
+        self._normalization_constant = c_normalization
+        # Load the inference model here rather than on first use, so that
+        # `predict` and friends don't mutate the estimator. The lazy path in
+        # `_get_inference_nvforest_model` then only covers unpickled models.
+        self._nvforest_model = self.as_nvforest()
 
         if use_contamination_quantile:
             training_scores = self.score_samples(X_m)
@@ -961,7 +642,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         -------
         treelite.Model
         """
-        check_is_fitted(self)
+        if not hasattr(self, "_treelite_model_bytes"):
+            raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         return treelite.Model.deserialize_bytes(self._treelite_model_bytes)
 
@@ -976,7 +658,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         nvforest_model : nvforest.ForestInference
             A forest inference model that predicts average path length.
         """
-        check_is_fitted(self)
+        if not hasattr(self, "_treelite_model_bytes"):
+            raise RuntimeError("Model has not been fitted. Call fit() first.")
 
         return nvforest.load_from_treelite_model(
             tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
@@ -987,70 +670,60 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             handle=get_handle(),
         )
 
-    def _get_inference_nvforest_model(
-        self,
-        layout="depth_first",
-        default_chunk_size=None,
-        align_bytes=None,
-    ):
-        if (
-            layout == "depth_first" and default_chunk_size is None
-            and align_bytes is None
-        ):
-            if self._nvforest_model is None:
-                self._nvforest_model = self.as_nvforest()
-            return self._nvforest_model
+    def _get_inference_nvforest_model(self):
+        if (nvforest_model := getattr(self, "_nvforest_model", None)) is None:
+            self._nvforest_model = nvforest_model = self.as_nvforest()
+        return nvforest_model
 
-        return self.as_nvforest(
-            layout=layout,
-            default_chunk_size=default_chunk_size,
-            align_bytes=align_bytes,
-        )
-
-    def _score_samples_nvforest(
-        self,
-        X,
-        layout="depth_first",
-        default_chunk_size=None,
-        align_bytes=None,
-    ):
+    def _score_samples(self, X):
         """
-        Compute sklearn-compatible anomaly scores through nvForest inference.
+        Compute anomaly scores through nvForest inference.
 
-        This helper is intentionally private while parity and benchmark coverage
-        are added. Public ``score_samples`` continues to use the existing C++
-        scoring path.
+        Shared by ``score_samples``, ``decision_function`` and ``predict`` so
+        that input validation runs exactly once per public call.
         """
-        check_is_fitted(self)
+        if not hasattr(self, "_treelite_model_bytes"):
+            raise RuntimeError("Model has not been fitted. Call fit() first.")
 
+        nvforest_model = self._get_inference_nvforest_model()
+        dtype = nvforest_model.forest.get_dtype()
+
+        # Convert input to a row-major device array for inference.
         X_m = check_inputs(
             self,
             X,
-            dtype=self._dtype,
+            dtype=dtype,
             order="C",
         )
 
-        nvforest_model = self._get_inference_nvforest_model(
-            layout=layout,
-            default_chunk_size=default_chunk_size,
-            align_bytes=align_bytes,
-        )
-        avg_path_lengths = nvforest_model.predict(X_m)
-        avg_path_lengths = cp.asarray(avg_path_lengths, dtype=self._dtype)
-        if avg_path_lengths.ndim == 2 and avg_path_lengths.shape[1] == 1:
-            avg_path_lengths = avg_path_lengths.reshape(-1)
+        # Each exported leaf holds ``depth + c(n_node_samples)`` and the model
+        # averages leaf values across trees, so this is E[h(x)].
+        avg_path_lengths = cp.asarray(
+            nvforest_model.predict(X_m), dtype=dtype
+        ).reshape(-1)
 
-        if self._c_normalization <= 0:
-            paper_scores = cp.full(
-                avg_path_lengths.shape, 0.5, dtype=self._dtype
-            )
-        else:
-            paper_scores = cp.power(
-                2.0, -avg_path_lengths / self._c_normalization
-            )
-        scores_sklearn = -paper_scores
-
-        return scores_sklearn
+        # Transform from original paper convention to sklearn convention:
+        #
+        # Original paper (Liu et al. 2008):
+        #   s(x) = 2^(-E[h(x)] / c(n))
+        #   - Anomalies: s ≈ 1 (short paths, easy to isolate)
+        #   - Normal:    s ≈ 0.5 (average path length)
+        #   - Very normal: s ≈ 0 (long paths, hard to isolate)
+        #
+        # sklearn convention:
+        #   - score_samples returns the opposite of the paper score
+        #   - decision_function = score_samples - offset_
+        #
+        # Transformation: sklearn_score = -paper_score
+        #   - paper_score=1.0 (anomaly) → sklearn_score=-1.0
+        #   - paper_score=0.5 (normal threshold) → sklearn_score=-0.5
+        #   - paper_score=0.0 (v.normal) → sklearn_score=0.0
+        #
+        if self._normalization_constant <= 0:
+            # c(n) is 0 for a single training sample per tree, leaving every
+            # sample at the neutral score.
+            return cp.full(avg_path_lengths.shape, -0.5, dtype=dtype)
+        return -cp.exp2(-avg_path_lengths / self._normalization_constant)
 
     @mlfunc(preserve_index=True)
     def score_samples(self, X):
@@ -1073,57 +746,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             Typical range is approximately [-1.0, 0.0], where values below
             ``offset_`` are predicted as anomalies.
         """
-        check_is_fitted(self)
-        cdef _IsolationForestModel model = self._model
-
-        # Convert input to a row-major device array for inference.
-        X_m = check_inputs(
-            self,
-            X,
-            dtype=self._dtype,
-            order="C",
-        )
-
-        cdef size_t n_rows = X_m.shape[0]
-        cdef int n_cols = X_m.shape[1]
-
-        # Allocate output
-        scores = cp.zeros(n_rows, dtype=self._dtype, order="C")
-
-        # Get handle and verbosity
-        handle = get_handle()
-        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
-        cdef level_enum verbose = <level_enum>self._verbose_level
-
-        cdef uintptr_t X_ptr = X_m.data.ptr
-        cdef uintptr_t scores_ptr = scores.data.ptr
-        model.score(
-            handle_[0],
-            X_ptr,
-            n_rows,
-            n_cols,
-            scores_ptr,
-            verbose,
-        )
-
-        # Transform from original paper convention to sklearn convention:
-        #
-        # Original paper (Liu et al. 2008):
-        #   s(x) = 2^(-E[h(x)] / c(n))
-        #   - Anomalies: s ≈ 1 (short paths, easy to isolate)
-        #   - Normal:    s ≈ 0.5 (average path length)
-        #   - Very normal: s ≈ 0 (long paths, hard to isolate)
-        #
-        # sklearn convention:
-        #   - score_samples returns the opposite of the paper score
-        #   - decision_function = score_samples - offset_
-        #
-        # Transformation: sklearn_score = -paper_score
-        #   - paper_score=1.0 (anomaly) → sklearn_score=-1.0
-        #   - paper_score=0.5 (normal threshold) → sklearn_score=-0.5
-        #   - paper_score=0.0 (v.normal) → sklearn_score=0.0
-        #
-        return -scores
+        return self._score_samples(X)
 
     @mlfunc(preserve_index=True)
     def decision_function(self, X):
@@ -1143,7 +766,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         scores : ndarray of shape (n_samples,)
             The decision function. Negative values indicate anomalies.
         """
-        return self.score_samples(X) - self.offset_
+        return self._score_samples(X) - self.offset_
 
     @mlfunc(preserve_index=True)
     def predict(self, X):
@@ -1162,50 +785,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         labels : ndarray of shape (n_samples,)
             1 for inliers, -1 for outliers.
         """
-        check_is_fitted(self)
-        cdef _IsolationForestModel model = self._model
-
-        # Convert input to a row-major device array for inference.
-        X_m = check_inputs(
-            self,
-            X,
-            dtype=self._dtype,
-            order="C",
-        )
-
-        cdef size_t n_rows = X_m.shape[0]
-        cdef int n_cols = X_m.shape[1]
-
-        # Allocate output
-        predictions = cp.zeros(n_rows, dtype=np.int32, order="C")
-
-        # Get handle and verbosity
-        handle = get_handle()
-        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
-        cdef level_enum verbose = <level_enum>self._verbose_level
-
-        cdef uintptr_t X_ptr = X_m.data.ptr
-        cdef uintptr_t pred_ptr = predictions.data.ptr
-
-        # C++ predict thresholds original paper scores, while Python
-        # score_samples returns -paper_score and decision_function subtracts
-        # offset_. Therefore decision_function < 0 maps to paper_score > -offset_.
-        cdef double threshold_d = <double>(-self.offset_)
-
-        model.predict_labels(
-            handle_[0],
-            X_ptr,
-            n_rows,
-            n_cols,
-            pred_ptr,
-            threshold_d,
-            verbose,
-        )
-
-        # Our C++ returns: 1 for anomaly, -1 for normal
-        # sklearn returns: -1 for anomaly, 1 for normal
-        # So we need to negate
-        return -predictions
+        # ``decision_function(X) < 0`` rearranged to avoid materializing it.
+        return cp.where(self._score_samples(X) < self.offset_, -1, 1)
 
     @mlfunc(preserve_index=True)
     def fit_predict(self, X, y=None):

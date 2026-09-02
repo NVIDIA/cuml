@@ -101,10 +101,14 @@ class _ReconstructProxy:
     def __reduce__(self):
         import pickle
 
-        # Use cloudpickle bundled with joblib. Since joblib is a required dependency
-        # of sklearn (and sklearn is a required dep of cuml & all accelerated modules),
-        # this should always be installed.
-        import joblib.externals.cloudpickle as cloudpickle
+        # Prefer cloudpickle bundled with joblib (found in joblib < 1.6.0),
+        # falling back to cloudpickle otherwise (required for joblib >= 1.6.0).
+        # Since joblib is a required dependency of sklearn (and sklearn is a
+        # required dep of cuml) one of these should always be available.
+        try:
+            import joblib.externals.cloudpickle as cloudpickle
+        except ImportError:
+            import cloudpickle
 
         return (pickle.loads, (cloudpickle.dumps(self._reconstruct),))
 

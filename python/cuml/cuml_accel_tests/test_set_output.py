@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib
@@ -32,6 +32,11 @@ def test_set_output(cls):
     X, y = make_blobs(n_features=20, n_samples=100, random_state=42)
 
     model = cls().set_output(transform="pandas")
+
+    # Only works with dense output
+    if hasattr(model, "sparse_output"):
+        model.sparse_output = False
+
     if hasattr(model, "transform"):
         out = model.fit(X, y).transform(X)
     else:
@@ -49,6 +54,7 @@ def test_set_output(cls):
     # No host transfer required (this isn't strictly necessary, but is currently
     # true for most proxied estimators). Can revisit this check if it proves tricky
     # when adding new estimators.
-    # TargetEncoder triggers sync due to sklearn's set_output accessing n_features_in_
-    if cls.__name__ != "TargetEncoder":
+    # Some classes are excluded since sklearn's set_output accesses
+    # n_features_in_ which triggers a sync.
+    if cls.__name__ not in ("OneHotEncoder", "TargetEncoder"):
         assert not hasattr(model._cpu, "n_features_in_")

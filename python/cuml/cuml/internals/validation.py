@@ -14,7 +14,7 @@ import pandas as pd
 import scipy.sparse as sp
 import sklearn
 from packaging.version import Version
-from pandas.api.types import is_extension_array_dtype, is_string_dtype
+from pandas.api.types import is_string_dtype
 from sklearn.exceptions import DataConversionWarning
 from sklearn.utils.validation import check_is_fitted
 
@@ -35,25 +35,6 @@ __all__ = (
 )
 
 _CUPY_SUPPORTS_LARGE_SPARSE = Version(cp.__version__) >= Version("14.1.0")
-
-
-def _as_numpy_dtype(dtype):
-    """Normalize pandas extension dtypes for numpy/cupy conversion."""
-    try:
-        return np.dtype(dtype)
-    except TypeError:
-        if is_string_dtype(dtype) or is_extension_array_dtype(dtype):
-            return np.dtype("object")
-        raise
-
-
-def _dataframe_numpy_dtype(dtypes):
-    """Infer a NumPy dtype for dataframe-like inputs."""
-    if all(isinstance(dt, np.dtype) for dt in dtypes):
-        return np.result_type(*dtypes)
-    if any(dt == "object" or is_string_dtype(dt) for dt in dtypes):
-        return np.dtype("object")
-    return None
 
 
 def check_random_seed(random_state) -> int:
@@ -675,7 +656,7 @@ def check_array(
     if dtype is not None:
         if not isinstance(dtype, (list, tuple)):
             dtype = [dtype]
-        dtype = [_as_numpy_dtype(i) for i in dtype]
+        dtype = [np.dtype(i) for i in dtype]
 
     is_sparse = cp_sp.issparse(array) or sp.issparse(array)
     if is_sparse and (
@@ -699,20 +680,40 @@ def check_array(
     # Extract original array type and dtype (when possible)
     array_type = type(array)
     if isinstance(array, (cudf.DataFrame, pd.DataFrame)):
-        array_dtype = _dataframe_numpy_dtype(array.dtypes)
+        # Unify dataframe dtypes when possible, None otherwise
+        if all(isinstance(dt, np.dtype) for dt in array.dtypes):
+            array_dtype = np.result_type(*array.dtypes)
+        elif any(dt == "object" or is_string_dtype(dt) for dt in array.dtypes):
+            array_dtype = np.dtype("object")
+        else:
+            array_dtype = None
     else:
+        # Extract and normalize the `dtype` attribute if present. If `dtype` is
+        # present but doesn't coerce to a numpy dtype, fall back to None. For
+        # example, pytorch arrays have a non-numpy-compatible `dtype` attr.
         array_dtype = getattr(array, "dtype", None)
-        if not isinstance(array_dtype, np.dtype) and array_dtype is not None:
-            array_dtype = _as_numpy_dtype(array_dtype)
-        elif not isinstance(array_dtype, np.dtype):
-            # Objects implementing the numpy array protocol may not expose a
-            # ``dtype`` attribute themselves. Normalize these before selecting
-            # from the supported dtypes so their represented dtype is preserved.
-            if hasattr(array, "__array__"):
+        if array_dtype is not None and not isinstance(array_dtype, np.dtype):
+            try:
+                array_dtype = np.dtype(array_dtype)
+            except TypeError:
+                if is_string_dtype(array_dtype):
+                    array_dtype = np.dtype("object")
+                else:
+                    array_dtype = None
+
+        # Non-Series objects implementing __cuda_array_interface__ or __array__
+        # may not expose a valid ``dtype`` attribute themselves. Normalize
+        # these before selecting from the supported dtypes so their represented
+        # dtype is preserved.
+        if array_dtype is None and not isinstance(
+            array, (cudf.Series, pd.Series)
+        ):
+            if hasattr(array, "__cuda_array_interface__"):
+                array = cp.asarray(array)
+                array_dtype = array.dtype
+            elif hasattr(array, "__array__"):
                 array = np.asarray(array)
                 array_dtype = array.dtype
-            else:
-                array_dtype = None
 
     # Infer proper output dtype
     if array_dtype is not None:
@@ -947,51 +948,68 @@ def check_cudf(
     if ensure_min_features > 1 and ensure_ndim != 2:
         raise ValueError(f"{ensure_min_features=!r} requires ensure_ndim=2")
 
+    if cp_sp.issparse(array) or sp.issparse(array):
+        padded_input = f" for {input_name}" if input_name else ""
+        raise TypeError(
+            f"Sparse data was passed{padded_input}, but dense data is required. "
+            "Use '.toarray()' to convert to a dense array."
+        )
+
     array_type = type(array)
 
     # Coerce input to a cudf type.
     # XXX: cudf currently doesn't support float16, any float16 input is
     # automatically upcast here to float32.
+    # XXX: hardcode `nan_as_null=True` (cudf's default) so the behavior
+    # doesn't switch when cudf.pandas is active.
     if isinstance(array, pd.Series):
         if array.dtype == "float16":
             array = array.astype("float32")
-        array = cudf.Series(array)
+        array = cudf.Series(array, nan_as_null=True)
     elif isinstance(array, pd.DataFrame):
         f16_cols = array.select_dtypes("float16").columns.tolist()
         if f16_cols:
             array = array.astype({c: "float32" for c in f16_cols})
-        array = cudf.DataFrame(array)
-    elif not isinstance(array, (cudf.DataFrame, cudf.Series)):
-        # Remaining array-like inputs go through check_array first (without
-        # device transfer) to normalize on cupy/numpy before coercion to cudf
-        array = check_array(
-            array,
-            mem_type=None,
-            ensure_2d=False,
-            ensure_min_samples=0,
-            ensure_min_features=0,
-            ensure_all_finite=False,
-            input_name=input_name,
-        )
+        array = cudf.DataFrame(array, nan_as_null=True)
+
+    if not isinstance(array, (cudf.DataFrame, cudf.Series)):
+        # Normalize to numpy or cupy array with minimal copying
+        if hasattr(array, "__cuda_array_interface__"):
+            array = cp.asarray(array)
+        elif hasattr(array, "__array__") or hasattr(
+            array, "__array_interface__"
+        ):
+            array = np.asarray(array)
+        elif not isinstance(array, np.ndarray):
+            array = np.asarray(array, dtype=object)
+
+        if array.dtype.kind == "c":
+            raise ValueError("Complex data not supported")
+
         if array.dtype == "float16":
             array = array.astype("float32")
-        elif (
-            array.dtype == "object"
-            and array.size
-            and not isinstance(array.flat[0], str)
-        ):
-            # XXX: cudf doesn't support coercing numeric object arrays, while
-            # sklearn has a common check that object arrays of floats are
-            # supported. To support this uncommon case, we attempt to coerce
-            # numeric object types here.
-            array = array.astype("float64")
-        array = (cudf.DataFrame if array.ndim == 2 else cudf.Series)(
-            array, dtype=(np.dtype("O") if array.dtype.kind in "U" else None)
-        )
+
+        array_shape = array.shape
+        cls = cudf.DataFrame if array.ndim == 2 else cudf.Series
+        if array.dtype == "object":
+            # For object dtype inputs, coerce back to list (cheap) to rely on
+            # cudf's per-column dtype inference. On failure raise an error
+            # compatible with what sklearn's `check_dtype_object` expects.
+            try:
+                array = cls(array.tolist(), nan_as_null=True)
+            except Exception as exc:
+                raise TypeError(
+                    f"An object dtype {input_name or 'input'} argument must be "
+                    "composed of strings, numbers, booleans, or nulls."
+                ) from exc
+        else:
+            array = cls(array, nan_as_null=True)
+    else:
+        array_shape = array.shape
 
     # Validate shape and coerce dimensionality
     _check_shape(
-        array.shape,
+        array_shape,
         ensure_2d=(ensure_ndim == 2 and coerce_ndim is False),
         ensure_min_samples=ensure_min_samples,
         ensure_min_features=ensure_min_features,
@@ -1144,7 +1162,7 @@ def check_y(
     if dtype is not None:
         if not isinstance(dtype, (list, tuple)):
             dtype = [dtype]
-        dtype = [_as_numpy_dtype(i) for i in dtype]
+        dtype = [np.dtype(i) for i in dtype]
 
     # Extract the index from `y` (if available)
     if isinstance(y, (pd.DataFrame, pd.Series, cudf.DataFrame, cudf.Series)):
