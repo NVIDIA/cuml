@@ -962,48 +962,64 @@ def check_cudf(
     # automatically upcast here to float32.
     # XXX: hardcode `nan_as_null=True` (cudf's default) so the behavior
     # doesn't switch when cudf.pandas is active.
-    if isinstance(array, pd.Series):
-        if array.dtype == "float16":
-            array = array.astype("float32")
-        array = cudf.Series(array, nan_as_null=True)
-    elif isinstance(array, pd.DataFrame):
-        f16_cols = array.select_dtypes("float16").columns.tolist()
-        if f16_cols:
-            array = array.astype({c: "float32" for c in f16_cols})
-        array = cudf.DataFrame(array, nan_as_null=True)
-
     if not isinstance(array, (cudf.DataFrame, cudf.Series)):
-        # Normalize to numpy or cupy array with minimal copying
-        if hasattr(array, "__cuda_array_interface__"):
-            array = cp.asarray(array)
-        elif hasattr(array, "__array__") or hasattr(
-            array, "__array_interface__"
-        ):
-            array = np.asarray(array)
-        elif not isinstance(array, np.ndarray):
-            array = np.asarray(array, dtype=object)
+        array_dtype_kind = None
+        if isinstance(array, pd.Series):
+            if array.dtype == "float16":
+                array = array.astype("float32")
+        elif isinstance(array, pd.DataFrame):
+            f16_cols = array.select_dtypes("float16").columns.tolist()
+            if f16_cols:
+                array = array.astype({c: "float32" for c in f16_cols})
+        else:
+            # Normalize to numpy or cupy array with minimal copying
+            if hasattr(array, "__cuda_array_interface__"):
+                array = cp.asarray(array)
+            elif hasattr(array, "__array__") or hasattr(
+                array, "__array_interface__"
+            ):
+                array = np.asarray(array)
+            elif not isinstance(array, np.ndarray):
+                array = np.asarray(array, dtype=object)
 
-        if array.dtype.kind == "c":
-            raise ValueError("Complex data not supported")
+            if array.dtype.kind == "c":
+                raise ValueError("Complex data not supported")
 
-        if array.dtype == "float16":
-            array = array.astype("float32")
+            if array.dtype == "float16":
+                array = array.astype("float32")
+            array_dtype_kind = array.dtype.kind
 
         array_shape = array.shape
         cls = cudf.DataFrame if array.ndim == 2 else cudf.Series
-        if array.dtype == "object":
+        if array_dtype_kind == "O":
             # For object dtype inputs, coerce back to list (cheap) to rely on
             # cudf's per-column dtype inference. On failure raise an error
             # compatible with what sklearn's `check_dtype_object` expects.
-            try:
-                array = cls(array.tolist(), nan_as_null=True)
-            except Exception as exc:
-                raise TypeError(
-                    f"An object dtype {input_name or 'input'} argument must be "
-                    "composed of strings, numbers, booleans, or nulls."
-                ) from exc
-        else:
+            array = array.tolist()
+
+        # Try to coerce to cudf, raising a nicer error message on failure.
+        try:
             array = cls(array, nan_as_null=True)
+        except Exception as exc:
+            # XXX: cudf throws a number of different errors when handed a
+            # container with bytes inputs. Here we try to detect all of them,
+            # falling back to a generic message about mixed object dtypes.
+            needle = None
+            if isinstance(exc, ValueError):
+                needle = "type_id"
+            elif isinstance(
+                exc, (NotImplementedError, cudf.errors.MixedTypeError)
+            ):
+                needle = "bytes"
+            if needle and needle in str(exc).lower():
+                raise TypeError(
+                    f"{input_name or 'Input'} with bytes dtype is not supported. "
+                    "Try converting to strings first."
+                ) from exc
+            raise TypeError(
+                f"An object dtype {input_name or 'input'} argument must be "
+                "composed of strings, numbers, booleans, or nulls."
+            ) from exc
     else:
         array_shape = array.shape
 

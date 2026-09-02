@@ -166,6 +166,47 @@ def test_one_hot_encoder(sparse_output):
     np.testing.assert_array_equal(X, inv_X)
 
 
+@pytest.mark.parametrize(
+    "kind, dtype",
+    [
+        ("list", None),
+        ("numpy", "O"),
+        ("numpy", "S"),
+        ("pandas", "O"),
+        ("pandas", "S"),
+    ],
+)
+@pytest.mark.parametrize("auto", [True, False])
+def test_one_hot_encoder_bytes_inputs(kind, dtype, auto):
+    X = [[b"a", b"x"], [b"b", b"x"], [b"a", b"y"]]
+    if kind == "numpy":
+        X = np.array(X, dtype=dtype)
+    elif kind == "pandas":
+        X = pd.DataFrame(X).astype(dtype)
+
+    if auto:
+        cats = "auto"
+    else:
+        cats = [[b"a", b"b"], [b"x", b"y"]]
+        if kind == "numpy":
+            cats = [np.array(c, dtype=dtype) for c in cats]
+        elif kind == "pandas":
+            cats = [pd.Series(c, dtype=dtype) for c in cats]
+
+    enc = OneHotEncoder(sparse_output=False, categories=cats)
+    if not auto and dtype == "O":
+        # XXX: exception raised by sklearn, we don't really care what it is
+        with pytest.raises(ValueError):
+            enc.fit(X)
+    else:
+        enc.fit(X)
+        np.testing.assert_array_equal(enc.categories_[0], [b"a", b"b"])
+        np.testing.assert_array_equal(enc.categories_[1], [b"x", b"y"])
+        Xt = enc.transform(X)
+        sol = np.array([[1, 0, 1, 0], [0, 1, 1, 0], [1, 0, 0, 1]])
+        np.testing.assert_array_equal(Xt, sol)
+
+
 def test_label_encoder():
     y = np.array(["a", "b", "a", "b"])
     enc = LabelEncoder()

@@ -11,6 +11,7 @@ from cuml.accel.estimator_proxy import (
     classproperty,
 )
 from cuml.internals.interop import UnsupportedOnGPU
+from cuml.internals.validation import check_cudf
 
 __all__ = (
     "StandardScaler",
@@ -56,10 +57,27 @@ class PolynomialFeatures(ArrayAPIProxyBase):
         return model.get_params(deep=False)
 
 
+def _check_onehotencoder_X(X):
+    """Check if inputs are supported on GPU"""
+    try:
+        return check_cudf(X, input_name="X")
+    except TypeError as exc:
+        if str(exc).startswith("X with bytes dtype"):
+            raise UnsupportedOnGPU(
+                "X with bytes dtype is not supported"
+            ) from None
+        raise
+
+
 class OneHotEncoder(ProxyBase):
     _gpu_class = cuml.preprocessing.OneHotEncoder
 
+    def _gpu_fit(self, X, y=None):
+        X = _check_onehotencoder_X(X)
+        return self._gpu.fit(X, y=y)
+
     def _gpu_fit_transform(self, X, y=None, **fit_params):
+        X = _check_onehotencoder_X(X)
         return self._gpu.fit_transform(X, y=y, **fit_params)
 
 

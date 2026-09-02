@@ -497,6 +497,7 @@ sklearn.preprocessing
 
    ``OneHotEncoder`` will fall back to CPU in the following cases:
 
+   - If any columns in ``X`` have ``bytes`` values (``str`` values work fine).
    - If ``dtype`` is not a float or bool dtype.
    - If ``drop`` is ``"if_binary"``
    - If ``handle_unknown`` is ``"warn"`` or ``"infrequent_if_exist"``.
@@ -508,9 +509,6 @@ sklearn.preprocessing
 
    - cuML's encoder treats ``None`` and ``NaN`` values as identical, while
      scikit-learn's encoder treats these as different categories.
-
-   - cuML's encoder doesn't support numpy's bytes dtype (e.g. ``"S10"``) as
-     inputs and will error if encountered.
 
 
 .. dropdown:: ``TargetEncoder``

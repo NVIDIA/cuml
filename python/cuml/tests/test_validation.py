@@ -2200,12 +2200,36 @@ def test_check_cudf_nan_as_null(kind):
     assert res.iloc[:, 1].isin(vals).all()
 
 
+@pytest.mark.parametrize(
+    "kind, dtype",
+    [
+        ("list", None),
+        ("numpy", "O"),
+        ("numpy", "S"),
+        ("pandas", "O"),
+        ("pandas", "S"),
+    ],
+)
+@pytest.mark.parametrize("ndim", [1, 2])
+def test_check_cudf_bytes_dtype_errors(kind, dtype, ndim):
+    X = [b"a", b"b"] if ndim == 1 else [[b"a", b"b"], [b"c", b"d"]]
+    if kind == "numpy":
+        X = np.array(X, dtype=dtype)
+    elif kind == "pandas":
+        X = (pd.DataFrame if ndim == 2 else pd.Series)(X).astype(dtype)
+
+    with pytest.raises(TypeError, match="X with bytes dtype is not supported"):
+        check_cudf(X, ensure_ndim=None, input_name="X")
+
+
 @pytest.mark.parametrize("kind", ["list", "array"])
 def test_check_cudf_unsupported_object_inputs(kind):
-    data = [[{"x": 1}, 1], [1, 2]]
+    X = [[{"x": 1}, 1], [1, 2]]
+    if kind == "array":
+        X = np.array(X, dtype=object)
 
     with pytest.raises(
         TypeError,
         match="An object dtype X argument must be composed of",
     ):
-        check_cudf(data, input_name="X")
+        check_cudf(X, input_name="X")

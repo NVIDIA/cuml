@@ -842,30 +842,6 @@
   marker: onehotencoder_design_differences
   tests:
   - "sklearn.preprocessing.tests.test_encoders::test_one_hot_encoder_unsorted_categories"
-- reason: cuml's encoder doesn't support bytes dtypes
-  marker: onehotencoder_design_differences
-  condition: scikit-learn<1.9.0
-  tests:
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[dataframe-S-O]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[dataframe-S-S]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[dataframe-S-U]"
-- reason: cuml's encoder doesn't support bytes dtypes
-  marker: onehotencoder_design_differences
-  condition: scikit-learn>=1.9.0
-  tests:
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[pandas-S-O]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[pandas-S-S]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[pandas-S-U]"
-- reason: cuml's encoder doesn't support bytes dtypes
-  marker: onehotencoder_design_differences
-  tests:
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[array-S-O]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[array-S-S]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[array-S-U]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[list-S-O]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[list-S-S]"
-  - "sklearn.preprocessing.tests.test_encoders::test_encoders_string_categories[list-S-U]"
-  - "sklearn.preprocessing.tests.test_encoders::test_mixed_string_bytes_categoricals"
 - reason: cuml's encoder may use alternate dtypes to store categories
   marker: onehotencoder_design_differences
   tests:

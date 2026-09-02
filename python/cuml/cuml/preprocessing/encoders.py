@@ -333,8 +333,29 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
             and model.feature_name_combiner == "concat"
         ):
             raise UnsupportedOnGPU("`feature_name_combiner` is not supported")
+
+        categories = model.categories
+        # Fallback if input categories contain bytes dtypes
+        if not (isinstance(categories, str) and categories == "auto"):
+            for i, c in enumerate(model.categories):
+                if getattr(getattr(c, "dtype", None), "kind", "O") not in "OS":
+                    continue
+                try:
+                    check_cudf(c, ensure_ndim=1)
+                except TypeError as exc:
+                    exc_str = str(exc)
+                    if exc_str.startswith("An object dtype input"):
+                        invalid = "mixed"
+                    elif exc_str.startswith("Input with bytes dtype"):
+                        invalid = "bytes"
+                    else:
+                        raise
+                    raise UnsupportedOnGPU(
+                        f"Category {i} with {invalid} dtype is not supported"
+                    ) from None
+
         return {
-            "categories": model.categories,
+            "categories": categories,
             "drop": model.drop,
             "sparse_output": model.sparse_output,
             "dtype": model.dtype,
