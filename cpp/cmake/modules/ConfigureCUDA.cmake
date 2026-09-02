@@ -5,6 +5,9 @@
 # cmake-format: on
 # =============================================================================
 
+# Prefix CMake messages with the project context to make CI logs easier to diagnose.
+list(APPEND CMAKE_MESSAGE_CONTEXT "CUML")
+
 if(CMAKE_COMPILER_IS_GNUCXX)
   list(APPEND CUML_CXX_FLAGS -Wall -Werror -Wno-unknown-pragmas)
   if(CUML_BUILD_TESTS OR CUML_BUILD_BENCHMARKS)
@@ -50,6 +53,9 @@ endif()
 
 # Debug options
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  message(VERBOSE "CUML: Building with debugging flags")
+  message(VERBOSE "Building with debugging flags")
   list(APPEND CUML_CUDA_FLAGS -G -Xcompiler=-rdynamic)
 endif()
+
+# Restore the outer CMAKE_MESSAGE_CONTEXT.
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)

@@ -32,6 +32,10 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 # Write the version header
 rapids_cmake_write_version_file(include/cuml/version_config.hpp)
 
+# Prefix CMake messages with the project context to make CI logs easier to diagnose.
+set(CMAKE_MESSAGE_CONTEXT_SHOW ON)
+list(APPEND CMAKE_MESSAGE_CONTEXT "CUML_CPP")
+
 # ##################################################################################################
 # * build type ---------------------------------------------------------------
 
@@ -79,25 +83,25 @@ option(CUML_NVFOREST_CLONE_ON_PIN
        "Explicitly clone nvForest branch when pinned to non-feature branch" ON
 )
 
-message(VERBOSE "CUML_CPP: Building libcuml shared library: ${BUILD_CUML_CPP_LIBRARY}")
-message(VERBOSE "CUML_CPP: Building cuML algorithm tests: ${BUILD_CUML_TESTS}")
-message(VERBOSE "CUML_CPP: Building cuML multigpu algorithm tests: ${BUILD_CUML_MG_TESTS}")
-message(VERBOSE "CUML_CPP: Building ml-prims tests: ${BUILD_PRIMS_TESTS}")
-message(VERBOSE "CUML_CPP: Building C++ API usage examples: ${BUILD_CUML_EXAMPLES}")
-message(VERBOSE "CUML_CPP: Building cuML C++ benchmark tests: ${BUILD_CUML_BENCH}")
+message(VERBOSE "Building libcuml shared library: ${BUILD_CUML_CPP_LIBRARY}")
+message(VERBOSE "Building cuML algorithm tests: ${BUILD_CUML_TESTS}")
+message(VERBOSE "Building cuML multigpu algorithm tests: ${BUILD_CUML_MG_TESTS}")
+message(VERBOSE "Building ml-prims tests: ${BUILD_PRIMS_TESTS}")
+message(VERBOSE "Building C++ API usage examples: ${BUILD_CUML_EXAMPLES}")
+message(VERBOSE "Building cuML C++ benchmark tests: ${BUILD_CUML_BENCH}")
 message(VERBOSE
-        "CUML_CPP: Enabling detection of conda environment for dependencies: ${DETECT_CONDA_ENV}"
+        "Enabling detection of conda environment for dependencies: ${DETECT_CONDA_ENV}"
 )
-message(VERBOSE "CUML_CPP: Disabling OpenMP: ${DISABLE_OPENMP}")
-message(VERBOSE "CUML_CPP: Enabling kernel resource usage info: ${KERNEL_INFO}")
-message(VERBOSE "CUML_CPP: Enabling kernelinfo in nvcc: ${CUDA_ENABLE_KERNEL_INFO}")
-message(VERBOSE "CUML_CPP: Enabling lineinfo in nvcc: ${CUDA_ENABLE_LINE_INFO}")
-message(VERBOSE "CUML_CPP: Enabling nvtx markers: ${NVTX}")
-message(VERBOSE "CUML_CPP: Disabling all mnmg components and comms libraries: ${SINGLEGPU}")
-message(VERBOSE "CUML_CPP: Cache build artifacts with ccache: ${USE_CCACHE}")
-message(VERBOSE "CUML_CPP: Statically link the CUDA math libraries: ${CUDA_STATIC_MATH_LIBRARIES}")
-message(VERBOSE "CUML_CPP: Build and statically link CUVS libraries: ${CUML_USE_CUVS_STATIC}")
-message(VERBOSE "CUML_CPP: Build and statically link Treelite library: ${CUML_USE_TREELITE_STATIC}")
+message(VERBOSE "Disabling OpenMP: ${DISABLE_OPENMP}")
+message(VERBOSE "Enabling kernel resource usage info: ${KERNEL_INFO}")
+message(VERBOSE "Enabling kernelinfo in nvcc: ${CUDA_ENABLE_KERNEL_INFO}")
+message(VERBOSE "Enabling lineinfo in nvcc: ${CUDA_ENABLE_LINE_INFO}")
+message(VERBOSE "Enabling nvtx markers: ${NVTX}")
+message(VERBOSE "Disabling all mnmg components and comms libraries: ${SINGLEGPU}")
+message(VERBOSE "Cache build artifacts with ccache: ${USE_CCACHE}")
+message(VERBOSE "Statically link the CUDA math libraries: ${CUDA_STATIC_MATH_LIBRARIES}")
+message(VERBOSE "Build and statically link CUVS libraries: ${CUML_USE_CUVS_STATIC}")
+message(VERBOSE "Build and statically link Treelite library: ${CUML_USE_TREELITE_STATIC}")
 
 set(CUML_ALGORITHMS
     "ALL"
@@ -105,7 +109,7 @@ set(CUML_ALGORITHMS
       STRING
       "Choose which algorithms are built into libcuml.so. Can specify individual algorithms or groups in a semicolon-separated list."
 )
-message(VERBOSE "CUML_CPP: Building libcuml with algorithms: '${CUML_ALGORITHMS}'.")
+message(VERBOSE "Building libcuml with algorithms: '${CUML_ALGORITHMS}'.")
 
 # Set RMM logging level
 set(RMM_LOGGING_LEVEL
@@ -115,7 +119,7 @@ set(RMM_LOGGING_LEVEL
 set_property(
   CACHE RMM_LOGGING_LEVEL PROPERTY STRINGS "TRACE" "DEBUG" "INFO" "WARN" "ERROR" "CRITICAL" "OFF"
 )
-message(VERBOSE "CUML_CPP: RMM_LOGGING_LEVEL = '${RMM_LOGGING_LEVEL}'.")
+message(VERBOSE "RMM_LOGGING_LEVEL = '${RMM_LOGGING_LEVEL}'.")
 
 # Set logging level
 set(LIBCUML_LOGGING_LEVEL
@@ -126,7 +130,10 @@ set_property(
   CACHE LIBCUML_LOGGING_LEVEL PROPERTY STRINGS "TRACE" "DEBUG" "INFO" "WARN" "ERROR" "CRITICAL"
                                        "OFF"
 )
-message(VERBOSE "CUML: LIBCUML_LOGGING_LEVEL = '${LIBCUML_LOGGING_LEVEL}'.")
+
+list(APPEND CMAKE_MESSAGE_CONTEXT "CUML")
+message(VERBOSE "LIBCUML_LOGGING_LEVEL = '${LIBCUML_LOGGING_LEVEL}'.")
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 
 if(BUILD_CUML_TESTS
    OR BUILD_CUML_MG_TESTS
@@ -152,7 +159,7 @@ if(DETECT_CONDA_ENV)
   rapids_cmake_support_conda_env(conda_env MODIFY_PREFIX_PATH)
   if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND DEFINED ENV{CONDA_PREFIX})
     message(
-      STATUS "CUML_CPP: No CMAKE_INSTALL_PREFIX argument detected, setting to: $ENV{CONDA_PREFIX}"
+      STATUS "No CMAKE_INSTALL_PREFIX argument detected, setting to: $ENV{CONDA_PREFIX}"
     )
     set(CMAKE_INSTALL_PREFIX "$ENV{CONDA_PREFIX}")
   endif()
@@ -171,7 +178,7 @@ endif()
 if(NOT DISABLE_OPENMP)
   find_package(OpenMP)
   if(OpenMP_FOUND)
-    message(STATUS "CUML_CPP: OpenMP found in ${OPENMP_INCLUDE_DIRS}")
+    message(STATUS "OpenMP found in ${OPENMP_INCLUDE_DIRS}")
     list(APPEND CUML_CXX_FLAGS ${OpenMP_CXX_FLAGS})
   endif()
 endif()
@@ -208,8 +215,8 @@ endif()
 
 # SingleGPU build disables comms components
 if(SINGLEGPU)
-  message(STATUS "CUML_CPP: Detected SINGLEGPU build option")
-  message(STATUS "CUML_CPP: Disabling Multi-GPU components and comms libraries")
+  message(STATUS "Detected SINGLEGPU build option")
+  message(STATUS "Disabling Multi-GPU components and comms libraries")
   set(BUILD_CUML_MG_TESTS OFF)
 endif()
 
@@ -220,10 +227,12 @@ if(USE_CCACHE)
 endif()
 
 if(NOT BUILD_SHARED_LIBS AND CUML_COMPILE_DYNAMIC_ONLY)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "cuML")
   message(
     VERBOSE
-    "cuML: Ignoring `BUILD_SHARED_LIBS` and forcing shared library due to `CUML_COMPILE_DYNAMIC_ONLY`"
+    "Ignoring `BUILD_SHARED_LIBS` and forcing shared library due to `CUML_COMPILE_DYNAMIC_ONLY`"
   )
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 
 if(BUILD_CUML_CPP_LIBRARY)
@@ -873,3 +882,6 @@ add_doxygen_target(
   IN_DOXYFILE Doxyfile.in OUT_DOXYFILE ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile CWD
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+# Restore the outer CMAKE_MESSAGE_CONTEXT.
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)

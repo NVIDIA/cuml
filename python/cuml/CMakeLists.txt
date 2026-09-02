@@ -26,15 +26,18 @@ project(
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Prefix CMake messages with the project context to make CI logs easier to diagnose.
+set(CMAKE_MESSAGE_CONTEXT_SHOW ON)
+list(APPEND CMAKE_MESSAGE_CONTEXT "CUML_PY")
+
 # ##################################################################################################
 # * User Options  --------------------------------------------------------------
 option(CUML_UNIVERSAL "Build all cuML Python components." ON)
 option(SINGLEGPU "Disable all mnmg components and comms libraries" OFF)
 option(USE_LIBCUML_WHEEL "Use libcuml wheel to provide some dependencies" OFF)
 
-# todo: use CMAKE_MESSAGE_CONTEXT for prefix for logging.
-# https://github.com/rapidsai/cuml/issues/4843
-message(VERBOSE "CUML_PY: Disabling all mnmg components and comms libraries: ${SINGLEGPU}")
+
+message(VERBOSE "Disabling all mnmg components and comms libraries: ${SINGLEGPU}")
 
 set(CUML_ALGORITHMS
     "ALL"
@@ -87,7 +90,7 @@ set(cuml_mg_libraries cuml::${CUML_CPP_TARGET})
 include("${CUML_CPP_SRC}/cmake/modules/ConfigureAlgorithms.cmake")
 include(cmake/ConfigureCythonAlgorithms.cmake)
 
-message(VERBOSE "CUML_PY: Building cuML with algorithms: '${CUML_ALGORITHMS}'.")
+message(VERBOSE "Building cuML with algorithms: '${CUML_ALGORITHMS}'.")
 
 include(rapids-cython-core)
 rapids_cython_init()
@@ -111,3 +114,6 @@ add_subdirectory(cuml/tsa)
 
 # Include the pth file in the built wheel
 install(FILES "_zz_cuml_accel.pth" DESTINATION ".")
+
+# Restore the outer CMAKE_MESSAGE_CONTEXT.
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)
