@@ -351,7 +351,7 @@ dependencies:
         packages:
           # skipping Cython 3.2.7 because of https://github.com/cython/cython/issues/7781
           - &cython cython>=3.2.2,!=3.2.7
-          - &treelite treelite>=4.7.1,<5.0.0
+          - &treelite treelite>=4.7.2,<5.0.0
   py_run_cuml:
     common:
       - output_types: [conda, requirements, pyproject]
