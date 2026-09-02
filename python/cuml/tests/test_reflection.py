@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 import cuml
 from cuml.internals.base import Base
@@ -540,6 +541,65 @@ def test_mlfunc_preserve_index(input_type, output_type):
     cudf.testing.assert_series_equal(
         cudf.Series(res), cudf.Series([2, 3, 4], index=df.index)
     )
+
+
+@pytest.mark.parametrize("input_type", ["pandas", "cudf"])
+def test_mlfunc_column_names(input_type):
+    xdf = cudf if input_type == "cudf" else pd
+    X = xdf.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]})
+
+    class MyEstimator(ClassNamePrefixFeaturesOutMixin, Base):
+        @mlfunc(set_input_type=True)
+        def fit(self, X):
+            X = check_inputs(self, X, reset=True)
+            self._n_features_out = X.shape[1] * 2
+            return self
+
+        @mlfunc(column_names="feature_names_out")
+        def fit_transform(self, X):
+            self.fit(X)
+            return cp.ones((X.shape[0], self._n_features_out))
+
+        @mlfunc(column_names="feature_names_out")
+        def returns_sparse_matrix(self, X):
+            return cupyx.scipy.sparse.eye(
+                X.shape[0],
+                self._n_features_out,
+                format="csr",
+            )
+
+        @mlfunc
+        def no_names(self, X):
+            return cp.ones((X.shape[0], self.n_features_in_))
+
+        @mlfunc(column_names="feature_names_in")
+        def inverse_transform(self, X):
+            return cp.ones((X.shape[0], self.n_features_in_))
+
+    # Works with feature names
+    model = MyEstimator()
+    Xt = model.fit_transform(X)
+    np.testing.assert_array_equal(Xt.columns, model.get_feature_names_out())
+
+    X2 = model.inverse_transform(Xt)
+    np.testing.assert_array_equal(X2.columns, X.columns)
+
+    # column_names=None doesn't add anything
+    res = model.no_names(X)
+    np.testing.assert_array_equal(res.columns, [0, 1])
+
+    # No error applying names if not a dataframe output
+    res = model.returns_sparse_matrix(X)
+    assert cupyx.scipy.sparse.issparse(res) or scipy.sparse.issparse(res)
+
+    # Works if no feature names
+    X = X.to_numpy()
+    model = MyEstimator(output_type=input_type)
+    Xt = model.fit_transform(X)
+    np.testing.assert_array_equal(Xt.columns, model.get_feature_names_out())
+
+    X2 = model.inverse_transform(Xt)
+    np.testing.assert_array_equal(X2.columns, [0, 1])
 
 
 @pytest.mark.parametrize("dtype", ["int32", "object", "U"])

@@ -186,7 +186,7 @@ class SpectralEmbedding(
         # Exposed to support sklearn's `get_feature_names_out`
         return self.embedding_.shape[1]
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None):
         """Fit the model from data in X and transform X.
 

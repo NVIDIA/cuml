@@ -228,7 +228,7 @@ class TargetEncoder(InteropMixin, Base):
         self.train = train
         return self
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y, *, fold_ids=None):
         """
         Simultaneously fit and transform an input
@@ -277,7 +277,7 @@ class TargetEncoder(InteropMixin, Base):
             return input_features
         return np.asarray(["targetencoder0"], dtype=object)
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Transform an input into its categorical keys.

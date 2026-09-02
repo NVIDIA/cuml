@@ -384,7 +384,11 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
         X = check_cudf(X, input_name="X")
         return self._fit(X)
 
-    @mlfunc(set_input_type=True, preserve_index=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     @generate_docstring(
         y=None,
         return_values={
@@ -474,7 +478,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
 
         return self
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     @generate_docstring(
         return_values={
             "name": "X_out",
@@ -569,7 +573,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
             return out
         return out.toarray()
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Convert the data back to the original representation.
 
@@ -639,9 +643,6 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
 
         for idx, mask in found_unknown.items():
             out.loc[mask, idx] = None
-
-        if getattr(self, "feature_names_in_", None) is not None:
-            out.columns = self.feature_names_in_
 
         return out
 
@@ -779,7 +780,11 @@ class OrdinalEncoder(OneToOneFeatureMixin, Base):
         X = check_cudf(X, input_name="X")
         return self._fit(X)
 
-    @mlfunc(set_input_type=True, preserve_index=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     @generate_docstring(
         y=None,
         return_values={
@@ -825,7 +830,7 @@ class OrdinalEncoder(OneToOneFeatureMixin, Base):
 
         return self
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     @generate_docstring(
         return_values={
             "name": "X_out",
@@ -872,7 +877,7 @@ class OrdinalEncoder(OneToOneFeatureMixin, Base):
 
         return out
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Convert the data back to the original representation.
 
@@ -928,8 +933,5 @@ class OrdinalEncoder(OneToOneFeatureMixin, Base):
 
         for idx, mask in found_unknown.items():
             out.loc[mask, idx] = None
-
-        if getattr(self, "feature_names_in_", None) is not None:
-            out.columns = self.feature_names_in_
 
         return out

@@ -24,7 +24,11 @@ from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.mixins import CMajorInputTagMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.treelite import safe_treelite_call
-from cuml.internals.validation import check_inputs, check_random_seed
+from cuml.internals.validation import (
+    check_inputs,
+    check_is_fitted,
+    check_random_seed,
+)
 
 from libc.stddef cimport size_t
 from libc.stdint cimport uint64_t, uintptr_t
@@ -365,11 +369,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         from sklearn.ensemble._iforest import _average_path_length
         from sklearn.tree import ExtraTreeRegressor
 
-        # A failed `fit` can leave `n_features_in_` set (making the model look
-        # fitted to `InteropMixin`) while no serialized forest exists yet.
-        if not hasattr(self, "_treelite_model_bytes"):
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
-
         tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
         exported = treelite.sklearn.export_model(tl_model)
         n_features = self.n_features_in_
@@ -642,8 +641,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         -------
         treelite.Model
         """
-        if not hasattr(self, "_treelite_model_bytes"):
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+        check_is_fitted(self)
 
         return treelite.Model.deserialize_bytes(self._treelite_model_bytes)
 
@@ -658,8 +656,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         nvforest_model : nvforest.ForestInference
             A forest inference model that predicts average path length.
         """
-        if not hasattr(self, "_treelite_model_bytes"):
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
+        check_is_fitted(self)
 
         return nvforest.load_from_treelite_model(
             tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
@@ -682,9 +679,6 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         Shared by ``score_samples``, ``decision_function`` and ``predict`` so
         that input validation runs exactly once per public call.
         """
-        if not hasattr(self, "_treelite_model_bytes"):
-            raise RuntimeError("Model has not been fitted. Call fit() first.")
-
         nvforest_model = self._get_inference_nvforest_model()
         dtype = nvforest_model.forest.get_dtype()
 
@@ -746,6 +740,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             Typical range is approximately [-1.0, 0.0], where values below
             ``offset_`` are predicted as anomalies.
         """
+        check_is_fitted(self)
+
         return self._score_samples(X)
 
     @mlfunc(preserve_index=True)
@@ -766,6 +762,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         scores : ndarray of shape (n_samples,)
             The decision function. Negative values indicate anomalies.
         """
+        check_is_fitted(self)
+
         return self._score_samples(X) - self.offset_
 
     @mlfunc(preserve_index=True)
@@ -785,6 +783,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         labels : ndarray of shape (n_samples,)
             1 for inliers, -1 for outliers.
         """
+        check_is_fitted(self)
+
         # ``decision_function(X) < 0`` rearranged to avoid materializing it.
         return cp.where(self._score_samples(X) < self.offset_, -1, 1)
 

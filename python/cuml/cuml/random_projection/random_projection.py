@@ -130,7 +130,7 @@ class _BaseRandomProjection(
         return self
 
     @generate_docstring()
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Project the data by taking the matrix product with the random matrix."""
         check_is_fitted(self)
@@ -159,7 +159,7 @@ class _BaseRandomProjection(
         return out
 
     @generate_docstring()
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None):
         """Fit to data, then transform it."""
         return self.fit(X).transform(X)

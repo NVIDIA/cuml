@@ -2,8 +2,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-
+import numpy as np
+import pandas as pd
 import pytest
+import sklearn
+from sklearn.datasets import make_blobs
+from sklearn.metrics.pairwise import linear_kernel
 from sklearn.utils import estimator_checks
 
 from cuml.cluster import (
@@ -186,11 +190,6 @@ EXCLUDED = {
 
 
 XFAILS = {
-    IsolationForest: {
-        "check_estimators_unfitted": (
-            "Unfitted methods raise RuntimeError instead of NotFittedError"
-        ),
-    },
     KMeans: {
         "check_sample_weight_equivalence_on_dense_data": "Sample weights not equal to repeating data",
     },
@@ -345,7 +344,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     OneHotEncoder(),
     OrdinalEncoder(),
     PolynomialFeatures(),
-    KBinsDiscretizer(),
+    KBinsDiscretizer(encode="onehot-dense"),
     ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
     SimpleImputer(),
     MissingIndicator(),
@@ -404,3 +403,70 @@ def test_sklearn_get_feature_names_out_all_estimators_covered():
         f"Estimators implementing `get_feature_names_out` that aren't tested or "
         f"excluded: {', '.join(sorted(c.__name__ for c in uncovered))}"
     )
+
+
+@pytest.mark.parametrize(
+    "transformer",
+    GET_FEATURE_NAMES_OUT_ESTIMATORS,
+    ids=lambda est: type(est).__name__,
+)
+def test_transform_inverse_transform_set_index_and_column_names(transformer):
+    """Check that `index` and `columns` are properly set on results of:
+
+    - `fit_transform`
+    - `transform`
+    - `inverse_transform`
+
+    when outputting dataframe objects.
+    """
+    transformer = sklearn.clone(transformer)
+    if hasattr(transformer, "sparse_output"):
+        transformer.sparse_output = False
+    if hasattr(transformer, "random_state"):
+        transformer.random_state = 42
+
+    tags = transformer.__sklearn_tags__()
+
+    X, y = make_blobs(
+        n_samples=30,
+        centers=[[0, 0, 0], [1, 1, 1]],
+        random_state=0,
+        n_features=2,
+        cluster_std=0.1,
+    )
+    X -= X.mean(axis=0)
+    if tags.input_tags.categorical:
+        X = np.round((X - X.min()))
+    elif tags.input_tags.positive_only:
+        X = X - X.min()
+    elif tags.input_tags.pairwise:
+        X = linear_kernel(X, X)
+
+    X = pd.DataFrame(
+        X,
+        columns=[f"C{i}" for i in range(X.shape[1])],
+        index=np.arange(X.shape[0]) * 10,
+    )
+    Xt = None
+
+    if hasattr(transformer, "transform"):
+        Xt = transformer.fit(X, y=y).transform(X)
+        np.testing.assert_array_equal(
+            Xt.columns, transformer.get_feature_names_out()
+        )
+        np.testing.assert_array_equal(Xt.index, X.index)
+    if hasattr(transformer, "fit_transform"):
+        Xt = transformer.fit_transform(X, y=y)
+        np.testing.assert_array_equal(
+            Xt.columns, transformer.get_feature_names_out()
+        )
+        np.testing.assert_array_equal(Xt.index, X.index)
+
+    assert Xt is not None, (
+        "Estimator must implement `transform` and/or `fit_transform"
+    )
+
+    if hasattr(transformer, "inverse_transform"):
+        X2 = transformer.inverse_transform(Xt)
+        np.testing.assert_array_equal(X2.columns, X.columns)
+        np.testing.assert_array_equal(X2.index, X.index)
