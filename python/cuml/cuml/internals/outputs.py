@@ -754,10 +754,10 @@ def mlfunc(
         Whether to preserve the index of the ``array_arg`` argument (if any)
         in the function output. This should typically be set to ``True`` on
         any inference (predict/transform-like) methods.
-    column_names : {"features_names_in", "features_names_out", None}, default=None
+    column_names : {"feature_names_in", "feature_names_out", None}, default=None
         Where to get the column names from when outputting a DataFrame. Options
-        are ``None`` (for default column names), ``"features_names_in"`` (to
-        use ``model.feature_names_in_``) or ``"features_names_out"`` (to
+        are ``None`` (for default column names), ``"feature_names_in"`` (to
+        use ``model.feature_names_in_``) or ``"feature_names_out"`` (to
         determine feature names from ``get_feature_names_out``.
     """
     if func is None:
@@ -871,13 +871,23 @@ def mlfunc(
                     one_col_2d_as_series=one_col_2d_as_series,
                 )
 
-                if output_type in ("cudf", "pandas"):
+                if isinstance(res, (cudf.DataFrame, pd.DataFrame)):
                     if column_names == "feature_names_in":
-                        if hasattr(model, "feature_names_in_"):
-                            res.columns = model.feature_names_in_
+                        cols = getattr(model, "feature_names_in_", None)
                     elif column_names == "feature_names_out":
-                        if hasattr(model, "get_feature_names_out"):
-                            res.columns = model.get_feature_names_out()
+                        try:
+                            cols = model.get_feature_names_out()
+                        except AttributeError:
+                            # Can happen if no `get_feature_names_out` method
+                            # exists, or in meta-estimators (like
+                            # ColumnTransformer) where the sub-estimator
+                            # doesn't support `get_feature_names_out`.
+                            cols = None
+                    else:
+                        cols = None
+
+                    if cols is not None:
+                        res.columns = cols
 
         return res
 

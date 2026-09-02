@@ -560,8 +560,16 @@ def test_mlfunc_column_names(input_type):
             self.fit(X)
             return cp.ones((X.shape[0], self._n_features_out))
 
+        @mlfunc(column_names="feature_names_out")
+        def returns_sparse_matrix(self, X):
+            return cupyx.scipy.sparse.eye(
+                X.shape[0],
+                self._n_features_out,
+                format="csr",
+            )
+
         @mlfunc
-        def other(self, X):
+        def no_names(self, X):
             return cp.ones((X.shape[0], self.n_features_in_))
 
         @mlfunc(column_names="feature_names_in")
@@ -577,8 +585,12 @@ def test_mlfunc_column_names(input_type):
     np.testing.assert_array_equal(X2.columns, X.columns)
 
     # column_names=None doesn't add anything
-    res = model.other(X)
+    res = model.no_names(X)
     np.testing.assert_array_equal(res.columns, [0, 1])
+
+    # No error applying names if not a dataframe output
+    res = model.returns_sparse_matrix(X)
+    assert cupyx.scipy.sparse.issparse(res) or scipy.sparse.issparse(res)
 
     # Works if no feature names
     X = X.to_numpy()
