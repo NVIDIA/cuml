@@ -16,6 +16,7 @@
 
 #include <rmm/cuda_stream_pool.hpp>
 
+#include <cuda/stream>
 #include <cuda_runtime.h>
 
 #include <benchmark/benchmark.h>

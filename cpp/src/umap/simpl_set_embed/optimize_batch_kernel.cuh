@@ -14,6 +14,7 @@
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 
+#include <cuda/stream>
 #include <cuda_runtime_api.h>
 
 #include <stdint.h>
