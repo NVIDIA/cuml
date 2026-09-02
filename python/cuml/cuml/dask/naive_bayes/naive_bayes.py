@@ -193,8 +193,8 @@ class MultinomialNB(BaseEstimator, DelayedPredictionMixin):
 
         """
         # TODO: This could be refactored to use DelayedPredictionMixin
-        # Ref: https://github.com/rapidsai/cuml/issues/1834
-        # Ref: https://github.com/rapidsai/cuml/issues/1387
+        # Ref: https://github.com/NVIDIA/cuml/issues/1834
+        # Ref: https://github.com/NVIDIA/cuml/issues/1387
         if not isinstance(X, dask.array.core.Array):
             raise ValueError("Only dask.Array is supported for X")
 

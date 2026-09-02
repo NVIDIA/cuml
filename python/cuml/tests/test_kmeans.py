@@ -182,7 +182,7 @@ def test_kmeans_clusters_blobs(
     )
 
     # Set n_init to 2 to improve stability of k-means|| initialization
-    # See https://github.com/rapidsai/cuml/issues/5530 for details
+    # See https://github.com/NVIDIA/cuml/issues/5530 for details
     cuml_kmeans = cuml.KMeans(
         init="k-means||",
         n_clusters=nclusters,

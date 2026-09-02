@@ -238,7 +238,7 @@ def test_vectorizer_inverse_transform():
 @pytest.mark.skip(
     reason="scikit-learn replaced get_feature_names with "
     "get_feature_names_out"
-    "https://github.com/rapidsai/cuml/issues/5159"
+    "https://github.com/NVIDIA/cuml/issues/5159"
 )
 @pytest.mark.parametrize("ngram_range", NGRAM_RANGES, ids=NGRAM_IDS)
 def test_space_ngrams(ngram_range):
@@ -300,7 +300,7 @@ def test_only_delimiters():
 @pytest.mark.skip(
     reason="scikit-learn replaced get_feature_names with "
     "get_feature_names_out"
-    "https://github.com/rapidsai/cuml/issues/5159"
+    "https://github.com/NVIDIA/cuml/issues/5159"
 )
 @pytest.mark.parametrize("analyzer", ["char", "char_wb"])
 @pytest.mark.parametrize("ngram_range", NGRAM_RANGES, ids=NGRAM_IDS)
@@ -545,7 +545,7 @@ def test_hashingvectorizer_norm(norm):
         assert_almost_equal_hash_matrices(res.todense().get(), ref.toarray())
 
 
-@pytest.mark.xfail(reason="https://github.com/rapidsai/cuml/issues/4721")
+@pytest.mark.xfail(reason="https://github.com/NVIDIA/cuml/issues/4721")
 def test_hashingvectorizer_alternate_sign():
     # if alternate_sign = True
     # we should have some negative and positive values

@@ -180,7 +180,7 @@ def test_standard_scaler_sparse(
 @pytest.mark.parametrize("with_std", [True, False])
 # The numerical warning is triggered when centering or scaling
 # cannot be done as single steps. Its display can be safely disabled.
-# For more information see : https://github.com/rapidsai/cuml/issues/4203
+# For more information see : https://github.com/NVIDIA/cuml/issues/4203
 @pytest.mark.filterwarnings("ignore:Numerical issues::")
 def test_scale(
     failure_logger,

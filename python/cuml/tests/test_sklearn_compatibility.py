@@ -289,7 +289,7 @@ def test_sklearn_compatible_estimator(estimator, check):
     ):
         pytest.skip(
             "Predictions from repeated fits are nondeterministic; see "
-            "https://github.com/rapidsai/cuml/issues/8457"
+            "https://github.com/NVIDIA/cuml/issues/8457"
         )
     check(estimator)
 

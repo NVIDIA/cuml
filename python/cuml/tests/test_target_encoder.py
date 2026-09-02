@@ -11,7 +11,7 @@ from cuml.preprocessing._target_encoder import TargetEncoder
 from cuml.testing.utils import array_equal
 
 # TODO: many of these tests use `output_type="numpy"` to work around
-# https://github.com/rapidsai/cuml/issues/7893. These can be
+# https://github.com/NVIDIA/cuml/issues/7893. These can be
 # reverted once that's resolved.
 
 

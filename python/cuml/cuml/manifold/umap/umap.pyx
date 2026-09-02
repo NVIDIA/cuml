@@ -501,7 +501,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
             # TODO: for now, users should be able to see the same results
             # as previous version (i.e. running brute force knn) when they
             # explicitly pass random_state
-            # https://github.com/rapidsai/cuml/issues/5985
+            # https://github.com/NVIDIA/cuml/issues/5985
             build_algo ="brute_force_knn"
         elif n_rows <= 50_000 or is_sparse:
             # brute force is faster for small datasets

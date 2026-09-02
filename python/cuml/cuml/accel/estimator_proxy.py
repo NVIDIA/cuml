@@ -600,7 +600,7 @@ class ProxyBase(BaseEstimator, metaclass=ProxyBaseMeta):
                         f"The `{type(self).__name__}.{name}` attribute is not yet "
                         "implemented in `cuml.accel`.\n\n"
                         "If this attribute is important for your use case, please open "
-                        "an issue: https://github.com/rapidsai/cuml/issues."
+                        "an issue: https://github.com/NVIDIA/cuml/issues."
                     ) from None
                 raise
         elif name in ("_parent_callback_ctx", "_skl_callbacks"):

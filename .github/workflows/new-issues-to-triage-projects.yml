@@ -21,19 +21,19 @@ jobs:
         if: contains(github.event.issue.labels.*.name, 'bug') && contains(github.event.issue.labels.*.name, '? - Needs Triage')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_PROJECT_URL: https://github.com/rapidsai/cuml/projects/1
+          GITHUB_PROJECT_URL: https://github.com/NVIDIA/cuml/projects/1
           GITHUB_PROJECT_COLUMN_NAME: 'Needs prioritizing'
       - name: Process feature issues
         uses: docker://takanabe/github-actions-automate-projects:v0.0.1
         if: contains(github.event.issue.labels.*.name, 'feature request') && contains(github.event.issue.labels.*.name, '? - Needs Triage')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_PROJECT_URL: https://github.com/rapidsai/cuml/projects/2
+          GITHUB_PROJECT_URL: https://github.com/NVIDIA/cuml/projects/2
           GITHUB_PROJECT_COLUMN_NAME: 'Needs prioritizing'
       - name: Process other issues
         uses: docker://takanabe/github-actions-automate-projects:v0.0.1
         if: contains(github.event.issue.labels.*.name, '? - Needs Triage') && (!contains(github.event.issue.labels.*.name, 'bug') && !contains(github.event.issue.labels.*.name, 'feature request'))
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_PROJECT_URL: https://github.com/rapidsai/cuml/projects/3
+          GITHUB_PROJECT_URL: https://github.com/NVIDIA/cuml/projects/3
           GITHUB_PROJECT_COLUMN_NAME: 'Needs prioritizing'

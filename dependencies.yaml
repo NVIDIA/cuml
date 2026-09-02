@@ -736,7 +736,7 @@ dependencies:
               # Using the unsuffixed name pulls in CUDA 12 packages for some versions and may
               # at some point in the future pull in CUDA 13 packages.
               #
-              # ref: https://github.com/rapidsai/cuml/pull/7550#issuecomment-3603279934
+              # ref: https://github.com/NVIDIA/cuml/pull/7550#issuecomment-3603279934
               - &xgboost_unsuffixed xgboost>=2.1.0
           - matrix:
               arch: x86_64
