@@ -492,6 +492,27 @@ sklearn.preprocessing
    ``LabelBinarizer`` has no known estimator-specific ``cuml.accel`` limitations.
 
 
+.. dropdown:: ``OneHotEncoder``
+   :name: onehotencoder
+
+   ``OneHotEncoder`` will fall back to CPU in the following cases:
+
+   - If ``dtype`` is not a float or bool dtype.
+   - If ``drop`` is ``"if_binary"``
+   - If ``handle_unknown`` is ``"warn"`` or ``"infrequent_if_exist"``.
+   - If ``min_frequency`` is not ``None``.
+   - If ``max_categories`` is not ``None``.
+   - If ``feature_name_combiner`` is a callable.
+
+   Additional notes:
+
+   - cuML's encoder treats ``None`` and ``NaN`` values as identical, while
+     scikit-learn's encoder treats these as different categories.
+
+   - cuML's encoder doesn't support numpy's bytes dtype (e.g. ``"S10"``) as
+     inputs and will error if encountered.
+
+
 .. dropdown:: ``TargetEncoder``
    :name: targetencoder
 

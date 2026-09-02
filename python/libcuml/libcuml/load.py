@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -36,7 +36,7 @@ def _load_wheel_installation(soname: str):
 def load_library():
     """Dynamically load libcuml.so and its dependencies"""
     try:
-        # These libraries must all be loaded before libcuml
+        # These libraries must all be loaded before libcuml, in dependency order
         import libcuvs
         import libnvforest
         import libraft
@@ -44,10 +44,10 @@ def load_library():
         import rapids_logger
 
         rapids_logger.load_library()
-        libcuvs.load_library()
-        libnvforest.load_library()
         librmm.load_library()
         libraft.load_library()
+        libcuvs.load_library()
+        libnvforest.load_library()
     except ModuleNotFoundError:
         # These runtime dependencies might be satisfied by conda packages (which do not
         # have any Python modules) instead of wheels. In that situation, assume that
