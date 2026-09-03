@@ -210,10 +210,13 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    # TODO: Use stable URLs once subpath redirects are available:
-    # https://github.com/rapidsai/build-infra/issues/395
+    # Versioned URLs keep intersphinx links immutable in archived docs:
+    # https://github.com/rapidsai/build-planning/issues/320
     # rapids-pre-commit-hooks: disable-next-line
-    "cudf": ("https://docs.nvidia.com/cudf/26.10/", None),
+    "cudf": (
+        f"https://docs.nvidia.com/cudf/{version}/",
+        None,
+    ),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "python": ("https://docs.python.org/3", None),
     # TODO: re-enable once scipy docs are more reliable
@@ -225,7 +228,10 @@ intersphinx_mapping = {
         None,
     ),
     # rapids-pre-commit-hooks: disable-next-line
-    "rmm": ("https://docs.nvidia.com/rmm/26.10/", None),
+    "rmm": (
+        f"https://docs.nvidia.com/rmm/{version}/",
+        None,
+    ),
 }
 
 # Config numpydoc
