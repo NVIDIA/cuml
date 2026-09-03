@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -581,7 +581,7 @@ void extractRows(raft::device_matrix_view<math_t, int, LayoutPolicyIn> matrix_in
  *     'DENSE -> DENSE (raw pointer)'
  *
  * TODO: move this functionality to
- * https://github.com/rapidsai/raft/issues/1524
+ * https://github.com/NVIDIA/raft/issues/1524
  *
  * @param [in] matrix_in matrix input (dense view)  [i, j]
  * @param [out] matrix_out matrix output raw pointer, size at least num_indices*j
@@ -718,7 +718,7 @@ void copyIndptrToHost(raft::device_matrix_view<math_t, int, LayoutPolicyIn> matr
  *     'CSR -> CSR (data owning)'
  *
  * TODO: move this functionality to
- * https://github.com/rapidsai/raft/issues/1524
+ * https://github.com/NVIDIA/raft/issues/1524
  *
  * @param [in] matrix_in matrix input in CSR  [i, j]
  * @param [out] matrix_out matrix output in CSR  [num_indices, j]

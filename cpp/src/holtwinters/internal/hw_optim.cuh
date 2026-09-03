@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -351,7 +351,7 @@ __device__ void holtwinters_finite_gradient_device(int tid,
 // There's a bug here, where the wrong values are updated if line search
 // iter limit is reached. Last values are of nx are put in x, whereas it
 // should be the nx values which minimised loss. For summary, check
-// https://github.com/rapidsai/cuml/issues/888
+// https://github.com/NVIDIA/cuml/issues/888
 template <typename Dtype>
 __device__ ML::OptimCriterion holtwinters_bfgs_optim_device(
   int tid,
@@ -830,7 +830,7 @@ CUML_KERNEL void holtwinters_optim_gpu_global_kernel(const Dtype* ts,
 }
 
 // Test Global and Shared kernels
-// https://github.com/rapidsai/cuml/issues/890
+// https://github.com/NVIDIA/cuml/issues/890
 template <typename Dtype>
 void holtwinters_optim_gpu(const raft::handle_t& handle,
                            const Dtype* ts,

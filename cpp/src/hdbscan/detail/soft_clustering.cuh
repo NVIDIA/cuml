@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -7,7 +7,7 @@
 
 #include "kernels/soft_clustering.cuh"
 #include "select.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 #include <cuml/common/distance_type.hpp>

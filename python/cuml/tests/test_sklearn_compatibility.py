@@ -2,8 +2,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-
+import numpy as np
+import pandas as pd
 import pytest
+import sklearn
+from sklearn.datasets import make_blobs
+from sklearn.metrics.pairwise import linear_kernel
 from sklearn.utils import estimator_checks
 
 from cuml.cluster import (
@@ -186,14 +190,6 @@ EXCLUDED = {
 
 
 XFAILS = {
-    IsolationForest: {
-        "check_estimators_unfitted": (
-            "Unfitted methods raise RuntimeError instead of NotFittedError"
-        ),
-        "check_estimators_pickle": (
-            "Pickling does not preserve the fitted model state"
-        ),
-    },
     KMeans: {
         "check_sample_weight_equivalence_on_dense_data": "Sample weights not equal to repeating data",
     },
@@ -293,12 +289,12 @@ def test_sklearn_compatible_estimator(estimator, check):
     ):
         pytest.skip(
             "Predictions from repeated fits are nondeterministic; see "
-            "https://github.com/rapidsai/cuml/issues/8457"
+            "https://github.com/NVIDIA/cuml/issues/8457"
         )
     check(estimator)
 
 
-def test_all_estimators_covered():
+def test_sklearn_compatible_estimator_coverage():
     all_estimators = _all_cuml_estimators()
     tested = {type(est) for est in ESTIMATORS}
     excluded = set(EXCLUDED)
@@ -324,3 +320,153 @@ def test_all_estimators_covered():
             c.__name__ for c in sorted(stale, key=lambda c: c.__name__)
         )
     )
+
+
+GET_FEATURE_NAMES_OUT_ESTIMATORS = [
+    PCA(),
+    IncrementalPCA(),
+    TruncatedSVD(n_components=2),
+    KMeans(),
+    GaussianRandomProjection(n_components=2),
+    SparseRandomProjection(n_components=2),
+    UMAP(n_components=2),
+    TSNE(n_components=2),
+    SpectralEmbedding(n_components=2),
+    Binarizer(),
+    KernelCenterer(),
+    MaxAbsScaler(),
+    MinMaxScaler(),
+    Normalizer(),
+    PowerTransformer(),
+    QuantileTransformer(n_quantiles=10),
+    RobustScaler(),
+    StandardScaler(),
+    OneHotEncoder(),
+    OrdinalEncoder(),
+    PolynomialFeatures(),
+    KBinsDiscretizer(encode="onehot-dense"),
+    ColumnTransformer(transformers=[("trans1", PolynomialFeatures(), [0, 1])]),
+    SimpleImputer(),
+    MissingIndicator(),
+    TargetEncoder(multi_feature_mode="independent"),
+]
+
+GET_FEATURE_NAMES_OUT_XFAILS = {}
+
+
+def gen_get_feature_names_out_tests():
+    checks = [
+        estimator_checks.check_get_feature_names_out_error,
+        estimator_checks.check_transformer_get_feature_names_out,
+        estimator_checks.check_transformer_get_feature_names_out_pandas,
+    ]
+    for estimator in GET_FEATURE_NAMES_OUT_ESTIMATORS:
+        est_name = type(estimator).__name__
+        xfails = GET_FEATURE_NAMES_OUT_XFAILS.get(type(estimator), {})
+        for check in checks:
+            if (reason := xfails.get(check.__name__)) is not None:
+                mark = pytest.mark.xfail(reason=reason, strict=True)
+            else:
+                mark = ()
+
+            yield pytest.param(
+                estimator, check, marks=mark, id=f"{est_name}-{check.__name__}"
+            )
+
+
+@pytest.mark.parametrize(
+    "estimator, check", list(gen_get_feature_names_out_tests())
+)
+def test_sklearn_get_feature_names_out(estimator, check):
+    """Apply upstream sklearn `get_feature_names_out` checks to estimators
+    in cuml that implement that method.
+
+    Only instances in `GET_FEATURE_NAMES_OUT_ESTIMATORS` are checked. If a
+    class implements `get_feature_names_out` and isn't added to this list it
+    will be caught by `test_sklearn_get_feature_names_out_coverage`.
+
+    If an estimator fails a specific test, it may be xfailed by adding it
+    to `GET_FEATURE_NAMES_OUT_XFAILS`.
+    """
+    check(estimator.__class__.__name__, estimator)
+
+
+def test_sklearn_get_feature_names_out_all_estimators_covered():
+    supported = {
+        c
+        for c in _all_cuml_estimators()
+        if hasattr(c, "get_feature_names_out")
+    }
+    tested = {type(est) for est in GET_FEATURE_NAMES_OUT_ESTIMATORS}
+    uncovered = supported - tested
+    assert not uncovered, (
+        f"Estimators implementing `get_feature_names_out` that aren't tested or "
+        f"excluded: {', '.join(sorted(c.__name__ for c in uncovered))}"
+    )
+
+
+@pytest.mark.parametrize(
+    "transformer",
+    GET_FEATURE_NAMES_OUT_ESTIMATORS,
+    ids=lambda est: type(est).__name__,
+)
+def test_transform_inverse_transform_set_index_and_column_names(transformer):
+    """Check that `index` and `columns` are properly set on results of:
+
+    - `fit_transform`
+    - `transform`
+    - `inverse_transform`
+
+    when outputting dataframe objects.
+    """
+    transformer = sklearn.clone(transformer)
+    if hasattr(transformer, "sparse_output"):
+        transformer.sparse_output = False
+    if hasattr(transformer, "random_state"):
+        transformer.random_state = 42
+
+    tags = transformer.__sklearn_tags__()
+
+    X, y = make_blobs(
+        n_samples=30,
+        centers=[[0, 0, 0], [1, 1, 1]],
+        random_state=0,
+        n_features=2,
+        cluster_std=0.1,
+    )
+    X -= X.mean(axis=0)
+    if tags.input_tags.categorical:
+        X = np.round((X - X.min()))
+    elif tags.input_tags.positive_only:
+        X = X - X.min()
+    elif tags.input_tags.pairwise:
+        X = linear_kernel(X, X)
+
+    X = pd.DataFrame(
+        X,
+        columns=[f"C{i}" for i in range(X.shape[1])],
+        index=np.arange(X.shape[0]) * 10,
+    )
+    Xt = None
+
+    if hasattr(transformer, "transform"):
+        Xt = transformer.fit(X, y=y).transform(X)
+        np.testing.assert_array_equal(
+            Xt.columns, transformer.get_feature_names_out()
+        )
+        np.testing.assert_array_equal(Xt.index, X.index)
+    if hasattr(transformer, "fit_transform"):
+        Xt = transformer.fit_transform(X, y=y)
+        np.testing.assert_array_equal(
+            Xt.columns, transformer.get_feature_names_out()
+        )
+        np.testing.assert_array_equal(Xt.index, X.index)
+
+    assert Xt is not None, (
+        "Estimator must implement `transform` and/or `fit_transform"
+    )
+
+    if hasattr(transformer, "inverse_transform"):
+        X2 = transformer.inverse_transform(Xt)
+        np.testing.assert_array_equal(X2.columns, X.columns)
+        np.testing.assert_array_equal(X2.index, X.index)

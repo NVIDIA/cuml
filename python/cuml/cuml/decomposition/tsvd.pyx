@@ -4,6 +4,7 @@
 #
 import cupy as cp
 import numpy as np
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base, get_handle
@@ -70,6 +71,7 @@ cdef extern from "cuml/decomposition/tsvd.hpp" namespace "ML" nogil:
 
 class TruncatedSVD(InteropMixin,
                    FMajorInputTagMixin,
+                   ClassNamePrefixFeaturesOutMixin,
                    Base):
     """
     TruncatedSVD is used to compute the top K singular values and vectors of a
@@ -277,6 +279,7 @@ class TruncatedSVD(InteropMixin,
         self.tol = tol
 
     @property
+    @mlfunc(convert_output=False)
     def _n_features_out(self):
         """Number of transformed output features."""
         # Exposed to support sklearn's `get_feature_names_out`
@@ -296,7 +299,11 @@ class TruncatedSVD(InteropMixin,
                                        'type': 'dense',
                                        'description': 'Reduced version of X',
                                        'shape': '(n_samples, n_components)'})
-    @mlfunc(set_input_type=True, preserve_index=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     def fit_transform(self, X, y=None):
         """
         Fit model to X and perform dimensionality reduction on X.
@@ -393,7 +400,7 @@ class TruncatedSVD(InteropMixin,
                                        'type': 'dense',
                                        'description': 'X in original space',
                                        'shape': '(n_samples, n_features)'})
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """
         Transform X back to its original space.
@@ -455,7 +462,7 @@ class TruncatedSVD(InteropMixin,
                                        'type': 'dense',
                                        'description': 'Reduced version of X',
                                        'shape': '(n_samples, n_components)'})
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Perform dimensionality reduction on X.

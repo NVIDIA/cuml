@@ -516,7 +516,7 @@ jobs:
     with:
       docs-projects: cuml,libcuml
       dry-run: true
-      version-map: '{"26.04": "legacy", "26.06": "stable"}'
+      version-map: ${{ vars.VERSION_MAP }}
   wheel-build-libcuml:
     needs: [build-details, checks]
     permissions:

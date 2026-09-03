@@ -116,7 +116,7 @@ class FunctionTransformer(TransformerMixin, BaseEstimator):
             self._check_inverse_transform(X)
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Transform X using the forward function.
 
@@ -132,7 +132,7 @@ class FunctionTransformer(TransformerMixin, BaseEstimator):
         """
         return self._transform(X, func=self.func, kw_args=self.kw_args)
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Transform X using the inverse function.
 

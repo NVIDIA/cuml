@@ -1,3 +1,8 @@
 - reason: Upstream example fails without cuml.accel on this dependency stack
   tests:
   - "applications::wikipedia_principal_eigenvector"
+- reason: Upstream race, unrelated to cuml.accel, see https://github.com/scikit-learn/scikit-learn/issues/34816
+  condition: scikit-learn==1.9.0
+  strict: false
+  tests:
+  - "callbacks::plot_scoring_monitor"

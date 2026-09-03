@@ -410,7 +410,7 @@ def test_umap_fit_transform_reproducibility(n_components, random_state):
     assert not np.isnan(cuml_embedding2).any()
 
     # Reproducibility threshold raised until intermittent failure is fixed
-    # Ref: https://github.com/rapidsai/cuml/issues/1903
+    # Ref: https://github.com/NVIDIA/cuml/issues/1903
     mean_diff = np.mean(np.abs(cuml_embedding1 - cuml_embedding2))
     if random_state is not None:
         assert mean_diff == 0.0
@@ -501,7 +501,7 @@ def test_umap_transform_reproducibility(n_components, random_state):
     assert not np.isnan(cuml_embedding2).any()
 
     # Reproducibility threshold raised until intermittent failure is fixed
-    # Ref: https://github.com/rapidsai/cuml/issues/1903
+    # Ref: https://github.com/NVIDIA/cuml/issues/1903
     mean_diff = np.mean(np.abs(cuml_embedding1 - cuml_embedding2))
     if random_state is not None:
         assert mean_diff == 0.0
@@ -1658,3 +1658,11 @@ def test_inverse_transform_dimension_mismatch():
 
     with pytest.raises(ValueError, match="components"):
         umap_model.inverse_transform(wrong_embedding)
+
+
+def test_get_feature_names_out():
+    X, _ = make_blobs(n_features=5, random_state=42)
+    cu_model = cuUMAP(n_components=2).fit(X)
+    res = cu_model.get_feature_names_out()
+    sol = np.array(["umap0", "umap1"], dtype=object)
+    np.testing.assert_array_equal(res, sol)

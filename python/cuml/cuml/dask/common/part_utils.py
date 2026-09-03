@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -139,7 +139,7 @@ def _extract_partitions(dask_obj, client=None):
 
         # TODO: ravel() is causing strange behavior w/ delayed Arrays which are
         # not yet backed by futures. Need to investigate this behavior.
-        # ref: https://github.com/rapidsai/cuml/issues/2045
+        # ref: https://github.com/NVIDIA/cuml/issues/2045
         raveled = [d.ravel() for d in dela]
         parts = client.compute([p for p in zip(*raveled)])
 

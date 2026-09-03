@@ -77,7 +77,7 @@ def _prep_training_data_sparse(c, X_train, y_train, partitions_per_worker):
 
     # todo (dgd): Dask nightly packages break persisting
     # sparse arrays before using them.
-    # https://github.com/rapidsai/cuml/issues/6168
+    # https://github.com/NVIDIA/cuml/issues/6168
 
     # X_da, y_da = dask_utils.persist_across_workers(
     #     c, [X_da, y_da], workers=workers

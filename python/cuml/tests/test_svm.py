@@ -490,7 +490,7 @@ def test_svm_predict_mixed_dtypes(train_dtype, test_dtype, classifier):
 @pytest.mark.skipif(
     IS_ARM,
     reason="Test fails unexpectedly on ARM. "
-    "github.com/rapidsai/cuml/issues/5100",
+    "https://github.com/rapidsai/NVIDIA/issues/5100",
 )
 @pytest.mark.skipif(
     cudf_pandas_active,
@@ -513,7 +513,7 @@ def test_svm_no_support_vectors():
     assert model.dual_coef_.shape == (1, 0)
     assert model.support_.shape == (0,)
     assert model.support_vectors_.shape[0] == 0
-    # Check disabled due to https://github.com/rapidsai/cuml/issues/4095
+    # Check disabled due to https://github.com/NVIDIA/cuml/issues/4095
     # assert model.support_vectors_.shape[1] == n_cols
 
 

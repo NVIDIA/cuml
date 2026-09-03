@@ -1,14 +1,17 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import warnings
 from collections.abc import Sequence
 
 import cudf
 import cupy as cp
 import cupyx.scipy.sparse as cp_sp
 import numpy as np
+from sklearn.base import OneToOneFeatureMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
+from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import (
@@ -46,7 +49,16 @@ def _cats_to_series(cats):
     if cats.dtype.kind == "O" and _safe_is_nan(cats[-1]):
         cats = cats.copy()
         cats[-1] = None
-    return cudf.Series(cats)
+    return cudf.Series(cats, nan_as_null=True)
+
+
+def _as_numpy(x, dtype=None):
+    """Coerce an array-like `x` to a numpy array."""
+    if hasattr(x, "to_numpy"):
+        return x.to_numpy(dtype=dtype)
+    if hasattr(x, "__cuda_array_interface__"):
+        x = cp.asnumpy(x)
+    return np.asarray(x, dtype=dtype)
 
 
 def _compute_categories(
@@ -104,37 +116,35 @@ def _compute_categories(
         if auto:
             if not unique:
                 Xi = Xi.drop_duplicates()
+            # For the edge case of floating inputs, we want to ensure NaN and null
+            # are treated equivalently (cudf's default). Coerce NaN to null
+            # and redrop duplicates in case the input had both NaN and null.
+            # This is cheaper than doing `nans_to_nulls` on the full input first.
+            if Xi.dtype.kind == "f":
+                Xi = Xi.nans_to_nulls().drop_duplicates()
+            # cudf's object dtype uses None for NA, we want NaN everywhere
+            if Xi.dtype == "object":
+                Xi = Xi.astype(str)
             cats = Xi.sort_values().to_numpy()
         else:
-            dtype = Xi.dtype if isinstance(Xi.dtype, np.dtype) else "O"
-            cats = categories[i]
-            cats = (
-                cats.to_numpy(dtype=dtype)
-                if hasattr(cats, "to_numpy")
-                else cats.get().astype(dtype, copy=False)
-                if isinstance(cats, cp.ndarray)
-                else np.asarray(cats, dtype=dtype)
+            cats_cudf = cudf.Series(
+                categories[i],
+                dtype=(Xi.dtype if isinstance(Xi.dtype, np.dtype) else str),
+                nan_as_null=True,
             )
+            if cats_cudf.dtype == "object":
+                cats_cudf = cats_cudf.astype(str)
+            cats = cats_cudf.to_numpy()
 
-            # `nan` may only exist in floating or object dtypes, and must be
-            # the last stated category
-            if (cats.dtype.kind == "f" and np.isnan(cats[:-1]).any()) or (
-                cats.dtype.kind == "O"
-                and any(_safe_is_nan(c) for c in cats[:-1])
-            ):
+            # Any null values must be the last stated category
+            if cats_cudf[:-1].isnull().any():
                 raise ValueError(
                     "Nan should be the last element in user"
                     f" provided categories, see categories {cats}"
                     f" in column #{i}"
                 )
 
-            # Try using numpy.unique to check for uniqueness, falling back
-            # to pure python if that fails
-            try:
-                n_cats = len(np.unique(cats))
-            except (TypeError, ValueError):
-                n_cats = len(set(cats))
-            if cats.size != n_cats:
+            if not cats_cudf.is_unique:
                 raise ValueError(
                     f"In column {i}, the predefined categories"
                     " contain duplicate elements."
@@ -143,9 +153,18 @@ def _compute_categories(
             if handle_unknown == "error":
                 if not unique:
                     Xi = Xi.drop_duplicates()
-                present = Xi.sort_values().to_numpy()
-                diff = _get_diff(present, cats)
-                if diff:
+                if Xi.dtype.kind == "f":
+                    Xi = Xi.nans_to_nulls()
+                diff = Xi[~Xi.isin(cats_cudf)]
+                if len(diff):
+                    # XXX: need to repeat drop_duplicates just in case Xi had both
+                    # None & NaN earlier.
+                    diff = (
+                        diff.drop_duplicates()
+                        .sort_values()
+                        .to_numpy()
+                        .tolist()
+                    )
                     raise ValueError(
                         f"Found unknown categories {diff} in column {i} during fit"
                     )
@@ -154,7 +173,7 @@ def _compute_categories(
     return out
 
 
-class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
+class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
     """
     Encode categorical features as a one-hot numeric array.
 
@@ -258,6 +277,8 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
            ['apple', 2]], dtype=object)
     """
 
+    _cpu_class_path = "sklearn.preprocessing.OneHotEncoder"
+
     def __init__(
         self,
         *,
@@ -293,6 +314,89 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         tags.input_tags.allow_nan = True
         return tags
 
+    @classmethod
+    def _params_from_cpu(cls, model):
+        if np.dtype(model.dtype).kind not in "fb":
+            raise UnsupportedOnGPU(f"`dtype={model.dtype!r}` is not supported")
+        if isinstance(model.drop, str) and model.drop == "if_binary":
+            raise UnsupportedOnGPU("`drop='if_binary'` is not supported")
+        if model.handle_unknown in ("infrequent_if_exist", "warn"):
+            raise UnsupportedOnGPU(
+                f"`handle_unknown={model.handle_unknown!r}` is not supported"
+            )
+        if model.min_frequency is not None:
+            raise UnsupportedOnGPU("`min_frequency` is not supported")
+        if model.max_categories is not None:
+            raise UnsupportedOnGPU("`max_categories` is not supported")
+        if not (
+            isinstance(model.feature_name_combiner, str)
+            and model.feature_name_combiner == "concat"
+        ):
+            raise UnsupportedOnGPU("`feature_name_combiner` is not supported")
+
+        categories = model.categories
+        # Fallback if input categories contain bytes dtypes
+        if not (isinstance(categories, str) and categories == "auto"):
+            for i, c in enumerate(model.categories):
+                if getattr(getattr(c, "dtype", None), "kind", "O") not in "OS":
+                    continue
+                try:
+                    check_cudf(c, ensure_ndim=1)
+                except TypeError as exc:
+                    exc_str = str(exc)
+                    if exc_str.startswith("An object dtype input"):
+                        invalid = "mixed"
+                    elif exc_str.startswith("Input with bytes dtype"):
+                        invalid = "bytes"
+                    else:
+                        raise
+                    raise UnsupportedOnGPU(
+                        f"Category {i} with {invalid} dtype is not supported"
+                    ) from None
+
+        return {
+            "categories": categories,
+            "drop": model.drop,
+            "sparse_output": model.sparse_output,
+            "dtype": model.dtype,
+            "handle_unknown": model.handle_unknown,
+        }
+
+    def _params_to_cpu(self):
+        categories = self.categories
+        if not (isinstance(categories, str) and categories == "auto"):
+            categories = [_as_numpy(c) for c in categories]
+
+        drop = self.drop
+        if not (drop is None or (isinstance(drop, str) and drop == "first")):
+            drop = _as_numpy(drop, dtype=object)
+
+        return {
+            "categories": categories,
+            "drop": drop,
+            "sparse_output": self.sparse_output,
+            "dtype": self.dtype,
+            "handle_unknown": self.handle_unknown,
+        }
+
+    def _attrs_from_cpu(self, model):
+        return {
+            "categories_": model.categories_,
+            "drop_idx_": model.drop_idx_,
+            "_n_features_outs": model._n_features_outs,
+            **super()._attrs_from_cpu(model),
+        }
+
+    def _attrs_to_cpu(self, model):
+        return {
+            "categories_": self.categories_,
+            "drop_idx_": self.drop_idx_,
+            "_n_features_outs": self._n_features_outs,
+            "_infrequent_enabled": False,
+            "_drop_idx_after_grouping": self.drop_idx_,
+            **super()._attrs_to_cpu(model),
+        }
+
     @mlfunc(set_input_type=True)
     @generate_docstring(y=None)
     def fit(self, X, y=None) -> "OneHotEncoder":
@@ -301,7 +405,11 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         X = check_cudf(X, input_name="X")
         return self._fit(X)
 
-    @mlfunc(set_input_type=True, preserve_index=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     @generate_docstring(
         y=None,
         return_values={
@@ -340,7 +448,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
                     f"got {self.drop!r}"
                 )
         else:
-            drop = np.asarray(self.drop, dtype=object)
+            drop = _as_numpy(self.drop, dtype=object)
 
             if len(drop) != len(categories):
                 raise ValueError(
@@ -391,7 +499,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
 
         return self
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     @generate_docstring(
         return_values={
             "name": "X_out",
@@ -410,7 +518,8 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         X = check_cudf(X, input_name="X")
 
         raw_inds = cp.zeros(X.shape, dtype="int32")
-        has_unknown = False
+        is_masked = False
+        columns_with_unknown = []
         drop_idx = self.drop_idx_
 
         for i in range(X.shape[1]):
@@ -426,23 +535,24 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
             else:
                 codes = Xi.astype(cudf.CategoricalDtype(cats)).cat.codes
 
-            if codes.has_nulls and self.handle_unknown == "error":
-                present = Xi.drop_duplicates().sort_values().to_numpy()
-                diff = _get_diff(present, self.categories_[i])
-                raise ValueError(
-                    f"Found unknown categories {diff} in column {i}"
-                    " during transform"
-                )
+            if codes.has_nulls:
+                if self.handle_unknown == "error":
+                    present = Xi.drop_duplicates().sort_values().to_numpy()
+                    diff = _get_diff(present, self.categories_[i])
+                    raise ValueError(
+                        f"Found unknown categories {diff} in column {i}"
+                        " during transform"
+                    )
+                is_masked = True
+                columns_with_unknown.append(i)
 
             if drop_idx is not None and drop_idx[i] is not None:
-                has_unknown = True
+                is_masked = True
                 if drop_idx[i] == 0:
                     codes -= 1
                 else:
                     codes[codes == drop_idx[i]] = -1
                     codes[codes > drop_idx[i]] -= 1
-            else:
-                has_unknown |= codes.has_nulls
             raw_inds[:, i] = codes.fillna(-1)
 
         n_samples, n_features = raw_inds.shape
@@ -450,7 +560,18 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         feature_indices = np.cumsum([0, *self._n_features_outs])
         indices = (raw_inds + cp.asarray(feature_indices[:-1])).ravel()
 
-        if has_unknown:
+        if (
+            self.handle_unknown == "ignore"
+            and self.drop is not None
+            and columns_with_unknown
+        ):
+            warnings.warn(
+                "Found unknown categories in columns "
+                f"{columns_with_unknown} during transform. These "
+                "unknown categories will be encoded as all zeros",
+            )
+
+        if is_masked:
             mask = raw_inds != -1
             indices = indices[mask.ravel()]
 
@@ -473,7 +594,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
             return out
         return out.toarray()
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Convert the data back to the original representation.
 
@@ -508,7 +629,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
 
             if len(cats) == 1 and drop_idx is not None:
                 columns[i] = (
-                    cudf.Series(cats[drop_idx])
+                    cudf.Series(cats[drop_idx], nan_as_null=True)
                     .repeat(X.shape[0])
                     .reset_index(drop=True)
                 )
@@ -544,9 +665,6 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         for idx, mask in found_unknown.items():
             out.loc[mask, idx] = None
 
-        if getattr(self, "feature_names_in_", None) is not None:
-            out.columns = self.feature_names_in_
-
         return out
 
     def get_feature_names_out(self, input_features=None):
@@ -577,7 +695,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, Base):
         return np.array(out, dtype=object)
 
 
-class OrdinalEncoder(Base):
+class OrdinalEncoder(OneToOneFeatureMixin, Base):
     """Encode categorical features as an integer array.
 
     The input to this transformer should be an array-like of integers or
@@ -683,7 +801,11 @@ class OrdinalEncoder(Base):
         X = check_cudf(X, input_name="X")
         return self._fit(X)
 
-    @mlfunc(set_input_type=True, preserve_index=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     @generate_docstring(
         y=None,
         return_values={
@@ -729,7 +851,7 @@ class OrdinalEncoder(Base):
 
         return self
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     @generate_docstring(
         return_values={
             "name": "X_out",
@@ -776,7 +898,7 @@ class OrdinalEncoder(Base):
 
         return out
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Convert the data back to the original representation.
 
@@ -832,8 +954,5 @@ class OrdinalEncoder(Base):
 
         for idx, mask in found_unknown.items():
             out.loc[mask, idx] = None
-
-        if getattr(self, "feature_names_in_", None) is not None:
-            out.columns = self.feature_names_in_
 
         return out
