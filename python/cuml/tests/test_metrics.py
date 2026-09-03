@@ -345,7 +345,7 @@ def test_adjusted_rand_score_small(nrows):
 @pytest.mark.skipif(
     IS_ARM,
     reason="Test fails unexpectedly on ARM. "
-    "github.com/rapidsai/cuml/issues/5025",
+    "https://github.com/NVIDIA/cuml/issues/5025",
 )
 def test_silhouette_score_batched(metric, chunk_divider, labeled_clusters):
     X, labels = labeled_clusters
