@@ -124,7 +124,7 @@ class RandomForestClassifier(
     Examples
     --------
     For usage examples, please see the RAPIDS notebooks repository:
-    https://github.com/rapidsai/cuml/blob/main/notebooks/random_forest_mnmg_demo.ipynb
+    https://github.com/NVIDIA/cuml/blob/main/notebooks/random_forest_mnmg_demo.ipynb
     """
 
     def __init__(

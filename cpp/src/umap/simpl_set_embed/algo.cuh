@@ -272,7 +272,7 @@ void optimize_layout(T* head_embedding,
     thrust::default_random_engine rng(params->random_state);
     thrust::shuffle(first, first + nnz, rng);
     if (min_n <= 100000) {
-      // related issue: https://github.com/rapidsai/cuml/issues/7431
+      // related issue: https://github.com/NVIDIA/cuml/issues/7431
       // Heuristic value for forcing serial behavior to handle outliers in smaller datasets.
       // Ideally this value should depend on nnz, maximum graph degree, number of SMs and maximum
       // number of threads per SM, but it is difficult to generalize due to limited cases where this
@@ -288,7 +288,7 @@ void optimize_layout(T* head_embedding,
     // For deterministic mode on datasets likely to contain outliers, the
     // heuristic below picks num_chunks. Empirically, 100000 edges per chunk
     // balances determinism and gradient-accumulation behavior on large
-    // datasets. See benchmarks in https://github.com/rapidsai/cuml/pull/7597
+    // datasets. See benchmarks in https://github.com/NVIDIA/cuml/pull/7597
     if (nnz > 100000) {
       num_chunks =
         std::max(num_chunks, ML::narrow_cast<int>(raft::ceildiv(nnz, static_cast<nnz_t>(100000))));

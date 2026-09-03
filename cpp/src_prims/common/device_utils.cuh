@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -11,7 +11,7 @@
 
 namespace MLCommon {
 
-// TODO move to raft https://github.com/rapidsai/raft/issues/90
+// TODO move to raft https://github.com/NVIDIA/raft/issues/90
 /** helper method to get the compute capability version numbers */
 inline std::pair<int, int> getDeviceCapability()
 {

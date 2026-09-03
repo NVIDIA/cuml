@@ -103,7 +103,7 @@ class SVC(ClassifierMixin, SVMBase):
     n_support_ : int
         The total number of support vectors. Note: this will change in the
         future to represent number support vectors for each class (like
-        in Sklearn, see https://github.com/rapidsai/cuml/issues/956 )
+        in Sklearn, see https://github.com/NVIDIA/cuml/issues/956 )
     support_ : int, shape = (n_support)
         Device array of support vector indices
     support_vectors_ : float, shape (n_support, n_cols)

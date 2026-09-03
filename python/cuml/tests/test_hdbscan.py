@@ -448,7 +448,7 @@ def test_hdbscan_cluster_patterns_extract_clusters(
 def test_hdbscan_core_dists_bug_4054():
     """
     This test explicitly verifies that the MRE from
-    https://github.com/rapidsai/cuml/issues/4054
+    https://github.com/NVIDIA/cuml/issues/4054
     matches the reference impl
     """
 

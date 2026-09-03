@@ -410,7 +410,7 @@ def test_umap_fit_transform_reproducibility(n_components, random_state):
     assert not np.isnan(cuml_embedding2).any()
 
     # Reproducibility threshold raised until intermittent failure is fixed
-    # Ref: https://github.com/rapidsai/cuml/issues/1903
+    # Ref: https://github.com/NVIDIA/cuml/issues/1903
     mean_diff = np.mean(np.abs(cuml_embedding1 - cuml_embedding2))
     if random_state is not None:
         assert mean_diff == 0.0
@@ -501,7 +501,7 @@ def test_umap_transform_reproducibility(n_components, random_state):
     assert not np.isnan(cuml_embedding2).any()
 
     # Reproducibility threshold raised until intermittent failure is fixed
-    # Ref: https://github.com/rapidsai/cuml/issues/1903
+    # Ref: https://github.com/NVIDIA/cuml/issues/1903
     mean_diff = np.mean(np.abs(cuml_embedding1 - cuml_embedding2))
     if random_state is not None:
         assert mean_diff == 0.0

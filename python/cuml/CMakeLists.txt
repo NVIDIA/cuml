@@ -1,6 +1,6 @@
 # =============================================================================
 # cmake-format: off
-# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 # cmake-format: on
 # =============================================================================
@@ -32,8 +32,7 @@ option(CUML_UNIVERSAL "Build all cuML Python components." ON)
 option(SINGLEGPU "Disable all mnmg components and comms libraries" OFF)
 option(USE_LIBCUML_WHEEL "Use libcuml wheel to provide some dependencies" OFF)
 
-# todo: use CMAKE_MESSAGE_CONTEXT for prefix for logging.
-# https://github.com/rapidsai/cuml/issues/4843
+# todo: use CMAKE_MESSAGE_CONTEXT for prefix for logging. https://github.com/NVIDIA/cuml/issues/4843
 message(VERBOSE "CUML_PY: Disabling all mnmg components and comms libraries: ${SINGLEGPU}")
 
 set(CUML_ALGORITHMS

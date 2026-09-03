@@ -426,7 +426,7 @@ class ClassLabels:
         elif output_type == "numpy":
             # XXX: dtype coercion not needed for object, and when specified
             # cudf will sometimes coerce `None -> <NA>` erroneously.
-            # See https://github.com/rapidsai/cudf/issues/22419
+            # See https://github.com/NVIDIA/cudf/issues/22419
             # Better to leave unspecified in this case.
             return out.to_numpy(dtype=None if dtype == "object" else dtype)
         else:

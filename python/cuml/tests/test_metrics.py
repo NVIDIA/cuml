@@ -345,14 +345,14 @@ def test_adjusted_rand_score_small(nrows):
 @pytest.mark.skipif(
     IS_ARM,
     reason="Test fails unexpectedly on ARM. "
-    "github.com/rapidsai/cuml/issues/5025",
+    "https://github.com/NVIDIA/cuml/issues/5025",
 )
 def test_silhouette_score_batched(metric, chunk_divider, labeled_clusters):
     X, labels = labeled_clusters
     if metric == "l1":
         pytest.xfail(
             "Batched l1 silhouette score is unstable; "
-            "see https://github.com/rapidsai/cuml/issues/8145"
+            "see https://github.com/NVIDIA/cuml/issues/8145"
         )
 
     cuml_score = cu_silhouette_score(
@@ -1102,7 +1102,7 @@ def test_roc_auc_score_at_limits():
 
 @pytest.mark.skip(
     reason="shape discrepancy with sklearn 1.2"
-    "https://github.com/rapidsai/cuml/issues/5164"
+    "https://github.com/NVIDIA/cuml/issues/5164"
 )
 def test_precision_recall_curve():
     y_true = np.array([0, 0, 1, 1])
@@ -1140,7 +1140,7 @@ def test_precision_recall_curve_at_limits():
 
 @pytest.mark.skip(
     reason="shape discrepancy with sklearn 1.2"
-    "https://github.com/rapidsai/cuml/issues/5164"
+    "https://github.com/NVIDIA/cuml/issues/5164"
 )
 @pytest.mark.parametrize("n_samples", [50, 500000])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64, np.float32, np.float64])

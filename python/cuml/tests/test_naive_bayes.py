@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -134,7 +134,7 @@ def test_partial_fit_new_class_in_later_batch(model_cls, sk_cls):
     the already-established `classes_`, not just the unique labels
     present in that batch, or updates silently land on the wrong class
     row. Regression test for
-    https://github.com/rapidsai/cuml/issues/7203
+    https://github.com/NVIDIA/cuml/issues/7203
     """
     X1 = cp.array([[0, 1], [1, 0]], dtype=cp.float32)
     y1 = cp.array([0, 1], dtype=cp.int32)
