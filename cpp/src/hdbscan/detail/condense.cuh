@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -143,9 +143,9 @@ void _build_condensed_hierarchy(const raft::handle_t& handle,
     // Skip if already processed or is a leaf
     if (ignore[node] || node < n_samples) { continue; }
 
-    value_idx left       = h_children[(node - n_samples) * 2];
-    value_idx right      = h_children[(node - n_samples) * 2 + 1];
-    value_t distance     = h_delta[node - n_samples];
+    value_idx left   = h_children[(node - n_samples) * 2];
+    value_idx right  = h_children[(node - n_samples) * 2 + 1];
+    value_t distance = h_delta[node - n_samples];
     value_t lambda_value =
       distance > value_t(0.0) ? value_t(1.0) / distance : std::numeric_limits<value_t>::max();
 
