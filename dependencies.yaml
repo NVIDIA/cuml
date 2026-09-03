@@ -531,7 +531,6 @@ dependencies:
           - ipython
           - ipykernel
           - nbsphinx
-          - numpydoc
           - &onnxruntime onnxruntime
           - recommonmark
           - *scikit_learn
@@ -543,6 +542,7 @@ dependencies:
       - output_types: conda
         packages:
           - doxygen=1.9.1
+          - numpydoc
           - matplotlib-base
           - pip:
               - nvidia-sphinx-theme
@@ -681,8 +681,6 @@ dependencies:
           - hypothesis>=6.0,<7
           - msgspec
           - nltk
-          # upstream sklearn docstring tests require numpydoc<1.9
-          - numpydoc<1.9
           # 'nvidia-ml-py' provides the 'pynvml' module
           - nvidia-ml-py>=12
           - *onnxruntime
@@ -701,6 +699,10 @@ dependencies:
       - output_types: conda
         packages:
           - cuvs==26.10.*,>=0.0.0a0
+          # upstream sklearn docstring tests require numpydoc<1.9
+          #
+          # 'numpydoc' is intentionally conda-only, see https://github.com/NVIDIA/cuml/issues/7710
+          - numpydoc<1.9
   test_python_accel_sklearn:
     # Exact pin the sklearn versions used for running upstream sklearn tests
     # in cuml.accel. We exact pin here since our xfail list is tightly coupled

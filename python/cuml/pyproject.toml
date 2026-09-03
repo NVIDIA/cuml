@@ -121,7 +121,6 @@ test = [
     "lightgbm",
     "msgspec",
     "nltk",
-    "numpydoc<1.9",
     "nvidia-ml-py>=12",
     "onnxruntime",
     "pynndescent",
