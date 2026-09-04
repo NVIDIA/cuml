@@ -712,6 +712,58 @@ def test_nearest_neighbors_sparse(
         assert (len(diffs[diffs > 0]) / len(np.ravel(skI))) <= 0.005
 
 
+def test_nearest_neighbors_sparse_x_none_self_edge_swap_indices_int64():
+    X_dense = np.array(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [10.0, 0.0, 0.0, 0.0],
+            [10.25, 0.0, 0.0, 0.0],
+        ],
+        dtype=np.float32,
+    )
+    X = cupyx.scipy.sparse.csr_matrix(cp.asarray(X_dense))
+
+    nn = cuKNN(
+        metric="euclidean",
+        n_neighbors=2,
+        algorithm="brute",
+        output_type="cupy",
+    )
+    nn.fit(X)
+
+    explicit_distances, explicit_indices = nn.kneighbors(X, n_neighbors=2)
+    assert explicit_indices.dtype == cp.int32
+    assert explicit_distances.dtype == cp.float32
+
+    distances, indices = nn.kneighbors(X=None, n_neighbors=1)
+    assert indices.dtype == cp.int64
+    assert indices.flags.c_contiguous
+    assert distances.dtype == cp.float32
+    assert distances.flags.c_contiguous
+
+    indices_np = cp.asnumpy(indices)
+    distances_np = cp.asnumpy(distances)
+    for row, row_indices in enumerate(indices_np):
+        assert row not in row_indices
+
+    sk_distances, sk_indices = (
+        skKNN(
+            metric="euclidean",
+            n_neighbors=1,
+            algorithm="brute",
+        )
+        .fit(X_dense)
+        .kneighbors(X=None, n_neighbors=1)
+    )
+
+    np.testing.assert_allclose(
+        distances_np, sk_distances, atol=1e-5, rtol=1e-5
+    )
+    for row_indices, expected_indices in zip(indices_np, sk_indices):
+        assert set(row_indices.tolist()) == set(expected_indices.tolist())
+
+
 @pytest.mark.parametrize("n_neighbors", [1, 5, 6])
 def test_haversine(n_neighbors):
     hoboken_nj = [40.745255, -74.034775]
