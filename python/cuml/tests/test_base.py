@@ -4,7 +4,6 @@
 import inspect
 
 import numpy as np
-import numpydoc.docscrape
 import pandas as pd
 import pylibraft.common.handle
 import pytest
@@ -54,6 +53,8 @@ def test_base_subclass_init_matches_docs(child_class: str):
             "the base arguments in constructors."
         )
 
+    numpydoc_docscrape = pytest.importorskip("numpydoc.docscrape")
+
     # To quickly find and replace all instances in the documentation, the below
     # regex's may be useful
     # output_type: r"^[ ]{4}output_type :.*\n(^(?![ ]{0,4}(?![ ]{4,})).*(\n))+"
@@ -71,12 +72,12 @@ def test_base_subclass_init_matches_docs(child_class: str):
 
     # Load the base class signature, parse the docstring and pull out params
     base_sig = inspect.signature(cuml.Base, follow_wrapped=True)
-    base_doc = numpydoc.docscrape.NumpyDocString(cuml.Base.__doc__)
+    base_doc = numpydoc_docscrape.NumpyDocString(cuml.Base.__doc__)
     base_doc_params = base_doc["Parameters"]
 
     # Load the current class signature, parse the docstring and pull out params
     klass_sig = inspect.signature(klass, follow_wrapped=True)
-    klass_doc = numpydoc.docscrape.NumpyDocString(klass.__doc__ or "")
+    klass_doc = numpydoc_docscrape.NumpyDocString(klass.__doc__ or "")
     klass_doc_params = klass_doc["Parameters"]
 
     for name, param in base_sig.parameters.items():
