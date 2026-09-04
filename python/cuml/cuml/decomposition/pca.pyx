@@ -5,6 +5,7 @@
 import cupy as cp
 import cupyx.scipy.sparse
 import numpy as np
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse, sparse_cov_and_mean
@@ -83,6 +84,7 @@ cdef extern from "cuml/decomposition/pca.hpp" namespace "ML" nogil:
 class PCA(InteropMixin,
           FMajorInputTagMixin,
           SparseInputTagMixin,
+          ClassNamePrefixFeaturesOutMixin,
           Base):
 
     """
@@ -333,6 +335,7 @@ class PCA(InteropMixin,
         self.whiten = whiten
 
     @property
+    @mlfunc(convert_output=False)
     def _n_features_out(self):
         """Number of transformed output features."""
         # Exposed to support sklearn's `get_feature_names_out`
@@ -500,7 +503,11 @@ class PCA(InteropMixin,
                                        'type': 'dense_sparse',
                                        'description': 'Transformed values',
                                        'shape': '(n_samples, n_components)'})
-    @mlfunc(set_input_type=True, preserve_index=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     def fit_transform(self, X, y=None):
         """
         Fit the model with X and apply the dimensionality reduction on X.
@@ -569,7 +576,7 @@ class PCA(InteropMixin,
                                        'type': 'dense_sparse',
                                        'description': 'Transformed values',
                                        'shape': '(n_samples, n_features)'})
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(
         self,
         X,
@@ -661,7 +668,7 @@ class PCA(InteropMixin,
                                        'type': 'dense_sparse',
                                        'description': 'Transformed values',
                                        'shape': '(n_samples, n_components)'})
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Apply dimensionality reduction to X.

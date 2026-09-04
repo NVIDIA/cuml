@@ -14,6 +14,12 @@ from cuml.dask.common.utils import wait_and_raise_from_futures
 from cuml.naive_bayes import MultinomialNB as MNB
 
 
+def _count_accurate_predictions(y_hat, y):
+    y_hat = cp.asarray(y_hat, dtype=y_hat.dtype)
+    y = cp.asarray(y, dtype=y.dtype)
+    return y.shape[0] - cp.count_nonzero(y - y_hat)
+
+
 class MultinomialNB(BaseEstimator, DelayedPredictionMixin):
     """
     Distributed Naive Bayes classifier for multinomial models
@@ -187,8 +193,8 @@ class MultinomialNB(BaseEstimator, DelayedPredictionMixin):
 
         """
         # TODO: This could be refactored to use DelayedPredictionMixin
-        # Ref: https://github.com/rapidsai/cuml/issues/1834
-        # Ref: https://github.com/rapidsai/cuml/issues/1387
+        # Ref: https://github.com/NVIDIA/cuml/issues/1834
+        # Ref: https://github.com/NVIDIA/cuml/issues/1387
         if not isinstance(X, dask.array.core.Array):
             raise ValueError("Only dask.Array is supported for X")
 
@@ -217,17 +223,11 @@ class MultinomialNB(BaseEstimator, DelayedPredictionMixin):
 
         y_hat = self.predict(X)
 
-        @dask.delayed
-        def _count_accurate_predictions(y_hat, y):
-            y_hat = cp.asarray(y_hat, dtype=y_hat.dtype)
-            y = cp.asarray(y, dtype=y.dtype)
-            return y.shape[0] - cp.count_nonzero(y - y_hat)
-
         delayed_parts = zip(y_hat.to_delayed(), y.to_delayed())
 
-        accuracy_parts = [
-            _count_accurate_predictions(*p) for p in delayed_parts
-        ]
+        func = dask.delayed(_count_accurate_predictions)
+
+        accuracy_parts = [func(*p) for p in delayed_parts]
 
         reduced = first(dask.compute(tree_reduce(accuracy_parts)))
 

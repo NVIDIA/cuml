@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
@@ -15,6 +15,17 @@ mkdir -p "${RAPIDS_TESTS_DIR}"
 # generate constraints, the constraints will limit the version of the
 # dependencies that can be installed later on when installing the wheel
 rapids-generate-pip-constraints test_python "${PIP_CONSTRAINT}"
+
+python -m venv libcuml-env
+. libcuml-env/bin/activate
+
+rapids-pip-retry install \
+    -v \
+    --prefer-binary \
+    --constraint "${PIP_CONSTRAINT}" \
+    "${LIBCUML_WHEELHOUSE}"/libcuml*.whl
+python -c "import libcuml; assert (libraries := libcuml.load_library()) and all(libraries)"
+deactivate
 
 # notes:
 #

@@ -558,7 +558,7 @@ def test_tweedie_convergence(max_depth, split_criterion):
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_classification(small_clf, datatype, max_samples, max_features):
     X, y = small_clf
@@ -666,7 +666,7 @@ def test_rf_classification_unorder(
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_regression(
     special_reg, datatype, max_features, max_samples, n_bins
@@ -712,7 +712,7 @@ def test_rf_regression(
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
 def test_rf_classification_seed(small_clf, datatype):
@@ -747,7 +747,7 @@ def test_rf_classification_seed(small_clf, datatype):
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_classification_fit_and_predict_dtypes_differ(small_clf, datatype):
     X, y = small_clf
@@ -779,7 +779,7 @@ def test_rf_classification_fit_and_predict_dtypes_differ(small_clf, datatype):
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_regression_fit_and_predict_dtypes_differ(large_reg, datatype):
     X, y = large_reg
@@ -879,7 +879,7 @@ def rf_classification(
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_classification_multi_class(mclass_clf, datatype, array_type):
     rf_classification(datatype, array_type, 1.0, 1.0, mclass_clf)
@@ -891,7 +891,7 @@ def test_rf_classification_multi_class(mclass_clf, datatype, array_type):
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_classification_proba(
     small_clf, datatype, max_samples, max_features
@@ -906,7 +906,7 @@ def test_rf_classification_proba(
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_classification_sparse(small_clf, datatype, nvforest_layout):
     num_trees = 50
@@ -968,7 +968,7 @@ def test_rf_classification_sparse(small_clf, datatype, nvforest_layout):
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_regression_sparse(special_reg, datatype, nvforest_layout):
     num_trees = 50
@@ -1652,7 +1652,7 @@ def test_rf_oob_score_binary_classification():
 @pytest.mark.skipif(
     cudf_pandas_active,
     reason="cudf.pandas causes sklearn RF estimators crashes sometimes. "
-    "Issue: https://github.com/rapidsai/cuml/issues/5991",
+    "Issue: https://github.com/NVIDIA/cuml/issues/5991",
 )
 def test_rf_feature_zero_bias(datatype, n_features):
     """
@@ -1662,7 +1662,7 @@ def test_rf_feature_zero_bias(datatype, n_features):
     and all other features are pure noise. This tests whether
     feature 0 is being properly sampled during tree building.
 
-    Regression test for: https://github.com/rapidsai/cuml/issues/7422
+    Regression test for: https://github.com/NVIDIA/cuml/issues/7422
     """
     n_samples = 5000
 

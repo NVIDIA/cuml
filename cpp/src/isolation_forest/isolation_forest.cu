@@ -153,6 +153,24 @@ void fit(const raft::handle_t& handle,
   if_model.fit(handle, input, n_rows, n_cols, forest);
 }
 
+template <typename T>
+void fit_treelite(const raft::handle_t& handle,
+                  TreeliteModelHandle* model_handle,
+                  const T* input,
+                  size_t n_rows,
+                  int n_cols,
+                  const IF_params& params,
+                  double* c_normalization,
+                  rapids_logger::level_enum verbosity)
+{
+  ASSERT(c_normalization != nullptr, "Normalization output pointer cannot be null.");
+
+  IsolationForestModel<T> forest;
+  fit(handle, &forest, input, n_rows, n_cols, params, verbosity);
+  *c_normalization = forest.c_normalization;
+  build_treelite_isolation_forest<T>(model_handle, handle, &forest);
+}
+
 void score_samples(const raft::handle_t& handle,
                    const IsolationForestF* forest,
                    const float* input,
@@ -247,5 +265,22 @@ template CUML_EXPORT void build_treelite_isolation_forest<float>(
   TreeliteModelHandle*, const raft::handle_t&, const IsolationForestModel<float>*);
 template CUML_EXPORT void build_treelite_isolation_forest<double>(
   TreeliteModelHandle*, const raft::handle_t&, const IsolationForestModel<double>*);
+
+template CUML_EXPORT void fit_treelite<float>(const raft::handle_t&,
+                                              TreeliteModelHandle*,
+                                              const float*,
+                                              size_t,
+                                              int,
+                                              const IF_params&,
+                                              double*,
+                                              rapids_logger::level_enum);
+template CUML_EXPORT void fit_treelite<double>(const raft::handle_t&,
+                                               TreeliteModelHandle*,
+                                               const double*,
+                                               size_t,
+                                               int,
+                                               const IF_params&,
+                                               double*,
+                                               rapids_logger::level_enum);
 
 }  // namespace ML

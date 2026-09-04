@@ -16,6 +16,7 @@
 
 .. autoclass:: {{ objname }}
    :members:
+   :inherited-members:
 
 {%- else -%}
 

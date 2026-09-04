@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cudf
@@ -82,7 +82,7 @@ def accuracy_score(y_true, y_pred, *, sample_weight=None, normalize=True):
     # Categorical dtypes in cudf currently don't coerce nicely on equality,
     # we need to manually cast to cudf.Series and align dtypes.
     # This whole code block can be removed once
-    # https://github.com/rapidsai/cudf/issues/18196 is resolved.
+    # https://github.com/NVIDIA/cudf/issues/18196 is resolved.
     if y_true.dtype == "category":
         if y_pred.dtype != y_true.dtype:
             y_pred = cudf.Series(y_pred, copy=False, nan_as_null=False).astype(

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import os
@@ -47,7 +47,7 @@ def test_cuml_import_no_cuinit(cuda_gdb):
     # Intercepting the call to cuInit programmatically is tricky since
     # the way it is resolved from dynamic libraries by
     # cuda-python/numba/cupy is multitudinous (see discussion at
-    # https://github.com/rapidsai/cuml/pull/12361 which does this, but
+    # https://github.com/NVIDIA/cuml/pull/12361 which does this, but
     # needs provide hooks that override dlsym, cuGetProcAddress, and
     # cuInit.
     # Instead, we just run under GDB and see if we hit a breakpoint

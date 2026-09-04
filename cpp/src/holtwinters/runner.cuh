@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -188,10 +188,10 @@ void HoltWintersEval(const raft::handle_t& handle,
   }
 }
 
-// expose line search step size - https://github.com/rapidsai/cuml/issues/886
+// expose line search step size - https://github.com/NVIDIA/cuml/issues/886
 // Also, precision errors arise in optimization. There's floating point instability,
 // and epsilon majorly influences the fitting based on precision. For a summary,
-// https://github.com/rapidsai/cuml/issues/888
+// https://github.com/NVIDIA/cuml/issues/888
 template <typename Dtype>
 void HoltWintersOptim(const raft::handle_t& handle,
                       const Dtype* ts,
@@ -307,7 +307,7 @@ void HoltWintersForecast(const raft::handle_t& handle,
 }
 
 // change optim_gamma to false here to test bug in Double Exponential Smoothing
-// https://github.com/rapidsai/cuml/issues/889
+// https://github.com/NVIDIA/cuml/issues/889
 template <typename Dtype>
 void HoltWintersFitHelper(const raft::handle_t& handle,
                           int n,

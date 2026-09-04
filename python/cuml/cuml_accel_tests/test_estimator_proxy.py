@@ -155,7 +155,7 @@ def test_repr():
     # machine, but :shrug:. All we care about is that things are plumbed
     # properly, so ignoring this error here for now. This is repeated twice
     # below as well.
-    # See https://github.com/rapidsai/cuml/issues/8212.
+    # See https://github.com/NVIDIA/cuml/issues/8212.
     try:
         mimebundle = model._repr_mimebundle_()
     except UnicodeDecodeError:
@@ -167,7 +167,7 @@ def test_repr():
 def test_repr_mimebundle():
     model = LogisticRegression(C=1.5)
     X, y = make_classification()
-    # TODO: see https://github.com/rapidsai/cuml/issues/8212
+    # TODO: see https://github.com/NVIDIA/cuml/issues/8212
     try:
         html_repr = model._repr_mimebundle_()["text/html"]
     except UnicodeDecodeError:
@@ -205,7 +205,7 @@ def test_pipeline_repr():
     native = Pipeline([("cls", model._cpu)])
     assert str(pipe) == str(native)
     assert repr(pipe) == repr(native)
-    # TODO: see https://github.com/rapidsai/cuml/issues/8212
+    # TODO: see https://github.com/NVIDIA/cuml/issues/8212
     try:
         mimebundle = pipe._repr_mimebundle_()
     except UnicodeDecodeError:

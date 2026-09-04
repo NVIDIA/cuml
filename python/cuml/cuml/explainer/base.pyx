@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cudf
@@ -227,7 +227,7 @@ class SHAPBase():
         # model is a multidimensional-output function
         shap_values = []
 
-        for i in range(self.model_dimensions):
+        for _ in range(self.model_dimensions):
             shap_values.append(cp.zeros(X.shape, dtype=self.dtype))
 
         # Allocate synthetic dataset array once for multiple explanations
@@ -322,7 +322,7 @@ class SHAPBase():
         """
 
         main_effects = []
-        for idx, x in enumerate(X):
+        for x in X:
             main_effects.append(self._calculate_main_effects(x))
 
         return main_effects

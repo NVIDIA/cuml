@@ -12,6 +12,7 @@ import joblib
 import numpy as np
 import scipy.sparse
 import scipy.spatial
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse
@@ -500,7 +501,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
             # TODO: for now, users should be able to see the same results
             # as previous version (i.e. running brute force knn) when they
             # explicitly pass random_state
-            # https://github.com/rapidsai/cuml/issues/5985
+            # https://github.com/NVIDIA/cuml/issues/5985
             build_algo ="brute_force_knn"
         elif n_rows <= 50_000 or is_sparse:
             # brute force is faster for small datasets
@@ -515,7 +516,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
         )
 
     if build_algo == "nn_descent" and n_rows < 150:
-        # https://github.com/rapidsai/cuvs/issues/184
+        # https://github.com/NVIDIA/cuvs/issues/184
         warnings.warn(
             "using build_algo='nn_descent' on a small dataset (< 150 samples) "
             "is unstable"
@@ -655,7 +656,13 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
         params.build_params.nnd.intermediate_graph_degree = intermediate_graph_degree
 
 
-class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
+class UMAP(
+    InteropMixin,
+    CMajorInputTagMixin,
+    SparseInputTagMixin,
+    ClassNamePrefixFeaturesOutMixin,
+    Base,
+):
     """Uniform Manifold Approximation and Projection
 
     Finds a low dimensional embedding of the data that approximates
@@ -1104,6 +1111,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             "_disconnection_distance": disconnection_distance,
             "_initial_alpha": self.learning_rate,
             "_n_neighbors": self._n_neighbors,
+            "_n_features_out": self._n_features_out,
             "_supervised": self._supervised,
             "_small_data": False,
             "_knn_dists": knn_dists,
@@ -1195,6 +1203,11 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
         self.build_algo = build_algo
         self.build_kwds = build_kwds
         self.device_ids = device_ids
+
+    @property
+    @mlfunc(convert_output=False)
+    def _n_features_out(self):
+        return self.embedding_.array.shape[1]
 
     @generate_docstring(
         X="dense_sparse",
@@ -1421,7 +1434,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None, *, knn_graph=None):
         """
         Fit X into an embedded space and return that transformed
@@ -1454,7 +1467,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Transform X into the existing embedded space and return that
@@ -1579,7 +1592,7 @@ class UMAP(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base):
             "shape": "(n_samples, n_features)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Transform X in the existing embedded space back into the input
         data space and return that transformed output.

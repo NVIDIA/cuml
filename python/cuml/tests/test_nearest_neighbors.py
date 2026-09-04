@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -222,7 +222,7 @@ def test_ivfpq_pred(
     nrows, ncols, n_neighbors, nlist, M, n_bits, usePrecomputedTables
 ):
     if ncols == 512:
-        pytest.skip("https://github.com/rapidsai/cuml/issues/5603")
+        pytest.skip("https://github.com/NVIDIA/cuml/issues/5603")
     algo_params = {
         "nlist": nlist,
         "nprobe": int(nlist * 0.2),

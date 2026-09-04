@@ -203,7 +203,7 @@ def array_strategy(draw):
 )
 @given(kernel_arg_strategy(), array_strategy())
 @settings(deadline=None)
-@pytest.mark.skip("https://github.com/rapidsai/cuml/issues/5177")
+@pytest.mark.skip("https://github.com/NVIDIA/cuml/issues/5177")
 def test_pairwise_kernels(kernel_arg, XY):
     X, Y = XY
     kernel, args = kernel_arg

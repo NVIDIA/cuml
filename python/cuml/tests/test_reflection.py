@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse
+from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 import cuml
 from cuml.internals.base import Base
@@ -542,6 +543,65 @@ def test_mlfunc_preserve_index(input_type, output_type):
     )
 
 
+@pytest.mark.parametrize("input_type", ["pandas", "cudf"])
+def test_mlfunc_column_names(input_type):
+    xdf = cudf if input_type == "cudf" else pd
+    X = xdf.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]})
+
+    class MyEstimator(ClassNamePrefixFeaturesOutMixin, Base):
+        @mlfunc(set_input_type=True)
+        def fit(self, X):
+            X = check_inputs(self, X, reset=True)
+            self._n_features_out = X.shape[1] * 2
+            return self
+
+        @mlfunc(column_names="feature_names_out")
+        def fit_transform(self, X):
+            self.fit(X)
+            return cp.ones((X.shape[0], self._n_features_out))
+
+        @mlfunc(column_names="feature_names_out")
+        def returns_sparse_matrix(self, X):
+            return cupyx.scipy.sparse.eye(
+                X.shape[0],
+                self._n_features_out,
+                format="csr",
+            )
+
+        @mlfunc
+        def no_names(self, X):
+            return cp.ones((X.shape[0], self.n_features_in_))
+
+        @mlfunc(column_names="feature_names_in")
+        def inverse_transform(self, X):
+            return cp.ones((X.shape[0], self.n_features_in_))
+
+    # Works with feature names
+    model = MyEstimator()
+    Xt = model.fit_transform(X)
+    np.testing.assert_array_equal(Xt.columns, model.get_feature_names_out())
+
+    X2 = model.inverse_transform(Xt)
+    np.testing.assert_array_equal(X2.columns, X.columns)
+
+    # column_names=None doesn't add anything
+    res = model.no_names(X)
+    np.testing.assert_array_equal(res.columns, [0, 1])
+
+    # No error applying names if not a dataframe output
+    res = model.returns_sparse_matrix(X)
+    assert cupyx.scipy.sparse.issparse(res) or scipy.sparse.issparse(res)
+
+    # Works if no feature names
+    X = X.to_numpy()
+    model = MyEstimator(output_type=input_type)
+    Xt = model.fit_transform(X)
+    np.testing.assert_array_equal(Xt.columns, model.get_feature_names_out())
+
+    X2 = model.inverse_transform(Xt)
+    np.testing.assert_array_equal(X2.columns, [0, 1])
+
+
 @pytest.mark.parametrize("dtype", ["int32", "object", "U"])
 @pytest.mark.parametrize("output_type", OUTPUT_TYPES)
 def test_class_labels(dtype, output_type):
@@ -629,6 +689,44 @@ def test_array_like_inputs_treated_as_numpy_by_reflection():
     # Methods with no args use input type
     assert_output_type(model_fit_list.example_no_args(), "numpy")
     assert_output_type(model_fit_cupy.example_no_args(), "cupy")
+
+
+@pytest.mark.parametrize("output_type", ["pandas", "cudf"])
+def test_one_col_2d_array_only_coerced_to_series_for_predict(output_type):
+    """For legacy reasons, cuml will coerce a 1 column 2D output to a Series
+    instead of a DataFrame when outputting pandas/cudf types. In the long run
+    we want to deprecate and remove this (See #7893). However, the output of
+    `transform`/`inverse_transform`/... should _always_ be a 2D output. Here we
+    test that this coercion is only enabled for `predict*` methods."""
+
+    class MyEstimator(Base):
+        @mlfunc
+        def transform(self, X):
+            return cp.ones((X.shape[0], 1))
+
+        @mlfunc
+        def fit_transform(self, X):
+            return cp.ones((X.shape[0], 1))
+
+        @mlfunc
+        def fit_predict(self, X):
+            return cp.ones((X.shape[0], 1))
+
+        @mlfunc
+        def predict(self, X):
+            return cp.ones((X.shape[0], 1))
+
+        @mlfunc
+        def predict_proba(self, X):
+            return cp.ones((X.shape[0], 1))
+
+    model = MyEstimator(output_type=output_type)
+    X = cp.ones((3, 4))
+    assert model.fit_transform(X).ndim == 2
+    assert model.transform(X).ndim == 2
+    assert model.fit_predict(X).ndim == 1
+    assert model.predict(X).ndim == 1
+    assert model.predict_proba(X).ndim == 1
 
 
 def test_estimator_method_with_no_array_input():

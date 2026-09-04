@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -1413,7 +1413,7 @@ TYPED_TEST(SmoSolverTest, BlobPredict)
 TYPED_TEST(SmoSolverTest, MemoryLeak)
 {
   GTEST_SKIP();  // Skip the tests in CI for release 24.02
-                 // https://github.com/rapidsai/cuml/issues/5763
+                 // https://github.com/NVIDIA/cuml/issues/5763
   auto stream = this->handle.get_stream();
   // We measure that we have the same amount of free memory available on the GPU
   // before and after we call SVM. This can help catch memory leaks, but it is
@@ -1483,7 +1483,7 @@ TYPED_TEST(SmoSolverTest, DISABLED_MillionRows)
     // Stress test the kernel matrix calculation by calculating a kernel tile
     // with more the 2.8B elements. This would fail with int32 addressing. The test
     // is currently disabled because the memory usage might be prohibitive on CI
-    // The test will be enabled once https://github.com/rapidsai/cuml/pull/2449
+    // The test will be enabled once https://github.com/NVIDIA/cuml/pull/2449
     // is merged, that PR would reduce the kernel tile memory size.
     std::vector<std::pair<blobInput, TypeParam>> data{
       {blobInput{1, 0.001, KernelParams{KernelType::RBF, 3, 1, 0}, 2800000, 4}, 98},

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
@@ -119,3 +119,12 @@ def test_tsvd_inverse_transform(datatype, name):
     input_gdf = cutsvd.inverse_transform(Xcutsvd)
 
     assert array_equal(input_gdf, X, 0.4, with_sign=True)
+
+
+def test_get_feature_names_out():
+    X, _ = make_blobs(n_features=5)
+    cu_model = cuTSVD(n_components=2).fit(X)
+    sk_model = skTSVD(n_components=2).fit(X)
+    res = cu_model.get_feature_names_out()
+    sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)

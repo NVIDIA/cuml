@@ -948,51 +948,84 @@ def check_cudf(
     if ensure_min_features > 1 and ensure_ndim != 2:
         raise ValueError(f"{ensure_min_features=!r} requires ensure_ndim=2")
 
+    if cp_sp.issparse(array) or sp.issparse(array):
+        padded_input = f" for {input_name}" if input_name else ""
+        raise TypeError(
+            f"Sparse data was passed{padded_input}, but dense data is required. "
+            "Use '.toarray()' to convert to a dense array."
+        )
+
     array_type = type(array)
 
     # Coerce input to a cudf type.
     # XXX: cudf currently doesn't support float16, any float16 input is
     # automatically upcast here to float32.
-    if isinstance(array, pd.Series):
-        if array.dtype == "float16":
-            array = array.astype("float32")
-        array = cudf.Series(array)
-    elif isinstance(array, pd.DataFrame):
-        f16_cols = array.select_dtypes("float16").columns.tolist()
-        if f16_cols:
-            array = array.astype({c: "float32" for c in f16_cols})
-        array = cudf.DataFrame(array)
-    elif not isinstance(array, (cudf.DataFrame, cudf.Series)):
-        # Remaining array-like inputs go through check_array first (without
-        # device transfer) to normalize on cupy/numpy before coercion to cudf
-        array = check_array(
-            array,
-            mem_type=None,
-            ensure_2d=False,
-            ensure_min_samples=0,
-            ensure_min_features=0,
-            ensure_all_finite=False,
-            input_name=input_name,
-        )
-        if array.dtype == "float16":
-            array = array.astype("float32")
-        elif (
-            array.dtype == "object"
-            and array.size
-            and not isinstance(array.flat[0], str)
-        ):
-            # XXX: cudf doesn't support coercing numeric object arrays, while
-            # sklearn has a common check that object arrays of floats are
-            # supported. To support this uncommon case, we attempt to coerce
-            # numeric object types here.
-            array = array.astype("float64")
-        array = (cudf.DataFrame if array.ndim == 2 else cudf.Series)(
-            array, dtype=(np.dtype("O") if array.dtype.kind in "U" else None)
-        )
+    # XXX: hardcode `nan_as_null=True` (cudf's default) so the behavior
+    # doesn't switch when cudf.pandas is active.
+    if not isinstance(array, (cudf.DataFrame, cudf.Series)):
+        array_dtype_kind = None
+        if isinstance(array, pd.Series):
+            if array.dtype == "float16":
+                array = array.astype("float32")
+        elif isinstance(array, pd.DataFrame):
+            f16_cols = array.select_dtypes("float16").columns.tolist()
+            if f16_cols:
+                array = array.astype({c: "float32" for c in f16_cols})
+        else:
+            # Normalize to numpy or cupy array with minimal copying
+            if hasattr(array, "__cuda_array_interface__"):
+                array = cp.asarray(array)
+            elif hasattr(array, "__array__") or hasattr(
+                array, "__array_interface__"
+            ):
+                array = np.asarray(array)
+            elif not isinstance(array, np.ndarray):
+                array = np.asarray(array, dtype=object)
+
+            if array.dtype.kind == "c":
+                raise ValueError("Complex data not supported")
+
+            if array.dtype == "float16":
+                array = array.astype("float32")
+            array_dtype_kind = array.dtype.kind
+
+        array_shape = array.shape
+        cls = cudf.DataFrame if array.ndim == 2 else cudf.Series
+        if array_dtype_kind == "O":
+            # For object dtype inputs, coerce back to list (cheap) to rely on
+            # cudf's per-column dtype inference. On failure raise an error
+            # compatible with what sklearn's `check_dtype_object` expects.
+            array = array.tolist()
+
+        # Try to coerce to cudf, raising a nicer error message on failure.
+        try:
+            array = cls(array, nan_as_null=True)
+        except Exception as exc:
+            # XXX: cudf throws a number of different errors when handed a
+            # container with bytes inputs. Here we try to detect all of them,
+            # falling back to a generic message about mixed object dtypes.
+            needle = None
+            if isinstance(exc, ValueError):
+                needle = "type_id"
+            elif isinstance(
+                exc, (NotImplementedError, cudf.errors.MixedTypeError)
+            ):
+                needle = "bytes"
+            if needle and needle in str(exc).lower():
+                raise TypeError(
+                    f"{input_name or 'Input'} with bytes dtype is not supported. "
+                    "Try converting to strings first."
+                ) from exc
+            raise TypeError(
+                f"An object dtype {input_name or 'input'} argument must be "
+                "composed of strings, numbers, booleans, or nulls."
+            ) from exc
+    else:
+        array_shape = array.shape
 
     # Validate shape and coerce dimensionality
     _check_shape(
-        array.shape,
+        array_shape,
         ensure_2d=(ensure_ndim == 2 and coerce_ndim is False),
         ensure_min_samples=ensure_min_samples,
         ensure_min_features=ensure_min_features,
