@@ -23,7 +23,7 @@ from scipy.special import rel_entr as scipy_kl_divergence
 from scipy.stats import entropy as sp_entropy
 from sklearn import preprocessing
 from sklearn.datasets import make_blobs, make_classification
-from sklearn.exceptions import DataConversionWarning
+from sklearn.exceptions import DataConversionWarning, UndefinedMetricWarning
 from sklearn.metrics import confusion_matrix as sk_confusion_matrix
 from sklearn.metrics import hinge_loss as sk_hinge
 from sklearn.metrics import log_loss as sklearn_log_loss
@@ -31,6 +31,7 @@ from sklearn.metrics import pairwise_distances as sklearn_pairwise_distances
 from sklearn.metrics import (
     precision_recall_curve as sklearn_precision_recall_curve,
 )
+from sklearn.metrics import precision_score as sk_precision
 from sklearn.metrics import roc_auc_score as sklearn_roc_auc_score
 from sklearn.metrics.cluster import adjusted_rand_score as sk_ars
 from sklearn.metrics.cluster import completeness_score as sk_completeness_score
@@ -57,6 +58,7 @@ from cuml.metrics import (
     nan_euclidean_distances,
     pairwise_distances,
     precision_recall_curve,
+    precision_score,
     roc_auc_score,
 )
 from cuml.metrics.cluster import adjusted_rand_score as cu_ars
@@ -283,6 +285,346 @@ def test_accuracy_score_scalar_sample_weight():
     assert cuml.metrics.accuracy_score(
         y_true, y_pred, sample_weight=1.0, normalize=False
     ) == cuml.metrics.accuracy_score(y_true, y_pred, normalize=False)
+
+
+@pytest.mark.parametrize(
+    "true_kind, pred_kind",
+    [
+        ("numpy", "numpy"),
+        ("cupy", "cupy"),
+        ("numpy", "cupy"),
+        ("cudf", "cudf"),
+        ("pandas", "pandas"),
+        ("cudf", "numpy"),
+    ],
+)
+@pytest.mark.parametrize(
+    "average", ["binary", "micro", "macro", "weighted", None]
+)
+@pytest.mark.parametrize("n_classes", [2, 5])
+def test_precision_score(true_kind, pred_kind, average, n_classes):
+    N = 60
+    rng = np.random.RandomState(42)
+    np_true = rng.randint(0, n_classes, N)
+    np_pred = rng.randint(0, n_classes, N)
+
+    def convert(x, kind):
+        if kind == "cupy":
+            return cp.array(x)
+        elif kind == "cudf":
+            return cudf.Series(x)
+        elif kind == "pandas":
+            return pd.Series(x)
+        return x
+
+    if average == "binary" and n_classes > 2:
+        with pytest.raises(ValueError, match="Target is multiclass"):
+            precision_score(
+                convert(np_true, true_kind),
+                convert(np_pred, pred_kind),
+                average=average,
+            )
+        return
+
+    res = precision_score(
+        convert(np_true, true_kind),
+        convert(np_pred, pred_kind),
+        average=average,
+    )
+    sol = sk_precision(np_true, np_pred, average=average)
+    if average is None:
+        assert isinstance(res, np.ndarray)
+        np.testing.assert_allclose(res, sol)
+    else:
+        assert isinstance(res, float)
+        assert_almost_equal(res, sol)
+
+
+@pytest.mark.parametrize(
+    "weight_case", [None, "ones", "random", "random_device", "scalar"]
+)
+def test_precision_score_sample_weight(weight_case):
+    N = 40
+    rng = np.random.RandomState(0)
+    np_true = rng.randint(0, 3, N)
+    np_pred = rng.randint(0, 3, N)
+
+    y_true = cp.asarray(np_true)
+    y_pred = cp.asarray(np_pred)
+
+    if weight_case is None:
+        sample_weight = None
+    elif weight_case == "ones":
+        sample_weight = np.ones(N)
+    elif weight_case == "random":
+        sample_weight = rng.rand(N)
+    elif weight_case == "random_device":
+        sample_weight = cp.asarray(rng.rand(N))
+    else:
+        sample_weight = 2.5
+
+    sk_weight = (
+        cp.asnumpy(sample_weight)
+        if isinstance(sample_weight, cp.ndarray)
+        else sample_weight
+    )
+    if sk_weight is not None and np.isscalar(sk_weight):
+        # scikit-learn rejects scalars; a uniform weight is equivalent
+        sk_weight = np.full(N, sk_weight)
+
+    for average in ["micro", "macro", "weighted"]:
+        assert_almost_equal(
+            precision_score(
+                y_true,
+                y_pred,
+                average=average,
+                sample_weight=sample_weight,
+            ),
+            sk_precision(
+                np_true, np_pred, average=average, sample_weight=sk_weight
+            ),
+        )
+
+    np.testing.assert_allclose(
+        precision_score(
+            y_true, y_pred, average=None, sample_weight=sample_weight
+        ),
+        sk_precision(np_true, np_pred, average=None, sample_weight=sk_weight),
+    )
+
+
+def test_precision_score_labels_order():
+    y_true = np.array([0, 1, 2, 2, 0, 1])
+    y_pred = np.array([2, 1, 1, 0, 0, 0])
+
+    res = precision_score(y_true, y_pred, labels=[2, 0], average=None)
+    sol = sk_precision(y_true, y_pred, labels=[2, 0], average=None)
+    assert res.shape == (2,)
+    np.testing.assert_allclose(res, sol)
+
+    sorted_scores = sk_precision(
+        y_true, y_pred, labels=[0, 1, 2], average=None
+    )
+    np.testing.assert_allclose(res, [sorted_scores[2], sorted_scores[0]])
+
+    # a label absent from the data exercises zero_division
+    res = precision_score(
+        y_true, y_pred, labels=[0, 1, 2, 9], average=None, zero_division=0
+    )
+    sol = sk_precision(
+        y_true, y_pred, labels=[0, 1, 2, 9], average=None, zero_division=0
+    )
+    np.testing.assert_allclose(res, sol)
+
+
+def test_precision_score_pos_label():
+    y_true = np.array([0, 2, 2, 0])
+    y_pred = np.array([0, 2, 0, 0])
+
+    assert_almost_equal(
+        precision_score(y_true, y_pred, pos_label=2),
+        sk_precision(y_true, y_pred, pos_label=2),
+    )
+
+    with pytest.raises(ValueError, match="not a valid label"):
+        precision_score(y_true, y_pred, pos_label=7)
+
+
+def test_precision_score_zero_division_warn():
+    y_true = cp.array([0, 1, 1, 0])
+    y_pred = cp.array([0, 0, 0, 0])
+
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        res = precision_score(y_true, y_pred, average=None)
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        sol = sk_precision(
+            cp.asnumpy(y_true), cp.asnumpy(y_pred), average=None
+        )
+    np.testing.assert_allclose(res, sol)
+
+
+@pytest.mark.parametrize(
+    "zero_division", [0, 1, np.int64(0), np.int64(1), np.float32(1.0)]
+)
+def test_precision_score_zero_division_literal(zero_division):
+    # classes 1 and 2 are never predicted
+    y_true = np.array([0, 1, 2, 0, 1, 2])
+    y_pred = np.array([0, 0, 0, 0, 0, 0])
+    literal = float(zero_division)
+
+    # scikit-learn 1.9 routes numpy scalar literals through the nan branch
+    # of _check_zero_division, so the substitution is only compared against
+    # sklearn for exact int and float inputs
+    compare_sklearn = isinstance(zero_division, (int, float))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        res = precision_score(
+            y_true, y_pred, average=None, zero_division=zero_division
+        )
+        if compare_sklearn:
+            sol = sk_precision(
+                y_true, y_pred, average=None, zero_division=zero_division
+            )
+    if compare_sklearn:
+        np.testing.assert_allclose(res, sol)
+    else:
+        np.testing.assert_allclose(res, [1 / 3, literal, literal])
+
+    # binary case where pos_label is never predicted
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        res = precision_score(
+            np.array([0, 1]), np.array([0, 0]), zero_division=zero_division
+        )
+        if compare_sklearn:
+            sol = sk_precision(
+                np.array([0, 1]),
+                np.array([0, 0]),
+                zero_division=zero_division,
+            )
+    assert res == literal
+    if compare_sklearn:
+        assert sol == literal
+
+
+def test_precision_score_errors():
+    y_true = np.array([0, 1, 2, 0, 1, 2])
+    y_pred = np.array([0, 2, 1, 0, 0, 1])
+
+    with pytest.raises(ValueError, match="Target is multiclass"):
+        precision_score(y_true, y_pred)
+
+    with pytest.raises(ValueError, match="average has to be one of"):
+        precision_score([0, 1], [1, 0], average="invalid")
+
+    with pytest.raises(ValueError, match="not a valid label"):
+        precision_score([0, 1], [1, 0], pos_label=7)
+
+    with pytest.raises(ValueError, match="zero_division must be one of"):
+        precision_score([0, 1], [1, 0], zero_division=0.5)
+
+    with pytest.raises(ValueError, match="can only have integer values"):
+        precision_score(np.array([0.5, 1.5]), np.array([1.5, 0.5]))
+
+    with pytest.raises(ValueError, match="contains NaN"):
+        precision_score(
+            np.array([0.0, np.nan]), np.array([1.0, 0.0]), average="macro"
+        )
+
+    with pytest.raises(ValueError, match="contains infinity"):
+        precision_score(
+            np.array([0.0, np.inf]), np.array([1.0, 0.0]), average="macro"
+        )
+
+    with pytest.raises(ValueError, match="Mix of label input types"):
+        precision_score(np.array([0, 1]), cudf.Series(["a", "b"]))
+
+    with pytest.raises(ValueError, match="empty input array"):
+        precision_score(
+            cp.array([], dtype=cp.int32), cp.array([], dtype=cp.int32)
+        )
+
+    with pytest.raises(ValueError, match="null values"):
+        precision_score(cudf.Series([1, None]), cudf.Series([1, 0]))
+
+    with pytest.raises(ValueError, match="average has to be one of"):
+        precision_score([0, 1], [1, 0], average="samples")
+
+    with pytest.raises(ValueError, match="zero_division must be one of"):
+        precision_score([0, 1], [1, 0], zero_division=np.nan)
+
+
+def test_precision_score_single_class():
+    # scikit-learn scores single-class targets rather than raising
+    y_true = cp.full(4, 3, dtype=cp.int32)
+    y_pred = cp.full(4, 3, dtype=cp.int32)
+
+    assert precision_score(y_true, y_pred, average="macro") == 1.0
+
+    # pos_label absent from a single-class target scores zero_division
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        res = precision_score(y_true, y_pred)
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        sol = sk_precision(cp.asnumpy(y_true), cp.asnumpy(y_pred))
+    assert res == sol == 0.0
+
+
+def test_precision_score_one_column_input():
+    # column vectors and single-sample (1, 1) inputs are flattened to 1D
+    y_true = cp.array([[0], [1], [1], [0]], dtype=cp.int32)
+    y_pred = cp.array([[0], [1], [0], [0]], dtype=cp.int32)
+
+    res = precision_score(y_true, y_pred)
+    sol = sk_precision(cp.asnumpy(y_true), cp.asnumpy(y_pred))
+    assert res == sol
+
+    assert precision_score(cp.array([[1]]), cp.array([[1]])) == 1.0
+
+
+def test_precision_score_single_class_default_pos_label():
+    # scikit-learn skips pos_label validation for one-class targets and
+    # scores the missing pos_label as no predicted samples
+    y_true = cudf.Series(["cat"])
+    y_pred = cudf.Series(["cat"])
+
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        res = precision_score(y_true, y_pred)
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        sol = sk_precision(["cat"], ["cat"])
+    assert res == sol == 0.0
+
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        res = precision_score(
+            cp.array([0], dtype=cp.int32), cp.array([0], dtype=cp.int32)
+        )
+    with pytest.warns(UndefinedMetricWarning, match="ill-defined"):
+        sol = sk_precision(np.array([0]), np.array([0]))
+    assert res == sol == 0.0
+
+
+@pytest.mark.parametrize("to_category", [False, True])
+def test_precision_score_string_labels(to_category):
+    labels = np.array(["a", "b", "c"], dtype="object")
+    rng = np.random.RandomState(42)
+    np_true = labels.take(rng.randint(0, 3, 30))
+    np_pred = labels.take(rng.randint(0, 3, 30))
+
+    y_true = cudf.Series(np_true)
+    y_pred = cudf.Series(np_pred)
+    if to_category:
+        y_true = y_true.astype("category")
+        y_pred = y_pred.astype("category")
+
+    np.testing.assert_allclose(
+        precision_score(y_true, y_pred, average=None),
+        sk_precision(np_true, np_pred, average=None),
+    )
+    assert_almost_equal(
+        precision_score(y_true, y_pred, average="weighted"),
+        sk_precision(np_true, np_pred, average="weighted"),
+    )
+
+    res = precision_score(y_true, y_pred, labels=["c", "a"], average=None)
+    sol = sk_precision(np_true, np_pred, labels=["c", "a"], average=None)
+    np.testing.assert_allclose(res, sol)
+
+
+@pytest.mark.parametrize("n_samples", [unit_param(50), stress_param(500000)])
+def test_precision_score_random(n_samples):
+    upper = 10 if n_samples > 1000 else 3
+    y_true, y_pred, np_true, np_pred = generate_random_labels(
+        lambda rng: rng.randint(0, upper, n_samples), as_cupy=True
+    )
+
+    assert_almost_equal(
+        precision_score(y_true, y_pred, average="macro"),
+        sk_precision(np_true, np_pred, average="macro"),
+    )
+    np.testing.assert_allclose(
+        precision_score(y_true, y_pred, average=None),
+        sk_precision(np_true, np_pred, average=None),
+    )
 
 
 dataset_names = ["noisy_circles", "noisy_moons", "aniso"] + [

@@ -19,6 +19,7 @@ Classification and Distance Metrics
    log_loss
    roc_auc_score
    precision_recall_curve
+   precision_score
    trustworthiness
 
 Regression Metrics
