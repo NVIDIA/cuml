@@ -94,6 +94,30 @@ benchmarks:
           default: {rows: [2600000]}
           nightly: {rows: [10400000]}
 
+  - id: ridge_cv_fit
+    algorithm: RidgeCV
+    dataset: regression
+    operation: fit
+    tags: [linear, regression]
+    # RidgeCV runs a leave-one-out GCV over 50 alphas (O(n*p^2) per alpha), so
+    # it is much heavier than a single Ridge fit; row counts are scaled down.
+    variants:
+      narrow:
+        features: [16]
+        tiers:
+          default: {rows: [8000000]}
+          nightly: {rows: [16000000]}
+      medium:
+        features: [128]
+        tiers:
+          default: {rows: [1000000]}
+          nightly: {rows: [4000000]}
+      wide:
+        features: [512]
+        tiers:
+          default: {rows: [250000]}
+          nightly: {rows: [1000000]}
+
   - id: elasticnet_fit
     algorithm: ElasticNet
     dataset: regression
