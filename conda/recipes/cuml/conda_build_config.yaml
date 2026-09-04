@@ -17,4 +17,4 @@ c_stdlib_version:
   - "=2.28"
 
 treelite_version:
-  - ">=4.7.0,<5.0.0"
+  - ">=4.7.2,<5.0.0"

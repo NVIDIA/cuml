@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -21,7 +21,7 @@
 #include <rmm/device_uvector.hpp>
 
 // optimize, maybe im2col ?
-// https://github.com/rapidsai/cuml/issues/891
+// https://github.com/NVIDIA/cuml/issues/891
 template <typename Dtype>
 CUML_KERNEL void conv1d_kernel(const Dtype* input,
                                int batch_size,
@@ -58,7 +58,7 @@ void conv1d(const raft::handle_t& handle,
        handle.get_stream()>>>(input, batch_size, filter, filter_size, output, output_size);
 }
 
-// https://github.com/rapidsai/cuml/issues/891
+// https://github.com/NVIDIA/cuml/issues/891
 template <typename Dtype>
 CUML_KERNEL void season_mean_kernel(const Dtype* season,
                                     int len,

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <cuml/prims/opg/comm_utils.h>
@@ -12,7 +12,7 @@ namespace LinAlg {
 namespace opg {
 
 // TODO: Once RAFT side is fixed, this needs to call RAFT's version directly
-// ref: https://github.com/rapidsai/raft/issues/872
+// ref: https://github.com/NVIDIA/raft/issues/872
 template <typename math_t>
 void meanSquaredError(
   math_t* out, const math_t* A, const math_t* B, size_t len, math_t weight, cudaStream_t stream)

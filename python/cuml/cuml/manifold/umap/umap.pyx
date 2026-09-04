@@ -501,7 +501,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
             # TODO: for now, users should be able to see the same results
             # as previous version (i.e. running brute force knn) when they
             # explicitly pass random_state
-            # https://github.com/rapidsai/cuml/issues/5985
+            # https://github.com/NVIDIA/cuml/issues/5985
             build_algo ="brute_force_knn"
         elif n_rows <= 50_000 or is_sparse:
             # brute force is faster for small datasets
@@ -516,7 +516,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
         )
 
     if build_algo == "nn_descent" and n_rows < 150:
-        # https://github.com/rapidsai/cuvs/issues/184
+        # https://github.com/NVIDIA/cuvs/issues/184
         warnings.warn(
             "using build_algo='nn_descent' on a small dataset (< 150 samples) "
             "is unstable"
@@ -1434,7 +1434,7 @@ class UMAP(
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None, *, knn_graph=None):
         """
         Fit X into an embedded space and return that transformed
@@ -1467,7 +1467,7 @@ class UMAP(
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Transform X into the existing embedded space and return that
@@ -1592,7 +1592,7 @@ class UMAP(
             "shape": "(n_samples, n_features)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Transform X in the existing embedded space back into the input
         data space and return that transformed output.

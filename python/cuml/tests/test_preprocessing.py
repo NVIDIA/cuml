@@ -180,7 +180,7 @@ def test_standard_scaler_sparse(
 @pytest.mark.parametrize("with_std", [True, False])
 # The numerical warning is triggered when centering or scaling
 # cannot be done as single steps. Its display can be safely disabled.
-# For more information see : https://github.com/rapidsai/cuml/issues/4203
+# For more information see : https://github.com/NVIDIA/cuml/issues/4203
 @pytest.mark.filterwarnings("ignore:Numerical issues::")
 def test_scale(
     failure_logger,
@@ -1333,4 +1333,25 @@ def test_kbins_discretizer_get_feature_names_out(encode):
     sk_model = skKBinsDiscretizer(n_bins=4, encode=encode).fit(X)
     res = cu_model.get_feature_names_out()
     sol = sk_model.get_feature_names_out()
+    np.testing.assert_array_equal(res, sol)
+
+
+@pytest.mark.parametrize("names", [None, ["a", "b"]])
+def test_missing_indicator_get_feature_names_out(names):
+    X = np.array([[np.nan, 1], [0, 1], [1, np.nan]])
+    cu_model = cuMissingIndicator().fit(X)
+    sk_model = skMissingIndicator().fit(X)
+    res = cu_model.get_feature_names_out(names)
+    sol = sk_model.get_feature_names_out(names)
+    np.testing.assert_array_equal(res, sol)
+
+
+@pytest.mark.parametrize("names", [None, ["a", "b"]])
+@pytest.mark.parametrize("add_indicator", [False, True])
+def test_simple_imputer_get_feature_names_out(add_indicator, names):
+    X = np.array([[np.nan, 1], [0, 1], [1, np.nan]])
+    cu_model = cuSimpleImputer(add_indicator=add_indicator).fit(X)
+    sk_model = skSimpleImputer(add_indicator=add_indicator).fit(X)
+    res = cu_model.get_feature_names_out(names)
+    sol = sk_model.get_feature_names_out(names)
     np.testing.assert_array_equal(res, sol)

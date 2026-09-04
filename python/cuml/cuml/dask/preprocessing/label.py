@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -69,7 +69,7 @@ class LabelBinarizer(BaseEstimator):
     def __init__(self, *, client=None, **kwargs):
         super().__init__(client=client, **kwargs)
         # Sparse output will be added once sparse CuPy arrays are supported
-        # by Dask.Array: https://github.com/rapidsai/cuml/issues/1665
+        # by Dask.Array: https://github.com/NVIDIA/cuml/issues/1665
         if (
             "sparse_output" in self.kwargs
             and self.kwargs["sparse_output"] is True

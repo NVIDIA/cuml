@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -7,7 +7,7 @@ import cupyx.scipy.sparse as cp_sp
 import numpy as np
 import pytest
 import scipy.sparse as sp
-from sklearn.datasets import load_digits, make_circles
+from sklearn.datasets import load_digits, make_blobs, make_circles
 from sklearn.manifold import SpectralEmbedding as skSpectralEmbedding
 from sklearn.manifold import trustworthiness
 from sklearn.metrics import pairwise_distances
@@ -330,3 +330,11 @@ def test_precomputed_not_square():
         ValueError, match="Expected precomputed `X` to be square"
     ):
         model.fit(X)
+
+
+def test_get_feature_names_out():
+    X, _ = make_blobs(n_features=5, random_state=42)
+    model = SpectralEmbedding(n_components=2).fit(X)
+    res = model.get_feature_names_out()
+    sol = np.array(["spectralembedding0", "spectralembedding1"], dtype=object)
+    np.testing.assert_array_equal(res, sol)

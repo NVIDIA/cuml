@@ -107,7 +107,7 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         )
         cdef int* ptr = <int*><uintptr_t>uniq_labels_d.data.ptr
         cdef vector[int*] uniq_labels_vec
-        for i in range(uniq_labels_d.shape[0]):
+        for _ in range(uniq_labels_d.shape[0]):
             uniq_labels_vec.push_back(<int*>ptr)
             ptr += <int>uniq_labels_d.shape[1]
 
@@ -209,7 +209,7 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         )
         cdef int* ptr = <int*><uintptr_t>uniq_labels_d.data.ptr
         cdef vector[int*] uniq_labels_vec
-        for i in range(uniq_labels_d.shape[0]):
+        for _ in range(uniq_labels_d.shape[0]):
             uniq_labels_vec.push_back(<int*>ptr)
             ptr += <int>uniq_labels_d.shape[1]
 
@@ -222,7 +222,7 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
         n_outputs = len(n_unique)
 
         # Build probas output array for native code interfacing
-        outputs = [[] for i in range(n_outputs)]
+        outputs = [[] for _ in range(n_outputs)]
         cdef vector[vector[float*]] probas_local_parts
         probas_local_parts.resize(len(local_query_rows))
         for query_idx, n_rows in enumerate(local_query_rows):

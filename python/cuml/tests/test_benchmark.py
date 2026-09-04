@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import time
@@ -167,7 +167,7 @@ def test_accuracy_runner():
 # Only test a few algorithms (which collectively span several types)
 # to reduce runtime burden
 # skipping UMAP-Supervised due to issue
-# https://github.com/rapidsai/cuml/issues/4243
+# https://github.com/NVIDIA/cuml/issues/4243
 @pytest.mark.parametrize(
     "algo_name",
     [
