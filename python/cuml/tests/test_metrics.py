@@ -285,9 +285,7 @@ def test_accuracy_score_scalar_sample_weight():
     ) == cuml.metrics.accuracy_score(y_true, y_pred, normalize=False)
 
 
-dataset_names = ["noisy_circles", "noisy_moons", "aniso"] + [
-    pytest.param(ds, marks=pytest.mark.xfail) for ds in ["blobs", "varied"]
-]
+dataset_names = ["noisy_circles", "noisy_moons", "aniso", "blobs", "varied"]
 
 
 @pytest.mark.parametrize("name", dataset_names)
@@ -1799,18 +1797,7 @@ def test_pairwise_distances_sparse_corner_cases(
 
 
 @pytest.mark.parametrize(
-    "metric",
-    [
-        metric
-        if metric != "hellinger"
-        else pytest.param(
-            metric,
-            marks=pytest.mark.xfail(
-                reason="intermittent failure (Issue #4354)"
-            ),
-        )
-        for metric in PAIRWISE_DISTANCE_SPARSE_METRICS.keys()
-    ],
+    "metric", list(PAIRWISE_DISTANCE_SPARSE_METRICS.keys())
 )
 @pytest.mark.parametrize(
     "matrix_size,density",
