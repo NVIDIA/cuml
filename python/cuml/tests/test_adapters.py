@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -8,6 +8,7 @@ import platform
 import cupy as cp
 import cupyx as cpx
 import numpy as np
+import pandas as pd
 import pytest
 from scipy import stats
 from sklearn.utils._mask import _get_mask as sk_get_mask
@@ -110,6 +111,44 @@ def test_get_mask(failure_logger, mask_dataset):
     assert_allclose(cu_mask, sk_mask)
 
 
+def test_get_mask_nan_string_on_host_object_array():
+    X = np.array([1.0, np.nan, "present"], dtype=object)
+
+    np.testing.assert_array_equal(
+        cu_get_mask(X, value_to_mask="NaN"), [False, True, False]
+    )
+
+
+def test_get_mask_distinguishes_missing_sentinels():
+    X = np.array([None, np.nan, pd.NA, "present"], dtype=object)
+    masks = {
+        None: cu_get_mask(X, None),
+        "nan": cu_get_mask(X, np.nan),
+        "pd.NA": cu_get_mask(X, pd.NA),
+    }
+
+    np.testing.assert_array_equal(masks[None], [True, False, False, False])
+    np.testing.assert_array_equal(masks["nan"], [False, True, False, False])
+    np.testing.assert_array_equal(masks["pd.NA"], [False, False, True, False])
+    np.testing.assert_array_equal(sum(masks.values()), [1, 1, 1, 0])
+
+
+@pytest.mark.parametrize(
+    ("function", "expected"),
+    [
+        (_masked_column_mean, [3.0, 5.0]),
+        (_masked_column_median, [3.0, 5.0]),
+    ],
+)
+@pytest.mark.parametrize("missing_value", [np.nan, "NaN"])
+def test_masked_column_numeric_na_sentinel(function, expected, missing_value):
+    X = cp.array([[1.0, cp.nan], [3.0, 4.0], [5.0, 6.0]])
+
+    result = function(X, missing_value)
+
+    np.testing.assert_allclose(result.get(), expected)
+
+
 def test_masked_column_median(failure_logger, mask_dataset):
     mask_value, X_np, X = mask_dataset
     median = _masked_column_median(X, mask_value).get()
@@ -141,3 +180,11 @@ def test_masked_column_mode(failure_logger, mask_dataset):
         column_mask = mask[:, i]
         column_mode = stats.mode(X_np[:, i][column_mask], keepdims=True)[0][0]
         assert column_mode == mode[i]
+
+
+def test_masked_column_mode_numeric_nan_regression_guard():
+    X = np.array([[0.0], [np.nan], [np.nan], [1.0]])
+
+    result = _masked_column_mode(X, 0)
+
+    assert np.isnan(result[0])
