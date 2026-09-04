@@ -132,6 +132,9 @@ struct knnIndexParam {
 struct IVFParam : knnIndexParam {
   int nlist;
   int nprobe;
+  uint32_t kmeans_n_iters             = 20;     ///< Number of k-means iterations.
+  double kmeans_trainset_fraction     = 0.5;    ///< Fraction used for k-means training.
+  bool conservative_memory_allocation = false;  ///< Allocate only required memory.
 };
 
 struct IVFFlatParam : IVFParam {};
@@ -139,7 +142,15 @@ struct IVFFlatParam : IVFParam {};
 struct IVFPQParam : IVFParam {
   int M;
   int n_bits;
-  bool usePrecomputedTables;
+  bool usePrecomputedTables             = false;  ///< Deprecated and ignored.
+  int codebook_kind                     = 0;      ///< 0=PER_SUBSPACE, 1=PER_CLUSTER.
+  int codes_layout                      = 1;      ///< 0=FLAT, 1=INTERLEAVED.
+  bool force_random_rotation            = false;  ///< Always apply a random rotation.
+  uint32_t max_train_points_per_pq_code = 256;    ///< Training points per PQ code.
+  int lut_dtype                         = 0;      ///< 0=float32, 1=float16, 2=uint8.
+  int internal_distance_dtype           = 0;      ///< 0=float32, 1=float16.
+  int coarse_search_dtype               = 0;      ///< 0=float32, 1=float16, 3=int8.
+  uint32_t max_internal_batch_size      = 4096;   ///< Maximum internal search batch.
 };
 
 /**
