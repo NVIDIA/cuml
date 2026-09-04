@@ -78,4 +78,5 @@ Community & Support
    user_guide.rst
    Zero Code Change Acceleration <cuml-accel/index.rst>
    api/index
+   cpp/index
    cuml_blogs.rst
