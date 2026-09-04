@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -8,7 +8,11 @@ from cuml.accel.estimator_proxy import ProxyBase
 from cuml.internals.interop import UnsupportedOnGPU
 from cuml.internals.validation import check_array
 
-__all__ = ("RandomForestRegressor", "RandomForestClassifier")
+__all__ = (
+    "RandomForestRegressor",
+    "RandomForestClassifier",
+    "IsolationForest",
+)
 
 
 class _RandomForestMixin:
@@ -88,3 +92,49 @@ class RandomForestClassifier(ProxyBase, _RandomForestMixin):
 
     def __getitem__(self, index):
         return self._call_method("__getitem__", index)
+
+
+class IsolationForest(ProxyBase):
+    _gpu_class = cuml.ensemble.IsolationForest
+
+    @staticmethod
+    def _validate_input(X):
+        # cuML's IsolationForest requires dense, finite input and raises
+        # ValueError (NaN/inf) or TypeError (sparse) otherwise. Convert
+        # those into UnsupportedOnGPU so callers fall back to CPU instead
+        # of crashing.
+        try:
+            check_array(
+                X, mem_type=None, order=None, ensure_2d=False, input_name="X"
+            )
+        except (ValueError, TypeError) as exc:
+            raise UnsupportedOnGPU(str(exc)) from None
+
+    def _gpu_fit(self, X, y=None, sample_weight=None):
+        self._validate_input(X)
+        if sample_weight is not None:
+            raise UnsupportedOnGPU("sample_weight is not supported")
+        return self._gpu.fit(X, y=y)
+
+    def _gpu_fit_predict(self, X, y=None, **kwargs):
+        # IsolationForest.fit_predict() doesn't declare sample_weight itself;
+        # it inherits OutlierMixin.fit_predict(self, X, y=None, **kwargs),
+        # which forwards kwargs straight to fit(). Match that signature here
+        # (rather than declaring sample_weight explicitly) so the proxy stays
+        # signature-compatible with the CPU method.
+        self._validate_input(X)
+        if kwargs.get("sample_weight") is not None:
+            raise UnsupportedOnGPU("sample_weight is not supported")
+        return self._gpu.fit_predict(X, y=y)
+
+    def _gpu_predict(self, X):
+        self._validate_input(X)
+        return self._gpu.predict(X)
+
+    def _gpu_decision_function(self, X):
+        self._validate_input(X)
+        return self._gpu.decision_function(X)
+
+    def _gpu_score_samples(self, X):
+        self._validate_input(X)
+        return self._gpu.score_samples(X)
