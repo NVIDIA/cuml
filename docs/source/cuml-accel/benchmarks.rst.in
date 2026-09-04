@@ -1,0 +1,187 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+.. SPDX-License-Identifier: Apache-2.0
+.. This file is the editable template for benchmarks.rst. Run
+.. docs/benchmarks/generate_cuml_accel_benchmarks.py render after editing it.
+
+Performance and Speedups
+========================
+
+.. rst-class:: benchmark-lede
+
+Zero-code change acceleration with ``cuml.accel`` brings familiar
+scikit-learn workflows to the GPU, delivering a **@@TRAINING_MEDIAN@@× median
+speedup** across completed training and combined-operation comparisons on
+NVIDIA RTX Pro 6000 Blackwell. Measured performance depends on the operation
+and the dataset's size and shape, ranging from overhead-dominated small
+inference workloads to **@@UMAP_SPEEDUP@@ for UMAP** and
+**@@HDBSCAN_SPEEDUP@@ for HDBSCAN**.
+
+Speedup by operation and workload
+---------------------------------
+
+Rows are ranked by median completed speedup. Green indicates a measured gain
+or a CPU-only timeout where the accelerated run completed, gray is centered at
+1×, warm colors indicate a slowdown, and hatching marks every timeout.
+
+.. rst-class:: benchmark-footnote
+
+A timeout indicates that the complete isolated benchmark case—not a single
+estimator call—exceeded its wall-clock limit: **@@DEFAULT_TIMEOUT_MIN@@
+minutes** for small and medium workloads and PCA's ``large`` fit-transform, or
+**@@LARGE_TIMEOUT_MIN@@ minutes** for other ``large`` workloads.
+
+Training and combined operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@@TRAINING_PAIRED@@ of @@TRAINING_CELLS@@ comparisons completed;
+@@TRAINING_2X@@ reached at least 2×.
+
+.. raw:: html
+
+   <div class="benchmark-heatmap" tabindex="0" aria-label="Scrollable training heatmap">
+     <object data="../../_static/cuml-accel-benchmarks/training-heatmap.svg" type="image/svg+xml" aria-label="Training speedup heatmap. Operation labels link to estimator details; exact values and timeout labels are present in the graphic and detailed tables.">
+       <a href="../../_static/cuml-accel-benchmarks/training-heatmap.svg">Open the training speedup heatmap</a>
+     </object>
+   </div>
+
+Inference and transforms
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The completed median is **@@INFERENCE_MEDIAN@@×**;
+@@INFERENCE_SLOWDOWNS@@ of @@INFERENCE_PAIRED@@ completed comparisons are
+below 1×. Neighbor and forest operations still show strong gains at suitable
+scales.
+
+.. raw:: html
+
+   <div class="benchmark-heatmap" tabindex="0" aria-label="Scrollable inference heatmap">
+     <object data="../../_static/cuml-accel-benchmarks/inference-heatmap.svg" type="image/svg+xml" aria-label="Inference and transform speedup heatmap. Operation labels link to estimator details; exact values and timeout labels are present in the graphic and detailed tables.">
+       <a href="../../_static/cuml-accel-benchmarks/inference-heatmap.svg">Open the inference speedup heatmap</a>
+     </object>
+   </div>
+
+Detailed benchmark results
+--------------------------
+
+Use the workload guide to interpret the heatmaps, then open an estimator for
+exact shapes, wall times, slowdowns, and timeouts.
+
+Five workload shapes, from transfer-bound to compute-heavy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every operation uses the same five labels. The first four shapes are fixed;
+``large`` is operation-specific because algorithms have very different
+dimensionality, memory, and runtime behavior.
+
+@@WORKLOAD_TABLE@@
+
+.. rst-class:: benchmark-footnote
+
+\* The actual rows, features, input size, and timeout for ``large`` are
+operation-specific. Exact values appear in each estimator table.
+
+Results by estimator
+~~~~~~~~~~~~~~~~~~~~
+
+Open an estimator for every workload, wall time, slowdown, timeout, and actual
+shape.
+
+.. raw:: html
+
+   <div class="benchmark-detail-controls" aria-label="Estimator detail controls">
+     <button type="button" data-benchmark-details="expand">Expand all</button>
+     <button type="button" data-benchmark-details="collapse">Collapse all</button>
+   </div>
+
+.. container:: benchmark-estimator-details
+
+@@ESTIMATOR_SECTIONS@@
+
+What determines GPU speedup
+---------------------------
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+
+   .. grid-item-card:: Compute intensity
+
+      GPU acceleration has more room to pay off when estimator work dominates
+      dispatch and data-conversion overhead. Compute-heavy fitting, clustering,
+      nearest-neighbor search, forests, and high-rank decomposition are often
+      strong candidates.
+
+   .. grid-item-card:: Operation and shape
+
+      Rows alone do not determine performance. Feature count and the exact
+      operation also matter. Evaluate fit, predict, and transform separately;
+      these benchmark points are not a controlled scaling curve.
+
+   .. grid-item-card:: End-to-end workflow
+
+      Realized application performance also depends on data location,
+      conversions, batching, and repeated calls. Use these results to identify
+      promising candidates, then measure the production path.
+
+Methodology and reproducibility
+-------------------------------
+
+These benchmarks compare scikit-learn CPU execution with ``cuml.accel`` on
+NVIDIA RTX Pro 6000 Blackwell across five workload shapes. Each isolated case
+used one warmup, the median of three measured repetitions,
+operation-appropriate correctness validation, and a complete-case timeout.
+
+.. dropdown:: Test system, validation, and timing policy
+
+   **System.** @@GPU_NAME@@ (@@GPU_MEMORY_GB@@ GB), @@CPU_NAME@@, and
+   @@SYSTEM_MEMORY_GB@@ GB of system memory.
+
+   **Timing.** One warmup followed by three measured repetitions; tables use
+   the median end-to-end wall time. Speedup is CPU median wall time divided by
+   accelerated median wall time.
+
+   **Scale and timeout policy.** Fixed decimal-byte small and medium shapes
+   plus operation-specific large shapes. Each backend ran every case in a
+   separate worker with a @@DEFAULT_TIMEOUT_MIN@@-minute wall-clock limit,
+   extended to @@LARGE_TIMEOUT_MIN@@ minutes for large workloads other than
+   PCA ``fit_transform``. The limit covered process startup, data preparation,
+   estimator setup, one warmup, three measured repetitions, and correctness
+   validation. The results retain @@CPU_TIMEOUTS@@ CPU-only, @@GPU_TIMEOUTS@@
+   GPU-only, and @@BOTH_TIMEOUTS@@ both-side timeouts.
+
+   **Execution and correctness.** Successful accelerated measurements were
+   instrumented to verify GPU-only execution. The benchmark runner applied
+   each case's operation-appropriate parity check. A timeout means validation
+   could not complete.
+
+   **Packages.** @@PACKAGES@@.
+
+   **Coverage and scope.** All @@CASES@@ cases are included, including all
+   @@UNAVAILABLE@@ unavailable comparisons and every completed result below
+   1×. These measurements describe the tested cases on this system; results
+   for other workloads and systems will vary. PCA's operation-specific
+   ``large`` fit-transform uses @@PCA_LARGE_ROWS@@ rows and
+   @@PCA_LARGE_FEATURES@@ features.
+
+Continue with cuml.accel
+------------------------
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+
+   .. grid-item-card:: Getting started
+      :link: usage
+      :link-type: doc
+
+      Installation and zero-code-change usage.
+
+   .. grid-item-card:: Compatibility
+      :link: compatibility
+      :link-type: doc
+
+      Supported estimators and parameter behavior.
+
+   .. grid-item-card:: Profiling
+      :link: logging-and-profiling
+      :link-type: doc
+
+      Find GPU execution and fallback behavior.

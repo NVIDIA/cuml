@@ -1,0 +1,114 @@
+/* SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+ * SPDX-License-Identifier: Apache-2.0 */
+
+.benchmark-lede {
+  color: var(--pst-color-text-muted);
+  font-size: 1.25rem;
+  line-height: 1.55;
+  max-width: 58rem;
+}
+
+.benchmark-footnote {
+  color: var(--pst-color-text-muted);
+  font-size: 0.9rem;
+  max-width: 62rem;
+}
+
+.benchmark-heatmap {
+  background: var(--pst-color-background);
+  border: 1px solid var(--pst-color-border);
+  border-radius: 0.25rem;
+  margin: 1rem 0 2.5rem;
+  overflow-x: auto;
+}
+
+.benchmark-heatmap object {
+  display: block;
+  min-width: 680px;
+  width: 100%;
+}
+
+.benchmark-heatmap object[data$="training-heatmap.svg"] {
+  aspect-ratio: 895 / 710;
+}
+
+.benchmark-heatmap object[data$="inference-heatmap.svg"] {
+  aspect-ratio: 895 / 522;
+}
+
+.benchmark-detail-controls {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin: 1rem 0;
+}
+
+.benchmark-detail-controls button {
+  background: var(--pst-color-background);
+  border: 1px solid var(--pst-color-border);
+  border-radius: 0.25rem;
+  color: var(--pst-color-text-base);
+  cursor: pointer;
+  padding: 0.45rem 0.75rem;
+}
+
+.benchmark-detail-controls button:focus,
+.benchmark-detail-controls button:hover {
+  border-color: var(--pst-color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pst-color-primary) 20%, transparent);
+}
+
+.benchmark-estimator-details details.sd-dropdown {
+  margin-bottom: 0.6rem;
+  scroll-margin-top: 5rem;
+}
+
+.benchmark-estimator-details .table-wrapper,
+.benchmark-estimator-details details > div {
+  overflow-x: auto;
+}
+
+table.benchmark-result-table,
+table.benchmark-workload-table {
+  font-size: 0.8rem;
+  width: 100%;
+}
+
+table.benchmark-result-table th,
+table.benchmark-result-table td,
+table.benchmark-workload-table th,
+table.benchmark-workload-table td {
+  padding: 0.3rem 0.35rem;
+  vertical-align: middle;
+}
+
+table.benchmark-result-table th,
+table.benchmark-workload-table th {
+  line-height: 1.2;
+  white-space: normal;
+}
+
+table.benchmark-result-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+table.benchmark-result-table td:first-child,
+table.benchmark-result-table td:nth-child(2),
+table.benchmark-result-table td:nth-last-child(2),
+table.benchmark-result-table td:nth-last-child(3) {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .benchmark-lede {
+    font-size: 1.1rem;
+  }
+
+  .benchmark-detail-controls {
+    justify-content: stretch;
+  }
+
+  .benchmark-detail-controls button {
+    flex: 1;
+  }
+}
