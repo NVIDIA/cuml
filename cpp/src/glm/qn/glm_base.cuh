@@ -31,7 +31,7 @@ inline void linearFwd(const raft::handle_t& handle,
                       const SimpleMat<T>& X,
                       const SimpleDenseMat<T>& W)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   // Forward pass:  compute Z <- W * X.T + bias
   const bool has_bias = X.n != W.n;
   const int D         = X.n;
@@ -60,7 +60,7 @@ inline void linearBwd(const raft::handle_t& handle,
                       const SimpleDenseMat<T>& dZ,
                       bool setZero)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   // Backward pass:
   // - compute G <- dZ * X.T
   // - for bias: Gb = mean(dZ, 1)

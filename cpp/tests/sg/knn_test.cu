@@ -71,7 +71,7 @@ void create_index_parts(raft::handle_t& handle,
                         const KNNInputs& params,
                         const float* centers)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   gen_blobs<float>(handle,
                    query_data,
                    query_labels,
@@ -120,7 +120,7 @@ class KNNTest : public ::testing::TestWithParam<KNNInputs> {
  public:
   KNNTest()
     : params(::testing::TestWithParam<KNNInputs>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       index_data(params.n_rows * params.n_cols * params.n_parts, stream),
       index_labels(params.n_rows * params.n_parts, stream),
       search_data(params.n_query_row * params.n_cols, stream),
@@ -275,7 +275,7 @@ class KNNTest : public ::testing::TestWithParam<KNNInputs> {
  private:
   void create_data()
   {
-    cudaStream_t stream = handle.get_stream();
+    cudaStream_t stream = handle.get_stream().get();
 
     rmm::device_uvector<T> rand_centers(params.n_centers * params.n_cols, stream);
     Rng r(0, GeneratorType::GenPhilox);

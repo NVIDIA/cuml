@@ -373,7 +373,7 @@ void broadcast_query(opg_knn_work<in_t, ind_t, dist_t, out_t>& work,
                      in_t* broadcast,
                      size_t broadcast_size)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   if (part_rank == work.my_rank) {  // Sender: send to all other idx ranks
     for (int rank : work.idxRanks) {
@@ -506,7 +506,7 @@ void copy_label_outputs_from_index_parts(opg_knn_param<in_t, ind_t, dist_t, out_
     raft::update_device(parts_d.data(), parts_h.data(), n_parts, handle.get_stream());
 
     copy_label_outputs_from_index_parts_kernel<TPB_X, ind_t, out_t>
-      <<<grid, blk, 0, handle.get_stream()>>>(work.res.data() + (o * n_labels),
+      <<<grid, blk, 0, handle.get_stream().get()>>>(work.res.data() + (o * n_labels),
                                               work.res_I.data(),
                                               parts_d.data(),
                                               offsets_d.data(),
@@ -536,7 +536,7 @@ void exchange_results(opg_knn_param<in_t, ind_t, dist_t, out_t>& params,
                       size_t batch_size)
 {
   size_t batch_elms   = batch_size * params.k;
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   if (part_rank != work.my_rank) {  // Sender: send local KNN results to part_rank
     handle.get_comms().device_send(work.res_I.data(), batch_elms, part_rank, stream);
@@ -643,23 +643,23 @@ void reduce(opg_knn_param<in_t, ind_t, dist_t, out_t>& params,
             size_t processed_in_part,
             size_t batch_size)
 {
-  rmm::device_uvector<trans_t> trans(work.idxRanks.size(), handle.get_stream());
+  rmm::device_uvector<trans_t> trans(work.idxRanks.size(), handle.get_stream().get());
   RAFT_CUDA_TRY(
-    cudaMemsetAsync(trans.data(), 0, work.idxRanks.size() * sizeof(trans_t), handle.get_stream()));
+    cudaMemsetAsync(trans.data(), 0, work.idxRanks.size() * sizeof(trans_t), handle.get_stream().get()));
 
   size_t batch_offset = processed_in_part * params.k;
 
   ind_t* indices    = nullptr;
   dist_t* distances = nullptr;
 
-  rmm::device_uvector<ind_t> indices_b(0, handle.get_stream());
-  rmm::device_uvector<dist_t> distances_b(0, handle.get_stream());
+  rmm::device_uvector<ind_t> indices_b(0, handle.get_stream().get());
+  rmm::device_uvector<dist_t> distances_b(0, handle.get_stream().get());
 
   if (params.knn_op == knn_operation::knn) {
     indices   = params.out_I->at(part_idx)->ptr + batch_offset;
     distances = params.out_D->at(part_idx)->ptr + batch_offset;
   } else {
-    indices_b.resize(batch_size * params.k, handle.get_stream());
+    indices_b.resize(batch_size * params.k, handle.get_stream().get());
     distances_b.resize(batch_size * params.k, handle.get_stream());
     indices   = indices_b.data();
     distances = distances_b.data();
@@ -811,7 +811,7 @@ void merge_labels(opg_knn_param_t& params,
   raft::update_device(
     parts_to_ranks_d.data(), parts_to_ranks_h.data(), parts_to_ranks_h.size(), handle.get_stream());
 
-  merge_labels_kernel<TPB_X><<<grid, blk, 0, handle.get_stream()>>>(output,
+  merge_labels_kernel<TPB_X><<<grid, blk, 0, handle.get_stream().get()>>>(output,
                                                                     knn_indices,
                                                                     unmerged_outputs,
                                                                     unmerged_knn_indices,

@@ -49,7 +49,7 @@ std::pair<float, int> Barnes_Hut(value_t* VAL,
                                  const value_idx n,
                                  const TSNEParams& params)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   value_t kl_div = 0;
 

@@ -850,7 +850,7 @@ void _lyapunov_wrapper(raft::handle_t& handle,
                        int r)
 {
   if (r <= 5) {
-    auto stream       = handle.get_stream();
+    auto stream       = handle.get_stream().get();
     auto cublasHandle = handle.get_cublas_handle();
     int batch_size    = ML::narrow_cast<int>(A.batches());
     int r2            = r * r;
@@ -909,7 +909,7 @@ void _batched_kalman_filter(raft::handle_t& handle,
                             double* d_upper)
 {
   const size_t batch_size = Zb.batches();
-  auto stream             = handle.get_stream();
+  auto stream             = handle.get_stream().get();
   auto cublasHandle       = handle.get_cublas_handle();
 
   auto counting = thrust::make_counting_iterator(0);
@@ -1152,7 +1152,7 @@ void init_batched_kalman_matrices(raft::handle_t& handle,
 {
   raft::common::nvtx::range fun_scope(__func__);
 
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   // Note: Z is unused yet but kept to avoid reintroducing it later when
   // adding support for exogeneous variables
@@ -1265,7 +1265,7 @@ void batched_kalman_filter(raft::handle_t& handle,
   raft::common::nvtx::range fun_scope(__func__);
 
   auto cublasHandle = handle.get_cublas_handle();
-  auto stream       = handle.get_stream();
+  auto stream       = handle.get_stream().get();
 
   // see (3.18) in TSA by D&K
   int rd = order.rd();
@@ -1324,7 +1324,7 @@ void batched_jones_transform(raft::handle_t& handle,
                              double* h_Tparams)
 {
   int N                       = order.complexity();
-  auto stream                 = handle.get_stream();
+  auto stream                 = handle.get_stream().get();
   double* d_params            = arima_mem.d_params;
   double* d_Tparams           = arima_mem.d_Tparams;
   ARIMAParams<double> params  = {arima_mem.params_mu,

@@ -84,7 +84,7 @@ CondensedHierarchy<value_idx, value_t>::CondensedHierarchy(const raft::handle_t&
   auto parents_ptr = thrust::device_pointer_cast(parents.data());
 
   auto parents_min_max = thrust::minmax_element(
-    thrust::cuda::par.on(handle.get_stream()), parents_ptr, parents_ptr + n_edges);
+    thrust::cuda::par.on(handle.get_stream().get()), parents_ptr, parents_ptr + n_edges);
   auto min_cluster = *parents_min_max.first;
   auto max_cluster = *parents_min_max.second;
 
@@ -94,7 +94,7 @@ CondensedHierarchy<value_idx, value_t>::CondensedHierarchy(const raft::handle_t&
     cuda::std::make_tuple(parents.begin(), children.begin(), sizes.begin()));
   auto sort_values = thrust::make_zip_iterator(cuda::std::make_tuple(lambdas.begin()));
 
-  thrust::sort_by_key(thrust::cuda::par.on(handle.get_stream()),
+  thrust::sort_by_key(thrust::cuda::par.on(handle.get_stream().get()),
                       sort_keys,
                       sort_keys + n_edges,
                       sort_values,
@@ -137,7 +137,7 @@ void CondensedHierarchy<value_idx, value_t>::condense(value_idx* full_parents,
                                                       value_idx* full_sizes,
                                                       value_idx size)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   if (size == -1) size = 4 * (n_leaves - 1) + 2;
 

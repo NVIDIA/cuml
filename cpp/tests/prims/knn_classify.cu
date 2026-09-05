@@ -34,7 +34,7 @@ class KNNClassifyTest : public ::testing::TestWithParam<KNNClassifyInputs> {
  public:
   KNNClassifyTest()
     : params(::testing::TestWithParam<KNNClassifyInputs>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       train_samples(params.rows * params.cols, stream),
       train_labels(params.rows, stream),
       pred_labels(params.rows, stream),

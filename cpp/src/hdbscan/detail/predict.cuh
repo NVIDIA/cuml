@@ -52,7 +52,7 @@ void _find_neighbor_and_lambda(const raft::handle_t& handle,
                                value_idx* min_mr_inds,
                                value_t* prediction_lambdas)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   // Buffer for storing the minimum mutual reachability distances
@@ -111,7 +111,7 @@ void _find_cluster_and_probability(const raft::handle_t& handle,
                                    value_idx* out_labels,
                                    value_t* out_probabilities)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   auto parents     = condensed_tree.get_parents();
@@ -154,7 +154,7 @@ void _compute_knn_and_nearest_neighbor(const raft::handle_t& handle,
                                        value_t* prediction_lambdas,
                                        ML::distance::DistanceType metric)
 {
-  auto stream               = handle.get_stream();
+  auto stream               = handle.get_stream().get();
   size_t m                  = prediction_data.n_rows;
   size_t n                  = prediction_data.n_cols;
   value_t* input_core_dists = prediction_data.get_core_dists();

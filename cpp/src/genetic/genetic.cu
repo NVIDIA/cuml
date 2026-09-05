@@ -121,7 +121,7 @@ void parallel_evolve(const raft::handle_t& h,
                      const int generation,
                      const int seed)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
   auto n_progs        = params.population_size;
   auto tour_size      = params.tournament_size;
   auto n_tours        = n_progs;  // at least num_progs tournaments
@@ -362,7 +362,7 @@ void symFit(const raft::handle_t& handle,
             program_t& final_progs,
             std::vector<std::vector<program>>& history)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // Update arity map in params - Need to do this only here, as all operations will call Fit at
   // least once
@@ -503,7 +503,7 @@ void symClfPredictProbs(const raft::handle_t& handle,
                         const program_t& best_prog,
                         float* output)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // Assume output is of shape [n_rows, 2] in colMajor format
   execute(handle, best_prog, n_rows, 1, input, output);
@@ -531,7 +531,7 @@ void symClfPredict(const raft::handle_t& handle,
                    const program_t& best_prog,
                    float* output)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // Memory for probabilities
   rmm::device_uvector<float> probs(2 * n_rows, stream);
@@ -556,7 +556,7 @@ void symTransform(const raft::handle_t& handle,
                   const int n_cols,
                   float* output)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   // Execute final_progs(ordered by fitness) on input
   // output of size [n_rows,hall_of_fame]
   execute(handle, final_progs, n_rows, params.n_components, input, output);

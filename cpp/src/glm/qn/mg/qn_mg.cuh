@@ -37,7 +37,7 @@ int qn_fit_mg(const raft::handle_t& handle,
               int n_ranks,
               const Standardizer<T>* stder_p = NULL)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   LBFGSParam<T> opt_param(pams);
   SimpleVec<T> w0(w0_data, loss.n_param);
 
@@ -92,7 +92,7 @@ inline void qn_fit_x_mg(const raft::handle_t& handle,
 
     Dimensionality of w0 depends on loss, so we initialize it later.
    */
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   int N               = X.m;
   int D               = X.n;
   int n_targets       = ML::GLM::detail::qn_is_classification(pams.loss) && C == 2 ? 1 : C;

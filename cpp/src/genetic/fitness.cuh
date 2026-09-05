@@ -45,7 +45,7 @@ void weightedPearson(const raft::handle_t& h,
 {
   // Find Pearson's correlation coefficient
 
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   rmm::device_uvector<math_t> corr(n_samples * n_progs, stream);
 
@@ -172,7 +172,7 @@ void weightedSpearman(const raft::handle_t& h,
                       const math_t* W,
                       math_t* out)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   // Get ranks for Y
   thrust::device_vector<math_t> Ycopy(Y, Y + n_samples);
@@ -235,7 +235,7 @@ void meanAbsoluteError(const raft::handle_t& h,
                        const math_t* W,
                        math_t* out)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
   rmm::device_uvector<math_t> error(n_samples * n_progs, stream);
   rmm::device_scalar<math_t> dWS(stream);
   math_t N = (math_t)n_samples;
@@ -268,7 +268,7 @@ void meanSquareError(const raft::handle_t& h,
                      const math_t* W,
                      math_t* out)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
   rmm::device_uvector<math_t> error(n_samples * n_progs, stream);
   rmm::device_scalar<math_t> dWS(stream);
   math_t N = (math_t)n_samples;
@@ -303,7 +303,7 @@ void rootMeanSquareError(const raft::handle_t& h,
                          const math_t* W,
                          math_t* out)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   // Find MSE
   meanSquareError(h, n_samples, n_progs, Y, Y_pred, W, out);
@@ -321,7 +321,7 @@ void logLoss(const raft::handle_t& h,
              const math_t* W,
              math_t* out)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
   // Logistic error per sample
   rmm::device_uvector<math_t> error(n_samples * n_progs, stream);
   rmm::device_scalar<math_t> dWS(stream);

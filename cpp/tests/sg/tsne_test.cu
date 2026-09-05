@@ -102,7 +102,7 @@ class TSNETest : public ::testing::TestWithParam<TSNEInput> {
   TSNEResults runTest(TSNE_ALGORITHM algo, bool knn = false)
   {
     raft::handle_t handle;
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     TSNEResults results;
 
     auto DEFAULT_DISTANCE_METRIC = ML::distance::DistanceType::L2SqrtExpanded;

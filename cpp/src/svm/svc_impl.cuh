@@ -141,7 +141,7 @@ int svcFitX(const raft::handle_t& handle,
   // ML::detail::streamSyncer _(handle_impl.getImpl());
   const raft::handle_t& handle_impl = handle;
 
-  cudaStream_t stream = handle_impl.get_stream();
+  cudaStream_t stream = handle_impl.get_stream().get();
   {
     rmm::device_uvector<math_t> unique_labels(0, stream);
     model.n_classes = raft::label::getUniquelabels(unique_labels, labels, n_rows, stream);
@@ -252,7 +252,7 @@ void svcPredictX(const raft::handle_t& handle,
   }
 
   const raft::handle_t& handle_impl = handle;
-  cudaStream_t stream               = handle_impl.get_stream();
+  cudaStream_t stream               = handle_impl.get_stream().get();
 
   rmm::device_uvector<math_t> K(checked_mul<std::size_t>(n_batch, model.n_support), stream);
   rmm::device_uvector<math_t> y(n_rows, stream);
@@ -480,7 +480,7 @@ void svcPredictSparse(const raft::handle_t& handle,
 template <typename math_t>
 void svmFreeBuffers(const raft::handle_t& handle, SvmModel<math_t>& m)
 {
-  cudaStream_t stream                      = handle.get_stream();
+  cudaStream_t stream                      = handle.get_stream().get();
   rmm::device_async_resource_ref rmm_alloc = rmm::mr::get_current_device_resource_ref();
   if (m.dual_coefs) rmm_alloc.deallocate(stream, m.dual_coefs, m.n_support * sizeof(math_t));
   if (m.support_idx) rmm_alloc.deallocate(stream, m.support_idx, m.n_support * sizeof(int));

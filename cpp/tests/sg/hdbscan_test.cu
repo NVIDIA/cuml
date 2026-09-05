@@ -101,10 +101,10 @@ class HDBSCANTest : public ::testing::TestWithParam<HDBSCANInputs<T, IdxT>> {
             out,
             core_dists.data());
 
-    handle.sync_stream(handle.get_stream());
+    handle.sync_stream(handle.get_stream().get());
 
     score = raft::stats::adjusted_rand_index(
-      out.get_labels(), labels_ref.data(), params.n_row, handle.get_stream());
+      out.get_labels(), labels_ref.data(), params.n_row, handle.get_stream().get());
 
     if (score < 0.85) {
       std::cout << "Test failed. score=" << score << std::endl;
@@ -306,19 +306,19 @@ class ClusterSelectionTest : public ::testing::TestWithParam<ClusterSelectionInp
                                                    static_cast<IdxT>(0),
                                                    params.cluster_selection_epsilon);
 
-    handle.sync_stream(handle.get_stream());
+    handle.sync_stream(handle.get_stream().get());
 
     ASSERT_TRUE(MLCommon::devArrMatch(probabilities.data(),
                                       params.probabilities.data(),
                                       params.n_row,
                                       MLCommon::CompareApprox<float>(1e-4),
-                                      handle.get_stream()));
+                                      handle.get_stream().get()));
 
-    rmm::device_uvector<IdxT> labels_ref(params.n_row, handle.get_stream());
-    raft::update_device(labels_ref.data(), params.labels.data(), params.n_row, handle.get_stream());
+    rmm::device_uvector<IdxT> labels_ref(params.n_row, handle.get_stream().get());
+    raft::update_device(labels_ref.data(), params.labels.data(), params.n_row, handle.get_stream().get());
     score = raft::stats::adjusted_rand_index(
-      labels.data(), labels_ref.data(), params.n_row, handle.get_stream());
-    handle.sync_stream(handle.get_stream());
+      labels.data(), labels_ref.data(), params.n_row, handle.get_stream().get());
+    handle.sync_stream(handle.get_stream().get());
   }
 
   void SetUp() override { basicTest(); }
@@ -459,7 +459,7 @@ class AllPointsMembershipVectorsTest
                                       params.expected_probabilities.data(),
                                       params.n_row * n_selected_clusters,
                                       MLCommon::CompareApprox<float>(1e-5),
-                                      handle.get_stream()));
+                                      handle.get_stream().get()));
   }
 
   void SetUp() override { basicTest(); }
@@ -554,11 +554,11 @@ class ApproximatePredictTest : public ::testing::TestWithParam<ApproximatePredic
                                                      static_cast<IdxT>(0),
                                                      params.cluster_selection_epsilon);
 
-    rmm::device_uvector<T> core_dists{static_cast<size_t>(params.n_row), handle.get_stream()};
+    rmm::device_uvector<T> core_dists{static_cast<size_t>(params.n_row), handle.get_stream().get()};
     ML::HDBSCAN::Common::PredictionData<IdxT, T> pred_data(
       handle, params.n_row, params.n_col, core_dists.data());
 
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     rmm::device_uvector<IdxT> mutual_reachability_indptr(params.n_row + 1, stream);
     raft::sparse::COO<T, IdxT> mutual_reachability_coo(stream,
                                                        (params.min_samples + 1) * params.n_row * 2);
@@ -645,20 +645,20 @@ class ApproximatePredictTest : public ::testing::TestWithParam<ApproximatePredic
                               out_labels.data(),
                               out_probabilities.data());
 
-    handle.sync_stream(handle.get_stream());
+    handle.sync_stream(handle.get_stream().get());
     cudaDeviceSynchronize();
 
     ASSERT_TRUE(MLCommon::devArrMatch(out_labels.data(),
                                       params.expected_labels.data(),
                                       params.n_points_to_predict,
                                       MLCommon::Compare<int>(),
-                                      handle.get_stream()));
+                                      handle.get_stream().get()));
 
     ASSERT_TRUE(MLCommon::devArrMatch(out_probabilities.data(),
                                       params.expected_probabilities.data(),
                                       params.n_points_to_predict,
                                       MLCommon::CompareApprox<float>(1e-2),
-                                      handle.get_stream()));
+                                      handle.get_stream().get()));
   }
 
   void SetUp() override { basicTest(); }
@@ -754,13 +754,13 @@ class MembershipVectorTest : public ::testing::TestWithParam<MembershipVectorInp
                                                      params.cluster_selection_epsilon);
 
     rmm::device_uvector<T> membership_vec(params.n_points_to_predict * n_selected_clusters,
-                                          handle.get_stream());
+                                          handle.get_stream().get());
 
-    rmm::device_uvector<T> core_dists{static_cast<size_t>(params.n_row), handle.get_stream()};
+    rmm::device_uvector<T> core_dists{static_cast<size_t>(params.n_row), handle.get_stream().get()};
     ML::HDBSCAN::Common::PredictionData<IdxT, T> prediction_data_(
       handle, params.n_row, params.n_col, core_dists.data());
 
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     rmm::device_uvector<IdxT> mutual_reachability_indptr(params.n_row + 1, stream);
     raft::sparse::COO<T, IdxT> mutual_reachability_coo(stream,
                                                        (params.min_samples + 1) * params.n_row * 2);
@@ -846,7 +846,7 @@ class MembershipVectorTest : public ::testing::TestWithParam<MembershipVectorInp
                                       params.expected_probabilities.data(),
                                       params.n_points_to_predict * n_selected_clusters,
                                       MLCommon::CompareApprox<float>(1e-4),
-                                      handle.get_stream()));
+                                      handle.get_stream().get()));
   }
 
   void SetUp() override { basicTest(); }

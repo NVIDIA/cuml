@@ -23,7 +23,7 @@ inline void make_arima_helper(const raft::handle_t& handle,
                               DataT intercept_scale,
                               uint64_t seed)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   MLCommon::Random::make_arima(
     out, batch_size, n_obs, order, stream, scale, noise_scale, intercept_scale, seed);

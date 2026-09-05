@@ -42,7 +42,7 @@ void get_probabilities(const raft::handle_t& handle,
                        const value_idx* labels,
                        value_t* probabilities)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   auto parents    = condensed_tree.get_parents();

@@ -25,7 +25,7 @@ inline void kpss_test_helper(const raft::handle_t& handle,
                              DataT pval_threshold)
 {
   const auto& handle_impl = handle;
-  cudaStream_t stream     = handle_impl.get_stream();
+  cudaStream_t stream     = handle_impl.get_stream().get();
 
   MLCommon::TimeSeries::kpss_test(d_y, results, batch_size, n_obs, d, D, s, stream, pval_threshold);
 }

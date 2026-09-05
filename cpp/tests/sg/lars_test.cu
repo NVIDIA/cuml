@@ -45,7 +45,7 @@ class LarsTest : public ::testing::Test {
 
   void testSelectMostCorrelated()
   {
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     math_t cj;
     int idx;
     rmm::device_uvector<math_t> workspace(n_cols, stream);
@@ -57,7 +57,7 @@ class LarsTest : public ::testing::Test {
 
   void testMoveToActive()
   {
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     ML::Solver::Lars::moveToActive(handle.get_cublas_handle(),
                                    &n_active,
                                    3,
@@ -101,7 +101,7 @@ class LarsTest : public ::testing::Test {
 
   void calcUExp(math_t* G, int n_cols, math_t* U_dev_exp)
   {
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     rmm::device_scalar<int> devInfo(stream);
     rmm::device_uvector<math_t> workspace(0, stream);
     int n_work;
@@ -127,7 +127,7 @@ class LarsTest : public ::testing::Test {
   // Initialize a mix of G and U matrices to test updateCholesky
   void initGU(math_t* GU, math_t* G, math_t* U, int n_active, bool copy_G)
   {
-    auto stream    = handle.get_stream();
+    auto stream    = handle.get_stream().get();
     const int ld_U = n_cols;
     // First we copy over all elements, because the factorization only replaces
     // the upper triangular part. This way it will be easier to compare to the
@@ -145,7 +145,7 @@ class LarsTest : public ::testing::Test {
 
   void testUpdateCholesky()
   {
-    auto stream    = handle.get_stream();
+    auto stream    = handle.get_stream().get();
     const int ld_X = n_rows;
     const int ld_G = n_cols;
     const int ld_U = ld_G;
@@ -214,7 +214,7 @@ class LarsTest : public ::testing::Test {
 
   void testCalcW0()
   {
-    auto stream    = handle.get_stream();
+    auto stream    = handle.get_stream().get();
     n_active       = 4;
     const int ld_U = n_cols;
     rmm::device_uvector<math_t> ws(n_active, stream);
@@ -229,7 +229,7 @@ class LarsTest : public ::testing::Test {
 
   void testCalcA()
   {
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     n_active    = 4;
     rmm::device_uvector<math_t> ws(n_active, stream);
     raft::update_device(ws.data(), ws0_exp, n_active, stream);
@@ -241,7 +241,7 @@ class LarsTest : public ::testing::Test {
 
   void testEquiangular()
   {
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     n_active    = 4;
     rmm::device_uvector<math_t> workspace(0, stream);
     rmm::device_uvector<math_t> u_eq(n_rows, stream);
@@ -301,7 +301,7 @@ class LarsTest : public ::testing::Test {
 
   void testCalcMaxStep()
   {
-    auto stream        = handle.get_stream();
+    auto stream        = handle.get_stream().get();
     n_active           = 2;
     math_t A_host      = 3.6534305290498055;
     math_t ws_host[2]  = {0.25662594, -0.01708941};
@@ -470,7 +470,7 @@ class LarsTestFitPredict : public ::testing::Test {
 
   void testFitGram()
   {
-    auto stream                         = handle.get_stream();
+    auto stream                         = handle.get_stream().get();
     int max_iter                        = 10;
     rapids_logger::level_enum verbosity = rapids_logger::level_enum::off;
     int n_active;
@@ -501,7 +501,7 @@ class LarsTestFitPredict : public ::testing::Test {
 
   void testFitX()
   {
-    auto stream                         = handle.get_stream();
+    auto stream                         = handle.get_stream().get();
     int max_iter                        = 10;
     rapids_logger::level_enum verbosity = rapids_logger::level_enum::off;
     int n_active;
@@ -532,7 +532,7 @@ class LarsTestFitPredict : public ::testing::Test {
 
   void testPredictV1()
   {
-    auto stream  = handle.get_stream();
+    auto stream  = handle.get_stream().get();
     int ld_X     = n_rows;
     int n_active = n_cols;
     raft::update_device(beta.data(), beta_exp, n_active, stream);
@@ -555,7 +555,7 @@ class LarsTestFitPredict : public ::testing::Test {
 
   void testPredictV2()
   {
-    auto stream  = handle.get_stream();
+    auto stream  = handle.get_stream().get();
     int ld_X     = n_rows;
     int n_active = n_cols;
 
@@ -582,7 +582,7 @@ class LarsTestFitPredict : public ::testing::Test {
 
   void testFitLarge()
   {
-    auto stream                         = handle.get_stream();
+    auto stream                         = handle.get_stream().get();
     int n_rows                          = 65536;
     int n_cols                          = 10;
     int max_iter                        = n_cols;

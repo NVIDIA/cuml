@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -11,6 +11,8 @@
 
 #include <rmm/cuda_stream_pool.hpp>
 #include <rmm/device_uvector.hpp>
+
+#include <cuda/stream>
 
 #include <gtest/gtest.h>
 #include <test_utils.h>
@@ -26,14 +28,16 @@ raft::handle_t create_handle(hconf type)
 {
   switch (type) {
     case hconf::LEGACY_ONE:
-      return raft::handle_t(rmm::cuda_stream_legacy, std::make_shared<rmm::cuda_stream_pool>(1));
+      return raft::handle_t(cuda::stream_ref{cudaStreamLegacy},
+                            std::make_shared<rmm::cuda_stream_pool>(1));
     case hconf::LEGACY_TWO:
-      return raft::handle_t(rmm::cuda_stream_legacy, std::make_shared<rmm::cuda_stream_pool>(2));
+      return raft::handle_t(cuda::stream_ref{cudaStreamLegacy},
+                            std::make_shared<rmm::cuda_stream_pool>(2));
     case hconf::NON_BLOCKING_ONE:
-      return raft::handle_t(rmm::cuda_stream_per_thread,
+      return raft::handle_t(cuda::stream_ref{cudaStreamPerThread},
                             std::make_shared<rmm::cuda_stream_pool>(1));
     case hconf::NON_BLOCKING_TWO:
-      return raft::handle_t(rmm::cuda_stream_per_thread,
+      return raft::handle_t(cuda::stream_ref{cudaStreamPerThread},
                             std::make_shared<rmm::cuda_stream_pool>(2));
     case hconf::SINGLE:
     default: return raft::handle_t();
@@ -56,7 +60,7 @@ class OlsTest : public ::testing::TestWithParam<OlsInputs<T>> {
   OlsTest()
     : params(::testing::TestWithParam<OlsInputs<T>>::GetParam()),
       handle(create_handle(params.hc)),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       coef(params.n_col, stream),
       coef2(params.n_col, stream),
       coef_ref(params.n_col, stream),

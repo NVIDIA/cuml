@@ -12,7 +12,7 @@ namespace UMAP {
 
 void find_ab(const raft::handle_t& handle, UMAPParams* params)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   UMAPAlgo::find_ab(params, stream);
 }
 

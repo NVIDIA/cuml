@@ -43,7 +43,7 @@ namespace opg {
 template <typename T>
 std::vector<T> distinct_mg(const raft::handle_t& handle, T* y, size_t n)
 {
-  cudaStream_t stream              = handle.get_stream();
+  cudaStream_t stream              = handle.get_stream().get();
   raft::comms::comms_t const& comm = raft::resource::get_comms(handle);
   int rank                         = comm.get_rank();
   int n_ranks                      = comm.get_size();
