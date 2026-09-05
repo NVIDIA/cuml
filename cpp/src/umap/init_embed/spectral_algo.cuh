@@ -40,7 +40,7 @@ void launcher(const raft::handle_t& handle,
               UMAPParams* params,
               T* embedding)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   ASSERT(n > static_cast<nnz_t>(params->n_components),
          "Spectral layout requires n_samples > n_components");

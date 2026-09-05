@@ -15,7 +15,7 @@ namespace Metrics {
 
 double rand_index(const raft::handle_t& handle, const double* y, const double* y_hat, int n)
 {
-  return raft::stats::rand_index(y, y_hat, (uint64_t)n, handle.get_stream());
+  return raft::stats::rand_index(y, y_hat, (uint64_t)n, handle.get_stream().get());
 }
 }  // namespace Metrics
 }  // namespace ML

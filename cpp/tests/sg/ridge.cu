@@ -32,7 +32,7 @@ class RidgeTest : public ::testing::TestWithParam<RidgeInputs<T>> {
  public:
   RidgeTest()
     : params(::testing::TestWithParam<RidgeInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       coef(params.n_col, stream),
       coef2(params.n_col, stream),
       coef_ref(params.n_col, stream),

@@ -300,7 +300,7 @@ class TrustworthinessScoreTest : public ::testing::Test {
       -0.30633628};
 
     raft::handle_t h;
-    cudaStream_t stream = h.get_stream();
+    cudaStream_t stream = h.get_stream().get();
 
     rmm::device_uvector<float> d_X(X.size(), stream);
     rmm::device_uvector<float> d_X_embedded(X_embedded.size(), stream);

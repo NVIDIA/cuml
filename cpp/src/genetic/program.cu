@@ -140,7 +140,7 @@ void execute(const raft::handle_t& h,
              const float* data,
              float* y_pred)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   dim3 blks(raft::ceildiv(n_rows, GENE_TPB), n_progs, 1);
   execute_kernel<<<blks, GENE_TPB, 0, stream>>>(d_progs, data, y_pred, (uint64_t)n_rows);
@@ -156,7 +156,7 @@ void find_fitness(const raft::handle_t& h,
                   const float* y,
                   const float* sample_weights)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   // Compute predicted values
   rmm::device_uvector<float> y_pred(n_rows, stream);
@@ -176,7 +176,7 @@ void find_batched_fitness(const raft::handle_t& h,
                           const float* y,
                           const float* sample_weights)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   rmm::device_uvector<float> y_pred((uint64_t)n_rows * (uint64_t)n_progs, stream);
   execute(h, d_progs, n_rows, n_progs, data, y_pred.data());
@@ -194,7 +194,7 @@ void set_fitness(const raft::handle_t& h,
                  const float* y,
                  const float* sample_weights)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   rmm::device_uvector<float> score(1, stream);
 
@@ -216,7 +216,7 @@ void set_batched_fitness(const raft::handle_t& h,
                          const float* y,
                          const float* sample_weights)
 {
-  cudaStream_t stream = h.get_stream();
+  cudaStream_t stream = h.get_stream().get();
 
   rmm::device_uvector<float> score(n_progs, stream);
 

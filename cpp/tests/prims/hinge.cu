@@ -27,7 +27,7 @@ class HingeLossTest : public ::testing::TestWithParam<HingeLossInputs<T>> {
  public:
   HingeLossTest()
     : params(::testing::TestWithParam<HingeLossInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       in(params.len, stream),
       out(1, stream),
       out_lasso(1, stream),

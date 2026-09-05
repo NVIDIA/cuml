@@ -115,9 +115,9 @@ class DbscanTest : public ::testing::TestWithParam<DbscanInputs<T, IdxT>> {
     score = adjusted_rand_index(handle, labels_ref.data(), labels.data(), params.n_row);
 
     if (score < 1.0) {
-      auto str = raft::arr2Str(labels_ref.data(), params.n_row, "labels_ref", handle.get_stream());
+      auto str = raft::arr2Str(labels_ref.data(), params.n_row, "labels_ref", handle.get_stream().get());
       CUML_LOG_DEBUG("y: %s", str.c_str());
-      str = raft::arr2Str(labels.data(), params.n_row, "labels", handle.get_stream());
+      str = raft::arr2Str(labels.data(), params.n_row, "labels", handle.get_stream().get());
       CUML_LOG_DEBUG("y_hat: %s", str.c_str());
       CUML_LOG_DEBUG("Score = %lf", score);
     }
@@ -270,7 +270,7 @@ class Dbscan2DSimple : public ::testing::TestWithParam<DBScan2DArrayInputs<T>> {
     if (eps_nn_method == Dbscan::EpsNnMethod::RBC) { std::cout << "RBC test" << std::endl; }
 
     raft::handle_t handle;
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
 
     params = ::testing::TestWithParam<DBScan2DArrayInputs<T>>::GetParam();
 

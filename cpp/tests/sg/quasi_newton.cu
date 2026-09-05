@@ -41,7 +41,7 @@ struct QuasiNewtonTest : ::testing::Test {
   QuasiNewtonTest() : handle(cuml_handle) {}
   void SetUp()
   {
-    stream = cuml_handle.get_stream();
+    stream = cuml_handle.get_stream().get();
     Xdev.reset(new SimpleMatOwning<double>(N, D, stream, ROW_MAJOR));
     raft::update_device(Xdev->data, &X[0][0], Xdev->len, stream);
 

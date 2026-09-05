@@ -53,7 +53,7 @@ void vars(const raft::handle_t& handle,
   int D               = X.n;
   int num_rows        = X.m;
   bool col_major      = (X.ord == COL_MAJOR);
-  auto stream         = handle.get_stream();
+  auto stream         = handle.get_stream().get();
   auto& comm          = handle.get_comms();
 
   rmm::device_uvector<T> zero(D, handle.get_stream());
@@ -98,7 +98,7 @@ void mean_stddev(const raft::handle_t& handle,
   int D               = X.n;
   int num_rows        = X.m;
   bool col_major      = (X.ord == COL_MAJOR);
-  auto stream         = handle.get_stream();
+  auto stream         = handle.get_stream().get();
   auto& comm          = handle.get_comms();
 
   if (col_major) {
@@ -112,7 +112,7 @@ void mean_stddev(const raft::handle_t& handle,
   comm.sync_stream(stream);
 
   vars<T>(handle, X, n_samples, mean_vector, stddev_vector);
-  raft::linalg::sqrt(stddev_vector, stddev_vector, D, handle.get_stream());
+  raft::linalg::sqrt(stddev_vector, stddev_vector, D, handle.get_stream().get());
 }
 
 template <typename T, typename I = int>
@@ -125,7 +125,7 @@ SimpleSparseMat<T, I> get_sub_mat(const raft::handle_t& handle,
   end         = end <= mat.m ? end : mat.m;
   int n_rows  = end - start;
   int n_cols  = mat.n;
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   RAFT_EXPECTS(start < end, "start index must be smaller than end index");
   RAFT_EXPECTS(buff_row_ids.size() >= n_rows + 1,
@@ -156,7 +156,7 @@ void mean(const raft::handle_t& handle,
 {
   int D        = X.n;
   int num_rows = X.m;
-  auto stream  = handle.get_stream();
+  auto stream  = handle.get_stream().get();
   auto& comm   = handle.get_comms();
 
   if (X.nnz == 0) {
@@ -205,7 +205,7 @@ void mean_stddev(const raft::handle_t& handle,
                  T* mean_vector,
                  T* stddev_vector)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
   int D       = X.n;
 
   mean(handle, X, n_samples, mean_vector);
@@ -239,7 +239,7 @@ void mean_stddev(const raft::handle_t& handle,
   };
   raft::linalg::binaryOp(stddev_vector, stddev_vector, mean_vector, X.n, submean_no_neg_op, stream);
 
-  raft::linalg::sqrt(stddev_vector, stddev_vector, X.n, handle.get_stream());
+  raft::linalg::sqrt(stddev_vector, stddev_vector, X.n, handle.get_stream().get());
 }
 
 struct inverse_op {
@@ -265,7 +265,7 @@ struct Standardizer {
     int D = X.n;
     ASSERT(mean_std_buff.size() == 4 * D, "mean_std_buff size must be four times the dimension");
 
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
 
     mean.reset(mean_std_buff.data(), D);
     std.reset(mean_std_buff.data() + D, D);
@@ -291,7 +291,7 @@ struct Standardizer {
     ASSERT(mean_std_buff.size() == 4 * vec_size,
            "mean_std_buff size must be four times the aligned size");
 
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
 
     T* p_ws = mean_std_buff.data();
 
@@ -330,14 +330,14 @@ struct Standardizer {
                                               Wweights.n,
                                               Wweights.m,
                                               mul_lambda,
-                                              handle.get_stream());
+                                              handle.get_stream().get());
 
     if (has_bias) {
       SimpleVec<T> Wbias;
 
       col_ref(W, Wbias, D);
 
-      Wbias.assign_gemv(handle, -1, Wweights, false, mean, 1, handle.get_stream());
+      Wbias.assign_gemv(handle, -1, Wweights, false, mean, 1, handle.get_stream().get());
     }
   }
 
@@ -346,7 +346,7 @@ struct Standardizer {
                                     const SimpleDenseMat<T>& dZ,
                                     bool has_bias) const
   {
-    auto stream   = handle.get_stream();
+    auto stream   = handle.get_stream().get();
     int D         = mean.len;
     int n_targets = dZ.m;
     auto& comm    = handle.get_comms();

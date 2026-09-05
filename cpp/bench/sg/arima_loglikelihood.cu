@@ -45,7 +45,7 @@ class ArimaLoglikelihood : public TsFixtureRandom<DataT> {
     using MLCommon::Bench::CudaEventTimer;
 
     auto& handle  = *this->handle;
-    auto stream   = handle.get_stream();
+    auto stream   = handle.get_stream().get();
     auto counting = thrust::make_counting_iterator(0);
 
     // Generate random parameters

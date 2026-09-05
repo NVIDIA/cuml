@@ -43,7 +43,7 @@ inline std::unique_ptr<raft::sparse::COO<float, int>> _get_graph(
   float* knn_dists,                  // precomputed distances
   UMAPParams* params)
 {
-  auto graph = std::make_unique<raft::sparse::COO<float>>(handle.get_stream());
+  auto graph = std::make_unique<raft::sparse::COO<float>>(handle.get_stream().get());
   if (knn_indices != nullptr && knn_dists != nullptr) {
     CUML_LOG_DEBUG("Calling UMAP::get_graph() with precomputed KNN");
 
@@ -274,7 +274,7 @@ inline void _inverse_transform(const raft::handle_t& handle,
                                UMAPParams* params,
                                int n_epochs)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // Compute epochs_per_sample from graph weights
   rmm::device_uvector<float> epochs_per_sample(nnz, stream);

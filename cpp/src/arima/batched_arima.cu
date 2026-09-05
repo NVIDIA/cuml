@@ -43,7 +43,7 @@ void pack(raft::handle_t& handle,
           int batch_size,
           double* param_vec)
 {
-  const auto stream = handle.get_stream();
+  const auto stream = handle.get_stream().get();
   params.pack(order, batch_size, param_vec, stream);
 }
 
@@ -53,7 +53,7 @@ void unpack(raft::handle_t& handle,
             int batch_size,
             const double* param_vec)
 {
-  const auto stream = handle.get_stream();
+  const auto stream = handle.get_stream().get();
   params.unpack(order, batch_size, param_vec, stream);
 }
 
@@ -64,7 +64,7 @@ void batched_diff(raft::handle_t& handle,
                   int n_obs,
                   const ARIMAOrder& order)
 {
-  const auto stream = handle.get_stream();
+  const auto stream = handle.get_stream().get();
   MLCommon::TimeSeries::prepare_data(
     d_y_diff, d_y, batch_size, n_obs, order.d, order.D, order.s, stream);
 }
@@ -80,7 +80,7 @@ struct is_missing {
 bool detect_missing(raft::handle_t& handle, const double* d_y, int n_elem)
 {
   return thrust::any_of(
-    thrust::cuda::par.on(handle.get_stream()), d_y, d_y + n_elem, is_missing<double>());
+    thrust::cuda::par.on(handle.get_stream().get()), d_y, d_y + n_elem, is_missing<double>());
 }
 
 void predict(raft::handle_t& handle,
@@ -101,7 +101,7 @@ void predict(raft::handle_t& handle,
              double* d_upper)
 {
   raft::common::nvtx::range fun_scope(__func__);
-  const auto stream = handle.get_stream();
+  const auto stream = handle.get_stream().get();
 
   bool diff     = order.need_diff() && pre_diff && level == 0;
   int num_steps = std::max(end - n_obs, 0);
@@ -356,7 +356,7 @@ void conditional_sum_of_squares(raft::handle_t& handle,
                                 int truncate)
 {
   raft::common::nvtx::range fun_scope(__func__);
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   int n_phi     = order.n_phi();
   int n_theta   = order.n_theta();
@@ -412,7 +412,7 @@ void batched_loglike(raft::handle_t& handle,
 {
   raft::common::nvtx::range fun_scope(__func__);
 
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   double* d_pred = arima_mem.pred;
 
@@ -485,7 +485,7 @@ void batched_loglike(raft::handle_t& handle,
   raft::common::nvtx::range fun_scope(__func__);
 
   // unpack parameters
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   ARIMAParams<double> params = {arima_mem.params_mu,
                                 arima_mem.params_beta,
@@ -527,7 +527,7 @@ void batched_loglike_grad(raft::handle_t& handle,
                           int truncate)
 {
   raft::common::nvtx::range fun_scope(__func__);
-  auto stream   = handle.get_stream();
+  auto stream   = handle.get_stream().get();
   auto counting = thrust::make_counting_iterator(0);
   int N         = order.complexity();
 
@@ -601,7 +601,7 @@ void information_criterion(raft::handle_t& handle,
                            int ic_type)
 {
   raft::common::nvtx::range fun_scope(__func__);
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   /* Compute log-likelihood in d_ic */
   batched_loglike(
@@ -674,7 +674,7 @@ void _arma_least_squares(raft::handle_t& handle,
                          double* d_mu = nullptr)
 {
   const auto& handle_impl = handle;
-  auto stream             = handle_impl.get_stream();
+  auto stream             = handle_impl.get_stream().get();
   auto cublas_handle      = handle_impl.get_cublas_handle();
   auto counting           = thrust::make_counting_iterator(0);
 
@@ -956,7 +956,7 @@ void estimate_x0(raft::handle_t& handle,
 {
   raft::common::nvtx::range fun_scope(__func__);
   const auto& handle_impl = handle;
-  auto stream             = handle_impl.get_stream();
+  auto stream             = handle_impl.get_stream().get();
   auto cublas_handle      = handle_impl.get_cublas_handle();
 
   /// TODO: solve exogenous coefficients with only valid rows instead of interpolation?

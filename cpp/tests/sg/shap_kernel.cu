@@ -42,7 +42,7 @@ class MakeKSHAPDatasetTest : public ::testing::TestWithParam<MakeKSHAPDatasetInp
   void SetUp() override
   {
     params = ::testing::TestWithParam<MakeKSHAPDatasetInputs>::GetParam();
-    stream = handle.get_stream();
+    stream = handle.get_stream().get();
 
     int i, j;
     nrows_X = params.nrows_exact + params.nrows_sampled;

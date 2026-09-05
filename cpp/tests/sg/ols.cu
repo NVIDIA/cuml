@@ -56,7 +56,7 @@ class OlsTest : public ::testing::TestWithParam<OlsInputs<T>> {
   OlsTest()
     : params(::testing::TestWithParam<OlsInputs<T>>::GetParam()),
       handle(create_handle(params.hc)),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       coef(params.n_col, stream),
       coef2(params.n_col, stream),
       coef_ref(params.n_col, stream),

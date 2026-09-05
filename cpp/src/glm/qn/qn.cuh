@@ -36,7 +36,7 @@ int qn_fit(const raft::handle_t& handle,
            T* fx,
            int* num_iters)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   LBFGSParam<T> opt_param(pams);
   SimpleVec<T> w0(w0_data, loss.n_param);
 
@@ -100,7 +100,7 @@ inline void qn_fit_x(const raft::handle_t& handle,
 
     Dimensionality of w0 depends on loss, so we initialize it later.
    */
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   int N               = X.m;
   int D               = X.n;
   int n_targets       = qn_is_classification(pams.loss) && C == 2 ? 1 : C;
@@ -253,7 +253,7 @@ template <typename T>
 void qn_predict(
   const raft::handle_t& handle, const qn_params& pams, SimpleMat<T>& X, int C, T* params, T* preds)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   bool is_class       = qn_is_classification(pams.loss);
   int n_targets       = is_class && C == 2 ? 1 : C;
   rmm::device_uvector<T> scores(checked_mul<std::size_t>(n_targets, X.m), stream);

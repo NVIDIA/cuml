@@ -41,7 +41,7 @@ class HoltWintersTest : public ::testing::TestWithParam<HoltWintersInputs<T>> {
  public:
   HoltWintersTest()
     : params(::testing::TestWithParam<HoltWintersInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       level_ptr(0, stream),
       trend_ptr(0, stream),
       season_ptr(0, stream),

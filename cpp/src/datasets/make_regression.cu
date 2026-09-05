@@ -28,7 +28,7 @@ void make_regression_helper(const raft::handle_t& handle,
                             uint64_t seed)
 {
   const auto& handle_impl            = handle;
-  cudaStream_t stream                = handle_impl.get_stream();
+  cudaStream_t stream                = handle_impl.get_stream().get();
   cublasHandle_t cublas_handle       = handle_impl.get_cublas_handle();
   cusolverDnHandle_t cusolver_handle = handle_impl.get_cusolver_dn_handle();
 

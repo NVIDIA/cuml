@@ -27,7 +27,7 @@ class LogRegLossTest : public ::testing::TestWithParam<LogRegLossInputs<T>> {
  public:
   LogRegLossTest()
     : params(::testing::TestWithParam<LogRegLossInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       in(params.len, stream),
       out(1, stream),
       out_lasso(1, stream),

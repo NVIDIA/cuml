@@ -41,7 +41,7 @@ void ridgeSolve(const raft::handle_t& handle,
                 int n_alpha,
                 math_t* w)
 {
-  auto stream    = handle.get_stream();
+  auto stream    = handle.get_stream().get();
   auto cublasH   = handle.get_cublas_handle();
   auto cusolverH = handle.get_cusolver_dn_handle();
 
@@ -87,7 +87,7 @@ void ridgeSVD(const raft::handle_t& handle,
               int n_alpha,
               math_t* w)
 {
-  auto stream    = handle.get_stream();
+  auto stream    = handle.get_stream().get();
   auto cublasH   = handle.get_cublas_handle();
   auto cusolverH = handle.get_cusolver_dn_handle();
 
@@ -116,7 +116,7 @@ void ridgeEig(const raft::handle_t& handle,
               int n_alpha,
               math_t* w)
 {
-  auto stream    = handle.get_stream();
+  auto stream    = handle.get_stream().get();
   auto cublasH   = handle.get_cublas_handle();
   auto cusolverH = handle.get_cusolver_dn_handle();
 
@@ -165,7 +165,7 @@ void ridgeFit(const raft::handle_t& handle,
               int algo              = 0,
               math_t* sample_weight = nullptr)
 {
-  cudaStream_t stream  = handle.get_stream();
+  cudaStream_t stream  = handle.get_stream().get();
   auto cublas_handle   = handle.get_cublas_handle();
   auto cusolver_handle = handle.get_cusolver_dn_handle();
 

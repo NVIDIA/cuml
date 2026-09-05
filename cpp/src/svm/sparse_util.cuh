@@ -438,21 +438,21 @@ void matrixRowNorm(const raft::handle_t& handle,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::L1Norm) {
       raft::linalg::rowNorm<raft::linalg::NormType::L1Norm, true>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::LinfNorm) {
       raft::linalg::rowNorm<raft::linalg::NormType::LinfNorm, true>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else {
       RAFT_FAIL("Unsupported norm type");
     }
@@ -463,21 +463,21 @@ void matrixRowNorm(const raft::handle_t& handle,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::L1Norm) {
       raft::linalg::rowNorm<raft::linalg::NormType::L1Norm, false>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::LinfNorm) {
       raft::linalg::rowNorm<raft::linalg::NormType::LinfNorm, false>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else {
       RAFT_FAIL("Unsupported norm type");
     }
@@ -628,7 +628,7 @@ void extractRows(raft::device_csr_matrix_view<math_t, int, int, int> matrix_in,
                  int num_indices,
                  const raft::handle_t& handle)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto csr_struct_in = matrix_in.structure_view();
 
   // initialize dense target
@@ -733,7 +733,7 @@ void extractRows(raft::device_csr_matrix_view<math_t, int, int, int> matrix_in,
                  int num_indices,
                  const raft::handle_t& handle)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto csr_struct_in = matrix_in.structure_view();
   int* indptr_in     = csr_struct_in.get_indptr().data();
   int* indices_in    = csr_struct_in.get_indices().data();
@@ -807,7 +807,7 @@ void extractRows(raft::device_csr_matrix_view<math_t, int, int, int> matrix_in,
                  int num_indices,
                  const raft::handle_t& handle)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto csr_struct_in = matrix_in.structure_view();
   int* indptr_in     = csr_struct_in.get_indptr().data();
   int* indices_in    = csr_struct_in.get_indices().data();

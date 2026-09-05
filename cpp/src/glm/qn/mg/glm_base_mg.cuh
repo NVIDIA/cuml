@@ -32,7 +32,7 @@ inline void linearBwdMG(const raft::handle_t& handle,
                         const int64_t n_samples,
                         const int n_ranks)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   // Backward pass:
   // - compute G <- dZ * X.T
   // - for bias: Gb = mean(dZ, 1)

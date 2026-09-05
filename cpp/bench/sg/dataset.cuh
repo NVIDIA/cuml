@@ -97,7 +97,7 @@ struct Dataset {
   void blobs(const raft::handle_t& handle, const DatasetParams& p, const BlobsParams& b)
   {
     const auto& handle_impl = handle;
-    auto stream             = handle_impl.get_stream();
+    auto stream             = handle_impl.get_stream().get();
     auto cublas_handle      = handle_impl.get_cublas_handle();
 
     // Make blobs will generate labels of type IdxT which has to be an integer
@@ -139,7 +139,7 @@ struct Dataset {
   {
     ASSERT(!isClassification(), "make_regression: is only for regression problems!");
     const auto& handle_impl = handle;
-    auto stream             = handle_impl.get_stream();
+    auto stream             = handle_impl.get_stream().get();
     auto cublas_handle      = handle_impl.get_cublas_handle();
     auto cusolver_handle    = handle_impl.get_cusolver_dn_handle();
 

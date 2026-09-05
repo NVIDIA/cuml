@@ -144,7 +144,7 @@ void perplexity_search(const value_t* restrict distances,
                        const raft::handle_t& handle)
 {
   const float desired_entropy = logf(perplexity);
-  cudaStream_t stream         = handle.get_stream();
+  cudaStream_t stream         = handle.get_stream().get();
 
   if (dim == 2)
     sigmas_kernel_2d<<<raft::ceildiv(n, (value_idx)1024), 1024, 0, stream>>>(

@@ -34,7 +34,7 @@ template
  public:
   JonesTransTest()
     : params(::testing::TestWithParam<JonesTransParam>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       nElements(params.batchSize * params.pValue),
       d_golden_ar_trans(0, stream),
       d_computed_ar_trans(0, stream),

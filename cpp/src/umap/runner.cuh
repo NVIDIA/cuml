@@ -162,7 +162,7 @@ void _get_strengths(const raft::handle_t& handle,
                     value_t* out_sigmas = nullptr,
                     value_t* out_rhos   = nullptr)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   int n_neighbors       = params->n_neighbors;
   nnz_t n_x_n_neighbors = static_cast<nnz_t>(inputs.n) * n_neighbors;
@@ -211,7 +211,7 @@ void _get_graph(const raft::handle_t& handle,
                 value_t* out_rhos   = nullptr)
 {
   raft::common::nvtx::range fun_scope("umap::supervised::_get_graph");
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   ML::default_logger().set_level(params->verbosity);
 
@@ -238,7 +238,7 @@ void _get_graph_supervised(const raft::handle_t& handle,
 {
   if (params->target_n_neighbors == -1) params->target_n_neighbors = params->n_neighbors;
 
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   /* Nested scopes used here to drop resources earlier, reducing device memory usage */
   raft::sparse::COO<value_t> ci_graph(stream);
@@ -270,7 +270,7 @@ void _refine(const raft::handle_t& handle,
              raft::sparse::COO<value_t>* graph,
              value_t* embeddings)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   ML::default_logger().set_level(params->verbosity);
 
   int n_epochs = get_n_epochs(params, inputs.n);
@@ -290,7 +290,7 @@ void _init_and_refine(const raft::handle_t& handle,
                       raft::sparse::COO<value_t>* graph,
                       value_t* embeddings)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   ML::default_logger().set_level(params->verbosity);
 
   int n_epochs = get_n_epochs(params, inputs.n);
@@ -321,7 +321,7 @@ void _fit(const raft::handle_t& handle,
 
   int n_epochs = get_n_epochs(params, inputs.n);
 
-  raft::sparse::COO<value_t> graph(stream);
+  raft::sparse::COO<value_t> graph(stream.get());
   UMAPAlgo::_get_graph<value_idx, value_t, umap_inputs, nnz_t, TPB_X>(
     handle, inputs, params, &graph, out_sigmas, out_rhos);
 
@@ -340,7 +340,7 @@ void _fit(const raft::handle_t& handle,
    */
   raft::common::nvtx::push_range("umap::embedding");
   InitEmbed::run<value_t, nnz_t>(
-    handle, inputs.n, inputs.d, &graph, params, embeddings_ptr, stream, params->init);
+    handle, inputs.n, inputs.d, &graph, params, embeddings_ptr, stream.get(), params->init);
 
   if (params->callback) {
     params->callback->setup<value_t>(inputs.n, params->n_components);
@@ -351,7 +351,7 @@ void _fit(const raft::handle_t& handle,
    * Run simplicial set embedding to approximate low-dimensional representation
    */
   SimplSetEmbed::run<value_t, nnz_t, TPB_X>(
-    inputs.n, inputs.d, &graph, params, embeddings_ptr, n_epochs, stream);
+    inputs.n, inputs.d, &graph, params, embeddings_ptr, n_epochs, stream.get());
   raft::common::nvtx::pop_range();
 
   if (params->callback) params->callback->on_train_end(embeddings_ptr);
@@ -368,7 +368,7 @@ void _fit_supervised(const raft::handle_t& handle,
 {
   raft::common::nvtx::range fun_scope("umap::supervised::fit");
 
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
   ML::default_logger().set_level(params->verbosity);
 
   int n_epochs = get_n_epochs(params, inputs.n);
@@ -424,7 +424,7 @@ void _transform(const raft::handle_t& handle,
                 value_t* transformed)
 {
   raft::common::nvtx::range fun_scope("umap::transform");
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   ML::default_logger().set_level(params->verbosity);
 

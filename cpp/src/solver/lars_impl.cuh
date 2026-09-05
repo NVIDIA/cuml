@@ -891,7 +891,7 @@ void larsFit(const raft::handle_t& handle,
   if (ld_X == 0) ld_X = n_rows;
   if (Gram && ld_G == 0) ld_G = n_cols;
 
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // We will use either U_buffer.data() to store the Cholesky factorization, or
   // store it in place at Gram. Pointer U will point to the actual storage.
@@ -1092,7 +1092,7 @@ void larsPredict(const raft::handle_t& handle,
                  math_t intercept,
                  math_t* preds)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   rmm::device_uvector<math_t> beta_sorted(0, stream);
   rmm::device_uvector<math_t> X_active_cols(0, stream);
   auto execution_policy = handle.get_thrust_policy();

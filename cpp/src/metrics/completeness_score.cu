@@ -21,7 +21,7 @@ double completeness_score(const raft::handle_t& handle,
                           const int upper_class_range)
 {
   return raft::stats::homogeneity_score(
-    y_hat, y, n, lower_class_range, upper_class_range, handle.get_stream());
+    y_hat, y, n, lower_class_range, upper_class_range, handle.get_stream().get());
 }
 
 }  // namespace Metrics

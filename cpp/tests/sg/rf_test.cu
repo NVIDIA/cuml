@@ -197,9 +197,9 @@ void testBinReductionRoundTrip(std::vector<BinT> const& input)
   rmm::device_uvector<BinT> d_output(input.size(), stream);
 
   raft::update_device(d_input.data(), input.data(), input.size(), stream);
-  DT::packHistograms(d_input.data(), d_packed.data(), input.size(), stream);
+  DT::packHistograms(d_input.data(), d_packed.data(), input.size(), stream.get());
   RAFT_CUDA_TRY(cudaPeekAtLastError());
-  DT::unpackHistograms(d_packed.data(), d_output.data(), input.size(), stream);
+  DT::unpackHistograms(d_packed.data(), d_output.data(), input.size(), stream.get());
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 
   std::vector<BinT> output(input.size());
@@ -260,7 +260,7 @@ std::shared_ptr<thrust::device_vector<LabelT>> nvForestPredict(
                                                               std::is_same_v<DataT, double>,
                                                               nvforest::device_type::gpu,
                                                               handle.get_device(),
-                                                              handle.get_next_usable_stream());
+                                                              handle.get_next_usable_stream().get());
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
@@ -331,7 +331,7 @@ auto nvForestPredictProba(const raft::handle_t& handle,
                                                               std::is_same_v<DataT, double>,
                                                               nvforest::device_type::gpu,
                                                               handle.get_device(),
-                                                              handle.get_next_usable_stream());
+                                                              handle.get_next_usable_stream().get());
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
@@ -935,7 +935,7 @@ TEST(RfTests, IntegerOverflow)
                                                               false,
                                                               nvforest::device_type::gpu,
                                                               handle.get_device(),
-                                                              handle.get_next_usable_stream());
+                                                              handle.get_next_usable_stream().get());
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
@@ -1016,7 +1016,7 @@ TEST(RfTests, InvalidSampleWeightThrows)
   thrust::device_vector<int> y(n_rows);
   thrust::device_vector<double> sample_weight(n_rows, 1.0);
   raft::random::Rng r(8);
-  r.normal(X.data().get(), X.size(), 0.0f, 1.0f, handle.get_stream());
+  r.normal(X.data().get(), X.size(), 0.0f, 1.0f, handle.get_stream().get());
   thrust::host_vector<int> h_y(n_rows);
   for (std::size_t i = 0; i < n_rows; ++i) {
     h_y[i] = i % 2;
@@ -1028,7 +1028,7 @@ TEST(RfTests, InvalidSampleWeightThrows)
 
   auto expect_invalid_weight_throws = [&](double invalid_weight) {
     thrust::fill(
-      thrust::cuda::par.on(handle.get_stream()), sample_weight.begin(), sample_weight.end(), 1.0);
+      thrust::cuda::par.on(handle.get_stream().get()), sample_weight.begin(), sample_weight.end(), 1.0);
     sample_weight[0] = invalid_weight;
     auto forest      = std::make_shared<RandomForestMetaData<float, int>>();
     auto forest_ptr  = forest.get();
@@ -1050,7 +1050,7 @@ TEST(RfTests, InvalidSampleWeightThrows)
   expect_invalid_weight_throws(std::numeric_limits<double>::quiet_NaN());
 
   thrust::fill(
-    thrust::cuda::par.on(handle.get_stream()), sample_weight.begin(), sample_weight.end(), 0.0);
+    thrust::cuda::par.on(handle.get_stream().get()), sample_weight.begin(), sample_weight.end(), 0.0);
   auto forest     = std::make_shared<RandomForestMetaData<float, int>>();
   auto forest_ptr = forest.get();
   EXPECT_THROW(fit(handle,
@@ -1081,7 +1081,7 @@ TEST(RfTests, WeightedBootstrapSamplesOnlyPositiveWeightRows)
   thrust::device_vector<double> sample_weight(n_rows);
 
   raft::random::Rng r(8);
-  r.normal(X.data().get(), X.size(), 0.0f, 1.0f, handle.get_stream());
+  r.normal(X.data().get(), X.size(), 0.0f, 1.0f, handle.get_stream().get());
 
   thrust::host_vector<int> h_y(n_rows);
   thrust::host_vector<double> h_sample_weight(n_rows);
@@ -1383,7 +1383,7 @@ TEST(RFEquivalentSplitRangeTest, ClassificationChoosesUpperMiddleBin)
   thrust::device_vector<int> mutex(1);
 
   DT::ClassificationObjectiveFunction<DataT, int> objective(2, 1, CRITERION::GINI);
-  objectiveGainKernel<<<1, 32, 0, handle.get_stream()>>>(hist.data().get(),
+  objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
                                                          quantiles.data().get(),
                                                          split.data().get(),
                                                          mutex.data().get(),
@@ -1395,7 +1395,7 @@ TEST(RFEquivalentSplitRangeTest, ClassificationChoosesUpperMiddleBin)
 
   DT::Split<DataT> h_split;
   RAFT_CUDA_TRY(cudaMemcpyAsync(
-    &h_split, split.data().get(), sizeof(h_split), cudaMemcpyDeviceToHost, handle.get_stream()));
+    &h_split, split.data().get(), sizeof(h_split), cudaMemcpyDeviceToHost, handle.get_stream().get()));
   handle.sync_stream();
 
   EXPECT_EQ(h_split.global_nLeft, 4);
@@ -1430,7 +1430,7 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
   thrust::device_vector<int> mutex(1);
 
   DT::RegressionObjectiveFunction<DataT, DataT> objective(1, 1, CRITERION::MSE);
-  objectiveGainKernel<<<1, 32, 0, handle.get_stream()>>>(hist.data().get(),
+  objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
                                                          quantiles.data().get(),
                                                          split.data().get(),
                                                          mutex.data().get(),
@@ -1442,7 +1442,7 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
 
   DT::Split<DataT> h_split;
   RAFT_CUDA_TRY(cudaMemcpyAsync(
-    &h_split, split.data().get(), sizeof(h_split), cudaMemcpyDeviceToHost, handle.get_stream()));
+    &h_split, split.data().get(), sizeof(h_split), cudaMemcpyDeviceToHost, handle.get_stream().get()));
   handle.sync_stream();
 
   EXPECT_EQ(h_split.global_nLeft, 4);

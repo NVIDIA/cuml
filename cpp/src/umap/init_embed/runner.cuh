@@ -32,12 +32,12 @@ void run(const raft::handle_t& handle,
     /**
      * Initial algo uses FAISS indices
      */
-    case 0: RandomInit::launcher<T, nnz_t>(n, d, params, embedding, handle.get_stream()); break;
+    case 0: RandomInit::launcher<T, nnz_t>(n, d, params, embedding, handle.get_stream().get()); break;
 
     case 1: try { SpectralInit::launcher<T, nnz_t>(handle, n, d, coo, params, embedding);
       } catch (const raft::exception& e) {
         CUML_LOG_WARN("Spectral initialization failed, using random initialization instead.");
-        RandomInit::launcher<T, nnz_t>(n, d, params, embedding, handle.get_stream());
+        RandomInit::launcher<T, nnz_t>(n, d, params, embedding, handle.get_stream().get());
       }
       break;
 

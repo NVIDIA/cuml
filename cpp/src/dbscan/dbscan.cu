@@ -41,7 +41,7 @@ void fit(const raft::handle_t& handle,
                                     sample_weight,
                                     max_bytes_per_batch,
                                     eps_nn_method,
-                                    handle.get_stream(),
+                                    handle.get_stream().get(),
                                     verbosity);
   else
     dbscanFitImpl<float, int, false>(handle,
@@ -56,7 +56,7 @@ void fit(const raft::handle_t& handle,
                                      sample_weight,
                                      max_bytes_per_batch,
                                      eps_nn_method,
-                                     handle.get_stream(),
+                                     handle.get_stream().get(),
                                      verbosity);
 }
 
@@ -88,7 +88,7 @@ void fit(const raft::handle_t& handle,
                                      sample_weight,
                                      max_bytes_per_batch,
                                      eps_nn_method,
-                                     handle.get_stream(),
+                                     handle.get_stream().get(),
                                      verbosity);
   else
     dbscanFitImpl<double, int, false>(handle,
@@ -103,7 +103,7 @@ void fit(const raft::handle_t& handle,
                                       sample_weight,
                                       max_bytes_per_batch,
                                       eps_nn_method,
-                                      handle.get_stream(),
+                                      handle.get_stream().get(),
                                       verbosity);
 }
 
@@ -135,7 +135,7 @@ void fit(const raft::handle_t& handle,
                                         sample_weight,
                                         max_bytes_per_batch,
                                         eps_nn_method,
-                                        handle.get_stream(),
+                                        handle.get_stream().get(),
                                         verbosity);
   else
     dbscanFitImpl<float, int64_t, false>(handle,
@@ -150,7 +150,7 @@ void fit(const raft::handle_t& handle,
                                          sample_weight,
                                          max_bytes_per_batch,
                                          eps_nn_method,
-                                         handle.get_stream(),
+                                         handle.get_stream().get(),
                                          verbosity);
 }
 
@@ -182,7 +182,7 @@ void fit(const raft::handle_t& handle,
                                          sample_weight,
                                          max_bytes_per_batch,
                                          eps_nn_method,
-                                         handle.get_stream(),
+                                         handle.get_stream().get(),
                                          verbosity);
   else
     dbscanFitImpl<double, int64_t, false>(handle,
@@ -197,7 +197,7 @@ void fit(const raft::handle_t& handle,
                                           sample_weight,
                                           max_bytes_per_batch,
                                           eps_nn_method,
-                                          handle.get_stream(),
+                                          handle.get_stream().get(),
                                           verbosity);
 }
 

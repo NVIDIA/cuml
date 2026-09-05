@@ -15,7 +15,7 @@ int divide_by_mask_build_index(const raft::handle_t& handle,
                                int* d_index,
                                int batch_size)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   return ML::TimeSeries::divide_by_mask_build_index(d_mask, d_index, batch_size, stream);
 }
 
@@ -29,7 +29,7 @@ inline void divide_by_mask_execute_helper(const raft::handle_t& handle,
                                           int batch_size,
                                           int n_obs)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   ML::TimeSeries::divide_by_mask_execute(
     d_in, d_mask, d_index, d_out0, d_out1, batch_size, n_obs, stream);
 }
@@ -79,7 +79,7 @@ inline void divide_by_min_build_index_helper(const raft::handle_t& handle,
                                              int batch_size,
                                              int n_sub)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   ML::TimeSeries::divide_by_min_build_index(
     d_matrix, d_batch, d_index, h_size, batch_size, n_sub, stream);
 }
@@ -116,7 +116,7 @@ inline void divide_by_min_execute_helper(const raft::handle_t& handle,
                                          int n_sub,
                                          int n_obs)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   ML::TimeSeries::divide_by_min_execute(
     d_in, d_batch, d_index, hd_out, batch_size, n_sub, n_obs, stream);
 }
@@ -165,7 +165,7 @@ void build_division_map(const raft::handle_t& handle,
                         int batch_size,
                         int n_sub)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   ML::TimeSeries::build_division_map(
     hd_id, h_size, d_id_to_pos, d_id_to_model, batch_size, n_sub, stream);
 }
@@ -180,7 +180,7 @@ inline void merge_series_helper(const raft::handle_t& handle,
                                 int n_sub,
                                 int n_obs)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   ML::TimeSeries::merge_series(
     hd_in, d_id_to_pos, d_id_to_sub, d_out, batch_size, n_sub, n_obs, stream);
 }

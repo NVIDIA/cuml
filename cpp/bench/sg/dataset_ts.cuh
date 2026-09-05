@@ -44,7 +44,7 @@ struct TimeSeriesDataset {
               DataT sigma = 1)
   {
     raft::random::Rng gpu_gen(p.seed, raft::random::GenPhilox);
-    gpu_gen.normal(X.data(), p.batch_size * p.n_obs, mu, sigma, handle.get_stream());
+    gpu_gen.normal(X.data(), p.batch_size * p.n_obs, mu, sigma, handle.get_stream().get());
   }
 };
 

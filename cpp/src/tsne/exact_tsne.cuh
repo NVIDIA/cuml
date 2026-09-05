@@ -41,7 +41,7 @@ std::pair<float, int> Exact_TSNE(value_t* VAL,
                                  const value_idx n,
                                  const TSNEParams& params)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   value_t kl_div      = 0;
   const value_idx dim = params.dim;
 

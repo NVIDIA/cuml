@@ -95,7 +95,7 @@ void sgdFit(raft::handle_t& handle,
          shuffle,
          tol,
          n_iter_no_change,
-         handle.get_stream());
+         handle.get_stream().get());
 }
 
 void sgdFit(raft::handle_t& handle,
@@ -176,7 +176,7 @@ void sgdFit(raft::handle_t& handle,
          shuffle,
          tol,
          n_iter_no_change,
-         handle.get_stream());
+         handle.get_stream().get());
 }
 
 void sgdPredict(raft::handle_t& handle,
@@ -200,7 +200,7 @@ void sgdPredict(raft::handle_t& handle,
   }
 
   sgdPredict(
-    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream());
+    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream().get());
 }
 
 void sgdPredict(raft::handle_t& handle,
@@ -224,7 +224,7 @@ void sgdPredict(raft::handle_t& handle,
   }
 
   sgdPredict(
-    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream());
+    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream().get());
 }
 
 void sgdPredictBinaryClass(raft::handle_t& handle,
@@ -248,7 +248,7 @@ void sgdPredictBinaryClass(raft::handle_t& handle,
   }
 
   sgdPredictBinaryClass(
-    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream());
+    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream().get());
 }
 
 void sgdPredictBinaryClass(raft::handle_t& handle,
@@ -272,7 +272,7 @@ void sgdPredictBinaryClass(raft::handle_t& handle,
   }
 
   sgdPredictBinaryClass(
-    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream());
+    handle, input, n_rows, n_cols, coef, intercept, preds, loss_funct, handle.get_stream().get());
 }
 
 int cdFit(raft::handle_t& handle,

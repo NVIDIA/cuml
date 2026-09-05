@@ -86,7 +86,7 @@ void permutation_shap_dataset_impl(const raft::handle_t& handle,
                                    bool row_major)
 {
   const auto& handle_impl = handle;
-  cudaStream_t stream     = handle_impl.get_stream();
+  cudaStream_t stream     = handle_impl.get_stream().get();
 
   // we calculate the number of rows in the dataset and then multiply by 2 since
   // we are adding a forward and backward permutation (see docstring in header file)
@@ -127,7 +127,7 @@ void shap_main_effect_dataset_impl(const raft::handle_t& handle,
                                    bool row_major)
 {
   const auto& handle_impl = handle;
-  cudaStream_t stream     = handle_impl.get_stream();
+  cudaStream_t stream     = handle_impl.get_stream().get();
 
   // we calculate the number of elements in the dataset
   IdxT total_num_elements = (nrows_bg * ncols + nrows_bg) * ncols;
@@ -180,7 +180,7 @@ void update_perm_shap_values_impl(const raft::handle_t& handle,
                                   const IdxT* idx)
 {
   const auto& handle_impl = handle;
-  cudaStream_t stream     = handle_impl.get_stream();
+  cudaStream_t stream     = handle_impl.get_stream().get();
 
   constexpr IdxT nthreads = 512;
 

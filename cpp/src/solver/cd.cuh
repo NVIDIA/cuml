@@ -146,7 +146,7 @@ int cdFit(const raft::handle_t& handle,
   ASSERT(loss == ML::loss_funct::SQRD_LOSS,
          "Parameter loss: Only SQRT_LOSS function is supported for now");
 
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   rmm::device_uvector<math_t> residual(n_rows, stream);
   rmm::device_uvector<math_t> squared(n_cols, stream);
   rmm::device_uvector<math_t> mu_input(0, stream);
@@ -343,7 +343,7 @@ void cdPredict(const raft::handle_t& handle,
   ASSERT(loss == ML::loss_funct::SQRD_LOSS,
          "Parameter loss: Only SQRT_LOSS function is supported for now");
 
-  Functions::linearRegH(handle, input, n_rows, n_cols, coef, preds, intercept, handle.get_stream());
+  Functions::linearRegH(handle, input, n_rows, n_cols, coef, preds, intercept, handle.get_stream().get());
 }
 
 };  // namespace Solver

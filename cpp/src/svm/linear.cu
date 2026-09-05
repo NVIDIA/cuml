@@ -112,7 +112,7 @@ class WorkerHandle {
     : handle_ptr{new raft::handle_t{h.get_next_usable_stream(stream_id)}},
       stream_id(stream_id),
       handle(*handle_ptr),
-      stream(h.get_next_usable_stream(stream_id))
+      stream(h.get_next_usable_stream(stream_id).get())
   {
   }
 
@@ -140,7 +140,7 @@ int fit(const raft::handle_t& handle,
     ASSERT(nClasses > 1 && classes != nullptr, "Must have > 1 class for classification");
   }
 
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   const int coefCols         = nClasses <= 2 ? 1 : nClasses;
   const std::size_t coefRows = nCols + int(params.fit_intercept);

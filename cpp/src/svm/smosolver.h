@@ -73,7 +73,7 @@ class SmoSolver {
       nochange_steps(param.nochange_steps),
       epsilon(param.epsilon),
       svmType(param.svmType),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       return_buff(2, stream),
       alpha(0, stream),
       C_vec(0, stream),

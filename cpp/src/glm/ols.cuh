@@ -54,7 +54,7 @@ void olsFit(const raft::handle_t& handle,
             int algo              = 0,
             math_t* sample_weight = nullptr)
 {
-  cudaStream_t stream  = handle.get_stream();
+  cudaStream_t stream  = handle.get_stream().get();
   auto cublas_handle   = handle.get_cublas_handle();
   auto cusolver_handle = handle.get_cusolver_dn_handle();
 
@@ -164,7 +164,7 @@ void gemmPredict(const raft::handle_t& handle,
   ASSERT(n_cols > 0, "gemmPredict: number of columns cannot be less than one");
   ASSERT(n_rows > 0, "gemmPredict: number of rows cannot be less than one");
 
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   math_t alpha        = math_t(1);
   math_t beta         = math_t(0);
   raft::linalg::gemm(handle,

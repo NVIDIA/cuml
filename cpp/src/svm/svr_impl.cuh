@@ -53,7 +53,7 @@ int svrFitX(const raft::handle_t& handle,
   // ML::detail::streamSyncer _(handle_impl.getImpl());
   const raft::handle_t& handle_impl = handle;
 
-  cudaStream_t stream = handle_impl.get_stream();
+  cudaStream_t stream = handle_impl.get_stream().get();
 
   bool is_precomputed = kernel_params.kernel == ML::matrix::KernelType::PRECOMPUTED;
 
