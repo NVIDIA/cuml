@@ -1053,7 +1053,8 @@ class KMeans(
             params,
             X,
             sample_weight,
-            self.cluster_centers_
+            self.cluster_centers_,
+            normalize_weights=False,
         )
         handle.sync()
         return labels, inertia
