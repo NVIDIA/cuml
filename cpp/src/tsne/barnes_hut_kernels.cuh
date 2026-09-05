@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -7,6 +7,7 @@
 
 #include "utils.cuh"
 
+#include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 #include <raft/util/device_atomics.cuh>
 
@@ -600,6 +601,11 @@ CUML_KERNEL __launch_bounds__(
   // iterate over all bodies assigned to thread
   const auto MAX_SIZE = FOUR_NNODES + 4;
 
+  // Z_norm is one scalar for the whole grid, so accumulating it per body made
+  // every thread contend for the same address.  Keep a per-thread partial and
+  // fold it down to one atomic per warp after the traversal.
+  value_t z_partial = 0.0f;
+
   for (auto k = threadIdx.x + blockIdx.x * blockDim.x; k < N; k += blockDim.x * gridDim.x) {
     const auto i = sortd[k];  // get permuted/sorted index
     // cache position info
@@ -660,8 +666,16 @@ CUML_KERNEL __launch_bounds__(
     // update velocity
     velxd[i] += vx;
     velyd[i] += vy;
-    atomicAdd(Z_norm, normsum);
+    z_partial += normsum;
   }
+
+  // All threads reach this point together (the body loop has no early exit),
+  // so a full-warp reduction is safe here.
+#pragma unroll
+  for (int offset = raft::WarpSize / 2; offset > 0; offset >>= 1) {
+    z_partial += __shfl_down_sync(0xffffffffu, z_partial, offset);
+  }
+  if (threadIdx.x % raft::WarpSize == 0 && z_partial != 0.0f) { atomicAdd(Z_norm, z_partial); }
 }
 
 /**
@@ -680,27 +694,60 @@ CUML_KERNEL void attractive_kernel_bh(const value_t* restrict VAL,
                                       const value_t dof)
 {
   const auto index = (blockIdx.x * blockDim.x) + threadIdx.x;
-  if (index >= NNZ) return;
-  const auto i = ROW[index];
-  const auto j = COL[index];
+  // Lanes past the end stay in the warp (with a row index no real edge can
+  // match) so the warp-wide primitives below always see a full mask.
+  const bool active = index < NNZ;
+  const value_idx i = active ? ROW[index] : value_idx(-1);
 
-  const value_t y1d = Y1[i] - Y1[j];
-  const value_t y2d = Y2[i] - Y2[j];
-  value_t dist      = y1d * y1d + y2d * y2d;
-  // As a sum of squares, SED is mathematically >= 0. There might be a source of
-  // NaNs upstream though, so until we find and fix them, enforce that trait.
-  if (!(dist >= 0)) dist = 0.0f;
+  value_t force1 = 0;
+  value_t force2 = 0;
+  if (active) {
+    const auto j = COL[index];
 
-  const value_t P  = VAL[index];
-  const value_t Q  = compute_q(dist, dof);
-  const value_t PQ = P * Q;
+    const value_t y1d = Y1[i] - Y1[j];
+    const value_t y2d = Y2[i] - Y2[j];
+    value_t dist      = y1d * y1d + y2d * y2d;
+    // As a sum of squares, SED is mathematically >= 0. There might be a source of
+    // NaNs upstream though, so until we find and fix them, enforce that trait.
+    if (!(dist >= 0)) dist = 0.0f;
 
-  // Apply forces
-  atomicAdd(&attract1[i], PQ * y1d);
-  atomicAdd(&attract2[i], PQ * y2d);
+    const value_t P  = VAL[index];
+    const value_t Q  = compute_q(dist, dof);
+    const value_t PQ = P * Q;
 
-  if (Qs) {  // when computing KL div
-    Qs[index] = Q;
+    force1 = PQ * y1d;
+    force2 = PQ * y2d;
+
+    if (Qs) {  // when computing KL div
+      Qs[index] = Q;
+    }
+  }
+
+  // Apply forces.  The symmetrized COO is laid out row by row, so a warp
+  // normally covers one or two rows and the two atomicAdds below would
+  // serialize 32 deep on a single address.  Sum each run of equal rows inside
+  // the warp first and let the run's last lane issue one atomic per row.  The
+  // reduction is driven by lane position rather than by comparing row indices
+  // pairwise, so a row that appears in two separate runs is still counted once.
+  constexpr unsigned full_mask = 0xffffffffu;
+  const int lane               = threadIdx.x % raft::WarpSize;
+  const value_idx prev         = __shfl_up_sync(full_mask, i, 1);
+  const unsigned head_mask     = __ballot_sync(full_mask, lane == 0 || prev != i);
+  // Lowest lane of this run: the highest run head at or before this lane.
+  const int run_start = raft::WarpSize - 1 - __clz(head_mask & ((2u << lane) - 1));
+#pragma unroll
+  for (int offset = 1; offset < raft::WarpSize; offset <<= 1) {
+    const value_t other1 = __shfl_up_sync(full_mask, force1, offset);
+    const value_t other2 = __shfl_up_sync(full_mask, force2, offset);
+    if (lane - offset >= run_start) {
+      force1 += other1;
+      force2 += other2;
+    }
+  }
+  const bool run_end = lane == raft::WarpSize - 1 || ((head_mask >> (lane + 1)) & 1u);
+  if (active && run_end) {
+    atomicAdd(&attract1[i], force1);
+    atomicAdd(&attract2[i], force2);
   }
 
   // TODO: Convert attractive forces to CSR format
