@@ -255,13 +255,14 @@ std::shared_ptr<thrust::device_vector<LabelT>> nvForestPredict(
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest, params.n_cols);
 
-  auto nvforest_model = nvforest::import_from_treelite_handle(model,
-                                                              nvforest::tree_layout::breadth_first,
-                                                              128,
-                                                              std::is_same_v<DataT, double>,
-                                                              nvforest::device_type::gpu,
-                                                              handle.get_device(),
-                                                              handle.get_next_usable_stream().get());
+  auto nvforest_model =
+    nvforest::import_from_treelite_handle(model,
+                                          nvforest::tree_layout::breadth_first,
+                                          128,
+                                          std::is_same_v<DataT, double>,
+                                          nvforest::device_type::gpu,
+                                          handle.get_device(),
+                                          handle.get_next_usable_stream().get());
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
@@ -326,13 +327,14 @@ auto nvForestPredictProba(const raft::handle_t& handle,
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest, params.n_cols);
 
-  auto nvforest_model = nvforest::import_from_treelite_handle(model,
-                                                              nvforest::tree_layout::breadth_first,
-                                                              128,
-                                                              std::is_same_v<DataT, double>,
-                                                              nvforest::device_type::gpu,
-                                                              handle.get_device(),
-                                                              handle.get_next_usable_stream().get());
+  auto nvforest_model =
+    nvforest::import_from_treelite_handle(model,
+                                          nvforest::tree_layout::breadth_first,
+                                          128,
+                                          std::is_same_v<DataT, double>,
+                                          nvforest::device_type::gpu,
+                                          handle.get_device(),
+                                          handle.get_next_usable_stream().get());
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
@@ -930,13 +932,14 @@ TEST(RfTests, IntegerOverflow)
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest_ptr, n);
 
-  auto nvforest_model = nvforest::import_from_treelite_handle(model,
-                                                              nvforest::tree_layout::breadth_first,
-                                                              128,
-                                                              false,
-                                                              nvforest::device_type::gpu,
-                                                              handle.get_device(),
-                                                              handle.get_next_usable_stream().get());
+  auto nvforest_model =
+    nvforest::import_from_treelite_handle(model,
+                                          nvforest::tree_layout::breadth_first,
+                                          128,
+                                          false,
+                                          nvforest::device_type::gpu,
+                                          handle.get_device(),
+                                          handle.get_next_usable_stream().get());
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
@@ -1028,8 +1031,10 @@ TEST(RfTests, InvalidSampleWeightThrows)
     set_rf_params(3, 100, 1.0, 8, 1, 2, 0.0, false, 1, 1.0, 0, CRITERION::GINI, 1, 128);
 
   auto expect_invalid_weight_throws = [&](double invalid_weight) {
-    thrust::fill(
-      thrust::cuda::par.on(handle.get_stream().get()), sample_weight.begin(), sample_weight.end(), 1.0);
+    thrust::fill(thrust::cuda::par.on(handle.get_stream().get()),
+                 sample_weight.begin(),
+                 sample_weight.end(),
+                 1.0);
     sample_weight[0] = invalid_weight;
     auto forest      = std::make_shared<RandomForestMetaData<float, int>>();
     auto forest_ptr  = forest.get();
@@ -1050,8 +1055,10 @@ TEST(RfTests, InvalidSampleWeightThrows)
   expect_invalid_weight_throws(-1.0);
   expect_invalid_weight_throws(std::numeric_limits<double>::quiet_NaN());
 
-  thrust::fill(
-    thrust::cuda::par.on(handle.get_stream().get()), sample_weight.begin(), sample_weight.end(), 0.0);
+  thrust::fill(thrust::cuda::par.on(handle.get_stream().get()),
+               sample_weight.begin(),
+               sample_weight.end(),
+               0.0);
   auto forest     = std::make_shared<RandomForestMetaData<float, int>>();
   auto forest_ptr = forest.get();
   EXPECT_THROW(fit(handle,
@@ -1385,18 +1392,21 @@ TEST(RFEquivalentSplitRangeTest, ClassificationChoosesUpperMiddleBin)
 
   DT::ClassificationObjectiveFunction<DataT, int> objective(2, 1, CRITERION::GINI);
   objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
-                                                         quantiles.data().get(),
-                                                         split.data().get(),
-                                                         mutex.data().get(),
-                                                         objective,
-                                                         std::int64_t{0},
-                                                         len,
-                                                         n_bins);
+                                                               quantiles.data().get(),
+                                                               split.data().get(),
+                                                               mutex.data().get(),
+                                                               objective,
+                                                               std::int64_t{0},
+                                                               len,
+                                                               n_bins);
   RAFT_CUDA_TRY(cudaGetLastError());
 
   DT::Split<DataT> h_split;
-  RAFT_CUDA_TRY(cudaMemcpyAsync(
-    &h_split, split.data().get(), sizeof(h_split), cudaMemcpyDeviceToHost, handle.get_stream().get()));
+  RAFT_CUDA_TRY(cudaMemcpyAsync(&h_split,
+                                split.data().get(),
+                                sizeof(h_split),
+                                cudaMemcpyDeviceToHost,
+                                handle.get_stream().get()));
   handle.sync_stream();
 
   EXPECT_EQ(h_split.global_nLeft, 4);
@@ -1432,18 +1442,21 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
 
   DT::RegressionObjectiveFunction<DataT, DataT> objective(1, 1, CRITERION::MSE);
   objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
-                                                         quantiles.data().get(),
-                                                         split.data().get(),
-                                                         mutex.data().get(),
-                                                         objective,
-                                                         std::int64_t{0},
-                                                         len,
-                                                         n_bins);
+                                                               quantiles.data().get(),
+                                                               split.data().get(),
+                                                               mutex.data().get(),
+                                                               objective,
+                                                               std::int64_t{0},
+                                                               len,
+                                                               n_bins);
   RAFT_CUDA_TRY(cudaGetLastError());
 
   DT::Split<DataT> h_split;
-  RAFT_CUDA_TRY(cudaMemcpyAsync(
-    &h_split, split.data().get(), sizeof(h_split), cudaMemcpyDeviceToHost, handle.get_stream().get()));
+  RAFT_CUDA_TRY(cudaMemcpyAsync(&h_split,
+                                split.data().get(),
+                                sizeof(h_split),
+                                cudaMemcpyDeviceToHost,
+                                handle.get_stream().get()));
   handle.sync_stream();
 
   EXPECT_EQ(h_split.global_nLeft, 4);

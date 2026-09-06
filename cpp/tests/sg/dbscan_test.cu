@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -115,7 +115,8 @@ class DbscanTest : public ::testing::TestWithParam<DbscanInputs<T, IdxT>> {
     score = adjusted_rand_index(handle, labels_ref.data(), labels.data(), params.n_row);
 
     if (score < 1.0) {
-      auto str = raft::arr2Str(labels_ref.data(), params.n_row, "labels_ref", handle.get_stream().get());
+      auto str =
+        raft::arr2Str(labels_ref.data(), params.n_row, "labels_ref", handle.get_stream().get());
       CUML_LOG_DEBUG("y: %s", str.c_str());
       str = raft::arr2Str(labels.data(), params.n_row, "labels", handle.get_stream().get());
       CUML_LOG_DEBUG("y_hat: %s", str.c_str());

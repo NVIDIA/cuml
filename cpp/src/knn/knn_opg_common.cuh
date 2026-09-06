@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -507,12 +507,12 @@ void copy_label_outputs_from_index_parts(opg_knn_param<in_t, ind_t, dist_t, out_
 
     copy_label_outputs_from_index_parts_kernel<TPB_X, ind_t, out_t>
       <<<grid, blk, 0, handle.get_stream().get()>>>(work.res.data() + (o * n_labels),
-                                              work.res_I.data(),
-                                              parts_d.data(),
-                                              offsets_d.data(),
-                                              batch_size,
-                                              n_parts,
-                                              n_labels);
+                                                    work.res_I.data(),
+                                                    parts_d.data(),
+                                                    offsets_d.data(),
+                                                    batch_size,
+                                                    n_parts,
+                                                    n_labels);
   }
   handle.sync_stream(handle.get_stream());
   RAFT_CUDA_TRY(cudaPeekAtLastError());
@@ -644,8 +644,8 @@ void reduce(opg_knn_param<in_t, ind_t, dist_t, out_t>& params,
             size_t batch_size)
 {
   rmm::device_uvector<trans_t> trans(work.idxRanks.size(), handle.get_stream().get());
-  RAFT_CUDA_TRY(
-    cudaMemsetAsync(trans.data(), 0, work.idxRanks.size() * sizeof(trans_t), handle.get_stream().get()));
+  RAFT_CUDA_TRY(cudaMemsetAsync(
+    trans.data(), 0, work.idxRanks.size() * sizeof(trans_t), handle.get_stream().get()));
 
   size_t batch_offset = processed_in_part * params.k;
 
@@ -811,17 +811,18 @@ void merge_labels(opg_knn_param_t& params,
   raft::update_device(
     parts_to_ranks_d.data(), parts_to_ranks_h.data(), parts_to_ranks_h.size(), handle.get_stream());
 
-  merge_labels_kernel<TPB_X><<<grid, blk, 0, handle.get_stream().get()>>>(output,
-                                                                    knn_indices,
-                                                                    unmerged_outputs,
-                                                                    unmerged_knn_indices,
-                                                                    offsets_d.data(),
-                                                                    parts_to_ranks_d.data(),
-                                                                    params.k,
-                                                                    params.n_outputs,
-                                                                    n_labels,
-                                                                    work.idxPartsToRanks.size(),
-                                                                    work.idxRanks.size());
+  merge_labels_kernel<TPB_X>
+    <<<grid, blk, 0, handle.get_stream().get()>>>(output,
+                                                  knn_indices,
+                                                  unmerged_outputs,
+                                                  unmerged_knn_indices,
+                                                  offsets_d.data(),
+                                                  parts_to_ranks_d.data(),
+                                                  params.k,
+                                                  params.n_outputs,
+                                                  n_labels,
+                                                  work.idxPartsToRanks.size(),
+                                                  work.idxRanks.size());
 }
 
 /*!

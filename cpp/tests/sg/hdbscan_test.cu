@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -315,7 +315,8 @@ class ClusterSelectionTest : public ::testing::TestWithParam<ClusterSelectionInp
                                       handle.get_stream().get()));
 
     rmm::device_uvector<IdxT> labels_ref(params.n_row, handle.get_stream().get());
-    raft::update_device(labels_ref.data(), params.labels.data(), params.n_row, handle.get_stream().get());
+    raft::update_device(
+      labels_ref.data(), params.labels.data(), params.n_row, handle.get_stream().get());
     score = raft::stats::adjusted_rand_index(
       labels.data(), labels_ref.data(), params.n_row, handle.get_stream().get());
     handle.sync_stream(handle.get_stream().get());

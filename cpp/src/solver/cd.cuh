@@ -343,7 +343,8 @@ void cdPredict(const raft::handle_t& handle,
   ASSERT(loss == ML::loss_funct::SQRD_LOSS,
          "Parameter loss: Only SQRT_LOSS function is supported for now");
 
-  Functions::linearRegH(handle, input, n_rows, n_cols, coef, preds, intercept, handle.get_stream().get());
+  Functions::linearRegH(
+    handle, input, n_rows, n_cols, coef, preds, intercept, handle.get_stream().get());
 }
 
 };  // namespace Solver

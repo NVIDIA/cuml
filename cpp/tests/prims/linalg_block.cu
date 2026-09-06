@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -79,8 +79,10 @@ class BlockGemmTest : public ::testing::TestWithParam<BlockGemmInputs<T>> {
 
     /* Generate random data on device */
     raft::random::Rng r(params.seed);
-    r.uniform(a.data(), params.m * params.k * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
-    r.uniform(b.data(), params.k * params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
+    r.uniform(
+      a.data(), params.m * params.k * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
+    r.uniform(
+      b.data(), params.k * params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
 
     /* Generate random alpha */
     std::default_random_engine generator(params.seed);
@@ -97,14 +99,14 @@ class BlockGemmTest : public ::testing::TestWithParam<BlockGemmInputs<T>> {
     /* Compute using tested prims */
     block_gemm_test_kernel<Policy>
       <<<params.batch_size, Policy::BlockSize, 0, handle.get_stream().get()>>>(params.transa,
-                                                                         params.transb,
-                                                                         params.m,
-                                                                         params.n,
-                                                                         params.k,
-                                                                         alpha,
-                                                                         a.data(),
-                                                                         b.data(),
-                                                                         c.data());
+                                                                               params.transb,
+                                                                               params.m,
+                                                                               params.n,
+                                                                               params.k,
+                                                                               alpha,
+                                                                               a.data(),
+                                                                               b.data(),
+                                                                               c.data());
 
     /* Compute reference results */
     for (int bid = 0; bid < params.batch_size; bid++) {
@@ -305,7 +307,8 @@ class BlockGemvTest : public ::testing::TestWithParam<BlockGemvInputs<T>> {
 
     /* Generate random data on device */
     raft::random::Rng r(params.seed);
-    r.uniform(a.data(), params.m * params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
+    r.uniform(
+      a.data(), params.m * params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
     r.uniform(x.data(), params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
 
     /* Generate random alpha */
@@ -316,7 +319,8 @@ class BlockGemvTest : public ::testing::TestWithParam<BlockGemvInputs<T>> {
     /* Copy to host */
     raft::update_host(
       h_a.data(), a.data(), params.m * params.n * params.batch_size, handle.get_stream().get());
-    raft::update_host(h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
+    raft::update_host(
+      h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
     handle.sync_stream(handle.get_stream().get());
 
     /* Compute using tested prims */
@@ -446,8 +450,10 @@ class BlockDotTest : public ::testing::TestWithParam<BlockDotInputs<T>> {
     r.uniform(y.data(), params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
 
     /* Copy to host */
-    raft::update_host(h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
-    raft::update_host(h_y.data(), y.data(), params.n * params.batch_size, handle.get_stream().get());
+    raft::update_host(
+      h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
+    raft::update_host(
+      h_y.data(), y.data(), params.n * params.batch_size, handle.get_stream().get());
     handle.sync_stream(handle.get_stream().get());
 
     /* Compute using tested prims */
@@ -571,10 +577,12 @@ class BlockXaxtTest : public ::testing::TestWithParam<BlockXaxtInputs<T>> {
     /* Generate random data on device */
     raft::random::Rng r(params.seed);
     r.uniform(x.data(), params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
-    r.uniform(A.data(), params.n * params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
+    r.uniform(
+      A.data(), params.n * params.n * params.batch_size, (T)-2, (T)2, handle.get_stream().get());
 
     /* Copy to host */
-    raft::update_host(h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
+    raft::update_host(
+      h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
     raft::update_host(
       h_A.data(), A.data(), params.n * params.n * params.batch_size, handle.get_stream().get());
     handle.sync_stream(handle.get_stream().get());
@@ -689,7 +697,8 @@ class BlockAxTest : public ::testing::TestWithParam<BlockAxInputs<T>> {
     T alpha = distribution(generator);
 
     /* Copy to host */
-    raft::update_host(h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
+    raft::update_host(
+      h_x.data(), x.data(), params.n * params.batch_size, handle.get_stream().get());
     handle.sync_stream(handle.get_stream().get());
 
     /* Compute using tested prims */
@@ -772,7 +781,8 @@ class BlockCovStabilityTest : public ::testing::TestWithParam<BlockCovStabilityI
     params = ::testing::TestWithParam<BlockCovStabilityInputs<T>>::GetParam();
 
     rmm::device_uvector<T> d_in(params.n * params.n * params.batch_size, handle.get_stream().get());
-    rmm::device_uvector<T> d_out(params.n * params.n * params.batch_size, handle.get_stream().get());
+    rmm::device_uvector<T> d_out(params.n * params.n * params.batch_size,
+                                 handle.get_stream().get());
 
     std::vector<T> h_in(params.n * params.n * params.batch_size);
     std::vector<T> h_out(params.n * params.n * params.batch_size);
