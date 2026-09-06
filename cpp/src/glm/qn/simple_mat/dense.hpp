@@ -12,6 +12,8 @@
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 
+#include <cuda/stream>
+
 #include <iostream>
 #include <vector>
 // #TODO: Replace with public header when ready
@@ -340,7 +342,7 @@ std::ostream& operator<<(std::ostream& os, const SimpleDenseMat<T>& mat)
 {
   os << "ord=" << (mat.ord == COL_MAJOR ? "CM" : "RM") << "\n";
   std::vector<T> out(mat.len);
-  raft::update_host(&out[0], mat.data, mat.len, rmm::cuda_stream_default);
+  raft::update_host(&out[0], mat.data, mat.len, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
   raft::interruptible::synchronize(rmm::cuda_stream_view());
   if (mat.ord == COL_MAJOR) {
     for (int r = 0; r < mat.m; r++) {

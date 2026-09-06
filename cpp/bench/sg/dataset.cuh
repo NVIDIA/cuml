@@ -14,6 +14,8 @@
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 
+#include <cuda/stream>
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -65,7 +67,11 @@ struct RegressionParams {
  */
 template <typename D, typename L, typename IdxT = int>
 struct Dataset {
-  Dataset() : X(0, rmm::cuda_stream_default), y(0, rmm::cuda_stream_default) {}
+  Dataset()
+    : X(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}}),
+      y(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}})
+  {
+  }
   /** input data */
   rmm::device_uvector<D> X;
   /** labels or output associated with each row of input data */

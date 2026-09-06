@@ -10,6 +10,8 @@
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 
+#include <cuda/stream>
+
 namespace ML {
 namespace Bench {
 
@@ -26,7 +28,7 @@ struct TimeSeriesParams {
  */
 template <typename DataT>
 struct TimeSeriesDataset {
-  TimeSeriesDataset() : X(0, rmm::cuda_stream_default) {}
+  TimeSeriesDataset() : X(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}}) {}
 
   /** input data */
   rmm::device_uvector<DataT> X;
