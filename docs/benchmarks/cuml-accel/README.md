@@ -1,8 +1,11 @@
 # Synchronizing the cuml.accel benchmark page
 
-The checked-in `benchmark-data.json` is the portable, non-published input for
-the Sphinx page. It is produced and schema-validated by `cumlbench-dash`; raw
-mlbench results stay outside this repository.
+The checked-in `benchmark-data.json` is the compact input for the Sphinx page.
+It is produced by `cumlbench-dash`; raw benchmark observations stay outside
+this repository. The file stores only case labels, shapes, median timings,
+CPU timeout limits when applicable, and PCA component counts that cannot be
+derived from labels. Speedups, classifications, summaries, input sizes, and
+display units are derived while rendering.
 
 From the repository root, synchronize an updated publication artifact with:
 
@@ -11,12 +14,11 @@ python docs/benchmarks/generate_cuml_accel_benchmarks.py sync \
   --data /path/to/benchmark-data.json
 ```
 
-The sync command validates publication schema version 1, content-addressed
-source provenance, record source references, and the 147-record transport
-shape, including each case's backend-neutral declared estimator parameters. It
-copies the artifact unchanged, selects the widest available PCA `fit_transform`
-result for PCA's canonical large case, and renders the resulting 145-record RST
-page and SVG heatmaps.
+The sync command accepts publication schema version 1. The artifact contains
+168 cases: the selected 165-case performance grid plus three additional
+medium-wide PCA component-rank measurements. The existing medium-wide PCA case
+supplies the rank-1,024 point. The command validates and copies the artifact
+unchanged, then renders the RST page and SVG heatmaps.
 
 Render the page and heatmaps, or verify that they are current, with:
 
