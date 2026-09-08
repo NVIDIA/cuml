@@ -458,23 +458,23 @@ dependencies:
               use_cuda_wheels: "true"
             packages:
               - cuda-toolkit==13.3.*
+  # NOTE: 'tileiras' is needed too, but in CI that's provided by a system-installed CTK.
   cutile_python:
     specific:
-      - output_types: requirements
+      - output_types: [requirements, pyproject]
         matrices:
           - matrix:
               cuda: "12.*"
             packages:
           - matrix:
-              cuda: "13.3"
-            packages:
-              - cuda-tile
-              - cuda-toolkit[tileiras]==13.3.*
-          - matrix:
               cuda: "13.*"
             packages:
-              - cuda-tile
-              - cuda-toolkit[tileiras]==13.*
+              - &cutile_python_cu13 cuda-tile
+          # if no matching matrix selectors passed, list the CUDA 13 requirement
+          # (as a source of documentation in the generated pyproject.toml)
+          - matrix:
+            packages:
+              - *cutile_python_cu13
   cuda:
     common:
       - output_types: [conda]

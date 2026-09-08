@@ -1,6 +1,6 @@
 #=============================================================================
 # cmake-format: off
-# SPDX-FileCopyrightText: Copyright (c) 2024-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 # cmake-format: on
 #=============================================================================
@@ -8,7 +8,7 @@
 set(CUML_MIN_VERSION_cuvs "${CUML_VERSION_MAJOR}.${CUML_VERSION_MINOR}.00")
 
 function(find_and_configure_cuvs)
-    set(oneValueArgs VERSION FORK PINNED_TAG EXCLUDE_FROM_ALL USE_CUVS_STATIC COMPILE_LIBRARY CLONE_ON_PIN)
+    set(oneValueArgs VERSION FORK PINNED_TAG EXCLUDE_FROM_ALL USE_CUVS_STATIC CLONE_ON_PIN)
     cmake_parse_arguments(PKG "${options}" "${oneValueArgs}"
             "${multiValueArgs}" ${ARGN} )
 
@@ -45,7 +45,6 @@ function(find_and_configure_cuvs)
           "BUILD_CAGRA_HNSWLIB OFF"
           "BUILD_CUVS_BENCH OFF"
           "BUILD_MG_ALGOS ${CUVS_BUILD_MG_ALGOS}"
-
     )
 
     if(cuvs_ADDED)
@@ -61,13 +60,12 @@ endfunction()
 # To use a different CUVS locally, set the CMake variable
 # CPM_cuvs_SOURCE=/path/to/local/cuvs
 find_and_configure_cuvs(VERSION          ${CUML_MIN_VERSION_cuvs}
-      FORK             rapidsai
+      FORK             NVIDIA
       PINNED_TAG       ${rapids-cmake-checkout-tag}
       EXCLUDE_FROM_ALL ${CUML_EXCLUDE_CUVS_FROM_ALL}
       # When PINNED_TAG above doesn't match cuml,
       # force local cuvs clone in build directory
       # even if it's already installed.
       CLONE_ON_PIN     ${CUML_CUVS_CLONE_ON_PIN}
-      COMPILE_LIBRARY  ${CUML_CUVS_COMPILED}
       USE_CUVS_STATIC  ${CUML_USE_CUVS_STATIC}
       )
