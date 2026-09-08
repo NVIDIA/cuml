@@ -8,33 +8,29 @@ Performance and Speedups
 
 .. rst-class:: benchmark-lede
 
-Zero-code change acceleration with ``cuml.accel`` brings familiar
-scikit-learn workflows to the GPU, delivering a **@@TRAINING_MEDIAN@@× median
-speedup** across completed training and combined-operation comparisons on
-NVIDIA RTX Pro 6000 Blackwell. Measured performance depends on the operation
-and the dataset's size and shape, ranging from overhead-dominated small
-inference workloads to **@@UMAP_SPEEDUP@@ for UMAP** and
-**@@HDBSCAN_SPEEDUP@@ for HDBSCAN**.
+Zero-code-change acceleration with ``cuml.accel`` delivers an
+**@@TRAINING_PROSE_SPEEDUP@@ median speedup** across measured training
+operations on NVIDIA RTX Pro 6000 Blackwell. Training
+performance varies with the estimator, dataset size and shape, and
+hyperparameters, but most measured workloads are faster on GPU, with the
+largest gains appearing on wider or larger datasets.
 
 Speedup by operation and workload
 ---------------------------------
 
-Rows are ranked by median completed speedup. Green indicates a measured gain
-or a CPU-only timeout where the accelerated run completed, gray is centered at
-1×, warm colors indicate a slowdown, and hatching marks every timeout.
+Rows are ranked by the median exact speedup. Green indicates a measured gain,
+gray is centered at 1×, and warm colors indicate a slowdown. Hatching marks
+CPU-timeout lower bounds and unavailable results.
 
 .. rst-class:: benchmark-footnote
 
-A timeout indicates that the complete isolated benchmark case—not a single
-estimator call—exceeded its wall-clock limit: **@@DEFAULT_TIMEOUT_MIN@@
-minutes** for small and medium workloads and PCA's ``large`` fit-transform, or
-**@@LARGE_TIMEOUT_MIN@@ minutes** for other ``large`` workloads.
+A timeout indicates that the complete isolated CPU benchmark case—not a
+single estimator call—exceeded its wall-clock limit. When the GPU
+run completed, the displayed value is a conservative lower bound (``≥``), not
+an exact speedup.
 
 Training and combined operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-@@TRAINING_PAIRED@@ of @@TRAINING_CELLS@@ comparisons completed;
-@@TRAINING_2X@@ reached at least 2×.
 
 .. raw:: html
 
@@ -44,13 +40,23 @@ Training and combined operations
      </object>
    </div>
 
+PCA performance depends strongly on the requested component rank. The table
+below holds the input at 61,035 rows by 4,096 features and varies only
+``n_components``. The timings show an approximate crossover from
+transfer-dominated low-rank work to positive speedup at higher ranks.
+
+See the :ref:`detailed PCA results <benchmark-pca>` for the remaining
+workloads.
+
+@@PCA_RANK_RESULTS@@
+
 Inference and transforms
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The completed median is **@@INFERENCE_MEDIAN@@×**;
-@@INFERENCE_SLOWDOWNS@@ of @@INFERENCE_PAIRED@@ completed comparisons are
-below 1×. Neighbor and forest operations still show strong gains at suitable
-scales.
+The heatmap shows the 10 operations with the highest median exact speedup.
+Detailed estimator tables retain every inference and transform result,
+including short operations where dispatch and data-conversion overhead
+dominate.
 
 .. raw:: html
 
@@ -69,16 +75,16 @@ exact shapes, wall times, slowdowns, and timeouts.
 Five workload shapes, from transfer-bound to compute-heavy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Every operation uses the same five labels. The first four shapes are fixed;
-``large`` is operation-specific because algorithms have very different
-dimensionality, memory, and runtime behavior.
+Every operation uses the same five relative workload labels, ordered from
+smaller or more transfer-sensitive cases to larger or more compute-intensive
+cases. Concrete shapes follow operation-family policies, with workload sizes
+chosen to complete within reasonable runtime and resource limits. These sizes
+are illustrative examples across several workload regimes, not scaling limits
+or maximum supported sizes. The same label can therefore represent different
+rows, features, and input sizes across operations; exact values appear in the
+estimator tables.
 
 @@WORKLOAD_TABLE@@
-
-.. rst-class:: benchmark-footnote
-
-\* The actual rows, features, input size, and timeout for ``large`` are
-operation-specific. Exact values appear in each estimator table.
 
 Results by estimator
 ~~~~~~~~~~~~~~~~~~~~
@@ -103,24 +109,26 @@ What determines GPU speedup
 .. grid:: 1 1 3 3
    :gutter: 2
 
-   .. grid-item-card:: Compute intensity
+   .. grid-item-card:: Work per call
 
-      GPU acceleration has more room to pay off when estimator work dominates
-      dispatch and data-conversion overhead. Compute-heavy fitting, clustering,
-      nearest-neighbor search, forests, and high-rank decomposition are often
-      strong candidates.
+      ``cuml.accel`` benefits when each estimator call has enough parallel work
+      to outweigh dispatch and compatibility overhead. Training and
+      compute-intensive operations usually accelerate more than short
+      prediction or transformation calls in practice.
 
-   .. grid-item-card:: Operation and shape
+   .. grid-item-card:: Shape and parameters
 
-      Rows alone do not determine performance. Feature count and the exact
-      operation also matter. Evaluate fit, predict, and transform separately;
-      these benchmark points are not a controlled scaling curve.
+      Performance depends on feature width, operation, and estimator parameters,
+      not just total workload size. Similar-sized datasets can produce different
+      speedups when shapes or configurations differ. We selected workloads to
+      illustrate these differences.
 
-   .. grid-item-card:: End-to-end workflow
+   .. grid-item-card:: Data movement
 
-      Realized application performance also depends on data location,
-      conversions, batching, and repeated calls. Use these results to identify
-      promising candidates, then measure the production path.
+      ``cuml.accel`` typically ingests and returns NumPy arrays, converting data
+      for GPU execution and scikit-learn compatibility. Native cuML can reduce
+      this overhead with GPU-resident arrays, especially when pipelines perform
+      repeated estimator operations.
 
 Methodology and reproducibility
 -------------------------------
@@ -139,14 +147,11 @@ operation-appropriate correctness validation, and a complete-case timeout.
    the median end-to-end wall time. Speedup is CPU median wall time divided by
    accelerated median wall time.
 
-   **Scale and timeout policy.** Fixed decimal-byte small and medium shapes
-   plus operation-specific large shapes. Each backend ran every case in a
-   separate worker with a @@DEFAULT_TIMEOUT_MIN@@-minute wall-clock limit,
-   extended to @@LARGE_TIMEOUT_MIN@@ minutes for large workloads other than
-   PCA ``fit_transform``. The limit covered process startup, data preparation,
-   estimator setup, one warmup, three measured repetitions, and correctness
-   validation. The results retain @@CPU_TIMEOUTS@@ CPU-only, @@GPU_TIMEOUTS@@
-   GPU-only, and @@BOTH_TIMEOUTS@@ both-side timeouts.
+   **Scale and timeout policy.** Algorithm-family-calibrated small, medium, and
+   large shapes. Each backend ran every case in a separate worker with a
+   wall-clock limit. The limit covered process startup, data
+   preparation, estimator setup, one warmup, three measured repetitions, and
+   correctness validation.
 
    **Execution and correctness.** Successful accelerated measurements were
    instrumented to verify GPU-only execution. The benchmark runner applied
@@ -155,12 +160,8 @@ operation-appropriate correctness validation, and a complete-case timeout.
 
    **Packages.** @@PACKAGES@@.
 
-   **Coverage and scope.** All @@CASES@@ cases are included, including all
-   @@UNAVAILABLE@@ unavailable comparisons and every completed result below
-   1×. These measurements describe the tested cases on this system; results
-   for other workloads and systems will vary. PCA's operation-specific
-   ``large`` fit-transform uses @@PCA_LARGE_ROWS@@ rows and
-   @@PCA_LARGE_FEATURES@@ features.
+   **Interpretation.** These measurements describe the tested cases on this
+   system; results for other workloads and systems will vary.
 
 Continue with cuml.accel
 ------------------------
