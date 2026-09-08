@@ -15,7 +15,7 @@
 }
 
 .benchmark-heatmap {
-  background: var(--pst-color-background);
+  background: #fff;
   border: 1px solid var(--pst-color-border);
   border-radius: 0.25rem;
   margin: 1rem 0 2.5rem;
@@ -23,17 +23,18 @@
 }
 
 .benchmark-heatmap object {
+  background: #fff;
   display: block;
   min-width: 680px;
   width: 100%;
 }
 
 .benchmark-heatmap object[data$="training-heatmap.svg"] {
-  aspect-ratio: 895 / 710;
+  aspect-ratio: 895 / 768;
 }
 
 .benchmark-heatmap object[data$="inference-heatmap.svg"] {
-  aspect-ratio: 895 / 522;
+  aspect-ratio: 895 / 516;
 }
 
 .benchmark-detail-controls {
