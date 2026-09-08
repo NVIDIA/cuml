@@ -65,6 +65,12 @@ WORKLOADS = (
     "large.balanced",
 )
 TRAINING_OPERATIONS = {"fit", "fit_predict", "fit_transform"}
+INFERENCE_OPERATIONS = {
+    "predict",
+    "transform",
+    "score_samples",
+    "kneighbors",
+}
 INFERENCE_HEATMAP_MAX_OPERATIONS = 10
 
 DISPLAY_NAMES = {
@@ -232,7 +238,11 @@ def validate_publication_data(data: Any) -> dict[str, Any]:
                 f"records[{index}] has unsupported or missing fields"
             )
         label = record["case_label"]
-        estimator, _, _, _, rank = _parse_case_label(label)
+        estimator, operation, _, _, rank = _parse_case_label(label)
+        if operation not in TRAINING_OPERATIONS | INFERENCE_OPERATIONS:
+            raise ValueError(
+                f"records[{index}] has unsupported operation {operation!r}"
+            )
         if label in labels:
             raise ValueError("publication data case labels must be unique")
         labels.add(label)
@@ -441,6 +451,29 @@ def _fmt_time(value: float | None) -> str:
     if value < 1:
         return f"{value * 1000:.1f} ms"
     return f"{value:.3g} s"
+
+
+def _fmt_throughput(rows: int, seconds: float | None) -> str:
+    if seconds is None:
+        return "—"
+    throughput = rows / seconds
+    if throughput >= 1_000_000:
+        return f"{throughput / 1_000_000:.3g}M/s"
+    if throughput >= 1_000:
+        return f"{throughput / 1_000:.3g}k/s"
+    return f"{throughput:.3g}/s"
+
+
+def _fmt_backend_result(record: dict[str, Any], backend: str) -> str:
+    seconds = record[f"{backend}_median_wall_time_sec"]
+    wall_time = _fmt_time(seconds)
+    if record["phase"] == "inference" and seconds is not None:
+        throughput = _fmt_throughput(record["rows"], seconds)
+        return (
+            f":benchmark-throughput:`{throughput}` "
+            f":benchmark-time:`{wall_time}`"
+        )
+    return wall_time
 
 
 def _fmt_bytes(value: int) -> str:
@@ -712,8 +745,8 @@ def _estimator_details_rst(
             f"{record['features']:,}",
             _fmt_bytes(record["input_bytes"]),
         ]
-        cpu_time = _fmt_time(record["cpu_median_wall_time_sec"])
-        gpu_time = _fmt_time(record["gpu_median_wall_time_sec"])
+        cpu_time = _fmt_backend_result(record, "cpu")
+        gpu_time = _fmt_backend_result(record, "gpu")
         if record["timeout_side"] in {"cpu", "both"}:
             cpu_time = (
                 f"Timeout at {_fmt_timeout_limit(record['timeout_limit_sec'])}"

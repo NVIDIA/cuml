@@ -6,6 +6,12 @@
 Performance and Speedups
 ========================
 
+.. role:: benchmark-throughput
+   :class: benchmark-throughput
+
+.. role:: benchmark-time
+   :class: benchmark-time
+
 .. rst-class:: benchmark-lede
 
 Zero-code-change acceleration with ``cuml.accel`` delivers an
@@ -70,7 +76,11 @@ Detailed benchmark results
 --------------------------
 
 Use the workload guide to interpret the heatmaps, then open an estimator for
-exact shapes, wall times, slowdowns, and timeouts.
+exact shapes, throughput or wall times, slowdowns, and timeouts. Detailed
+results express inference and transform operations as throughput in samples
+per second, abbreviated as ``M/s``, ``k/s``, or ``/s``, with one input row
+counted as one sample. The wall time used to calculate throughput is shown
+below it. Training and combined-operation rows show wall time only.
 
 Five workload shapes, from transfer-bound to compute-heavy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,8 +99,8 @@ estimator tables.
 Results by estimator
 ~~~~~~~~~~~~~~~~~~~~
 
-Open an estimator for every workload, wall time, slowdown, timeout, and actual
-shape.
+Open an estimator for every workload, throughput or wall time, slowdown,
+timeout, and actual shape.
 
 .. raw:: html
 
@@ -145,7 +155,9 @@ operation-appropriate correctness validation, and a complete-case timeout.
 
    **Timing.** One warmup followed by three measured repetitions; tables use
    the median end-to-end wall time. Speedup is CPU median wall time divided by
-   accelerated median wall time.
+   accelerated median wall time. For ``predict``, ``transform``,
+   ``score_samples``, and ``kneighbors``, throughput is input rows divided by
+   the same median wall time, with one row counted as one sample.
 
    **Scale and timeout policy.** Algorithm-family-calibrated small, medium, and
    large shapes. Each backend ran every case in a separate worker with a

@@ -5,6 +5,12 @@
 Performance and Speedups
 ========================
 
+.. role:: benchmark-throughput
+   :class: benchmark-throughput
+
+.. role:: benchmark-time
+   :class: benchmark-time
+
 .. rst-class:: benchmark-lede
 
 Zero-code-change acceleration with ``cuml.accel`` delivers an
@@ -82,7 +88,11 @@ Detailed benchmark results
 --------------------------
 
 Use the workload guide to interpret the heatmaps, then open an estimator for
-exact shapes, wall times, slowdowns, and timeouts.
+exact shapes, throughput or wall times, slowdowns, and timeouts. Detailed
+results express inference and transform operations as throughput in samples
+per second, abbreviated as ``M/s``, ``k/s``, or ``/s``, with one input row
+counted as one sample. The wall time used to calculate throughput is shown
+below it. Training and combined-operation rows show wall time only.
 
 Five workload shapes, from transfer-bound to compute-heavy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -128,8 +138,8 @@ estimator tables.
 Results by estimator
 ~~~~~~~~~~~~~~~~~~~~
 
-Open an estimator for every workload, wall time, slowdown, timeout, and actual
-shape.
+Open an estimator for every workload, throughput or wall time, slowdown,
+timeout, and actual shape.
 
 .. raw:: html
 
@@ -202,40 +212,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 6.1 ms
-           - 8.3 ms
+           - :benchmark-throughput:`32.1M/s` :benchmark-time:`6.1 ms`
+           - :benchmark-throughput:`23.4M/s` :benchmark-time:`8.3 ms`
            - 0.73×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 31.2 ms
-           - 44.3 ms
+           - :benchmark-throughput:`251M/s` :benchmark-time:`31.2 ms`
+           - :benchmark-throughput:`176M/s` :benchmark-time:`44.3 ms`
            - 0.70×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 29.9 ms
-           - 41.1 ms
+           - :benchmark-throughput:`32.6M/s` :benchmark-time:`29.9 ms`
+           - :benchmark-throughput:`23.8M/s` :benchmark-time:`41.1 ms`
            - 0.73×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 103.0 ms
-           - 160.0 ms
+           - :benchmark-throughput:`4.74M/s` :benchmark-time:`103.0 ms`
+           - :benchmark-throughput:`3.05M/s` :benchmark-time:`160.0 ms`
            - 0.64×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 121.6 ms
-           - 207.2 ms
+           - :benchmark-throughput:`41.1M/s` :benchmark-time:`121.6 ms`
+           - :benchmark-throughput:`24.1M/s` :benchmark-time:`207.2 ms`
            - 0.59×
 
    .. dropdown:: Lasso
@@ -298,40 +308,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 5.6 ms
-           - 8.3 ms
+           - :benchmark-throughput:`35M/s` :benchmark-time:`5.6 ms`
+           - :benchmark-throughput:`23.5M/s` :benchmark-time:`8.3 ms`
            - 0.67×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 31.6 ms
-           - 44.3 ms
+           - :benchmark-throughput:`247M/s` :benchmark-time:`31.6 ms`
+           - :benchmark-throughput:`176M/s` :benchmark-time:`44.3 ms`
            - 0.71×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 28.4 ms
-           - 41.1 ms
+           - :benchmark-throughput:`34.4M/s` :benchmark-time:`28.4 ms`
+           - :benchmark-throughput:`23.8M/s` :benchmark-time:`41.1 ms`
            - 0.69×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 99.6 ms
-           - 160.5 ms
+           - :benchmark-throughput:`4.9M/s` :benchmark-time:`99.6 ms`
+           - :benchmark-throughput:`3.04M/s` :benchmark-time:`160.5 ms`
            - 0.62×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 121.6 ms
-           - 208.0 ms
+           - :benchmark-throughput:`41.1M/s` :benchmark-time:`121.6 ms`
+           - :benchmark-throughput:`24M/s` :benchmark-time:`208.0 ms`
            - 0.58×
 
    .. dropdown:: LinearRegression
@@ -394,40 +404,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 8.6 ms
-           - 8.5 ms
+           - :benchmark-throughput:`22.7M/s` :benchmark-time:`8.6 ms`
+           - :benchmark-throughput:`23M/s` :benchmark-time:`8.5 ms`
            - 1.01×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 31.5 ms
-           - 43.9 ms
+           - :benchmark-throughput:`248M/s` :benchmark-time:`31.5 ms`
+           - :benchmark-throughput:`178M/s` :benchmark-time:`43.9 ms`
            - 0.72×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 30.0 ms
-           - 41.0 ms
+           - :benchmark-throughput:`32.6M/s` :benchmark-time:`30.0 ms`
+           - :benchmark-throughput:`23.8M/s` :benchmark-time:`41.0 ms`
            - 0.73×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 100.2 ms
-           - 160.3 ms
+           - :benchmark-throughput:`4.87M/s` :benchmark-time:`100.2 ms`
+           - :benchmark-throughput:`3.05M/s` :benchmark-time:`160.3 ms`
            - 0.63×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 121.9 ms
-           - 207.2 ms
+           - :benchmark-throughput:`41M/s` :benchmark-time:`121.9 ms`
+           - :benchmark-throughput:`24.1M/s` :benchmark-time:`207.2 ms`
            - 0.59×
 
    .. dropdown:: LogisticRegression
@@ -490,40 +500,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 5.0 ms
-           - 8.4 ms
+           - :benchmark-throughput:`39.2M/s` :benchmark-time:`5.0 ms`
+           - :benchmark-throughput:`23.2M/s` :benchmark-time:`8.4 ms`
            - 0.59×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 41.6 ms
-           - 43.4 ms
+           - :benchmark-throughput:`188M/s` :benchmark-time:`41.6 ms`
+           - :benchmark-throughput:`180M/s` :benchmark-time:`43.4 ms`
            - 0.96×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 30.8 ms
-           - 41.0 ms
+           - :benchmark-throughput:`31.7M/s` :benchmark-time:`30.8 ms`
+           - :benchmark-throughput:`23.8M/s` :benchmark-time:`41.0 ms`
            - 0.75×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 127.9 ms
-           - 160.7 ms
+           - :benchmark-throughput:`3.82M/s` :benchmark-time:`127.9 ms`
+           - :benchmark-throughput:`3.04M/s` :benchmark-time:`160.7 ms`
            - 0.80×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 129.5 ms
-           - 207.4 ms
+           - :benchmark-throughput:`38.6M/s` :benchmark-time:`129.5 ms`
+           - :benchmark-throughput:`24.1M/s` :benchmark-time:`207.4 ms`
            - 0.62×
 
    .. dropdown:: Ridge
@@ -586,40 +596,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 5.6 ms
-           - 8.3 ms
+           - :benchmark-throughput:`35.1M/s` :benchmark-time:`5.6 ms`
+           - :benchmark-throughput:`23.6M/s` :benchmark-time:`8.3 ms`
            - 0.67×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 30.9 ms
-           - 43.8 ms
+           - :benchmark-throughput:`253M/s` :benchmark-time:`30.9 ms`
+           - :benchmark-throughput:`178M/s` :benchmark-time:`43.8 ms`
            - 0.71×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 28.7 ms
-           - 41.1 ms
+           - :benchmark-throughput:`34.1M/s` :benchmark-time:`28.7 ms`
+           - :benchmark-throughput:`23.8M/s` :benchmark-time:`41.1 ms`
            - 0.70×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 99.0 ms
-           - 160.5 ms
+           - :benchmark-throughput:`4.93M/s` :benchmark-time:`99.0 ms`
+           - :benchmark-throughput:`3.04M/s` :benchmark-time:`160.5 ms`
            - 0.62×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 125.1 ms
-           - 206.7 ms
+           - :benchmark-throughput:`40M/s` :benchmark-time:`125.1 ms`
+           - :benchmark-throughput:`24.2M/s` :benchmark-time:`206.7 ms`
            - 0.61×
 
    .. rubric:: Clustering and manifold learning
@@ -796,40 +806,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 5.4 ms
-           - 9.1 ms
+           - :benchmark-throughput:`36.1M/s` :benchmark-time:`5.4 ms`
+           - :benchmark-throughput:`21.4M/s` :benchmark-time:`9.1 ms`
            - 0.59×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 72.7 ms
-           - 51.9 ms
+           - :benchmark-throughput:`107M/s` :benchmark-time:`72.7 ms`
+           - :benchmark-throughput:`150M/s` :benchmark-time:`51.9 ms`
            - 1.40×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 29.7 ms
-           - 42.6 ms
+           - :benchmark-throughput:`32.9M/s` :benchmark-time:`29.7 ms`
+           - :benchmark-throughput:`22.9M/s` :benchmark-time:`42.6 ms`
            - 0.70×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 84.8 ms
-           - 162.5 ms
+           - :benchmark-throughput:`5.76M/s` :benchmark-time:`84.8 ms`
+           - :benchmark-throughput:`3M/s` :benchmark-time:`162.5 ms`
            - 0.52×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 135.3 ms
-           - 213.8 ms
+           - :benchmark-throughput:`37M/s` :benchmark-time:`135.3 ms`
+           - :benchmark-throughput:`23.4M/s` :benchmark-time:`213.8 ms`
            - 0.63×
 
    .. dropdown:: t-SNE
@@ -949,7 +959,7 @@ shape.
            - 64
            - 100 MB
            - Timeout at 70 s
-           - 131.3 ms
+           - :benchmark-throughput:`2.97M/s` :benchmark-time:`131.3 ms`
            - ≥529×
          * - ``transform``
            - ``medium.thin``
@@ -957,7 +967,7 @@ shape.
            - 8
            - 500 MB
            - Timeout at 100 s
-           - 1.78 s
+           - :benchmark-throughput:`8.76M/s` :benchmark-time:`1.78 s`
            - ≥57.0×
          * - ``transform``
            - ``medium.balanced``
@@ -965,7 +975,7 @@ shape.
            - 64
            - 500 MB
            - Timeout at 100 s
-           - 739.3 ms
+           - :benchmark-throughput:`2.64M/s` :benchmark-time:`739.3 ms`
            - ≥138×
          * - ``transform``
            - ``medium.wide``
@@ -973,7 +983,7 @@ shape.
            - 512
            - 500 MB
            - Timeout at 100 s
-           - 661.1 ms
+           - :benchmark-throughput:`369k/s` :benchmark-time:`661.1 ms`
            - ≥154×
          * - ``transform``
            - ``large``
@@ -981,7 +991,7 @@ shape.
            - 64
            - 2 GB
            - Timeout at 14 min
-           - 5.32 s
+           - :benchmark-throughput:`1.47M/s` :benchmark-time:`5.32 s`
            - ≥160×
 
    .. rubric:: Neighbors and density estimation
@@ -1006,40 +1016,40 @@ shape.
            - 2,000
            - 128
            - 1.02 MB
-           - 13.7 ms
-           - 0.96 ms
+           - :benchmark-throughput:`146k/s` :benchmark-time:`13.7 ms`
+           - :benchmark-throughput:`2.09M/s` :benchmark-time:`0.96 ms`
            - 14.3×
          * - ``predict``
            - ``medium.thin``
            - 8,000
            - 16
            - 0.512 MB
-           - 25.8 ms
-           - 0.96 ms
+           - :benchmark-throughput:`310k/s` :benchmark-time:`25.8 ms`
+           - :benchmark-throughput:`8.35M/s` :benchmark-time:`0.96 ms`
            - 26.9×
          * - ``predict``
            - ``medium.balanced``
            - 8,000
            - 128
            - 4.1 MB
-           - 45.1 ms
-           - 2.2 ms
+           - :benchmark-throughput:`177k/s` :benchmark-time:`45.1 ms`
+           - :benchmark-throughput:`3.64M/s` :benchmark-time:`2.2 ms`
            - 20.5×
          * - ``predict``
            - ``medium.wide``
            - 8,000
            - 1,024
            - 32.8 MB
-           - 244.5 ms
-           - 11.3 ms
+           - :benchmark-throughput:`32.7k/s` :benchmark-time:`244.5 ms`
+           - :benchmark-throughput:`707k/s` :benchmark-time:`11.3 ms`
            - 21.6×
          * - ``predict``
            - ``large``
            - 32,000
            - 128
            - 16.4 MB
-           - 389.5 ms
-           - 17.8 ms
+           - :benchmark-throughput:`82.2k/s` :benchmark-time:`389.5 ms`
+           - :benchmark-throughput:`1.8M/s` :benchmark-time:`17.8 ms`
            - 21.9×
 
    .. dropdown:: KNeighborsRegressor
@@ -1062,40 +1072,40 @@ shape.
            - 2,000
            - 128
            - 1.02 MB
-           - 13.4 ms
-           - 0.73 ms
+           - :benchmark-throughput:`149k/s` :benchmark-time:`13.4 ms`
+           - :benchmark-throughput:`2.74M/s` :benchmark-time:`0.73 ms`
            - 18.4×
          * - ``predict``
            - ``medium.thin``
            - 8,000
            - 16
            - 0.512 MB
-           - 35.4 ms
-           - 0.66 ms
+           - :benchmark-throughput:`226k/s` :benchmark-time:`35.4 ms`
+           - :benchmark-throughput:`12.2M/s` :benchmark-time:`0.66 ms`
            - 54.0×
          * - ``predict``
            - ``medium.balanced``
            - 8,000
            - 128
            - 4.1 MB
-           - 42.8 ms
-           - 1.9 ms
+           - :benchmark-throughput:`187k/s` :benchmark-time:`42.8 ms`
+           - :benchmark-throughput:`4.13M/s` :benchmark-time:`1.9 ms`
            - 22.1×
          * - ``predict``
            - ``medium.wide``
            - 8,000
            - 1,024
            - 32.8 MB
-           - 235.6 ms
-           - 11.0 ms
+           - :benchmark-throughput:`34k/s` :benchmark-time:`235.6 ms`
+           - :benchmark-throughput:`730k/s` :benchmark-time:`11.0 ms`
            - 21.5×
          * - ``predict``
            - ``large``
            - 32,000
            - 128
            - 16.4 MB
-           - 357.2 ms
-           - 17.0 ms
+           - :benchmark-throughput:`89.6k/s` :benchmark-time:`357.2 ms`
+           - :benchmark-throughput:`1.88M/s` :benchmark-time:`17.0 ms`
            - 21.0×
 
    .. dropdown:: KernelDensity
@@ -1118,24 +1128,24 @@ shape.
            - 2,000
            - 128
            - 1.02 MB
-           - 608.7 ms
-           - 1.0 ms
+           - :benchmark-throughput:`3.29k/s` :benchmark-time:`608.7 ms`
+           - :benchmark-throughput:`1.97M/s` :benchmark-time:`1.0 ms`
            - 599×
          * - ``score_samples``
            - ``medium.thin``
            - 8,000
            - 16
            - 0.512 MB
-           - 2.58 s
-           - 0.59 ms
+           - :benchmark-throughput:`3.1k/s` :benchmark-time:`2.58 s`
+           - :benchmark-throughput:`13.5M/s` :benchmark-time:`0.59 ms`
            - 4372×
          * - ``score_samples``
            - ``medium.balanced``
            - 8,000
            - 128
            - 4.1 MB
-           - 9.62 s
-           - 1.9 ms
+           - :benchmark-throughput:`831/s` :benchmark-time:`9.62 s`
+           - :benchmark-throughput:`4.11M/s` :benchmark-time:`1.9 ms`
            - 4942×
          * - ``score_samples``
            - ``medium.wide``
@@ -1143,15 +1153,15 @@ shape.
            - 1,024
            - 32.8 MB
            - Timeout at 100 s
-           - 10.8 ms
+           - :benchmark-throughput:`741k/s` :benchmark-time:`10.8 ms`
            - ≥9426×
          * - ``score_samples``
            - ``large``
            - 32,000
            - 128
            - 16.4 MB
-           - 190 s
-           - 14.7 ms
+           - :benchmark-throughput:`168/s` :benchmark-time:`190 s`
+           - :benchmark-throughput:`2.18M/s` :benchmark-time:`14.7 ms`
            - 12969×
 
    .. dropdown:: NearestNeighbors
@@ -1174,40 +1184,40 @@ shape.
            - 2,000
            - 128
            - 1.02 MB
-           - 14.9 ms
-           - 0.67 ms
+           - :benchmark-throughput:`135k/s` :benchmark-time:`14.9 ms`
+           - :benchmark-throughput:`2.98M/s` :benchmark-time:`0.67 ms`
            - 22.2×
          * - ``kneighbors``
            - ``medium.thin``
            - 8,000
            - 16
            - 0.512 MB
-           - 28.4 ms
-           - 0.67 ms
+           - :benchmark-throughput:`282k/s` :benchmark-time:`28.4 ms`
+           - :benchmark-throughput:`12M/s` :benchmark-time:`0.67 ms`
            - 42.4×
          * - ``kneighbors``
            - ``medium.balanced``
            - 8,000
            - 128
            - 4.1 MB
-           - 38.6 ms
-           - 2.2 ms
+           - :benchmark-throughput:`207k/s` :benchmark-time:`38.6 ms`
+           - :benchmark-throughput:`3.72M/s` :benchmark-time:`2.2 ms`
            - 17.9×
          * - ``kneighbors``
            - ``medium.wide``
            - 8,000
            - 1,024
            - 32.8 MB
-           - 241.2 ms
-           - 11.1 ms
+           - :benchmark-throughput:`33.2k/s` :benchmark-time:`241.2 ms`
+           - :benchmark-throughput:`721k/s` :benchmark-time:`11.1 ms`
            - 21.7×
          * - ``kneighbors``
            - ``large``
            - 32,000
            - 128
            - 16.4 MB
-           - 363.7 ms
-           - 17.3 ms
+           - :benchmark-throughput:`88k/s` :benchmark-time:`363.7 ms`
+           - :benchmark-throughput:`1.85M/s` :benchmark-time:`17.3 ms`
            - 21.0×
 
    .. rubric:: Decomposition
@@ -1296,40 +1306,40 @@ shape.
            - 50,000
            - 1,024
            - 205 MB
-           - 29.3 ms
-           - 289.5 ms
+           - :benchmark-throughput:`1.71M/s` :benchmark-time:`29.3 ms`
+           - :benchmark-throughput:`173k/s` :benchmark-time:`289.5 ms`
            - 0.10×
          * - ``transform``
            - ``medium.thin · 32 components``
            - 976,563
            - 128
            - 500 MB
-           - 69.6 ms
-           - 700.9 ms
+           - :benchmark-throughput:`14M/s` :benchmark-time:`69.6 ms`
+           - :benchmark-throughput:`1.39M/s` :benchmark-time:`700.9 ms`
            - 0.10×
          * - ``transform``
            - ``medium.balanced · 256 components``
            - 488,281
            - 1,024
            - 2 GB
-           - 237.9 ms
-           - 5.44 s
+           - :benchmark-throughput:`2.05M/s` :benchmark-time:`237.9 ms`
+           - :benchmark-throughput:`89.7k/s` :benchmark-time:`5.44 s`
            - 0.04×
          * - ``transform``
            - ``medium.wide · 1,024 components``
            - 122,070
            - 4,096
            - 2 GB
-           - 436.5 ms
-           - 5.27 s
+           - :benchmark-throughput:`280k/s` :benchmark-time:`436.5 ms`
+           - :benchmark-throughput:`23.2k/s` :benchmark-time:`5.27 s`
            - 0.08×
          * - ``transform``
            - ``large · 256 components``
            - 2,441,406
            - 1,024
            - 10 GB
-           - 982.0 ms
-           - 26.8 s
+           - :benchmark-throughput:`2.49M/s` :benchmark-time:`982.0 ms`
+           - :benchmark-throughput:`91k/s` :benchmark-time:`26.8 s`
            - 0.04×
 
       PCA performance depends strongly on both input feature width and the number of retained components; results can vary substantially across these dimensions.
@@ -1396,40 +1406,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 29.3 ms
-           - 12.4 ms
+           - :benchmark-throughput:`6.67M/s` :benchmark-time:`29.3 ms`
+           - :benchmark-throughput:`15.8M/s` :benchmark-time:`12.4 ms`
            - 2.37×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 888.6 ms
-           - 74.0 ms
+           - :benchmark-throughput:`8.79M/s` :benchmark-time:`888.6 ms`
+           - :benchmark-throughput:`106M/s` :benchmark-time:`74.0 ms`
            - 12.0×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 141.3 ms
-           - 59.3 ms
+           - :benchmark-throughput:`6.91M/s` :benchmark-time:`141.3 ms`
+           - :benchmark-throughput:`16.5M/s` :benchmark-time:`59.3 ms`
            - 2.38×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 206.8 ms
-           - 229.1 ms
+           - :benchmark-throughput:`2.36M/s` :benchmark-time:`206.8 ms`
+           - :benchmark-throughput:`2.13M/s` :benchmark-time:`229.1 ms`
            - 0.90×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 804.8 ms
-           - 297.9 ms
+           - :benchmark-throughput:`6.21M/s` :benchmark-time:`804.8 ms`
+           - :benchmark-throughput:`16.8M/s` :benchmark-time:`297.9 ms`
            - 2.70×
 
    .. dropdown:: RandomForestRegressor
@@ -1492,40 +1502,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 38.5 ms
-           - 11.9 ms
+           - :benchmark-throughput:`5.07M/s` :benchmark-time:`38.5 ms`
+           - :benchmark-throughput:`16.4M/s` :benchmark-time:`11.9 ms`
            - 3.23×
          * - ``predict``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 1.09 s
-           - 70.3 ms
+           - :benchmark-throughput:`7.15M/s` :benchmark-time:`1.09 s`
+           - :benchmark-throughput:`111M/s` :benchmark-time:`70.3 ms`
            - 15.5×
          * - ``predict``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 193.9 ms
-           - 58.7 ms
+           - :benchmark-throughput:`5.04M/s` :benchmark-time:`193.9 ms`
+           - :benchmark-throughput:`16.6M/s` :benchmark-time:`58.7 ms`
            - 3.30×
          * - ``predict``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 224.7 ms
-           - 229.2 ms
+           - :benchmark-throughput:`2.17M/s` :benchmark-time:`224.7 ms`
+           - :benchmark-throughput:`2.13M/s` :benchmark-time:`229.2 ms`
            - 0.98×
          * - ``predict``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 1.28 s
-           - 293.5 ms
+           - :benchmark-throughput:`3.91M/s` :benchmark-time:`1.28 s`
+           - :benchmark-throughput:`17M/s` :benchmark-time:`293.5 ms`
            - 4.36×
 
    .. rubric:: Preprocessing
@@ -1590,40 +1600,40 @@ shape.
            - 195,313
            - 128
            - 100 MB
-           - 22.4 ms
-           - 17.8 ms
+           - :benchmark-throughput:`8.73M/s` :benchmark-time:`22.4 ms`
+           - :benchmark-throughput:`11M/s` :benchmark-time:`17.8 ms`
            - 1.25×
          * - ``transform``
            - ``medium.thin``
            - 7,812,500
            - 16
            - 500 MB
-           - 143.1 ms
-           - 84.2 ms
+           - :benchmark-throughput:`54.6M/s` :benchmark-time:`143.1 ms`
+           - :benchmark-throughput:`92.8M/s` :benchmark-time:`84.2 ms`
            - 1.70×
          * - ``transform``
            - ``medium.balanced``
            - 976,563
            - 128
            - 500 MB
-           - 112.6 ms
-           - 83.9 ms
+           - :benchmark-throughput:`8.67M/s` :benchmark-time:`112.6 ms`
+           - :benchmark-throughput:`11.6M/s` :benchmark-time:`83.9 ms`
            - 1.34×
          * - ``transform``
            - ``medium.wide``
            - 488,281
            - 1,024
            - 2 GB
-           - 428.8 ms
-           - 331.6 ms
+           - :benchmark-throughput:`1.14M/s` :benchmark-time:`428.8 ms`
+           - :benchmark-throughput:`1.47M/s` :benchmark-time:`331.6 ms`
            - 1.29×
          * - ``transform``
            - ``large``
            - 5,000,000
            - 128
            - 2.56 GB
-           - 566.3 ms
-           - 423.1 ms
+           - :benchmark-throughput:`8.83M/s` :benchmark-time:`566.3 ms`
+           - :benchmark-throughput:`11.8M/s` :benchmark-time:`423.1 ms`
            - 1.34×
 
    .. dropdown:: TargetEncoder
@@ -1686,40 +1696,40 @@ shape.
            - 781,250
            - 32
            - 100 MB
-           - 1.15 s
-           - 679.1 ms
+           - :benchmark-throughput:`679k/s` :benchmark-time:`1.15 s`
+           - :benchmark-throughput:`1.15M/s` :benchmark-time:`679.1 ms`
            - 1.70×
          * - ``transform``
            - ``medium.thin``
            - 15,625,000
            - 8
            - 500 MB
-           - 3.64 s
-           - 568.2 ms
+           - :benchmark-throughput:`4.29M/s` :benchmark-time:`3.64 s`
+           - :benchmark-throughput:`27.5M/s` :benchmark-time:`568.2 ms`
            - 6.41×
          * - ``transform``
            - ``medium.balanced``
            - 3,906,250
            - 32
            - 500 MB
-           - 5.81 s
-           - 1.75 s
+           - :benchmark-throughput:`673k/s` :benchmark-time:`5.81 s`
+           - :benchmark-throughput:`2.23M/s` :benchmark-time:`1.75 s`
            - 3.31×
          * - ``transform``
            - ``medium.wide``
            - 976,563
            - 128
            - 500 MB
-           - 6.2 s
-           - 7.52 s
+           - :benchmark-throughput:`158k/s` :benchmark-time:`6.2 s`
+           - :benchmark-throughput:`130k/s` :benchmark-time:`7.52 s`
            - 0.82×
          * - ``transform``
            - ``large``
            - 15,625,000
            - 32
            - 2 GB
-           - 23.6 s
-           - 5.82 s
+           - :benchmark-throughput:`662k/s` :benchmark-time:`23.6 s`
+           - :benchmark-throughput:`2.69M/s` :benchmark-time:`5.82 s`
            - 4.06×
 
    .. rubric:: Kernel methods
@@ -1784,40 +1794,40 @@ shape.
            - 2,000
            - 64
            - 0.512 MB
-           - 74.6 ms
-           - 0.86 ms
+           - :benchmark-throughput:`26.8k/s` :benchmark-time:`74.6 ms`
+           - :benchmark-throughput:`2.33M/s` :benchmark-time:`0.86 ms`
            - 87.0×
          * - ``predict``
            - ``medium.thin``
            - 8,000
            - 8
            - 0.256 MB
-           - 245.2 ms
-           - 1.3 ms
+           - :benchmark-throughput:`32.6k/s` :benchmark-time:`245.2 ms`
+           - :benchmark-throughput:`6.12M/s` :benchmark-time:`1.3 ms`
            - 188×
          * - ``predict``
            - ``medium.balanced``
            - 8,000
            - 64
            - 2.05 MB
-           - 750.6 ms
-           - 2.8 ms
+           - :benchmark-throughput:`10.7k/s` :benchmark-time:`750.6 ms`
+           - :benchmark-throughput:`2.86M/s` :benchmark-time:`2.8 ms`
            - 268×
          * - ``predict``
            - ``medium.wide``
            - 8,000
            - 512
            - 16.4 MB
-           - 6.36 s
-           - 18.8 ms
+           - :benchmark-throughput:`1.26k/s` :benchmark-time:`6.36 s`
+           - :benchmark-throughput:`425k/s` :benchmark-time:`18.8 ms`
            - 338×
          * - ``predict``
            - ``large``
            - 32,000
            - 64
            - 8.19 MB
-           - 8.06 s
-           - 20.2 ms
+           - :benchmark-throughput:`3.97k/s` :benchmark-time:`8.06 s`
+           - :benchmark-throughput:`1.59M/s` :benchmark-time:`20.2 ms`
            - 399×
 
 What determines GPU speedup
@@ -1862,7 +1872,9 @@ operation-appropriate correctness validation, and a complete-case timeout.
 
    **Timing.** One warmup followed by three measured repetitions; tables use
    the median end-to-end wall time. Speedup is CPU median wall time divided by
-   accelerated median wall time.
+   accelerated median wall time. For ``predict``, ``transform``,
+   ``score_samples``, and ``kneighbors``, throughput is input rows divided by
+   the same median wall time, with one row counted as one sample.
 
    **Scale and timeout policy.** Algorithm-family-calibrated small, medium, and
    large shapes. Each backend ran every case in a separate worker with a

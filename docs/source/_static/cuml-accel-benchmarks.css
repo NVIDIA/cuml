@@ -93,6 +93,18 @@ table.benchmark-result-table td {
   font-variant-numeric: tabular-nums;
 }
 
+table.benchmark-result-table .benchmark-throughput,
+table.benchmark-result-table .benchmark-time {
+  display: block;
+  white-space: nowrap;
+}
+
+table.benchmark-result-table .benchmark-time {
+  color: var(--pst-color-text-muted, #5f646b);
+  font-size: 0.75rem;
+  margin-top: 0.05rem;
+}
+
 table.benchmark-result-table td:first-child,
 table.benchmark-result-table td:nth-child(2),
 table.benchmark-result-table td:nth-last-child(2),
