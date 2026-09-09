@@ -74,6 +74,7 @@ doxygen_check/
 
 ## Doxygen
 cpp/html
+cpp/xml
 cpp/Doxyfile
 
 # clang tooling

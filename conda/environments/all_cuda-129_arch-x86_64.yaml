@@ -5,6 +5,7 @@ channels:
 - rapidsai
 - conda-forge
 dependencies:
+- breathe
 - c-compiler
 - ccache
 - certifi
