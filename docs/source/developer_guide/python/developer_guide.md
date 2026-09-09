@@ -23,16 +23,16 @@ This document provides comprehensive guidelines and best practices for contribut
 
 Before diving into Python development for cuML, please ensure you have:
 
-1. Reviewed our [contribution guidelines](../../../../CONTRIBUTING.md) for general project standards
-2. Read the [Python cuML README](../../../../python/README.md) for setup and installation instructions
+1. Reviewed our [contribution guidelines](https://github.com/rapidsai/cuml/blob/main/CONTRIBUTING.md) for general project standards
+2. Read the [Python cuML README](https://github.com/rapidsai/cuml/blob/main/python/README.md) for setup and installation instructions
 
-If you are working on C++/CUDA code or need to understand the underlying implementation details, you should also familiarize yourself with the [C++ Developer Guide](../cpp/developer_guide.md).
+If you are working on C++/CUDA code or need to understand the underlying implementation details, you should also familiarize yourself with the [C++ Developer Guide](../cpp/developer_guide/).
 
 ## Guide Map
 
 Use this document for repository-wide Python development policy: style, docstrings, testing, memory management, deprecations, logging, multi-GPU structure, and benchmarking.
 
-Use [Estimator Guide](estimator_guide.md) when creating or modifying a `cuml.Base` estimator. It contains the estimator contract, copyable estimator skeleton, input validation, array descriptor guidance, reflection guidance, and estimator-specific do's and don'ts.
+Use [Estimator Guide](estimator_guide/) when creating or modifying a `cuml.Base` estimator. It contains the estimator contract, copyable estimator skeleton, input validation, array descriptor guidance, reflection guidance, and estimator-specific do's and don'ts.
 
 ## Getting Started
 
@@ -246,7 +246,7 @@ Running pytest from outside `python/cuml/` can result in import errors or missed
 Code should use `cuml.internals.validation` for user-facing input validation.
 These helpers are the standard path for matching scikit-learn validation
 behavior, simplifying input ingest, and avoiding module-specific validation
-pipelines. See the [Estimator Guide](estimator_guide.md#input-validation) for
+pipelines. See the [Estimator Guide](estimator_guide/#input-validation) for
 estimator-specific patterns and examples.
 
 Prefer `check_inputs` for estimator methods that validate `X` and optional `y`
@@ -308,7 +308,7 @@ Additional considerations:
 ## Thread Safety
 
 Algorithms implemented in C++/CUDA should be implemented in a thread-safe manner. The Python code is generally not thread safe.
-Refer to the [C++ Developer Guide](../cpp/developer_guide.md#threading-model) for threading guidance.
+Refer to the [C++ Developer Guide](../cpp/developer_guide/#threading-model) for threading guidance.
 
 ## Creating New Estimators
 
@@ -321,7 +321,7 @@ When implementing a new estimator in cuML, follow these key steps:
    - Is placed in the appropriate subdirectory matching scikit-learn's structure
    - Uses `cuml.internals.validation` for public input validation
 
-For detailed implementation guidelines, including file organization, API design, output type handling, and a copyable estimator skeleton, refer to the [Estimator Guide](estimator_guide.md).
+For detailed implementation guidelines, including file organization, API design, output type handling, and a copyable estimator skeleton, refer to the [Estimator Guide](estimator_guide/).
 
 ## Deprecation Policy
 
