@@ -16,6 +16,7 @@
 
 #include <rmm/cuda_stream_pool.hpp>
 
+#include <cuda/stream>
 #include <cuda_runtime.h>
 
 #include <benchmark/benchmark.h>
@@ -33,7 +34,7 @@ class Fixture : public MLCommon::Bench::Fixture {
   {
     if (stream == 0) { RAFT_CUDA_TRY(cudaStreamCreate(&stream)); }
     auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(numStreams());
-    handle.reset(new raft::handle_t{rmm::cuda_stream_view{stream}, stream_pool});
+    handle.reset(new raft::handle_t{cuda::stream_ref{stream}, stream_pool});
     MLCommon::Bench::Fixture::SetUp(state);
   }
 

@@ -14,6 +14,7 @@
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 
+#include <cuda/stream>
 #include <cuda_runtime_api.h>
 
 #include <stdint.h>
@@ -1044,8 +1045,6 @@ void call_optimize_batch_kernel(T* head_embedding,
   requiredSize *= sizeof(T);
   bool use_shared_mem = requiredSize < static_cast<std::size_t>(raft::getSharedMemPerBlock());
   T nsr_inv           = T(1.0) / params->negative_sample_rate;
-
-  auto stream_view = rmm::cuda_stream_view(stream);
 
   auto launch_kernel = [&](size_t offset = 0) {
     if (params->n_components == 2) {

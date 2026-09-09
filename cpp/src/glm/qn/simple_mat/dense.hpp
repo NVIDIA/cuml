@@ -327,7 +327,7 @@ std::ostream& operator<<(std::ostream& os, const SimpleVec<T>& v)
 {
   std::vector<T> out(v.len);
   raft::update_host(&out[0], v.data, v.len, 0);
-  raft::interruptible::synchronize(rmm::cuda_stream_view());
+  raft::interruptible::synchronize(cuda::stream_ref());
   int it = 0;
   for (; it < v.len - 1;) {
     os << out[it] << " ";
@@ -343,7 +343,7 @@ std::ostream& operator<<(std::ostream& os, const SimpleDenseMat<T>& mat)
   os << "ord=" << (mat.ord == COL_MAJOR ? "CM" : "RM") << "\n";
   std::vector<T> out(mat.len);
   raft::update_host(&out[0], mat.data, mat.len, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
-  raft::interruptible::synchronize(rmm::cuda_stream_view());
+  raft::interruptible::synchronize(cuda::stream_ref());
   if (mat.ord == COL_MAJOR) {
     for (int r = 0; r < mat.m; r++) {
       int idx = r;
