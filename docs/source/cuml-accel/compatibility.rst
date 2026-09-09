@@ -225,6 +225,26 @@ To compare results between estimators, we recommend comparing scores like
    - If ``y`` is a multi-output target.
 
 
+.. dropdown:: ``IsolationForest``
+   :name: isolationforest
+
+   ``IsolationForest`` will fall back to CPU in the following cases:
+
+   - If ``warm_start=True``.
+   - If ``sample_weight`` is passed to ``fit`` or ``fit_predict``.
+   - If ``X`` is sparse.
+   - If ``X`` contains missing or non-finite values.
+
+   Additional notes:
+
+   - Conversion of a fitted GPU ``IsolationForest`` back to a CPU estimator
+     is supported. Accessing fit attributes (``offset_``, ``max_samples_``,
+     ``estimators_``, and others) or pickling a GPU-fitted model triggers
+     this conversion automatically.
+   - ``estimators_samples_`` is not available on the converted model,
+     since cuML does not record per-tree sample indices.
+
+
 sklearn.kernel_ridge
 ~~~~~~~~~~~~~~~~~~~~
 
