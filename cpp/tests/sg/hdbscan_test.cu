@@ -31,6 +31,7 @@
 #include <hdbscan/detail/extract.cuh>
 #include <hdbscan/detail/reachability.cuh>
 
+#include <numeric>
 #include <vector>
 
 namespace ML {
@@ -126,6 +127,52 @@ typedef HDBSCANTest<float, int64_t> HDBSCANTestF_Int;
 TEST_P(HDBSCANTestF_Int, Result) { EXPECT_TRUE(score >= 0.85); }
 
 INSTANTIATE_TEST_CASE_P(HDBSCANTest, HDBSCANTestF_Int, ::testing::ValuesIn(hdbscan_inputsf2));
+
+TEST(HDBSCANTest, RejectsSingletonClusters)
+{
+  raft::handle_t handle;
+  constexpr int64_t n_rows = 64;
+  constexpr int64_t n_cols = 1;
+
+  std::vector<float> data_h(n_rows);
+  std::iota(data_h.begin(), data_h.end(), 0.0f);
+  rmm::device_uvector<float> data(n_rows * n_cols, handle.get_stream());
+  raft::copy(data.data(), data_h.data(), data.size(), handle.get_stream());
+
+  rmm::device_uvector<int64_t> children(n_rows * 2, handle.get_stream());
+  rmm::device_uvector<float> deltas(n_rows, handle.get_stream());
+  rmm::device_uvector<int64_t> sizes(n_rows * 2, handle.get_stream());
+  rmm::device_uvector<int64_t> labels(n_rows, handle.get_stream());
+  rmm::device_uvector<int64_t> mst_src(n_rows - 1, handle.get_stream());
+  rmm::device_uvector<int64_t> mst_dst(n_rows - 1, handle.get_stream());
+  rmm::device_uvector<float> mst_weights(n_rows - 1, handle.get_stream());
+  rmm::device_uvector<float> core_dists(n_rows, handle.get_stream());
+  rmm::device_uvector<float> probabilities(n_rows, handle.get_stream());
+
+  HDBSCAN::Common::hdbscan_output<int64_t, float> out(handle,
+                                                      n_rows,
+                                                      labels.data(),
+                                                      probabilities.data(),
+                                                      children.data(),
+                                                      sizes.data(),
+                                                      deltas.data(),
+                                                      mst_src.data(),
+                                                      mst_dst.data(),
+                                                      mst_weights.data());
+  HDBSCAN::Common::HDBSCANParams params;
+  params.min_samples      = 1;
+  params.min_cluster_size = 1;
+
+  EXPECT_THROW(hdbscan(handle,
+                       data.data(),
+                       n_rows,
+                       n_cols,
+                       ML::distance::DistanceType::L2SqrtExpanded,
+                       params,
+                       out,
+                       core_dists.data()),
+               raft::exception);
+}
 
 template <typename T, typename IdxT>
 class ClusterCondensingTest : public ::testing::TestWithParam<ClusterCondensingInputs<T, IdxT>> {
