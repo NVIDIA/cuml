@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import numpy as np
+
 import cuml.ensemble
 from cuml.accel.estimator_proxy import ProxyBase
 from cuml.internals.interop import UnsupportedOnGPU
@@ -134,8 +136,8 @@ class IsolationForest(ProxyBase):
 
     def _gpu_decision_function(self, X):
         self._validate_input(X)
-        return self._gpu.decision_function(X)
+        return self._gpu.decision_function(X).astype(np.float64)
 
     def _gpu_score_samples(self, X):
         self._validate_input(X)
-        return self._gpu.score_samples(X)
+        return self._gpu.score_samples(X).astype(np.float64)

@@ -75,6 +75,8 @@ def test_isolation_forest_gpu_methods_and_attrs(blobs_with_outliers):
 
     scores = result.score_samples(X)
     decisions = result.decision_function(X)
+    assert scores.dtype == np.float64
+    assert decisions.dtype == np.float64
     np.testing.assert_allclose(decisions, scores - result._gpu.offset_)
 
     assert len(result.estimators_) == 50
