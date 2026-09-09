@@ -8,8 +8,7 @@ cpp/               @NVIDIA/cuml-cpp-codeowners
 /CONTRIBUTING.md @NVIDIA/cuml-python-codeowners
 /README.md       @NVIDIA/cuml-python-codeowners
 /docs/           @NVIDIA/cuml-python-codeowners
-/wiki/           @NVIDIA/cuml-python-codeowners
-/wiki/cpp        @NVIDIA/cuml-cpp-codeowners
+/docs/source/developer_guide/cpp/ @NVIDIA/cuml-cpp-codeowners
 
 #python code owners
 python/            @NVIDIA/cuml-python-codeowners

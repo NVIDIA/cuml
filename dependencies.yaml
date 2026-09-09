@@ -527,6 +527,7 @@ dependencies:
     common:
       - output_types: [conda, requirements]
         packages:
+          - breathe
           - graphviz
           - ipython
           - ipykernel

@@ -143,7 +143,7 @@ At a high level, all cuML Estimators must:
    ```
 
 7. Override estimator tags only when the defaults are wrong. Prefer existing
-   [Mixins](../../python/cuml/cuml/internals/mixins.py) for common capabilities
+   [Mixins](../../../../python/cuml/cuml/internals/mixins.py) for common capabilities
    such as preferred input order, sparse support, string input, or NaN support.
    See [Estimator Tags and cuML-Specific
    Tags](#estimator-tags-and-cuml-specific-tags) for custom tag overrides.

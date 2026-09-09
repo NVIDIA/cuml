@@ -17,7 +17,7 @@ Below is a quick and simple checklist for developers to determine whether an alg
 - Existing prims are used wherever possible
 - Array inputs and outputs to algorithms are accepted on device
 - New prims created wherever there is potential for reuse across different algorithms or prims
-- User-facing API is [stateless](cpp/DEVELOPER_GUIDE.md#public-cuml-interface) and follows the [plain-old data (POD)](https://en.wikipedia.org/wiki/Passive_data_structure) design paradigm
+- User-facing API is [stateless](cpp/developer_guide.md#public-cuml-interface) and follows the [plain-old data (POD)](https://en.wikipedia.org/wiki/Passive_data_structure) design paradigm
 - Public API contains a C-Wrapper around the stateless API
 - (optional) Public API contains an Scikit-learn-like stateful wrapper around the stateless API
 
@@ -40,7 +40,7 @@ Below is a quick and simple checklist for developers to determine whether an alg
 - Python class is as "near drop-in replacement" for Scikit-learn (or relevant industry standard) API as possible. This means parameters have the same names as Scikit-learn, and where differences exist, they are clearly documented in docstrings.
 - It is recommended to open an initial PR with the API design if there are going to be significant differences with reference APIs, or lack of a reference API, to have a discussion about it.
 - Python class is pickleable and a test has been added to `cuml/tests/test_pickle.py`
-- Estimators follow the implementation guidelines in [ESTIMATOR_GUIDE.md](python/ESTIMATOR_GUIDE.md)
+- Estimators follow the implementation guidelines in [Estimator Guide](python/estimator_guide.md)
 
 #### Testing
 

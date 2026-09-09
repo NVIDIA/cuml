@@ -2,11 +2,11 @@
 This document summarizes rules and best practices for contributions to the cuML C++ component of NVIDIA/cuml. This is a living document and contributions for clarifications or fixes and issue reports are highly welcome.
 
 ## General
-Please start by reading [CONTRIBUTING.md](../../CONTRIBUTING.md).
+Please start by reading [`CONTRIBUTING.md`](https://github.com/rapidsai/cuml/blob/main/CONTRIBUTING.md).
 
 ## Performance
 1. In performance critical sections of the code, favor `cudaDeviceGetAttribute` over `cudaDeviceGetProperties`. See corresponding CUDA devblog [here](https://devblogs.nvidia.com/cuda-pro-tip-the-fast-way-to-query-device-properties/) to know more.
-2. If an algo requires you to launch GPU work in multiple cuda streams, do not create multiple `raft::handle_t` objects, one for each such work stream. Instead, expose a `n_streams` parameter in that algo's cuML C++ interface and then rely on `raft::handle_t::get_internal_stream()` to pick up the right cuda stream. Refer to the section on [CUDA Resources](#cuda-resources) and the section on [Threading](#TBD) for more details. TIP: use `raft::handle_t::get_num_internal_streams` to know how many such streams are available at your disposal.
+2. If an algorithm requires multiple CUDA streams, do not create a separate `raft::handle_t` for each stream. Use the streams exposed by the handle and keep stream ordering explicit. See [CUDA Resources](#cuda-resources) and [Asynchronous operations and stream ordering](#asynchronous-operations-and-stream-ordering).
 
 ## Threading Model
 
@@ -57,7 +57,6 @@ The use of threads in third-party libraries is allowed, though they should still
 ### Terminology
 We have the following supported APIs:
 1. Core cuML interface aka stateless C++ API aka C++ API aka `libcuml.so`
-2. Stateful convenience C++ API - wrapper around core API (WIP)
 
 ### Motivation
 The cuML C++ API is stateless so that algorithm state (models, hyper-parameters, and similar data) can be serialized in a straightforward way, which supports features such as pickling in the Python layer, and so that a small, explicit surface is presented to the bindings above this library.
@@ -121,9 +120,6 @@ void loadTree(TreeNodeD *&root, std::istream &is);
 ```
 It is also worth noting that for algorithms such as the members of GLM, where models consist of an array of weights and are therefore easy to manipulate directly by the users, such custom load/store methods might not be explicitly needed.
 
-### Stateful C++ API
-This scikit-learn-esq C++ API should always be a wrapper around the stateless C++ API, NEVER the other way around. The design discussion about the right way to expose such a wrapper around `libcuml.so` is [still going on](https://github.com/NVIDIA/cuml/issues/456)  So, stay tuned for more details.
-
 ### File naming convention
 1. An ML algorithm `<algo>` is to be contained inside the folder named `src/<algo>`.
 2. `<algo>.hpp` and `<algo>.[cpp|cu]` contain C++ API declarations and definitions respectively.
@@ -136,41 +132,21 @@ cuML relies on `clang-format` to enforce code style across all C++ and CUDA sour
 1. Do not split empty functions/records/namespaces.
 2. Two-space indentation everywhere, including the line continuations.
 3. Disable reflowing of comments.
-The reasons behind these deviations from the Google style guide are given in comments [here](../../cpp/.clang-format).
+The reasons behind these deviations from the Google style guide are given in comments [here](https://github.com/rapidsai/cuml/blob/main/cpp/.clang-format).
 
 ### How is the check done?
-All formatting checks are done by this python script: [run-clang-format.py](../../cpp/scripts/run-clang-format.py) which is effectively a wrapper over `clang-format`. An error is raised if the code diverges from the format suggested by clang-format. It is expected that the developers run this script to detect and fix formatting violations before creating PR.
-
-#### As part of CI
-[run-clang-format.py](../../cpp/scripts/run-clang-format.py) is executed as part of our CI tests. If there are any formatting violations, PR author is expected to fix those to get CI passing. Steps needed to fix the formatting violations are described in the subsequent sub-section.
-
-#### Manually
-Developers can also manually (or setup this command as part of git pre-commit hook) run this check by executing:
-```bash
-python ./cpp/scripts/run-clang-format.py
-```
-From the root of the cuML repository.
-
-### How to know the formatting violations?
-When there are formatting errors, [run-clang-format.py](../../cpp/scripts/run-clang-format.py) prints a `diff` command, showing where there are formatting differences. Unfortunately, unlike `flake8`, `clang-format` does NOT print descriptions of the violations, but instead directly formats the code. So, the only way currently to know about formatting differences is to run the diff command as suggested by this script against each violating source file.
-
-### How to fix the formatting violations?
-When there are formatting violations, [run-clang-format.py](../../cpp/scripts/run-clang-format.py) prints at the end, the exact command that can be run by developers to fix them. This is the easiest way to fix formatting errors. [This screencast](https://asciinema.org/a/287367) shows how developers can check for formatting violations in their branches and also how to fix those, before sending out PRs.
-
-In short, to bulk-fix all the formatting violations, execute the following command:
-```bash
-python ./cpp/scripts/run-clang-format.py -inplace
-```
-From the root of the cuML repository.
+Formatting is checked by CI and by the repository's pre-commit configuration.
+Run `pre-commit run --all-files clang-format` from the repository root, or
+format only changed files with the corresponding `--files` option.
 
 ### clang-format version?
-To avoid spurious code style violations we specify the exact clang-format version required, currently `8.0.0`. This is enforced by the [run-clang-format.py](../../cpp/scripts/run-clang-format.py) script itself. Refer [here](../../cpp/README.md#dependencies) for the list of build-time dependencies.
+Use the clang-format version specified by the C++ build dependencies (currently `20.1.8`). See the [C++ build dependencies](https://github.com/rapidsai/cuml/blob/main/cpp/README.md#dependencies) for the current requirement.
 
 ### Additional scripts
 Along with clang, there are are the include checker and copyright checker scripts for checking style, which can be performed as part of CI, as well as manually.
 
 #### #include style
-[include_checker.py](../../cpp/scripts/include_checker.py) is used to enforce the include style as follows:
+[include_checker.py](https://github.com/rapidsai/cuml/blob/main/cpp/scripts/include_checker.py) is used to enforce the include style as follows:
 1. `#include "..."` should be used for referencing local files only. It is acceptable to be used for referencing files in a sub-folder/parent-folder of the same algorithm, but should never be used to include files in other algorithms or between algorithms and the primitives or other dependencies.
 2. `#include <...>` should be used for referencing everything else
 
@@ -194,7 +170,7 @@ Call CUDA APIs via the provided helper macros `RAFT_CUDA_TRY`, `RAFT_CUBLAS_TRY`
 
 ## Logging
 ### Introduction
-Anything and everything about logging is defined inside [logger.hpp](../../cpp/include/cuml/common/logger.hpp). It uses [spdlog](https://github.com/gabime/spdlog) underneath, but this information is transparent to all.
+Anything and everything about logging is defined inside [logger.hpp](https://github.com/rapidsai/cuml/blob/main/cpp/include/cuml/common/logger.hpp).
 
 ### Usage
 ```cpp
@@ -209,37 +185,12 @@ CUML_LOG_ERROR("Hello %s!", "world");
 CUML_LOG_CRITICAL("Hello %s!", "world");
 ```
 
-### Changing logging level
-There are 7 logging levels with each successive level becoming quieter:
-1. CUML_LEVEL_TRACE
-2. CUML_LEVEL_DEBUG
-3. CUML_LEVEL_INFO
-4. CUML_LEVEL_WARN
-5. CUML_LEVEL_ERROR
-6. CUML_LEVEL_CRITICAL
-7. CUML_LEVEL_OFF
-Pass one of these as per your needs into the `setLevel()` method as follows:
+### Changing logging level and pattern
+The global logger is available through `ML::default_logger()` and uses the
+rapids logger API. For example:
 ```cpp
-ML::Logger::get.setLevel(CUML_LEVEL_WARN);
-// From now onwards, this will print only WARN and above kind of messages
-```
-
-### Changing logging pattern
-Pass the [format string](https://github.com/gabime/spdlog/wiki/3.-Custom-formatting) as follows in order use a different logging pattern than the default.
-```cpp
-ML::Logger::get.setPattern(YourFavoriteFormat);
-```
-One can also use the corresponding `getPattern()` method to know the current format as well.
-
-### Temporarily changing the logging pattern
-Sometimes, we need to temporarily change the log pattern (eg: for reporting decision tree structure). This can be achieved in a RAII-like approach as follows:
-```cpp
-{
-  PatternSetter _(MyNewTempFormat);
-  // new log format is in effect from here onwards
-  doStuff();
-  // once the above temporary object goes out-of-scope, the old format will be restored
-}
+ML::default_logger().set_level(rapids_logger::level_enum::warn);
+ML::default_logger().set_pattern("[%l] %v");
 ```
 
 ### Tips
@@ -249,78 +200,28 @@ Sometimes, we need to temporarily change the log pattern (eg: for reporting deci
 ## Documentation
 All external interfaces need to have a complete [doxygen](http://www.doxygen.nl) API documentation. This is also recommended for internal interfaces.
 
-## Testing and Unit Testing
-TODO: Add this
+## Testing and unit testing
+Add or update focused C++ tests under `cpp/tests` with implementation changes.
+Follow the repository's normal build and test instructions in the
+[C++ README](https://github.com/rapidsai/cuml/blob/main/cpp/README.md), and
+run the relevant test target locally before submitting a change.
 
-## Device and Host memory allocations
-To enable `libcuml` users to control how memory for temporary data is allocated, allocate device memory using the allocator provided:
+## Device and host memory allocations
+Use the current RAFT and RMM resource interfaces for temporary allocations;
+the older `ML::deviceAllocator`, `MLCommon::*_buffer`, and allocator-adapter
+examples formerly documented here are no longer current cuML APIs. In code
+that owns a `raft::handle_t`, obtain the relevant resource from the handle and
+use RMM containers such as `rmm::device_uvector` or `rmm::device_buffer` with
+the appropriate stream. Follow nearby current implementations and include
+checked arithmetic for allocation sizes.
 ```cpp
 template<typename T>
 void foo(const raft::handle_t& h, cudaStream_t stream, ... )
 {
-    T* temp_h = h.get_device_allocator()->allocate(n*sizeof(T), stream);
-    ...
-    h.get_device_allocator()->deallocate(temp_h, n*sizeof(T), stream);
-}
-```
-The same rule applies to larger amounts of host heap memory:
-```cpp
-template<typename T>
-void foo(const raft::handle_t& h, cudaStream_t stream, ... )
-{
-    T* temp_h = h.get_host_allocator()->allocate(n*sizeof(T), stream);
-    ...
-    h.get_host_allocator()->deallocate(temp_h, n*sizeof(T), stream);
-}
-```
-Small host memory heap allocations, e.g. as internally done by STL containers, are fine, e.g. an `std::vector` managing only a handful of integers.
-Both the Host and the Device Allocators might allow asynchronous stream ordered allocation and deallocation. This can provide significant performance benefits so a stream always needs to be specified when allocating or deallocating (see [Asynchronous operations and stream ordering](#asynchronous-operations-and-stream-ordering)). `ML::deviceAllocator` returns pinned device memory on the current device, while `ML::hostAllocator` returns host memory. A user of cuML can write customized allocators and pass them into cuML. If a cuML user does not provide custom allocators default allocators will be used. For `ML::deviceAllocator` the default is to use `cudaMalloc`/`cudaFree`. For `ML::hostAllocator` the default is to use `cudaMallocHost`/`cudaFreeHost`.
-There are two simple container classes compatible with the allocator interface `MLCommon::device_buffer` available in `src_prims/common/device_buffer.hpp` and `MLCommon::host_buffer` available in `src_prims/common/host_buffer.hpp`. These allow to follow the [RAII idiom](https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization) to avoid resources leaks and enable exception safe code. These containers also allow asynchronous allocation and deallocation using the `resize` and `release` member functions:
-```cpp
-template<typename T>
-void foo(const raft::handle_t& h, ..., cudaStream_t stream )
-{
-    ...
-    MLCommon::device_buffer<T> temp( h.get_device_allocator(), stream, 0 )
-
-    temp.resize(n, stream);
-    kernelA<<<grid, block, 0, stream>>>(..., temp.data(), ...);
-    kernelB<<<grid, block, 0, stream>>>(..., temp.data(), ...);
-    temp.release(stream);
-}
-```
-The motivation for `MLCommon::host_buffer` and `MLCommon::device_buffer` over using `std::vector` or `thrust::device_vector` (which would require thrust 1.9.4 or later) is to enable exception safe asynchronous allocation and deallocation following stream semantics with an explicit interface while avoiding the overhead of implicitly initializing the underlying allocation.
-To use `ML::hostAllocator` with a STL container the header `src/common/allocatorAdapter.hpp` provides `ML::stdAllocatorAdapter`:
-```cpp
-template<typename T>
-void foo(const raft::handle_t& h, ..., cudaStream_t stream )
-{
-    ...
-    std::vector<T,ML::stdAllocatorAdapter<T> > temp( n, val, ML::stdAllocatorAdapter<T>(h.get_host_allocator(), stream) )
+    rmm::device_uvector<T> temporary(n, stream);
     ...
 }
 ```
-If thrust 1.9.4 or later is available for use in cuML a similar allocator can be provided for `thrust::device_vector`.
-
-### <a name="allocationsthrust"></a>Using Thrust
-To ensure that thrust algorithms allocate temporary memory via the provided device memory allocator, use the `ML::thrustAllocatorAdapter` available in `src/common/allocatorAdapter.hpp` with the `thrust::cuda::par` execution policy:
-```cpp
-void foo(const raft::handle_t& h, ..., cudaStream_t stream )
-{
-    ML::thrustAllocatorAdapter alloc( h.get_device_allocator(), stream );
-    auto execution_policy = thrust::cuda::par(alloc).on(stream);
-    thrust::for_each(execution_policy, ... );
-}
-```
-The header `src/common/allocatorAdapter.hpp` also provides a helper function to create an execution policy:
-```cpp
-void foo(const raft::handle_t& h, ... , cudaStream_t stream )
-{
-    auto execution_policy = ML::thrust_exec_policy(h.get_device_allocator(),stream);
-    thrust::for_each(execution_policy->on(stream), ... );
-}
-```
-
 ## Asynchronous operations and stream ordering
 All ML algorithms should be as asynchronous as possible avoiding the use of the default stream (aka as NULL or `0` stream). Implementations that require only one CUDA Stream should use the stream from `raft::handle_t`:
 ```cpp
@@ -355,13 +256,14 @@ This can be ensured by introducing interstream dependencies with CUDA events and
 ```cpp
 void cumlAlgo(const raft::handle_t& handle, ...)
 {
-    raft::streamSyncer _(handle);
+    raft::stream_syncer _(handle);
 }
 ```
 This ensures the stream ordering behavior described above.
 
 ### Using Thrust
-To ensure that thrust algorithms are executed in the intended stream the `thrust::cuda::par` execution policy should be used (see [Using Thrust](#allocationsthrust) in [Device and Host memory allocations](#device-and-host-memory-allocations)).
+Use a Thrust execution policy bound to the intended CUDA stream when calling
+Thrust algorithms.
 
 ## CUDA Resources
 
@@ -390,7 +292,7 @@ int main(int argc, char** argv)
 
 ## Multi-GPU
 
-The multi GPU paradigm of cuML is **O**ne **P**rocess per **G**PU (OPG). Each algorithm should be implemented in a way that it can run with a single GPU without any specific dependencies to a particular communication library. A multi-GPU implementation should use the methods offered by the class `raft::comms::comms_t` from [raft/core/comms.hpp] for inter-rank/GPU communication. It is the responsibility of the user of cuML to create an initialized instance of `raft::comms::comms_t`.
+The multi GPU paradigm of cuML is **O**ne **P**rocess per **G**PU (OPG). Each algorithm should be implemented in a way that it can run with a single GPU without any specific dependencies to a particular communication library. A multi-GPU implementation should use the methods offered by the class `raft::comms::comms_t` from [`raft/core/comms.hpp`](https://github.com/rapidsai/raft/blob/main/cpp/include/raft/comms/comms.hpp) for inter-rank/GPU communication. It is the responsibility of the user of cuML to create an initialized instance of `raft::comms::comms_t`.
 
 E.g. with a CUDA-aware MPI, a cuML user could use code like this to inject an initialized instance of `raft::comms::mpi_comms` into a `raft::handle_t`:
 
