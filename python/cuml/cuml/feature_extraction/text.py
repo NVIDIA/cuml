@@ -21,8 +21,8 @@ from cuml.internals.validation import (
 )
 
 __all__ = (
-    "HashingVectorizer",
     "CountVectorizer",
+    "HashingVectorizer",
     "TfidfTransformer",
     "TfidfVectorizer",
 )
@@ -158,7 +158,7 @@ class _BaseVectorizer(Base):
 
             return cudf.Series(ENGLISH_STOP_WORDS)
         elif isinstance(self.stop_words, str):
-            raise ValueError("not a built-in stop list: %s" % self.stop_words)
+            raise ValueError(f"not a built-in stop list: {self.stop_words}")
         return cudf.Series(self.stop_words)
 
     def _preprocess(self, X):
