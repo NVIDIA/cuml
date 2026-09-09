@@ -36,7 +36,7 @@ sudo ./insmod.sh
 
 
 ```bash
-git clone https://github.com/cjnolet/ucx-py.git
+git clone https://github.com/cjnolet/ucx-py.git ucx
 cd ucx
 git checkout fea-ext-expose_worker_and_ep
 ./autogen.sh

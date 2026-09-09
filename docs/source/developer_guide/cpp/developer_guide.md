@@ -152,7 +152,7 @@ Along with clang, there are are the include checker and copyright checker script
 
 Manually, run the following to bulk-fix include style issues:
 ```bash
-python ./cpp/scripts/include_checker.py --inplace [cpp/include cpp/src cpp/src_prims cpp/test ... list of folders which you want to fix]
+python ./cpp/scripts/include_checker.py --inplace [cpp/include cpp/src cpp/src_prims cpp/tests ... list of folders which you want to fix]
 ```
 
 #### Copyright header
@@ -215,11 +215,13 @@ use RMM containers such as `rmm::device_uvector` or `rmm::device_buffer` with
 the appropriate stream. Follow nearby current implementations and include
 checked arithmetic for allocation sizes.
 ```cpp
+#include <cstddef>
+#include <rmm/device_uvector.hpp>
+
 template<typename T>
-void foo(const raft::handle_t& h, cudaStream_t stream, ... )
+void foo(const raft::handle_t& h, std::size_t n)
 {
-    rmm::device_uvector<T> temporary(n, stream);
-    ...
+    rmm::device_uvector<T> temporary(n, h.get_stream());
 }
 ```
 ## Asynchronous operations and stream ordering
@@ -292,7 +294,7 @@ int main(int argc, char** argv)
 
 ## Multi-GPU
 
-The multi GPU paradigm of cuML is **O**ne **P**rocess per **G**PU (OPG). Each algorithm should be implemented in a way that it can run with a single GPU without any specific dependencies to a particular communication library. A multi-GPU implementation should use the methods offered by the class `raft::comms::comms_t` from [`raft/comms/comms.hpp`](https://github.com/rapidsai/raft/blob/main/cpp/include/raft/comms/comms.hpp) for inter-rank/GPU communication. It is the responsibility of the user of cuML to create an initialized instance of `raft::comms::comms_t`.
+The multi GPU paradigm of cuML is **O**ne **P**rocess per **G**PU (OPG). Each algorithm should be implemented in a way that it can run with a single GPU without any specific dependencies to a particular communication library. A multi-GPU implementation should use the methods offered by the class `raft::comms::comms_t` from [`raft/core/comms.hpp`](https://github.com/rapidsai/raft/blob/main/cpp/include/raft/core/comms.hpp) for inter-rank/GPU communication. It is the responsibility of the user of cuML to create an initialized instance of `raft::comms::comms_t`.
 
 E.g. with a CUDA-aware MPI, a cuML user could use code like this to inject an initialized instance of `raft::comms::mpi_comms` into a `raft::handle_t`:
 
@@ -348,7 +350,7 @@ The initialized instance of `raft::comms::comms_t` can be accessed from the `raf
 ```cpp
 void foo(const raft::handle_t& h, ...)
 {
-    const MLCommon::cumlCommunicator& communicator = h.get_comms();
+    const raft::comms::comms_t& communicator = h.get_comms();
     const int rank = communicator.get_rank();
     const int size = communicator.get_size();
     ...
