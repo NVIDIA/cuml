@@ -44,6 +44,7 @@ filterwarnings = [
   "ignore:(.*)alias(.*):DeprecationWarning:hdbscan[.*]",
   # From sklearn
   "ignore:A column-vector y was passed:sklearn.exceptions.DataConversionWarning",
+  "ignore::sklearn.exceptions.SkipTestWarning",
   # sklearn 1.6 renamed force_all_finite to ensure_all_finite
   "ignore:'force_all_finite' was renamed to 'ensure_all_finite'.*:FutureWarning",
   # From dask-glm

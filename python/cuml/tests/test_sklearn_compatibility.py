@@ -25,7 +25,12 @@ from cuml.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
 )
-from cuml.feature_extraction.text import TfidfTransformer
+from cuml.feature_extraction.text import (
+    CountVectorizer,
+    HashingVectorizer,
+    TfidfTransformer,
+    TfidfVectorizer,
+)
 from cuml.kernel_ridge import KernelRidge
 from cuml.linear_model import (
     ElasticNet,
@@ -126,6 +131,10 @@ ESTIMATORS = [
     StandardScaler(),
     OneHotEncoder(),
     OrdinalEncoder(),
+    CountVectorizer(),
+    HashingVectorizer(),
+    TfidfVectorizer(),
+    TfidfTransformer(),
 ]
 
 
@@ -164,8 +173,6 @@ EXCLUDED = {
     OneVsOneClassifier: "Meta-estimator, requires an inner estimator",
     # Manifold
     SpectralEmbedding: "Not yet tested for sklearn compat",
-    # Feature extraction
-    TfidfTransformer: "Not yet tested for sklearn compat",
     # Preprocessing (cuml-native)
     LabelEncoder: "Not yet tested for sklearn compat",
     TargetEncoder: "Not yet tested for sklearn compat",
@@ -349,6 +356,9 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     SimpleImputer(),
     MissingIndicator(),
     TargetEncoder(multi_feature_mode="independent"),
+    CountVectorizer(),
+    TfidfVectorizer(),
+    TfidfTransformer(),
 ]
 
 GET_FEATURE_NAMES_OUT_XFAILS = {}
@@ -407,7 +417,15 @@ def test_sklearn_get_feature_names_out_all_estimators_covered():
 
 @pytest.mark.parametrize(
     "transformer",
-    GET_FEATURE_NAMES_OUT_ESTIMATORS,
+    [
+        est
+        for est in GET_FEATURE_NAMES_OUT_ESTIMATORS
+        # These estimators only return sparse data, and so can
+        # never have index/column names attached to their output
+        if not isinstance(
+            est, (CountVectorizer, TfidfVectorizer, TfidfTransformer)
+        )
+    ],
     ids=lambda est: type(est).__name__,
 )
 def test_transform_inverse_transform_set_index_and_column_names(transformer):
