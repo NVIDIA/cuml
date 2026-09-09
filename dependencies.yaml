@@ -542,8 +542,8 @@ dependencies:
       - output_types: conda
         packages:
           - doxygen=1.9.1
-          - numpydoc
           - matplotlib-base
+          - numpydoc
           - pip:
               - nvidia-sphinx-theme
       - output_types: requirements
