@@ -392,26 +392,6 @@ def test_tfidf_vectorizer_char_wb_ngrams():
 # ----------------------------------------------------------------
 # HashingVectorizer tests
 # ----------------------------------------------------------------
-def assert_almost_equal_hash_matrices(mat_1, mat_2, ignore_sign=True):
-    """
-    Currently if all the sorted values in the row is equal we
-    assume equality
-    TODO: Find better way to test ig hash matrices are equal
-    """
-    assert mat_1.shape == mat_2.shape
-    for row_id in range(mat_1.shape[0]):
-        row_m1 = mat_1[row_id]
-        row_m2 = mat_2[row_id]
-        nz_row_m1 = np.sort(row_m1[row_m1 != 0])
-        nz_row_m2 = np.sort(row_m2[row_m2 != 0])
-        # print(nz_row_m1)
-        # print(nz_row_m2)
-        if ignore_sign:
-            nz_row_m1 = np.abs(nz_row_m1)
-            nz_row_m2 = np.abs(nz_row_m2)
-        nz_row_m1.sort()
-        nz_row_m2.sort()
-        np.testing.assert_almost_equal(nz_row_m1, nz_row_m2)
 
 
 def test_hashingvectorizer():
@@ -424,7 +404,7 @@ def test_hashingvectorizer():
 
     res = HashingVectorizer().fit_transform(corpus)
     ref = SkHashVect().fit_transform(corpus)
-    assert_almost_equal_hash_matrices(res.toarray(), ref.toarray())
+    np.testing.assert_allclose(res.toarray(), ref.toarray())
 
 
 @pytest.mark.xfail
@@ -453,7 +433,7 @@ def test_vectorizer_empty_token_case():
     ref = SkHashVect(
         preprocessor=lambda s: s, tokenizer=lambda s: s.split(" ")
     ).fit_transform(corpus)
-    assert_almost_equal_hash_matrices(res.toarray(), ref.toarray())
+    np.testing.assert_allclose(res.toarray(), ref.toarray())
 
 
 @pytest.mark.parametrize("lowercase", [False, True])
@@ -466,13 +446,13 @@ def test_hashingvectorizer_lowercase(lowercase):
     ]
     res = HashingVectorizer(lowercase=lowercase).fit_transform(corpus)
     ref = SkHashVect(lowercase=lowercase).fit_transform(corpus)
-    assert_almost_equal_hash_matrices(res.toarray(), ref.toarray())
+    np.testing.assert_allclose(res.toarray(), ref.toarray())
 
 
 def test_hashingvectorizer_stop_word():
     ref = SkHashVect(stop_words="english").fit_transform(DOCS)
     res = HashingVectorizer(stop_words="english").fit_transform(DOCS)
-    assert_almost_equal_hash_matrices(res.toarray(), ref.toarray())
+    np.testing.assert_allclose(res.toarray(), ref.toarray())
 
 
 def test_hashingvectorizer_n_features():
@@ -492,7 +472,7 @@ def test_hashingvectorizer_norm(norm):
     else:
         res = HashingVectorizer(norm=norm).fit_transform(DOCS)
         ref = SkHashVect(norm=norm).fit_transform(DOCS)
-        assert_almost_equal_hash_matrices(res.toarray(), ref.toarray())
+        np.testing.assert_allclose(res.toarray(), ref.toarray())
 
 
 def test_hashingvectorizer_alternate_sign():
@@ -529,7 +509,7 @@ def test_hashingvectorizer_delimiter():
         token_pattern=None,
         preprocessor=lambda s: s,
     ).fit_transform(corpus)
-    assert_almost_equal_hash_matrices(res.toarray(), ref.toarray())
+    np.testing.assert_allclose(res.toarray(), ref.toarray())
 
 
 @pytest.mark.parametrize("vectorizer", ["tfidf", "hash_vec", "count_vec"])
@@ -546,6 +526,6 @@ def test_vectorizer_with_pandas_series(vectorizer):
         "count_vec": (CountVectorizer, SkCountVect),
     }[vectorizer]
     raw_documents = pd.Series(corpus)
-    res = cuml_vec().fit_transform(raw_documents)
-    ref = sklearn_vec().fit_transform(raw_documents)
-    assert_almost_equal_hash_matrices(res.toarray(), ref.toarray())
+    res = cuml_vec(dtype=np.float32).fit_transform(raw_documents)
+    ref = sklearn_vec(dtype=np.float32).fit_transform(raw_documents)
+    np.testing.assert_allclose(res.toarray(), ref.toarray())

@@ -763,14 +763,17 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
                 or min_doc_count > 1
                 or max_features is not None
             ):
-                counts = tokens.token.value_counts()
+                doc_freq = tokens.drop_duplicates().token.value_counts()
                 if max_doc_count < n_doc:
-                    counts = counts[counts <= max_doc_count]
+                    doc_freq = doc_freq[doc_freq <= max_doc_count]
                 if min_doc_count > 1:
-                    counts = counts[counts >= min_doc_count]
+                    doc_freq = doc_freq[doc_freq >= min_doc_count]
+                keep = doc_freq.index
                 if max_features is not None:
-                    counts = counts.iloc[:max_features]
-                self.vocabulary_ = cudf.Series(counts.index.sort_values())
+                    term_freq = tokens.token.value_counts()
+                    term_freq = term_freq[term_freq.index.isin(keep)]
+                    keep = term_freq.iloc[:max_features].index
+                self.vocabulary_ = cudf.Series(keep.sort_values())
                 if not len(self.vocabulary_):
                     raise ValueError(
                         "After pruning, no terms remain. Try a lower min_df or "
@@ -1114,7 +1117,7 @@ class TfidfTransformer(OneToOneFeatureMixin, Base):
         return self._fit(X)
 
     @mlfunc(set_input_type=True)
-    def fit_transform(self, X, y=None):
+    def fit_transform(self, X, y=None, copy=True):
         """Fit the transformer, then transform X.
 
         Parameters
@@ -1125,13 +1128,17 @@ class TfidfTransformer(OneToOneFeatureMixin, Base):
         y : None
             Ignored. Exists for API compatibility only.
 
+        copy : bool, default=True
+            If `copy=False,` then `fit_transform` may choose to mutate `X`
+            in-place if that would be more efficient.
+
         Returns
         -------
         X : sparse matrix of shape (n_samples, n_features)
             Tf-idf weighted document-term matrix.
         """
         self._check_params()
-        X = self._check_X(X, reset=True)
+        X = self._check_X(X, reset=True, copy=copy)
         return self._fit(X)._transform(X)
 
     @mlfunc
@@ -1144,8 +1151,8 @@ class TfidfTransformer(OneToOneFeatureMixin, Base):
             A matrix of term/token counts.
 
         copy : bool, default=True
-            If `copy=False,` then `transform` may mutate `X` in-place when
-            possible.
+            If `copy=False,` then `fit_transform` may choose to mutate `X`
+            in-place if that would be more efficient.
 
         Returns
         -------
