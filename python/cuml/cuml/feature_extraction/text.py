@@ -89,10 +89,11 @@ class _BaseVectorizer(Base):
         *,
         lowercase=True,
         preprocessor=None,
+        tokenizer=None,
+        delimiter=None,
         stop_words=None,
         ngram_range=(1, 1),
         analyzer="word",
-        delimiter=" ",
         binary=False,
         dtype=cp.float32,
         verbose=False,
@@ -101,10 +102,11 @@ class _BaseVectorizer(Base):
         super().__init__(verbose=verbose, output_type=output_type)
         self.lowercase = lowercase
         self.preprocessor = preprocessor
+        self.tokenizer = tokenizer
+        self.delimiter = delimiter
         self.stop_words = stop_words
         self.ngram_range = ngram_range
         self.analyzer = analyzer
-        self.delimiter = delimiter
         self.binary = binary
         self.dtype = dtype
 
@@ -112,10 +114,11 @@ class _BaseVectorizer(Base):
         return [
             "lowercase",
             "preprocessor",
+            "tokenizer",
+            "delimiter",
             "stop_words",
             "ngram_range",
             "analyzer",
-            "delimiter",
             "binary",
             "dtype",
             *super()._get_param_names(),
@@ -161,24 +164,41 @@ class _BaseVectorizer(Base):
     def _preprocess(self, X):
         """Preprocess `X`.
 
-        The default preprocessor lowercases all inputs.
+        Preprocessing has three stages:
 
-        Additionally, if `analyzer="word"`, it:
+        ## Whole document transforms:
+
+        - Lowercases all inputs if ``lowercase`` is true.
+
+        This stage may be overridden by specifying a ``preprocessor``.
+
+        ## Token level transforms (if ``analyzer="word"``):
+
         - Removes all non-alphanumeric characters (excluding "_")
         - Normalizes whitespace to " "
         - Removes any single character tokens
-        - Removes any tokens specified by `stop_words`.
 
-        The whole step may be overridden by specifying `preprocessor`
-        explicitly.
+        This stage may be overridden by specifying a ``tokenizer`` or a
+        ``delimiter``.
+
+        ## Removal of stop words (if ``analyzer="word"``)
+
+        - Any tokens matching ``stop_words`` are removed
         """
+        # 1. Whole document transforms
         if self.preprocessor is not None:
-            return self.preprocessor(X)
-
-        if self.lowercase:
+            X = self.preprocessor(X)
+        elif self.lowercase:
             X = X.str.lower()
 
-        if self.analyzer == "word":
+        if self.analyzer != "word":
+            return X
+
+        delimiter = self.delimiter or " "
+        # 2. Token level transforms
+        if self.tokenizer is not None:
+            X = self.tokenizer(X).str.join(delimiter)
+        elif self.delimiter is None:
             # XXX: a filler string to take the place of _ temporarily
             # since `filter_alphanum` strips `_` but sklearn keeps `_`.
             # We can use `X` in the common case of lowercase normalization
@@ -187,20 +207,20 @@ class _BaseVectorizer(Base):
             flag = "X" if self.lowercase else "cuᵐl"
             X = (
                 X.str.replace("_", flag, regex=False)
-                .str.filter_alphanum(self.delimiter, keep=True)
+                .str.filter_alphanum(delimiter, keep=True)
                 .str.replace(flag, "_", regex=False)
             )
 
             # sklearn by default removes single char tokens
-            X = X.str.filter_tokens(2, delimiter=self.delimiter)
+            X = X.str.filter_tokens(2, delimiter=delimiter)
 
-            # Drop any stop words specified
-            if self.stop_words is not None:
-                X = X.str.replace_tokens(
-                    self._get_stop_words(),
-                    " ",
-                    delimiter=self.delimiter,
-                )
+        # 3. Remove stop words
+        if self.stop_words is not None:
+            X = X.str.replace_tokens(
+                self._get_stop_words(),
+                delimiter,
+                delimiter=delimiter,
+            )
 
         return X
 
@@ -223,13 +243,14 @@ class _BaseVectorizer(Base):
         parts = []
 
         if self.analyzer == "word":
-            token_counts = X.str.token_count(delimiter=self.delimiter)
+            delimiter = self.delimiter or " "
+            token_counts = X.str.token_count(delimiter=delimiter)
             for ngram_size in range(
                 self.ngram_range[0], self.ngram_range[1] + 1
             ):
                 ngrams = X.str.ngrams_tokenize(
                     n=ngram_size,
-                    delimiter=self.delimiter,
+                    delimiter=delimiter,
                     separator=" ",
                 )
                 ngram_count = (token_counts - (ngram_size - 1)).clip(0)
@@ -338,6 +359,20 @@ class HashingVectorizer(_BaseVectorizer):
     preprocessor : callable, default=None
         Override the preprocessing (string transformation) stage while
         preserving the tokenizing and n-grams generation steps.
+        This function receives a ``cudf.Series`` of strings and should
+        return a ``cudf.Series`` of strings.
+
+    tokenizer : callable, default=None
+        Override the string tokenization step while preserving the
+        preprocessing and n-grams generation steps. This function
+        receives a ``cudf.Series`` of strings and should return
+        a ``cudf.Series`` of lists of strings.
+        Only applies if ``analyzer == 'word'``.
+
+    delimiter : str, default=None
+        String used to delimit tokens in the document. If ``None``, then any
+        non-alphanumeric (or " ") character is treated as a delimiter.
+        Only applies if ``analyzer == "word'``.
 
     stop_words : {'english'}, list, default=None
         If 'english', a built-in stop word list for English is used. If a list,
@@ -378,11 +413,6 @@ class HashingVectorizer(_BaseVectorizer):
     dtype : type, default=np.float32
         Type of the matrix returned by fit_transform() or transform().
 
-    delimiter : str, default=" "
-        String used as a replacement for stop words if `stop_words` is not
-        None. Typically the delimiting character between words is a good
-        choice.
-
     Examples
     --------
     >>> from cuml.feature_extraction.text import HashingVectorizer
@@ -403,10 +433,11 @@ class HashingVectorizer(_BaseVectorizer):
         *,
         lowercase=True,
         preprocessor=None,
+        tokenizer=None,
+        delimiter=None,
         stop_words=None,
         ngram_range=(1, 1),
         analyzer="word",
-        delimiter=" ",
         alternate_sign=True,
         n_features=2**20,
         dtype=cp.float32,
@@ -418,10 +449,11 @@ class HashingVectorizer(_BaseVectorizer):
         super().__init__(
             lowercase=lowercase,
             preprocessor=preprocessor,
+            tokenizer=tokenizer,
+            delimiter=delimiter,
             stop_words=stop_words,
             ngram_range=ngram_range,
             analyzer=analyzer,
-            delimiter=delimiter,
             binary=binary,
             dtype=dtype,
             verbose=verbose,
@@ -588,6 +620,20 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
     preprocessor : callable, default=None
         Override the preprocessing (string transformation) stage while
         preserving the tokenizing and n-grams generation steps.
+        This function receives a ``cudf.Series`` of strings and should
+        return a ``cudf.Series`` of strings.
+
+    tokenizer : callable, default=None
+        Override the string tokenization step while preserving the
+        preprocessing and n-grams generation steps. This function
+        receives a ``cudf.Series`` of strings and should return
+        a ``cudf.Series`` of lists of strings.
+        Only applies if ``analyzer == 'word'``.
+
+    delimiter : str, default=None
+        String used to delimit tokens in the document. If ``None``, then any
+        non-alphanumeric (or " ") character is treated as a delimiter.
+        Only applies if ``analyzer == "word'``.
 
     stop_words : {'english'}, list, default=None
         If 'english', a built-in stop word list for English is used. If a list,
@@ -597,10 +643,10 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
 
     ngram_range : tuple (min_n, max_n), default=(1, 1)
         The lower and upper boundary of the range of n-values for different
-        word n-grams or char n-grams to be extracted. All values of n such
-        such that min_n <= n <= max_n will be used. For example an
-        ``ngram_range`` of ``(1, 1)`` means only unigrams, ``(1, 2)`` means
-        unigrams and bigrams, and ``(2, 2)`` means only bigrams.
+        n-grams to be extracted. All values of n such that min_n <= n <= max_n
+        will be used. For example an ``ngram_range`` of ``(1, 1)`` means only
+        unigrams, ``(1, 2)`` means unigrams and bigrams, and ``(2, 2)`` means
+        only bigrams.
 
     analyzer : {'word', 'char', 'char_wb'}, default='word'
         Whether the feature should be made of word or character n-grams.
@@ -643,11 +689,6 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
     dtype : dtype, default=np.float32
         Type of the matrix returned by fit_transform() or transform().
 
-    delimiter : str, default=" "
-        String used as a replacement for stop words if `stop_words` is not
-        None. Typically the delimiting character between words is a good
-        choice.
-
     Attributes
     ----------
     vocabulary_ : cudf.Series
@@ -680,10 +721,11 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
         *,
         lowercase=True,
         preprocessor=None,
+        tokenizer=None,
+        delimiter=None,
         stop_words=None,
         ngram_range=(1, 1),
         analyzer="word",
-        delimiter=" ",
         max_df=1.0,
         min_df=1,
         max_features=None,
@@ -696,10 +738,11 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
         super().__init__(
             lowercase=lowercase,
             preprocessor=preprocessor,
+            tokenizer=tokenizer,
+            delimiter=delimiter,
             stop_words=stop_words,
             ngram_range=ngram_range,
             analyzer=analyzer,
-            delimiter=delimiter,
             binary=binary,
             dtype=dtype,
             verbose=verbose,
@@ -1177,6 +1220,20 @@ class TfidfVectorizer(CountVectorizer):
     preprocessor : callable, default=None
         Override the preprocessing (string transformation) stage while
         preserving the tokenizing and n-grams generation steps.
+        This function receives a ``cudf.Series`` of strings and should
+        return a ``cudf.Series`` of strings.
+
+    tokenizer : callable, default=None
+        Override the string tokenization step while preserving the
+        preprocessing and n-grams generation steps. This function
+        receives a ``cudf.Series`` of strings and should return
+        a ``cudf.Series`` of lists of strings.
+        Only applies if ``analyzer == 'word'``.
+
+    delimiter : str, default=None
+        String used to delimit tokens in the document. If ``None``, then any
+        non-alphanumeric (or " ") character is treated as a delimiter.
+        Only applies if ``analyzer == "word'``.
 
     stop_words : {'english'}, list, default=None
         If 'english', a built-in stop word list for English is used. If a list,
@@ -1186,10 +1243,10 @@ class TfidfVectorizer(CountVectorizer):
 
     ngram_range : tuple (min_n, max_n), default=(1, 1)
         The lower and upper boundary of the range of n-values for different
-        word n-grams or char n-grams to be extracted. All values of n such
-        such that min_n <= n <= max_n will be used. For example an
-        ``ngram_range`` of ``(1, 1)`` means only unigrams, ``(1, 2)`` means
-        unigrams and bigrams, and ``(2, 2)`` means only bigrams.
+        n-grams to be extracted. All values of n such that min_n <= n <= max_n
+        will be used. For example an ``ngram_range`` of ``(1, 1)`` means only
+        unigrams, ``(1, 2)`` means unigrams and bigrams, and ``(2, 2)`` means
+        only bigrams.
 
     analyzer : {'word', 'char', 'char_wb'}, default='word'
         Whether the feature should be made of word or character n-grams.
@@ -1231,11 +1288,6 @@ class TfidfVectorizer(CountVectorizer):
 
     dtype : dtype, default=np.float32
         Type of the matrix returned by fit_transform() or transform().
-
-    delimiter : str, default=" "
-        String used as a replacement for stop words if `stop_words` is not
-        None. Typically the delimiting character between words is a good
-        choice.
 
     norm : {'l1', 'l2', None}, default='l2'
         Norm used to normalize term vectors. None for no normalization.
@@ -1287,10 +1339,11 @@ class TfidfVectorizer(CountVectorizer):
         *,
         lowercase=True,
         preprocessor=None,
+        tokenizer=None,
+        delimiter=None,
         stop_words=None,
         ngram_range=(1, 1),
         analyzer="word",
-        delimiter=" ",
         max_df=1.0,
         min_df=1,
         max_features=None,
@@ -1307,10 +1360,11 @@ class TfidfVectorizer(CountVectorizer):
         super().__init__(
             lowercase=lowercase,
             preprocessor=preprocessor,
+            tokenizer=tokenizer,
+            delimiter=delimiter,
             stop_words=stop_words,
             ngram_range=ngram_range,
             analyzer=analyzer,
-            delimiter=delimiter,
             max_df=max_df,
             min_df=min_df,
             max_features=max_features,

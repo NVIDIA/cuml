@@ -67,6 +67,50 @@ def test_word_analyzer(ngram_range):
     )
 
 
+def test_preprocessor():
+    corpus = ["aa bb cc", "aa bb ee", "cc dd ff"]
+    vec = CountVectorizer(
+        preprocessor=lambda s: s.str.upper(),
+        stop_words=["EE"],
+    ).fit(corpus)
+    res = vec.get_feature_names_out()
+    np.testing.assert_array_equal(
+        res,
+        ["AA", "BB", "CC", "DD", "FF"],
+    )
+
+
+def test_delimiter():
+    corpus = ["aa0bb0cc", "aa 0 bb0ee", "c0d0f"]
+    vec = CountVectorizer(
+        delimiter="0",
+        stop_words=["ee"],
+    ).fit(corpus)
+    res = vec.get_feature_names_out()
+    np.testing.assert_array_equal(
+        res,
+        [" bb", "aa", "aa ", "bb", "c", "cc", "d", "f"],
+    )
+
+
+def test_tokenizer():
+    corpus = [
+        "filler<term1>filler <term2>",
+        "filler<term1>filler  <term3 >",
+        "<term4> but not <term5>no terms here",
+    ]
+    vec = CountVectorizer(
+        tokenizer=lambda s: s.str.findall(r"<([\w\s]*)>"),
+        delimiter="|",
+        stop_words=["term5"],
+    ).fit(corpus)
+    res = vec.get_feature_names_out()
+    np.testing.assert_array_equal(
+        res,
+        ["term1", "term2", "term3 ", "term4"],
+    )
+
+
 def test_countvectorizer_custom_vocabulary():
     vocab = {"pizza": 0, "beer": 1}
 
@@ -495,21 +539,6 @@ def test_hashingvectorizer_alternate_sign():
 def test_hashingvectorizer_dtype(dtype):
     res = HashingVectorizer(dtype=dtype).fit_transform(DOCS)
     assert res.dtype == dtype
-
-
-def test_hashingvectorizer_delimiter():
-    corpus = ["a0b0c", "a 0 b0e", "c0d0f"]
-    res = HashingVectorizer(
-        delimiter="0", norm=None, preprocessor=lambda s: s
-    ).fit_transform(corpus)
-    # equivalent logic for sklearn
-    ref = SkHashVect(
-        tokenizer=lambda s: s.split("0"),
-        norm=None,
-        token_pattern=None,
-        preprocessor=lambda s: s,
-    ).fit_transform(corpus)
-    np.testing.assert_allclose(res.toarray(), ref.toarray())
 
 
 @pytest.mark.parametrize("vectorizer", ["tfidf", "hash_vec", "count_vec"])
