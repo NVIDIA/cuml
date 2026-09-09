@@ -2,10 +2,11 @@
 
 The checked-in `benchmark-data.json` is the compact input for the Sphinx page.
 It is produced by `cumlbench-dash`; raw benchmark observations stay outside
-this repository. The file stores only case labels, shapes, median timings,
-CPU timeout limits when applicable, and PCA component counts that cannot be
-derived from labels. Speedups, classifications, summaries, input sizes, and
-display units are derived while rendering.
+this repository. The file stores the benchmark system and package versions
+alongside case labels, shapes, median timings, CPU timeout limits when
+applicable, and PCA component counts that cannot be derived from labels.
+Speedups, classifications, summaries, input sizes, and display units are
+derived while rendering.
 
 From the repository root, synchronize an updated publication artifact with:
 

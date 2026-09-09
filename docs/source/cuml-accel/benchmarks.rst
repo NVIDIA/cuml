@@ -1887,7 +1887,7 @@ operation-appropriate correctness validation, and a complete-case timeout.
    each case's operation-appropriate parity check. A timeout means validation
    could not complete.
 
-   **Packages.** ``cuml 26.10.0a69``, ``scikit-learn 1.9.0``.
+   **Packages.** ``cuml 26.10.0a69``, ``hdbscan 0.8.44``, ``scikit-learn 1.9.0``, ``umap-learn 0.5.12``.
 
    **Interpretation.** These measurements describe the tested cases on this
    system; results for other workloads and systems will vary.

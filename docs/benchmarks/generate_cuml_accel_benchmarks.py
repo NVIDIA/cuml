@@ -13,7 +13,6 @@ builds.
 from __future__ import annotations
 
 import argparse
-import copy
 import html
 import json
 import math
@@ -29,34 +28,6 @@ DEFAULT_DATA = ROOT / "docs/benchmarks/cuml-accel/benchmark-data.json"
 DEFAULT_TEMPLATE = ROOT / "docs/source/cuml-accel/benchmarks.rst.in"
 DEFAULT_PAGE = ROOT / "docs/source/cuml-accel/benchmarks.rst"
 DEFAULT_STATIC = ROOT / "docs/source/_static/cuml-accel-benchmarks"
-SOURCE_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
-
-# The portable performance summary deliberately contains no host metadata.
-PUBLICATION_SYSTEM = {
-    "components": [
-        {
-            "attributes": {"logical_cores": 64, "physical_cores": 32},
-            "count": 1,
-            "name": "AMD Ryzen Threadripper PRO 7975WX 32-Cores",
-            "type": "cpu",
-        },
-        {
-            "attributes": {"total_memory_bytes": 134137659392},
-            "count": 1,
-            "name": "System memory",
-            "type": "memory",
-        },
-        {
-            "attributes": {"total_memory_bytes": 101964644352},
-            "count": 1,
-            "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
-            "type": "gpu",
-        },
-    ]
-}
-# rapids-pre-commit-hooks: disable-next-line
-PUBLICATION_PACKAGES = {"cuml": "26.10.0a69", "scikit-learn": "1.9.0"}
-
 WORKLOADS = (
     "small.balanced",
     "medium.thin",
@@ -166,11 +137,16 @@ def _require_keys(
         raise ValueError(f"{location} is missing required fields: {missing}")
 
 
-def _is_source_id(value: Any) -> bool:
-    return (
-        isinstance(value, str)
-        and SOURCE_ID_PATTERN.fullmatch(value) is not None
-    )
+def _positive_integer(value: Any, location: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{location} must be a positive integer")
+    return value
+
+
+def _nonempty_string(value: Any, location: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{location} must be a nonempty string")
+    return value
 
 
 def _positive_number(value: Any, location: str) -> float:
@@ -203,15 +179,82 @@ def _parse_case_label(label: Any) -> tuple[str, str, str, str, int | None]:
 def validate_publication_data(data: Any) -> dict[str, Any]:
     """Validate the compact publication contract consumed by the renderer."""
     data = _require_mapping(data, "publication data")
-    if set(data) != {"schema_version", "records"}:
+    expected_fields = {"schema_version", "system", "packages", "records"}
+    if set(data) != expected_fields:
         raise ValueError(
-            "publication data must contain only schema_version and records"
+            "publication data must contain only schema_version, system, "
+            "packages, and records"
         )
     if data.get("schema_version") != 1:
         raise ValueError(
             f"unsupported benchmark publication schema version "
             f"{data.get('schema_version')!r}; expected 1"
         )
+    system = _require_mapping(data["system"], "system")
+    if set(system) != {"components"}:
+        raise ValueError("system must contain only components")
+    components = system["components"]
+    if not isinstance(components, list) or len(components) != 3:
+        raise ValueError("system.components must contain CPU, GPU, and memory")
+    component_types = set()
+    for index, value in enumerate(components):
+        location = f"system.components[{index}]"
+        component = _require_mapping(value, location)
+        if set(component) != {"type", "name", "count", "attributes"}:
+            raise ValueError(f"{location} has unsupported or missing fields")
+        component_type = component["type"]
+        if component_type not in {"cpu", "gpu", "memory"}:
+            raise ValueError(f"{location}.type is unsupported")
+        if component_type in component_types:
+            raise ValueError(
+                f"system has duplicate {component_type} component"
+            )
+        component_types.add(component_type)
+        _nonempty_string(component["name"], f"{location}.name")
+        count = _positive_integer(component["count"], f"{location}.count")
+        if count != 1:
+            raise ValueError(f"{location}.count must be 1")
+        attributes = _require_mapping(
+            component["attributes"], f"{location}.attributes"
+        )
+        if component_type == "cpu":
+            if set(attributes) != {"logical_cores", "physical_cores"}:
+                raise ValueError(
+                    f"{location}.attributes has unsupported fields"
+                )
+            logical = _positive_integer(
+                attributes["logical_cores"],
+                f"{location}.attributes.logical_cores",
+            )
+            physical = _positive_integer(
+                attributes["physical_cores"],
+                f"{location}.attributes.physical_cores",
+            )
+            if logical < physical:
+                raise ValueError(
+                    "CPU logical cores must not be less than physical cores"
+                )
+        else:
+            if set(attributes) != {"total_memory_bytes"}:
+                raise ValueError(
+                    f"{location}.attributes has unsupported fields"
+                )
+            _positive_integer(
+                attributes["total_memory_bytes"],
+                f"{location}.attributes.total_memory_bytes",
+            )
+    if component_types != {"cpu", "gpu", "memory"}:
+        raise ValueError("system.components must contain CPU, GPU, and memory")
+
+    packages = _require_mapping(data["packages"], "packages")
+    required_packages = {"cuml", "scikit-learn", "umap-learn", "hdbscan"}
+    if set(packages) != required_packages:
+        raise ValueError(
+            "packages must contain cuml, scikit-learn, umap-learn, and hdbscan"
+        )
+    for name, version in packages.items():
+        _nonempty_string(version, f"packages.{name}")
+
     records = data["records"]
     if not isinstance(records, list) or len(records) != 168:
         raise ValueError(
@@ -262,14 +305,7 @@ def validate_publication_data(data: Any) -> dict[str, Any]:
             raise ValueError("publication data case labels must be unique")
         labels.add(label)
         for field in ("rows", "features"):
-            if (
-                not isinstance(record[field], int)
-                or isinstance(record[field], bool)
-                or record[field] <= 0
-            ):
-                raise ValueError(
-                    f"records[{index}].{field} must be a positive integer"
-                )
+            _positive_integer(record[field], f"records[{index}].{field}")
         _positive_number(
             record["gpu_median_sec"], f"records[{index}].gpu_median_sec"
         )
@@ -420,8 +456,8 @@ def _prepare_publication(data: dict[str, Any]) -> dict[str, Any]:
     prepared = {
         "schema_version": 1,
         "records": records,
-        "system": copy.deepcopy(PUBLICATION_SYSTEM),
-        "packages": copy.deepcopy(PUBLICATION_PACKAGES),
+        "system": data["system"],
+        "packages": data["packages"],
         "methodology": {"id": "mlbench-accel-performance"},
         "validation": {"successful_accelerated_execution": "gpu_only"},
     }

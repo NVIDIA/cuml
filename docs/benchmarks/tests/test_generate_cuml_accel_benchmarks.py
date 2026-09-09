@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import xml.etree.ElementTree as ET
@@ -49,6 +50,55 @@ def test_generated_files_are_current() -> None:
 
     for path, content in generator.render_files(data, template).items():
         assert path.read_text(encoding="utf-8") == content
+
+
+def test_rendered_environment_comes_from_publication_data() -> None:
+    data, template = _inputs()
+    data["system"]["components"][2]["name"] = "Test GPU"
+    data["packages"]["cuml"] = "test-version"
+
+    page = generator.render_rst(data, template)
+
+    assert "Test GPU" in page
+    assert "``cuml test-version``" in page
+
+
+def test_narrative_gpu_matches_publication_hardware() -> None:
+    data, _ = _inputs()
+    gpu = next(
+        component
+        for component in data["system"]["components"]
+        if component["type"] == "gpu"
+    )
+
+    assert gpu["name"] == ("NVIDIA RTX PRO 6000 Blackwell Workstation Edition")
+
+
+@pytest.mark.parametrize("field", ["system", "packages"])
+def test_publication_environment_is_required(field: str) -> None:
+    data, _ = _inputs()
+    del data[field]
+
+    with pytest.raises(ValueError):
+        generator.validate_publication_data(data)
+
+
+def test_duplicate_system_component_is_rejected() -> None:
+    data, _ = _inputs()
+    data["system"]["components"][1] = copy.deepcopy(
+        data["system"]["components"][0]
+    )
+
+    with pytest.raises(ValueError, match="duplicate cpu component"):
+        generator.validate_publication_data(data)
+
+
+def test_required_package_version_is_rejected_when_missing() -> None:
+    data, _ = _inputs()
+    del data["packages"]["hdbscan"]
+
+    with pytest.raises(ValueError, match="packages must contain"):
+        generator.validate_publication_data(data)
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,40 @@
 {
+  "schema_version": 1,
+  "system": {
+    "components": [
+      {
+        "attributes": {
+          "logical_cores": 64,
+          "physical_cores": 32
+        },
+        "count": 1,
+        "name": "AMD Ryzen Threadripper PRO 7975WX 32-Cores",
+        "type": "cpu"
+      },
+      {
+        "attributes": {
+          "total_memory_bytes": 134138130432
+        },
+        "count": 1,
+        "name": "System memory",
+        "type": "memory"
+      },
+      {
+        "attributes": {
+          "total_memory_bytes": 101964644352
+        },
+        "count": 1,
+        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+        "type": "gpu"
+      }
+    ]
+  },
+  "packages": {
+    "cuml": "26.10.0a69",
+    "hdbscan": "0.8.44",
+    "scikit-learn": "1.9.0",
+    "umap-learn": "0.5.12"
+  },
   "records": [
     {
       "case_label": "dbscan.fit_predict.large.balanced",
@@ -1193,6 +1229,5 @@
       "gpu_median_sec": 0.13132311205845326,
       "rows": 390625
     }
-  ],
-  "schema_version": 1
+  ]
 }
