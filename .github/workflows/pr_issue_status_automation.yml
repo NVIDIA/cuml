@@ -13,7 +13,7 @@ permissions: {}
 
 jobs:
   get-project-id:
-    uses: rapidsai/shared-workflows/.github/workflows/project-get-item-id.yaml@main
+    uses: rapidsai/shared-workflows/.github/workflows/project-get-item-id.yaml@release/26.10
     if: github.event.pull_request.state == 'open'
     permissions:
       actions: read
@@ -28,7 +28,7 @@ jobs:
 
   update-status:
     # This job sets the PR and its linked issues to "In Progress" status
-    uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@main
+    uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@release/26.10
     if: ${{ github.event.pull_request.state == 'open' && (github.event.action == 'opened' || github.event.action == 'edited' || github.event.action == 'synchronize') && needs.get-project-id.outputs.ITEM_PROJECT_ID != '' }}
     needs: get-project-id
     permissions:
@@ -80,7 +80,7 @@ jobs:
   update-release:
     # This job sets the PR's Release field based on the target branch
     # Only sets the field if it is not already set.
-    uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@main
+    uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@release/26.10
     if: ${{ github.event.pull_request.state == 'open' && needs.get-project-id.outputs.ITEM_PROJECT_ID != '' && needs.get-release-version.outputs.release-version != '' }}
     needs: [get-project-id, get-release-version]
     permissions:

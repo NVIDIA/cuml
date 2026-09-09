@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -72,7 +72,7 @@ class KNNRegressionTest : public ::testing::TestWithParam<KNNRegressionInputs> {
  public:
   KNNRegressionTest()
     : params(::testing::TestWithParam<KNNRegressionInputs>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       train_samples(params.rows * params.cols, stream),
       train_labels(params.rows, stream),
       pred_labels(params.rows, stream),

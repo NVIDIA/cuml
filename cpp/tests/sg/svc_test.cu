@@ -65,7 +65,7 @@ template <typename math_t>
 class WorkingSetTest : public ::testing::Test {
  public:
   WorkingSetTest()
-    : stream(handle.get_stream()),
+    : stream(handle.get_stream().get()),
       f_dev(10, stream),
       y_dev(10, stream),
       C_dev(10, stream),
@@ -105,7 +105,7 @@ TYPED_TEST_CASE(WorkingSetTest, FloatTypes);
 
 TYPED_TEST(WorkingSetTest, Init)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   this->ws    = new WorkingSet<TypeParam>(this->handle, stream, 10);
   EXPECT_EQ(this->ws->GetSize(), 10);
   delete this->ws;
@@ -117,7 +117,7 @@ TYPED_TEST(WorkingSetTest, Init)
 
 TYPED_TEST(WorkingSetTest, Select)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   this->ws    = new WorkingSet<TypeParam>(this->handle, stream, 10, 4);
   EXPECT_EQ(this->ws->GetSize(), 4);
   this->ws->SimpleSelect(
@@ -167,7 +167,7 @@ template <typename math_t>
 class KernelCacheTest : public ::testing::Test {
  public:
   KernelCacheTest()
-    : stream(handle.get_stream()),
+    : stream(handle.get_stream().get()),
       n_rows(4),
       n_cols(2),
       n_ws(3),
@@ -221,7 +221,7 @@ class KernelCacheTest : public ::testing::Test {
 
   void check(math_t* kernel_data, int* nz_da_idx, int nnz_da, int batch_size, int offset)
   {
-    auto stream = this->handle.get_stream();
+    auto stream = this->handle.get_stream().get();
     std::vector<int> ws_idx_h(nnz_da);
     raft::update_host(ws_idx_h.data(), nz_da_idx, nnz_da, stream);
     handle.sync_stream(stream);
@@ -265,7 +265,7 @@ TYPED_TEST_CASE_P(KernelCacheTest);
 
 TYPED_TEST_P(KernelCacheTest, EvalTest)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   std::vector<KernelParams> param_vec{{KernelType::LINEAR, 3, 1, 0},
                                       {KernelType::POLYNOMIAL, 2, 1.3, 1},
                                       {KernelType::TANH, 2, 0.5, 2.4},
@@ -496,7 +496,7 @@ INSTANTIATE_TYPED_TEST_CASE_P(My, KernelCacheTest, FloatTypes);
 template <typename math_t>
 class GetResultsTest : public ::testing::Test {
  public:
-  GetResultsTest() : stream(handle.get_stream()) {}
+  GetResultsTest() : stream(handle.get_stream().get()) {}
 
  protected:
   void FreeDenseSupport()
@@ -509,7 +509,7 @@ class GetResultsTest : public ::testing::Test {
 
   void TestResults()
   {
-    auto stream = this->handle.get_stream();
+    auto stream = this->handle.get_stream().get();
     rmm::device_uvector<math_t> x_dev(n_rows * n_cols, stream);
     raft::update_device(x_dev.data(), x_host, n_rows * n_cols, stream);
     rmm::device_uvector<math_t> f_dev(n_rows, stream);
@@ -597,7 +597,7 @@ template <typename math_t>
 class SmoUpdateTest : public ::testing::Test {
  public:
   SmoUpdateTest()
-    : stream(handle.get_stream()),
+    : stream(handle.get_stream().get()),
       n_rows(6),
       n_ws(2),
       f_dev(n_rows, stream),
@@ -639,7 +639,7 @@ template <typename math_t>
 class SmoBlockSolverTest : public ::testing::Test {
  public:
   SmoBlockSolverTest()
-    : stream(handle.get_stream()),
+    : stream(handle.get_stream().get()),
       n_rows(4),
       n_cols(2),
       n_ws(4),
@@ -870,7 +870,7 @@ template <typename math_t>
 class SmoSolverTest : public ::testing::Test {
  public:
   SmoSolverTest()
-    : stream(handle.get_stream()),
+    : stream(handle.get_stream().get()),
       x_dev(n_rows * n_cols, stream),
       x_dev_indptr(n_rows + 1, stream),
       x_dev_indices(n_nnz, stream),
@@ -973,7 +973,7 @@ class SmoSolverTest : public ::testing::Test {
 
   void svrBlockSolveTest()
   {
-    auto stream = this->handle.get_stream();
+    auto stream = this->handle.get_stream().get();
     int n_ws    = 4;
     int n_rows  = 2;
     // int n_cols = 1;
@@ -1080,7 +1080,7 @@ std::ostream& operator<<(std::ostream& os, const smoInput<math_t>& b)
 
 TYPED_TEST(SmoSolverTest, SmoSolveTest)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   std::vector<std::pair<smoInput<TypeParam>, smoOutput<TypeParam>>> data{
     {smoInput<TypeParam>{1, 0.001, KernelParams{KernelType::LINEAR, 3, 1, 0}, 100, 1},
      smoOutput<TypeParam>{4,                         // n_sv
@@ -1166,7 +1166,7 @@ TYPED_TEST(SmoSolverTest, SmoSolveTest)
 
 TYPED_TEST(SmoSolverTest, SvcTest)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   std::vector<std::pair<svcInput<TypeParam>, smoOutput2<TypeParam>>> data{
     {svcInput<TypeParam>{1,
                          0.001,
@@ -1313,7 +1313,7 @@ void make_blobs(const raft::handle_t& handle,
   size_t free1, total;
   RAFT_CUDA_TRY(cudaMemGetInfo(&free1, &total));
   {
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     rmm::device_uvector<float> x_float(n_rows * n_cols, stream);
     rmm::device_uvector<int> y_int(n_rows, stream);
 
@@ -1358,7 +1358,7 @@ struct is_same_functor {
 
 TYPED_TEST(SmoSolverTest, BlobPredict)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   // Pair.second is the expected accuracy. It might change if the Rng changes.
   std::vector<std::pair<blobInput, TypeParam>> data{
     {blobInput{1, 0.001, KernelParams{KernelType::LINEAR, 3, 1, 0}, 200, 10}, 98},
@@ -1414,7 +1414,7 @@ TYPED_TEST(SmoSolverTest, MemoryLeak)
 {
   GTEST_SKIP();  // Skip the tests in CI for release 24.02
                  // https://github.com/NVIDIA/cuml/issues/5763
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   // We measure that we have the same amount of free memory available on the GPU
   // before and after we call SVM. This can help catch memory leaks, but it is
   // not 100% sure. Small allocations might be pooled together by cudaMalloc,
@@ -1476,7 +1476,7 @@ TYPED_TEST(SmoSolverTest, MemoryLeak)
 
 TYPED_TEST(SmoSolverTest, DISABLED_MillionRows)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   if (sizeof(TypeParam) == 8) {
     GTEST_SKIP();  // Skip the test for double input
   } else {
@@ -1525,7 +1525,7 @@ template <typename math_t>
 void initializeTestMatrix(
   const raft::handle_t& handle, math_t* dense_matrix, int n_rows, int n_cols, math_t* y)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
   assert(n_cols % n_rows * n_rows % n_cols == 0);
 
   /*
@@ -1580,7 +1580,7 @@ void initializeTestMatrix(const raft::handle_t& handle,
                           int n_cols,
                           math_t* y)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
   assert(n_cols % n_rows * n_rows % n_cols == 0);
 
   /*
@@ -1707,7 +1707,7 @@ TYPED_TEST(SmoSolverTest, DenseBatching)
 
 TYPED_TEST(SmoSolverTest, SparseBatching)
 {
-  auto stream = this->handle.get_stream();
+  auto stream = this->handle.get_stream().get();
   if (sizeof(TypeParam) == 8) {
     GTEST_SKIP();  // Skip the test for double input
   } else {
@@ -1855,7 +1855,7 @@ template <typename math_t>
 class SvrTest : public ::testing::Test {
  public:
   SvrTest()
-    : stream(handle.get_stream()),
+    : stream(handle.get_stream().get()),
       x_dev(n_rows * n_cols, stream),
       y_dev(n_rows, stream),
       C_dev(2 * n_rows, stream),
@@ -1884,7 +1884,7 @@ class SvrTest : public ::testing::Test {
  public:
   void TestSvrInit()
   {
-    auto stream        = this->handle.get_stream();
+    auto stream        = this->handle.get_stream().get();
     SvmParameter param = getDefaultSvmParameter();
     param.svmType      = EPSILON_SVR;
     SmoSolver<math_t> smo(handle, param, cuvs::distance::kernels::KernelType::LINEAR, nullptr);
@@ -1965,7 +1965,7 @@ class SvrTest : public ::testing::Test {
 
   void TestSvrFitPredict()
   {
-    auto stream = this->handle.get_stream();
+    auto stream = this->handle.get_stream().get();
     std::vector<std::pair<SvrInput<math_t>, smoOutput2<math_t>>> data{
       {SvrInput<math_t>{
          SvmParameter{1, 0, 1, -1, 10, 1e-3, rapids_logger::level_enum::info, 0.1, EPSILON_SVR},

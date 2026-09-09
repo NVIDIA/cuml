@@ -219,7 +219,7 @@ void predict(const raft::handle_t& handle,
              rapids_logger::level_enum verbosity)
 {
   ML::default_logger().set_level(verbosity);
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // First compute anomaly scores
   rmm::device_uvector<float> scores(n_rows, stream);
@@ -245,7 +245,7 @@ void predict(const raft::handle_t& handle,
              rapids_logger::level_enum verbosity)
 {
   ML::default_logger().set_level(verbosity);
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // First compute anomaly scores
   rmm::device_uvector<double> scores(n_rows, stream);

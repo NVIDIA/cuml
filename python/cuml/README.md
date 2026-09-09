@@ -38,7 +38,7 @@ example `setup.py --singlegpu`) are:
 
 RAFT's Python and Cython is located in the [RAFT repository](https://github.com/NVIDIA/raft/python). It was designed to be included in projects as opposed to be distributed by itself, so at build time, **setup.py creates a symlink from cuML, located in `/python/cuml/raft/` to the Python folder of RAFT**.
 
-For developers that need to modify RAFT code, please refer to the [RAFT Developer Guide](https://github.com/NVIDIA/raft/blob/main/docs/source/build.md) for recommendations.
+For developers that need to modify RAFT code, please refer to the [RAFT Developer Guide](https://github.com/NVIDIA/raft/blob/release/26.10/docs/source/build.md) for recommendations.
 
 To configure RAFT at build time:
 
@@ -50,7 +50,7 @@ The RAFT Python code gets included in the cuML build and distributable artifacts
 
 ### Build Requirements
 
-cuML's convenience [development yaml files](https://github.com/NVIDIA/cuml/tree/main/environments) includes all dependencies required to build cuML.
+cuML's convenience [development yaml files](https://github.com/NVIDIA/cuml/tree/release/26.10/environments) includes all dependencies required to build cuML.
 
 To build cuML's Python package, the following dependencies are required:
 

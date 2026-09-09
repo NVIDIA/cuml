@@ -394,7 +394,7 @@ void build_isolation_forest_global(const raft::handle_t& handle,
                                    int* tree_n_nodes,
                                    int* tree_max_depth)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   size_t subsample_buffer_size = static_cast<size_t>(n_trees) * max_samples * max_features;
   rmm::device_uvector<T> subsample_buffer(subsample_buffer_size, stream);
@@ -455,7 +455,7 @@ void compact_global_isolation_forest(const raft::handle_t& handle,
                                      std::vector<int>& h_tree_n_nodes,
                                      std::vector<int>& h_tree_max_depth)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   h_tree_n_nodes.resize(n_trees);
   h_tree_max_depth.resize(n_trees);

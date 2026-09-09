@@ -77,7 +77,7 @@ Additional resources:
 
 - [NVIDIA cuML documentation](https://docs.nvidia.com/cuml/)
 - [NVIDIA cuML product page](https://developer.nvidia.com/topics/ai/data-science/cuda-x-data-science-libraries/cuml)
-- [Walkthrough notebooks](https://github.com/NVIDIA/cuml/tree/main/notebooks)
+- [Walkthrough notebooks](https://github.com/NVIDIA/cuml/tree/release/26.10/notebooks)
 - [CUDA-X Data Science libraries](https://developer.nvidia.com/topics/ai/data-science/cuda-x-for-data-science)
 
 ## Build and install from source

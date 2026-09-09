@@ -46,6 +46,7 @@ files:
       # from source.
       - common_build
       - cuda
+      - cutile_python
       - cuda_version
       - depends_on_cudf
       - depends_on_cuda_python
@@ -457,6 +458,23 @@ dependencies:
               use_cuda_wheels: "true"
             packages:
               - cuda-toolkit==13.3.*
+  cutile_python:
+    specific:
+      - output_types: requirements
+        matrices:
+          - matrix:
+              cuda: "12.*"
+            packages:
+          - matrix:
+              cuda: "13.3"
+            packages:
+              - cuda-tile
+              - cuda-toolkit[tileiras]==13.3.*
+          - matrix:
+              cuda: "13.*"
+            packages:
+              - cuda-tile
+              - cuda-toolkit[tileiras]==13.*
   cuda:
     common:
       - output_types: [conda]

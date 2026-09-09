@@ -1,6 +1,6 @@
 
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -18,7 +18,7 @@ double adjusted_rand_index(const raft::handle_t& handle,
                            const int64_t n)
 {
   return raft::stats::adjusted_rand_index<int64_t, unsigned long long>(
-    y, y_hat, n, handle.get_stream());
+    y, y_hat, n, handle.get_stream().get());
 }
 
 double adjusted_rand_index(const raft::handle_t& handle,
@@ -27,7 +27,7 @@ double adjusted_rand_index(const raft::handle_t& handle,
                            const int n)
 {
   return raft::stats::adjusted_rand_index<int, unsigned long long>(
-    y, y_hat, n, handle.get_stream());
+    y, y_hat, n, handle.get_stream().get());
 }
 }  // namespace Metrics
 }  // namespace ML
