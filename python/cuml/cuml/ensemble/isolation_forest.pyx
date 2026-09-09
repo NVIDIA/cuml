@@ -624,7 +624,9 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         self._nvforest_model = self.as_nvforest()
 
         if use_contamination_quantile:
-            training_scores = self.score_samples(X_m)
+            # Score the already transferred training data directly. nvForest
+            # normalizes the device-array layout during prediction.
+            training_scores = self._score_samples(X_m)
             self.offset_ = float(
                 cp.percentile(
                     training_scores, 100.0 * contamination_fraction
@@ -677,23 +679,10 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             self._nvforest_model = nvforest_model = self.as_nvforest()
         return nvforest_model
 
-    def _score_samples(self, X):
-        """
-        Compute anomaly scores through nvForest inference.
-
-        Shared by ``score_samples``, ``decision_function`` and ``predict`` so
-        that input validation runs exactly once per public call.
-        """
+    def _score_samples(self, X_m):
+        """Compute anomaly scores from validated device input."""
         nvforest_model = self._get_inference_nvforest_model()
         dtype = nvforest_model.forest.get_dtype()
-
-        # Convert input to a row-major device array for inference.
-        X_m = check_inputs(
-            self,
-            X,
-            dtype=dtype,
-            order="C",
-        )
 
         # Each exported leaf holds ``depth + c(n_node_samples)`` and the model
         # averages leaf values across trees, so this is E[h(x)].
@@ -746,8 +735,14 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             ``offset_`` are predicted as anomalies.
         """
         check_is_fitted(self)
-
-        return self._score_samples(X)
+        nvforest_model = self._get_inference_nvforest_model()
+        X_m = check_inputs(
+            self,
+            X,
+            dtype=nvforest_model.forest.get_dtype(),
+            order="C",
+        )
+        return self._score_samples(X_m)
 
     @mlfunc(preserve_index=True)
     def decision_function(self, X):
@@ -768,8 +763,14 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             The decision function. Negative values indicate anomalies.
         """
         check_is_fitted(self)
-
-        return self._score_samples(X) - self.offset_
+        nvforest_model = self._get_inference_nvforest_model()
+        X_m = check_inputs(
+            self,
+            X,
+            dtype=nvforest_model.forest.get_dtype(),
+            order="C",
+        )
+        return self._score_samples(X_m) - self.offset_
 
     @mlfunc(preserve_index=True)
     def predict(self, X):
@@ -789,9 +790,16 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             1 for inliers, -1 for outliers.
         """
         check_is_fitted(self)
+        nvforest_model = self._get_inference_nvforest_model()
+        X_m = check_inputs(
+            self,
+            X,
+            dtype=nvforest_model.forest.get_dtype(),
+            order="C",
+        )
 
         # ``decision_function(X) < 0`` rearranged to avoid materializing it.
-        return cp.where(self._score_samples(X) < self.offset_, -1, 1)
+        return cp.where(self._score_samples(X_m) < self.offset_, -1, 1)
 
     @mlfunc(preserve_index=True)
     def fit_predict(self, X, y=None):

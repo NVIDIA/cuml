@@ -13,6 +13,7 @@ These tests are designed to be:
 """
 
 import pickle
+import warnings
 
 import cupy as cp
 import numpy as np
@@ -490,6 +491,33 @@ def test_invert_average_path_length_fails_loudly():
     midpoint = float(_average_path_length(np.asarray([50000, 50001])).mean())
     with pytest.raises(ValueError, match="more than one"):
         _invert_average_path_length(midpoint)
+
+
+def test_contamination_float_preserves_feature_names():
+    """Computing the training quantile must retain input feature metadata."""
+    pd = pytest.importorskip("pandas")
+    X = pd.DataFrame(
+        np.random.RandomState(0).normal(size=(20, 2)), columns=["a", "b"]
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        model = cuIsolationForest(
+            n_estimators=5, contamination=0.05, random_state=0
+        ).fit(X)
+
+    np.testing.assert_array_equal(model.feature_names_in_, X.columns)
+
+
+def test_internal_device_scoring_matches_public_path(blobs_data):
+    """The validated and already-converted scoring paths are equivalent."""
+    model = cuIsolationForest(n_estimators=10, random_state=0).fit(blobs_data)
+    X_m = cp.asarray(blobs_data, order="F")
+
+    expected = model.score_samples(blobs_data)
+    actual = model._score_samples(X_m)
+
+    cp.testing.assert_array_equal(cp.asarray(actual), cp.asarray(expected))
 
 
 def test_contamination_float_sets_score_quantile_offset(blobs_data):
