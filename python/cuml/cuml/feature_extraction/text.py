@@ -1122,29 +1122,34 @@ class TfidfTransformer(OneToOneFeatureMixin, Base):
             X = cp_sp.csr_matrix(X)
         return X
 
+    @mlfunc(convert_output=False)
+    def _set_idf(self, df, n_samples):
+        """Set `idf_` from the computed document frequencies & n_samples.
+
+        Split out to support the dask implementation.
+        """
+        assert self.use_idf
+        # perform idf smoothing if required
+        if self.smooth_idf:
+            df += 1.0
+            n_samples += 1
+
+        # log + 1 instead of log makes sure terms with zero idf don't get
+        # suppressed entirely.
+        idf = cp.full_like(df, fill_value=n_samples)
+        idf /= df
+        cp.log(idf, out=idf)
+        idf += 1.0
+        self.idf_ = idf
+
     def _fit(self, X):
         assert cp_sp.issparse(X)
         assert X.format == "csr"
         if self.use_idf:
-            n_samples, _ = X.shape
-
-            # Compute document frequency
             df = cp.bincount(X.indices, minlength=X.shape[1]).astype(
                 X.dtype, copy=False
             )
-
-            # perform idf smoothing if required
-            if self.smooth_idf:
-                df += 1.0
-                n_samples += 1
-
-            # log + 1 instead of log makes sure terms with zero idf don't get
-            # suppressed entirely.
-            idf = cp.full_like(df, fill_value=n_samples, dtype=X.dtype)
-            idf /= df
-            cp.log(idf, out=idf)
-            idf += 1.0
-            self.idf_ = idf
+            self._set_idf(df, X.shape[0])
 
         return self
 
