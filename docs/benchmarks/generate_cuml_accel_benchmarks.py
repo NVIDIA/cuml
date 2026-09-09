@@ -123,6 +123,9 @@ FAMILIES = {
     "Preprocessing": ("standard_scaler", "target_encoder"),
     "Kernel methods": ("svc",),
 }
+FAMILY_ESTIMATORS = {
+    estimator for estimators in FAMILIES.values() for estimator in estimators
+}
 
 ANCHORS = {
     "dbscan": "benchmark-dbscan",
@@ -190,15 +193,10 @@ def _parse_case_label(label: Any) -> tuple[str, str, str, str, int | None]:
         return estimator, operation, size, shape, None
     if len(parts) == 5 and parts[2].startswith("rank"):
         estimator, operation, rank_label, size, shape = parts
-        try:
-            rank = int(rank_label.removeprefix("rank"))
-        except ValueError as error:
-            raise ValueError(
-                f"invalid rank-qualified case label: {label}"
-            ) from error
-        if rank <= 0:
+        match = re.fullmatch(r"rank([1-9]\d*)", rank_label)
+        if match is None:
             raise ValueError(f"invalid rank-qualified case label: {label}")
-        return estimator, operation, size, shape, rank
+        return estimator, operation, size, shape, int(match.group(1))
     raise ValueError(f"unsupported case label: {label}")
 
 
@@ -238,10 +236,27 @@ def validate_publication_data(data: Any) -> dict[str, Any]:
                 f"records[{index}] has unsupported or missing fields"
             )
         label = record["case_label"]
-        estimator, operation, _, _, rank = _parse_case_label(label)
+        estimator, operation, size, shape, rank = _parse_case_label(label)
+        if estimator not in FAMILY_ESTIMATORS:
+            raise ValueError(
+                f"records[{index}] has unsupported estimator {estimator!r}"
+            )
         if operation not in TRAINING_OPERATIONS | INFERENCE_OPERATIONS:
             raise ValueError(
                 f"records[{index}] has unsupported operation {operation!r}"
+            )
+        workload = f"{size}.{shape}"
+        if workload not in WORKLOADS:
+            raise ValueError(
+                f"records[{index}] has unsupported workload {workload!r}"
+            )
+        if rank is not None and (
+            estimator,
+            operation,
+            workload,
+        ) != ("pca", "fit_transform", "medium.wide"):
+            raise ValueError(
+                f"records[{index}] has unsupported rank combination"
             )
         if label in labels:
             raise ValueError("publication data case labels must be unique")
