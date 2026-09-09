@@ -149,22 +149,28 @@ struct ARIMAParams {
  */
 template <typename T, int ALIGN = 256>
 struct ARIMAMemory {
-  T *params_mu, *params_beta, *params_ar, *params_ma, *params_sar, *params_sma, *params_sigma2,
-    *Tparams_ar, *Tparams_ma, *Tparams_sar, *Tparams_sma, *Tparams_sigma2, *d_params, *d_Tparams,
-    *Z_dense, *R_dense, *T_dense, *RQR_dense, *RQ_dense, *P_dense, *alpha_dense, *ImT_dense,
-    *ImT_inv_dense, *v_tmp_dense, *m_tmp_dense, *K_dense, *TP_dense, *pred, *y_diff, *exog_diff,
-    *loglike, *loglike_base, *loglike_pert, *x_pert, *I_m_AxA_dense, *I_m_AxA_inv_dense, *Ts_dense,
-    *RQRs_dense, *Ps_dense;
-  T **Z_batches, **R_batches, **T_batches, **RQR_batches, **RQ_batches, **P_batches,
-    **alpha_batches, **ImT_batches, **ImT_inv_batches, **v_tmp_batches, **m_tmp_batches,
-    **K_batches, **TP_batches, **I_m_AxA_batches, **I_m_AxA_inv_batches, **Ts_batches,
-    **RQRs_batches, **Ps_batches;
-  int *ImT_inv_P, *ImT_inv_info, *I_m_AxA_P, *I_m_AxA_info;
+  T *params_mu = nullptr, *params_beta = nullptr, *params_ar = nullptr, *params_ma = nullptr,
+    *params_sar = nullptr, *params_sma = nullptr, *params_sigma2 = nullptr, *Tparams_ar = nullptr,
+    *Tparams_ma = nullptr, *Tparams_sar = nullptr, *Tparams_sma = nullptr,
+    *Tparams_sigma2 = nullptr, *d_params = nullptr, *d_Tparams = nullptr, *Z_dense = nullptr,
+    *R_dense = nullptr, *T_dense = nullptr, *RQR_dense = nullptr, *RQ_dense = nullptr,
+    *P_dense = nullptr, *alpha_dense = nullptr, *ImT_dense = nullptr, *ImT_inv_dense = nullptr,
+    *v_tmp_dense = nullptr, *m_tmp_dense = nullptr, *K_dense = nullptr, *TP_dense = nullptr,
+    *pred = nullptr, *y_diff = nullptr, *exog_diff = nullptr, *loglike = nullptr,
+    *loglike_base = nullptr, *loglike_pert = nullptr, *x_pert = nullptr, *I_m_AxA_dense = nullptr,
+    *I_m_AxA_inv_dense = nullptr, *Ts_dense = nullptr, *RQRs_dense = nullptr, *Ps_dense = nullptr;
+  T **Z_batches = nullptr, **R_batches = nullptr, **T_batches = nullptr, **RQR_batches = nullptr,
+    **RQ_batches = nullptr, **P_batches = nullptr, **alpha_batches = nullptr,
+    **ImT_batches = nullptr, **ImT_inv_batches = nullptr, **v_tmp_batches = nullptr,
+    **m_tmp_batches = nullptr, **K_batches = nullptr, **TP_batches = nullptr,
+    **I_m_AxA_batches = nullptr, **I_m_AxA_inv_batches = nullptr, **Ts_batches = nullptr,
+    **RQRs_batches = nullptr, **Ps_batches = nullptr;
+  int *ImT_inv_P = nullptr, *ImT_inv_info = nullptr, *I_m_AxA_P = nullptr, *I_m_AxA_info = nullptr;
 
-  size_t size;
+  size_t size = 0;
 
  protected:
-  char* buf;
+  char* buf = nullptr;
 
   template <bool assign, typename ValType, checked_source... Factors>
   inline void append_buffer(ValType*& ptr, Factors... factors)
