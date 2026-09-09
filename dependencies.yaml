@@ -665,7 +665,7 @@ dependencies:
               dependencies: "oldest"
               cuda: "12.*"
             packages:
-              - cuda-bindings==12.9.2
+              - cuda-bindings==12.9.3
           - matrix:
               dependencies: "oldest"
               cuda: "13.*"
