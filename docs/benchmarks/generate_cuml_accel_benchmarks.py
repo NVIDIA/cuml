@@ -329,6 +329,14 @@ def validate_publication_data(data: Any) -> dict[str, Any]:
                 raise ValueError(f"records[{index}] lacks PCA components")
         elif components is not None:
             raise ValueError(f"records[{index}] has redundant components")
+    rank_table_shapes = {
+        (record["rows"], record["features"])
+        for record in records
+        if record["case_label"] == "pca.fit_transform.medium.wide"
+        or record["case_label"].startswith("pca.fit_transform.rank")
+    }
+    if len(rank_table_shapes) != 1:
+        raise ValueError("PCA rank-table records must use the same shape")
     return data
 
 
@@ -360,7 +368,10 @@ def _heatmap_records(
     return [
         {
             **record,
-            "heatmap_detail": "medium-wide · 1,024 components",
+            "heatmap_detail": (
+                "medium-wide · "
+                f"{record['parameters']['components']:,} components"
+            ),
         }
         if record["estimator"] == "pca"
         and record["operation"] == "fit_transform"
@@ -888,6 +899,14 @@ def render_rst(data: dict[str, Any], template: str) -> str:
     )
     training = summary["phases"]["training"]
     pca_large = next(record for record in records if _is_pca_large(record))
+    pca_rank_records = [
+        record
+        for record in records
+        if record["estimator"] == "pca"
+        and record["operation"] == "fit_transform"
+        and record.get("is_rank_variant", False)
+    ]
+    pca_rank = pca_rank_records[0]
     components = {item["type"]: item for item in data["system"]["components"]}
     gpu = components["gpu"]
     cpu = components["cpu"]
@@ -906,6 +925,11 @@ def render_rst(data: dict[str, Any], template: str) -> str:
             for line in _estimator_sections_rst(records).splitlines()
         ),
         "PCA_RANK_RESULTS": _pca_rank_results_rst(records),
+        "PCA_RANK_ROWS": f"{pca_rank['rows']:,}",
+        "PCA_RANK_FEATURES": f"{pca_rank['features']:,}",
+        "INFERENCE_HEATMAP_MAX_OPERATIONS": str(
+            INFERENCE_HEATMAP_MAX_OPERATIONS
+        ),
         "GPU_NAME": gpu["name"],
         "GPU_MEMORY_GB": f"{gpu['attributes']['total_memory_bytes'] / 1_000_000_000:.1f}",
         "CPU_NAME": cpu["name"],

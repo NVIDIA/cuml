@@ -74,6 +74,40 @@ def test_narrative_gpu_matches_publication_hardware() -> None:
     assert gpu["name"] == ("NVIDIA RTX PRO 6000 Blackwell Workstation Edition")
 
 
+@pytest.mark.parametrize(
+    "case_prefix",
+    ["pca.fit_transform.rank", "pca.fit_transform.medium.wide"],
+)
+def test_pca_rank_table_records_with_different_shapes_are_rejected(
+    case_prefix: str,
+) -> None:
+    data, _ = _inputs()
+    record = next(
+        record
+        for record in data["records"]
+        if record["case_label"].startswith(case_prefix)
+    )
+    record["rows"] += 1
+
+    with pytest.raises(ValueError, match="must use the same shape"):
+        generator.validate_publication_data(data)
+
+
+def test_pca_heatmap_detail_uses_record_components() -> None:
+    data, _ = _inputs()
+    record = next(
+        record
+        for record in data["records"]
+        if record["case_label"] == "pca.fit_transform.medium.wide"
+    )
+    record["components"] = 2048
+
+    prepared = generator.prepare_publication_data(data)
+    heatmap = generator.render_heatmap(prepared["records"], "training")
+
+    assert "medium-wide · 2,048 components" in heatmap
+
+
 @pytest.mark.parametrize("field", ["system", "packages"])
 def test_publication_environment_is_required(field: str) -> None:
     data, _ = _inputs()
@@ -132,6 +166,14 @@ def test_unsupported_case_label_combinations_are_rejected(
 )
 def test_supported_case_label_extensions_are_accepted(case_label: str) -> None:
     data, _ = _inputs()
+    if ".rank" in case_label:
+        rank_record = next(
+            record
+            for record in data["records"]
+            if record["case_label"].startswith("pca.fit_transform.rank")
+        )
+        data["records"][0]["rows"] = rank_record["rows"]
+        data["records"][0]["features"] = rank_record["features"]
     data["records"][0]["case_label"] = case_label
 
     generator.validate_publication_data(data)

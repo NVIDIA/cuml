@@ -46,8 +46,9 @@ Training and combined operations
    </div>
 
 PCA performance depends strongly on the requested component rank. The table
-below holds the input at 61,035 rows by 4,096 features and varies only
-``n_components``. The timings show an approximate crossover from
+below holds the input at 61,035 rows by 4,096
+features and varies only ``n_components``. The timings show an approximate
+crossover from
 transfer-dominated low-rank work to positive speedup at higher ranks.
 
 See the :ref:`detailed PCA results <benchmark-pca>` for the remaining
@@ -71,7 +72,8 @@ workloads.
 Inference and transforms
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The heatmap shows the 10 operations with the highest median exact speedup.
+The heatmap shows the 10 operations with the
+highest median exact speedup.
 Detailed estimator tables retain every inference and transform result,
 including short operations where dispatch and data-conversion overhead
 dominate.
