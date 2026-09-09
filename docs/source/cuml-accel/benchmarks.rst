@@ -14,8 +14,8 @@ Performance and Speedups
 .. rst-class:: benchmark-lede
 
 Zero-code-change acceleration with ``cuml.accel`` delivers an
-**approximately 5.8× median speedup** across measured training
-operations on NVIDIA RTX Pro 6000 Blackwell. Training
+**approximately 5.8× median speedup** across training benchmark cases
+completed on both CPU and GPU, measured on NVIDIA RTX Pro 6000. Training
 performance varies with the estimator, dataset size and shape, and
 hyperparameters, but most measured workloads are faster on GPU, with the
 largest gains appearing on wider or larger datasets.
@@ -94,17 +94,17 @@ per second, abbreviated as ``M/s``, ``k/s``, or ``/s``, with one input row
 counted as one sample. The wall time used to calculate throughput is shown
 below it. Training and combined-operation rows show wall time only.
 
-Five workload shapes, from transfer-bound to compute-heavy
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Five relative workload categories, from transfer-bound to compute-heavy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Every operation uses the same five relative workload labels, ordered from
+Every operation uses the same five relative workload categories, ordered from
 smaller or more transfer-sensitive cases to larger or more compute-intensive
 cases. Concrete shapes follow operation-family policies, with workload sizes
 chosen to complete within reasonable runtime and resource limits. These sizes
 are illustrative examples across several workload regimes, not scaling limits
-or maximum supported sizes. The same label can therefore represent different
-rows, features, and input sizes across operations; exact values appear in the
-estimator tables.
+or maximum supported sizes. The same category can therefore represent
+different rows, features, and input sizes across operations; exact values
+appear in the estimator tables.
 
 .. list-table:: Workload dimensions and decimal float32 X size
    :header-rows: 1
@@ -1860,10 +1860,13 @@ What determines GPU speedup
 Methodology and reproducibility
 -------------------------------
 
-These benchmarks compare scikit-learn CPU execution with ``cuml.accel`` on
-NVIDIA RTX Pro 6000 Blackwell across five workload shapes. Each isolated case
-used one warmup, the median of three measured repetitions,
-operation-appropriate correctness validation, and a complete-case timeout.
+These benchmarks compare the corresponding CPU implementations with
+``cuml.accel`` on NVIDIA RTX Pro 6000 across five relative workload categories.
+CPU measurements use the corresponding scikit-learn estimators, except for
+UMAP, which uses ``umap.UMAP`` from ``umap-learn``, and HDBSCAN, which uses
+``hdbscan.HDBSCAN`` from ``hdbscan``. Each isolated case used one warmup, the
+median of three measured repetitions, operation-appropriate correctness
+validation, and a complete-case timeout.
 
 .. dropdown:: Test system, validation, and timing policy
 
