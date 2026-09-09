@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -34,13 +34,13 @@ struct ARIMAOrder {
   int k;       // Fit intercept?
   int n_exog;  // Number of exogenous regressors
 
-  inline int n_diff() const { return d + s * D; }
-  inline int n_phi() const { return p + s * P; }
-  inline int n_theta() const { return q + s * Q; }
-  inline int r() const { return std::max(n_phi(), n_theta() + 1); }
-  inline int rd() const { return n_diff() + r(); }
-  inline int complexity() const { return p + P + q + Q + k + n_exog + 1; }
-  inline bool need_diff() const { return static_cast<bool>(d + D); }
+  inline int n_diff() const { return checked_add<int>(d, checked_mul<int>(s, D)); }
+  inline int n_phi() const { return checked_add<int>(p, checked_mul<int>(s, P)); }
+  inline int n_theta() const { return checked_add<int>(q, checked_mul<int>(s, Q)); }
+  inline int r() const { return std::max(n_phi(), checked_add<int>(n_theta(), 1)); }
+  inline int rd() const { return checked_add<int>(n_diff(), r()); }
+  inline int complexity() const { return checked_add<int>(p, P, q, Q, k, n_exog, 1); }
+  inline bool need_diff() const { return d != 0 || D != 0; }
 };
 
 /**
@@ -166,11 +166,20 @@ struct ARIMAMemory {
  protected:
   char* buf;
 
-  template <bool assign, typename ValType>
-  inline void append_buffer(ValType*& ptr, size_t n_elem)
+  template <bool assign, typename ValType, checked_source... Factors>
+  inline void append_buffer(ValType*& ptr, Factors... factors)
   {
+    static_assert(ALIGN > 0, "ARIMA buffer alignment must be positive");
+
+    constexpr auto alignment = static_cast<std::size_t>(ALIGN);
+    auto const n_elem        = checked_mul<std::size_t>(std::size_t{1}, factors...);
+    auto const n_bytes       = checked_mul<std::size_t>(n_elem, sizeof(ValType));
+    auto const remainder     = n_bytes % alignment;
+    auto const aligned_bytes =
+      remainder == 0 ? n_bytes : checked_add<std::size_t>(n_bytes, alignment - remainder);
+
     if (assign) { ptr = reinterpret_cast<ValType*>(buf + size); }
-    size += ((n_elem * sizeof(ValType) + ALIGN - 1) / ALIGN) * ALIGN;
+    size = checked_add<std::size_t>(size, aligned_bytes);
   }
 
   template <bool assign>
@@ -182,81 +191,91 @@ struct ARIMAMemory {
     buf  = in_buf;
     size = 0;
 
-    int r      = order.r();
-    int rd     = order.rd();
-    int N      = order.complexity();
-    int n_diff = order.n_diff();
+    RAFT_EXPECTS(order.p >= 0 && order.d >= 0 && order.q >= 0,
+                 "ARIMA orders p, d, and q must be non-negative");
+    RAFT_EXPECTS(order.P >= 0 && order.D >= 0 && order.Q >= 0,
+                 "Seasonal ARIMA orders P, D, and Q must be non-negative");
+    RAFT_EXPECTS(order.s >= 0, "Seasonal period must be non-negative");
+    RAFT_EXPECTS(order.k >= 0, "Intercept count must be non-negative");
+    RAFT_EXPECTS(order.n_exog >= 0, "Number of exogenous regressors must be non-negative");
+    RAFT_EXPECTS(batch_size >= 0, "batch_size must be non-negative");
+    RAFT_EXPECTS(n_obs >= 0, "n_obs must be non-negative");
 
-    append_buffer<assign>(params_mu, order.k * batch_size);
-    append_buffer<assign>(params_beta, order.n_exog * batch_size);
-    append_buffer<assign>(params_ar, order.p * batch_size);
-    append_buffer<assign>(params_ma, order.q * batch_size);
-    append_buffer<assign>(params_sar, order.P * batch_size);
-    append_buffer<assign>(params_sma, order.Q * batch_size);
+    auto const n_diff = order.n_diff();
+    auto const r      = order.r();
+    auto const rd     = order.rd();
+    auto const N      = order.complexity();
+
+    append_buffer<assign>(params_mu, order.k, batch_size);
+    append_buffer<assign>(params_beta, order.n_exog, batch_size);
+    append_buffer<assign>(params_ar, order.p, batch_size);
+    append_buffer<assign>(params_ma, order.q, batch_size);
+    append_buffer<assign>(params_sar, order.P, batch_size);
+    append_buffer<assign>(params_sma, order.Q, batch_size);
     append_buffer<assign>(params_sigma2, batch_size);
 
-    append_buffer<assign>(Tparams_ar, order.p * batch_size);
-    append_buffer<assign>(Tparams_ma, order.q * batch_size);
-    append_buffer<assign>(Tparams_sar, order.P * batch_size);
-    append_buffer<assign>(Tparams_sma, order.Q * batch_size);
+    append_buffer<assign>(Tparams_ar, order.p, batch_size);
+    append_buffer<assign>(Tparams_ma, order.q, batch_size);
+    append_buffer<assign>(Tparams_sar, order.P, batch_size);
+    append_buffer<assign>(Tparams_sma, order.Q, batch_size);
     append_buffer<assign>(Tparams_sigma2, batch_size);
 
-    append_buffer<assign>(d_params, N * batch_size);
-    append_buffer<assign>(d_Tparams, N * batch_size);
-    append_buffer<assign>(Z_dense, rd * batch_size);
+    append_buffer<assign>(d_params, N, batch_size);
+    append_buffer<assign>(d_Tparams, N, batch_size);
+    append_buffer<assign>(Z_dense, rd, batch_size);
     append_buffer<assign>(Z_batches, batch_size);
-    append_buffer<assign>(R_dense, rd * batch_size);
+    append_buffer<assign>(R_dense, rd, batch_size);
     append_buffer<assign>(R_batches, batch_size);
-    append_buffer<assign>(T_dense, rd * rd * batch_size);
+    append_buffer<assign>(T_dense, rd, rd, batch_size);
     append_buffer<assign>(T_batches, batch_size);
-    append_buffer<assign>(RQ_dense, rd * batch_size);
+    append_buffer<assign>(RQ_dense, rd, batch_size);
     append_buffer<assign>(RQ_batches, batch_size);
-    append_buffer<assign>(RQR_dense, rd * rd * batch_size);
+    append_buffer<assign>(RQR_dense, rd, rd, batch_size);
     append_buffer<assign>(RQR_batches, batch_size);
-    append_buffer<assign>(P_dense, rd * rd * batch_size);
+    append_buffer<assign>(P_dense, rd, rd, batch_size);
     append_buffer<assign>(P_batches, batch_size);
-    append_buffer<assign>(alpha_dense, rd * batch_size);
+    append_buffer<assign>(alpha_dense, rd, batch_size);
     append_buffer<assign>(alpha_batches, batch_size);
-    append_buffer<assign>(ImT_dense, r * r * batch_size);
+    append_buffer<assign>(ImT_dense, r, r, batch_size);
     append_buffer<assign>(ImT_batches, batch_size);
-    append_buffer<assign>(ImT_inv_dense, r * r * batch_size);
+    append_buffer<assign>(ImT_inv_dense, r, r, batch_size);
     append_buffer<assign>(ImT_inv_batches, batch_size);
-    append_buffer<assign>(ImT_inv_P, r * batch_size);
+    append_buffer<assign>(ImT_inv_P, r, batch_size);
     append_buffer<assign>(ImT_inv_info, batch_size);
-    append_buffer<assign>(v_tmp_dense, rd * batch_size);
+    append_buffer<assign>(v_tmp_dense, rd, batch_size);
     append_buffer<assign>(v_tmp_batches, batch_size);
-    append_buffer<assign>(m_tmp_dense, rd * rd * batch_size);
+    append_buffer<assign>(m_tmp_dense, rd, rd, batch_size);
     append_buffer<assign>(m_tmp_batches, batch_size);
-    append_buffer<assign>(K_dense, rd * batch_size);
+    append_buffer<assign>(K_dense, rd, batch_size);
     append_buffer<assign>(K_batches, batch_size);
-    append_buffer<assign>(TP_dense, rd * rd * batch_size);
+    append_buffer<assign>(TP_dense, rd, rd, batch_size);
     append_buffer<assign>(TP_batches, batch_size);
 
-    append_buffer<assign>(pred, n_obs * batch_size);
-    append_buffer<assign>(y_diff, n_obs * batch_size);
-    append_buffer<assign>(exog_diff, n_obs * order.n_exog * batch_size);
+    append_buffer<assign>(pred, n_obs, batch_size);
+    append_buffer<assign>(y_diff, n_obs, batch_size);
+    append_buffer<assign>(exog_diff, n_obs, order.n_exog, batch_size);
     append_buffer<assign>(loglike, batch_size);
     append_buffer<assign>(loglike_base, batch_size);
     append_buffer<assign>(loglike_pert, batch_size);
-    append_buffer<assign>(x_pert, N * batch_size);
+    append_buffer<assign>(x_pert, N, batch_size);
 
     if (n_diff > 0) {
-      append_buffer<assign>(Ts_dense, r * r * batch_size);
+      append_buffer<assign>(Ts_dense, r, r, batch_size);
       append_buffer<assign>(Ts_batches, batch_size);
-      append_buffer<assign>(RQRs_dense, r * r * batch_size);
+      append_buffer<assign>(RQRs_dense, r, r, batch_size);
       append_buffer<assign>(RQRs_batches, batch_size);
-      append_buffer<assign>(Ps_dense, r * r * batch_size);
+      append_buffer<assign>(Ps_dense, r, r, batch_size);
       append_buffer<assign>(Ps_batches, batch_size);
     }
 
     if (r <= 5) {
       // Note: temp mem for the direct Lyapunov solver grows very quickly!
       // This solver is used iff the condition above is satisfied
-      append_buffer<assign>(I_m_AxA_dense, r * r * r * r * batch_size);
+      append_buffer<assign>(I_m_AxA_dense, r, r, r, r, batch_size);
       append_buffer<assign>(I_m_AxA_batches, batch_size);
-      append_buffer<assign>(I_m_AxA_inv_dense, r * r * r * r * batch_size);
+      append_buffer<assign>(I_m_AxA_inv_dense, r, r, r, r, batch_size);
       append_buffer<assign>(I_m_AxA_inv_batches, batch_size);
-      append_buffer<assign>(I_m_AxA_P, r * r * batch_size);
+      append_buffer<assign>(I_m_AxA_P, r, r, batch_size);
       append_buffer<assign>(I_m_AxA_info, batch_size);
     }
   }
