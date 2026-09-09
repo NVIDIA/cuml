@@ -832,7 +832,7 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
             The instance itself.
         """
         self._check_params()
-        X = check_cudf(X, ensure_ndim=1, input_name="X")
+        X = check_cudf(X, ensure_ndim=1, input_name="X").reset_index(drop=True)
         tokens = self._to_tokens(X)
         self._fit(X, tokens)
         return self
@@ -855,7 +855,7 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
             Document-term matrix.
         """
         self._check_params()
-        X = check_cudf(X, ensure_ndim=1, input_name="X")
+        X = check_cudf(X, ensure_ndim=1, input_name="X").reset_index(drop=True)
         tokens = self._to_tokens(X)
         self._fit(X, tokens)
         return self._transform(X, tokens)
@@ -876,7 +876,7 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
             Document-term matrix.
         """
         check_is_fitted(self)
-        X = check_cudf(X, ensure_ndim=1, input_name="X")
+        X = check_cudf(X, ensure_ndim=1, input_name="X").reset_index(drop=True)
         tokens = self._to_tokens(X)
         return self._transform(X, tokens)
 
@@ -1032,7 +1032,7 @@ class TfidfTransformer(OneToOneFeatureMixin, Base):
     def _check_params(self):
         _check_oneof(self, "norm", ["l1", "l2", None])
 
-    def _check_X(self, X, reset=False, copy=False):
+    def _check_X(self, X, reset=False, copy=True):
         """Validate and normalize X to a CSR sparse matrix"""
         X = check_inputs(
             self,
@@ -1079,7 +1079,7 @@ class TfidfTransformer(OneToOneFeatureMixin, Base):
             cp.log(X.data, out=X.data)
             X.data += 1.0
 
-        if hasattr(self, "idf_"):
+        if self.use_idf:
             # the columns of X (CSR matrix) can be accessed with `X.indices `and
             # multiplied with the corresponding `idf` value
             X.data *= self.idf_[X.indices]
