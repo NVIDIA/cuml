@@ -286,7 +286,6 @@ files:
       - depends_on_rapids_logger
 channels:
   - rapidsai-nightly
-  - rapidsai
   - conda-forge
 dependencies:
   rapids_build_backend:
