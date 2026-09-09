@@ -1,6 +1,6 @@
 
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,7 +15,7 @@ namespace Metrics {
 
 double rand_index(const raft::handle_t& handle, const double* y, const double* y_hat, int n)
 {
-  return raft::stats::rand_index(y, y_hat, (uint64_t)n, handle.get_stream());
+  return raft::stats::rand_index(y, y_hat, (uint64_t)n, handle.get_stream().get());
 }
 }  // namespace Metrics
 }  // namespace ML

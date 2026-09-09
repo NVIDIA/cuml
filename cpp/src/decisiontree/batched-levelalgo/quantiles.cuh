@@ -155,7 +155,7 @@ CUML_EXPORT QuantileResult<T> computeQuantiles(const raft::handle_t& handle,
                                                bool row_major          = false)
 {
   raft::common::nvtx::push_range("computeQuantiles");
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   bool distributed = raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1;
 
   RAFT_EXPECTS(max_n_bins > 0, "max_n_bins must be positive");

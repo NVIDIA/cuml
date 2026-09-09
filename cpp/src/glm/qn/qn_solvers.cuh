@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -413,7 +413,7 @@ inline int qn_minimize(const raft::handle_t& handle,
                        const rapids_logger::level_enum verbosity = 0)
 {
   // TODO should the worksapce allocation happen outside?
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   OPT_RETCODE ret;
   if (l1 == 0.0) {
     rmm::device_uvector<T> tmp(lbfgs_workspace_size(opt_param, x.len), stream);

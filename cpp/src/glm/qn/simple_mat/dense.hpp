@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 #pragma once
@@ -11,6 +11,8 @@
 #include <raft/linalg/ternary_op.cuh>
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
+
+#include <cuda/stream>
 
 #include <iostream>
 #include <vector>
@@ -340,7 +342,7 @@ std::ostream& operator<<(std::ostream& os, const SimpleDenseMat<T>& mat)
 {
   os << "ord=" << (mat.ord == COL_MAJOR ? "CM" : "RM") << "\n";
   std::vector<T> out(mat.len);
-  raft::update_host(&out[0], mat.data, mat.len, rmm::cuda_stream_default);
+  raft::update_host(&out[0], mat.data, mat.len, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
   raft::interruptible::synchronize(rmm::cuda_stream_view());
   if (mat.ord == COL_MAJOR) {
     for (int r = 0; r < mat.m; r++) {

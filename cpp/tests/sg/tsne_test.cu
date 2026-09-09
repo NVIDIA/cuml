@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -102,7 +102,7 @@ class TSNETest : public ::testing::TestWithParam<TSNEInput> {
   TSNEResults runTest(TSNE_ALGORITHM algo, bool knn = false)
   {
     raft::handle_t handle;
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     TSNEResults results;
 
     auto DEFAULT_DISTANCE_METRIC = ML::distance::DistanceType::L2SqrtExpanded;

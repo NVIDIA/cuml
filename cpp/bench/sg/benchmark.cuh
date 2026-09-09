@@ -14,7 +14,7 @@
 #include <raft/core/handle.hpp>
 #include <raft/util/cudart_utils.hpp>
 
-#include <rmm/cuda_stream_view.hpp>
+#include <rmm/cuda_stream_pool.hpp>
 
 #include <cuda_runtime.h>
 

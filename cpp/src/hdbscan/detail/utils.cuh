@@ -157,7 +157,7 @@ void parent_csr(const raft::handle_t& handle,
                 value_idx* sorted_parents,
                 value_idx* indptr)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto thrust_policy = handle.get_thrust_policy();
 
   auto children   = condensed_tree.get_children();

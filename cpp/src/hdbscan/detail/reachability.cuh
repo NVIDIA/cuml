@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -132,7 +132,7 @@ void _compute_core_dists(const raft::handle_t& handle,
   RAFT_EXPECTS(metric == ML::distance::DistanceType::L2SqrtExpanded,
                "Currently only L2 expanded distance is supported");
 
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   rmm::device_uvector<value_idx> inds(min_samples * m, stream);
   rmm::device_uvector<value_t> dists(min_samples * m, stream);
