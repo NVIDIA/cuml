@@ -183,7 +183,7 @@ std::ostream& operator<<(std::ostream& os, const SimpleSparseMat<T, I>& mat)
   raft::update_host(&cols[0], mat.cols, mat.nnz, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
   raft::update_host(
     &row_ids[0], mat.row_ids, mat.m + 1, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
-  raft::interruptible::synchronize(rmm::cuda_stream_view());
+  raft::interruptible::synchronize(cuda::stream_ref());
 
   int i, row_end = 0;
   for (int row = 0; row < mat.m; row++) {

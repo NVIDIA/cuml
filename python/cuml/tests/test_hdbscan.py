@@ -45,6 +45,15 @@ pytestmark = pytest.mark.filterwarnings(
 dataset_names = ["noisy_circles", "noisy_moons", "varied"]
 
 
+def test_hdbscan_rejects_singleton_clusters():
+    X = cp.arange(64, dtype=cp.float32).reshape(-1, 1)
+
+    with pytest.raises(
+        ValueError, match="min_cluster_size must be greater than one"
+    ):
+        HDBSCAN(min_samples=1, min_cluster_size=1).fit(X)
+
+
 def assert_cluster_counts(sk_agg, cuml_agg, digits=25):
     sk_unique, sk_counts = np.unique(sk_agg.labels_, return_counts=True)
     sk_counts = np.sort(sk_counts)

@@ -286,7 +286,6 @@ files:
       - depends_on_rapids_logger
 channels:
   - rapidsai-nightly
-  - rapidsai
   - conda-forge
 dependencies:
   rapids_build_backend:
@@ -531,7 +530,6 @@ dependencies:
           - ipython
           - ipykernel
           - nbsphinx
-          - numpydoc
           - &onnxruntime onnxruntime
           - recommonmark
           - *scikit_learn
@@ -544,6 +542,7 @@ dependencies:
         packages:
           - doxygen=1.9.1
           - matplotlib-base
+          - numpydoc
           - pip:
               - nvidia-sphinx-theme
       - output_types: requirements
@@ -665,12 +664,12 @@ dependencies:
               dependencies: "oldest"
               cuda: "12.*"
             packages:
-              - cuda-bindings==12.9.2
+              - cuda-bindings==12.9.3
           - matrix:
               dependencies: "oldest"
               cuda: "13.*"
             packages:
-              - cuda-bindings==13.0.1
+              - cuda-bindings==13.0.2
           - matrix:
             packages:
     common:
@@ -681,8 +680,6 @@ dependencies:
           - hypothesis>=6.0,<7
           - msgspec
           - nltk
-          # upstream sklearn docstring tests require numpydoc<1.9
-          - numpydoc<1.9
           # 'nvidia-ml-py' provides the 'pynvml' module
           - nvidia-ml-py>=12
           - *onnxruntime
@@ -701,6 +698,10 @@ dependencies:
       - output_types: conda
         packages:
           - cuvs==26.12.*,>=0.0.0a0
+          # upstream sklearn docstring tests require numpydoc<1.9
+          #
+          # 'numpydoc' is intentionally conda-only, see https://github.com/NVIDIA/cuml/issues/7710
+          - numpydoc<1.9
   test_python_accel_sklearn:
     # Exact pin the sklearn versions used for running upstream sklearn tests
     # in cuml.accel. We exact pin here since our xfail list is tightly coupled
@@ -790,11 +791,11 @@ dependencies:
           - matrix:
               cuda: "12.*"
             packages:
-              - cuda-bindings>=12.9.2,<13.0
+              - cuda-bindings>=12.9.3,<13.0
           # fallback to CUDA 13 versions if 'cuda' is '13.*' or not provided
           - matrix:
             packages:
-              - cuda-bindings>=13.0.1,<14.0
+              - cuda-bindings>=13.0.2,<14.0
   depends_on_cudf:
     common:
       - output_types: conda
