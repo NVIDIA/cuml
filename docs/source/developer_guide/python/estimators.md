@@ -9,18 +9,8 @@ This guide documents the patterns expected for new or updated `cuml.Base` estima
 - [Recommended Scikit-Learn Documentation](#recommended-scikit-learn-documentation)
 - [API Matching Policy](#api-matching-policy)
 - [Quick Start Guide](#quick-start-guide)
-   - [Copyable Estimator Skeleton](#copyable-estimator-skeleton)
 - [Background](#background)
-   - [Array I/O and Output Types in cuML](#array-io-and-output-types-in-cuml)
-   - [Ingesting Arrays](#ingesting-arrays)
-   - [Returning Arrays](#returning-arrays)
 - [Estimator Design](#estimator-design)
-   - [Initialization](#initialization)
-   - [Implementing `_get_param_names()`](#implementing-_get_param_names)
-   - [Estimator Tags and cuML Specific Tags](#estimator-tags-and-cuml-specific-tags)
-   - [Estimator Array-Like Attributes](#estimator-array-like-attributes)
-   - [Estimator Methods](#estimator-methods)
-- [Do's and Don'ts](#dos-and-donts)
 
 ## Recommended Scikit-Learn Documentation
 
@@ -143,10 +133,13 @@ At a high level, all cuML Estimators must:
    ```
 
 7. Override estimator tags only when the defaults are wrong. Prefer existing
-   [Mixins](../../python/cuml/cuml/internals/mixins.py) for common capabilities
+   [mixins](https://github.com/NVIDIA/cuml/blob/main/python/cuml/cuml/internals/mixins.py) for common capabilities
    such as preferred input order, sparse support, string input, or NaN support.
    See [Estimator Tags and cuML-Specific
    Tags](#estimator-tags-and-cuml-specific-tags) for custom tag overrides.
+
+8. Support pickle round trips both before and after fitting. Add the applicable
+   coverage to `python/cuml/tests/test_pickle.py`.
 
 For most estimators, the checklist and skeleton below are enough. The later
 sections explain the contract and uncommon cases.
@@ -175,7 +168,7 @@ class MyEstimator(Base):
 
     @mlfunc(set_input_type=True)
     def fit(self, X) -> "MyEstimator":
-        X = check_inputs(self, X, order="K", reset=True)
+        X = check_inputs(self, X, order="A", reset=True)
         # Replace this placeholder with estimator training.
         self.result_ = X
         return self
@@ -183,7 +176,7 @@ class MyEstimator(Base):
     @mlfunc(preserve_index=True)
     def transform(self, X):
         check_is_fitted(self)
-        X = check_inputs(self, X, order="K")
+        X = check_inputs(self, X, order="A")
         # Return an array-like object directly; @mlfunc handles conversion.
         return X
 ```
@@ -219,10 +212,13 @@ Users choose output types in three ways:
 2. Set a global override with `cuml.set_global_output_type("numpy")`.
 3. Temporarily set a global override with `cuml.using_output_type("numpy")`.
 
-The global setting stored in `cuml.global_settings.output_type` takes
-precedence over an estimator's `output_type`. When neither is set, reflected
-estimator methods normally mirror the call input type, and descriptor
-attributes mirror the fit-time input type.
+An explicit global output type such as `"numpy"` or `"cupy"` takes precedence
+over an estimator's `output_type`. The global `"input"` setting is a legacy
+exception: reflected methods still respect an explicit estimator output type,
+while descriptor attributes mirror the fit-time input type. When neither a
+global nor estimator output type is set, reflected estimator methods normally
+mirror the call input type, and descriptor attributes mirror the fit-time input
+type.
 
 Accepted output types are:
 
@@ -258,7 +254,7 @@ def fit(self, X, y):
         X,
         y,
         dtype=("float32", "float64"),
-        order="K",
+        order="A",
         reset=True,
     )
     rows, cols = X.shape
@@ -273,7 +269,7 @@ def transform(self, X):
         self,
         X,
         dtype=self.result_.dtype,
-        order="K",
+        order="A",
     )
     ...
 ```
@@ -285,8 +281,12 @@ specialized checks not already covered by the higher-level helpers.
 
 ### Returning Arrays
 
-Return ``cupy`` or ``numpy`` arrays directly from reflected methods. The
-reflection machinery will coerce these to the proper output type.
+Return CuPy or NumPy arrays directly from reflected methods. Methods that
+support sparse results may likewise return the corresponding CuPy or SciPy
+sparse arrays. The reflection machinery will coerce supported arrays and nested
+containers to the proper output type. Specialized outputs, such as classifier
+labels that may have non-numeric dtypes, should use the wrappers described
+below.
 
 ## Estimator Design
 
@@ -411,7 +411,11 @@ fallback behavior in newer scikit-learn versions.
 ### Estimator Array-Like Attributes
 
 Array-like fitted attributes should use `cuml.internals.ReflectedAttr` so
-user-facing attribute reads respect cuML output-type settings.
+user-facing attribute reads respect cuML output-type settings. Values assigned
+to a `ReflectedAttr` must be NumPy or CuPy arrays, their corresponding sparse
+array types, `ArrayIndexPair` objects, or supported nested containers of those
+types. Do not assign pandas or cuDF objects directly; validation helpers should
+first normalize them to NumPy or CuPy arrays.
 
 Internally, a descriptor behaves like a normal attribute and returns the value
 that was set. Externally, it lazily converts the value to the requested output
@@ -457,7 +461,7 @@ class SampleEstimator(Base):
    @mlfunc(set_input_type=True)
    def fit(self, X):
       # reset=True on check_inputs sets n_features_in_ and feature_names_in_
-      X = check_inputs(self, X, order="K", reset=True)
+      X = check_inputs(self, X, order="A", reset=True)
 
       # Set descriptor-managed fitted attributes with validated arrays
       # When accessed in any `mlfunc`-decorated method, these will have the
@@ -493,14 +497,14 @@ Externally, descriptor attributes lazily convert to the active output type:
 my_est = SampleEstimator()
 
 # Call fit() with a numpy array as the input
-np_arr = np.ones((10,))
+np_arr = np.ones((10, 1))
 my_est.fit(np_arr) # This will load data into attributes
 
 # Externally, descriptors reflect the fit-time input type by default
 print(type(my_est.my_array_)) # Output: NumPy (saved from the input of `fit`)
 
 # Calling fit again with cupy arrays, will have a similar effect
-my_est.fit(cp.ones((10,)))
+my_est.fit(cp.ones((10, 1)))
 print(type(my_est.my_array_)) # Output: CuPy
 
 # Setting the `output_type` will change all descriptor properties
@@ -539,13 +543,13 @@ class MyEstimator(Base):
 
     @mlfunc(set_input_type=True)
     def fit(self, X):
-        self.coef_ = check_inputs(self, X, order="K", reset=True)
+        self.coef_ = check_inputs(self, X, order="A", reset=True)
         return self
 
     @mlfunc(preserve_index=True)
     def predict(self, X):
         check_is_fitted(self)
-        X = check_inputs(self, X, order="K")
+        X = check_inputs(self, X, order="A")
         return X + cp.ones(X.shape)
 ```
 
@@ -554,6 +558,9 @@ class MyEstimator(Base):
 | `@mlfunc(set_input_type=True)` | Fit-like methods that store `_input_type` through reflection while validation helpers set or check `n_features_in_`. |
 | `@mlfunc(preserve_index=True)` | Transform/predict methods that return arrays with `n_samples` aligned with `X` |
 | `@mlfunc(array_arg=None)` | Methods with no array input (e.g., `KernelDensity.sample()`). Uses fit-time input type. |
+| `@mlfunc(model_arg=...)` | Functions or methods where the estimator argument is not the default `self`; pass its name or position, or `None` to disable estimator-based inference. |
+| `@mlfunc(column_names="feature_names_in")` | DataFrame-returning methods whose output columns match `feature_names_in_`. |
+| `@mlfunc(column_names="feature_names_out")` | DataFrame-returning methods whose columns come from `get_feature_names_out()`. |
 
 #### Handling Class Labels
 

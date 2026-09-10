@@ -67,7 +67,8 @@ Community & Support
 ===================
 
 * :doc:`User Guide <user_guide>` - Comprehensive usage documentation
-* :doc:`API Reference <api/index>` - Complete API documentation
+* :doc:`Python API Reference <api/index>` - Supported user-facing API documentation
+* :doc:`Developer Guide <developer_guide/index>` - Contributor guidance and internal C++ reference
 * `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_ - Report bugs and request features
 * `CUDA-X Data Science Community <https://developer.nvidia.com/topics/ai/data-science/cuda-x-for-data-science#join-the-community>`_ - Join our community
 
@@ -78,5 +79,5 @@ Community & Support
    user_guide.rst
    Zero Code Change Acceleration <cuml-accel/index.rst>
    api/index
-   cpp/index
+   developer_guide/index
    cuml_blogs.rst

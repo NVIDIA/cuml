@@ -12,6 +12,7 @@ The benchmark runner also supports YAML manifests. A manifest is the declarative
 - [Running the benchmarks](#running-the-benchmarks)
 - [Common options](#common-options)
 - [Examples](#examples)
+- [Adding algorithm coverage](#adding-algorithm-coverage)
 - [YAML manifests](#yaml-manifests)
   - [Manifest structure](#top-level-schema)
   - [`suite`](#suite)
@@ -50,25 +51,6 @@ python -m cuml.benchmark \
   --profile default \
   --backends gpu \
   --output results.json
-```
-
-To run the tiny harness-validation manifest:
-
-```bash
-python -m cuml.benchmark \
-  --config python/cuml/cuml/benchmark/configs/test.yaml \
-  --profile default \
-  --backends cpu
-```
-
-To run a YAML-defined suite:
-
-```bash
-python -m cuml.benchmark \
-  --config python/cuml/cuml/benchmark/configs/single_gpu.yaml \
-  --profile default \
-  --backends gpu \
-  --csv results.csv
 ```
 
 To run the tiny harness-validation manifest:
@@ -344,6 +326,18 @@ When multiple backends are present, timings are grouped on one row:
 ```
 
 CSV output remains available through `--csv`, but it is a flat compatibility export. Prefer JSON for regression tracking and reproducibility.
+
+## Adding algorithm coverage
+
+New algorithms should include benchmark coverage for every applicable
+implementation layer. Add a Python estimator to the registry in
+`python/cuml/cuml/benchmark/algorithms.py` and add or update the appropriate
+manifest. For a new C++ algorithm, add a Google Benchmark case under
+`cpp/bench/sg` and list its source in `cpp/bench/CMakeLists.txt`.
+
+Use benchmarks and profiling for performance-sensitive changes to establish
+baselines and investigate bottlenecks, regressions, and unexpected memory
+behavior.
 
 ## YAML manifests
 
