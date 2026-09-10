@@ -92,8 +92,8 @@ requirements:
     - treelite ${{ treelite_version }}
     - cuda-cudart-dev
     - if: cuda_major == "12"
-      then: cuda-bindings >=12.9.2,<13.0
-      else: cuda-bindings >=13.0.1,<14.0
+      then: cuda-bindings >=12.9.3,<13.0
+      else: cuda-bindings >=13.0.2,<14.0
   run:
     - ${{ pin_compatible("cuda-version", upper_bound="x", lower_bound="x") }}
     - cudf =${{ minor_version }}
@@ -113,8 +113,8 @@ requirements:
     - rich
     - treelite ${{ treelite_version }}
     - if: cuda_major == "12"
-      then: cuda-bindings >=12.9.2,<13.0
-      else: cuda-bindings >=13.0.1,<14.0
+      then: cuda-bindings >=12.9.3,<13.0
+      else: cuda-bindings >=13.0.2,<14.0
   ignore_run_exports:
     by_name:
       - cuda-cudart
