@@ -668,10 +668,6 @@
   marker: cuml_accel_kmeans_callable_init
   tests:
   - "sklearn.cluster.tests.test_k_means::test_kmeans_init_auto_with_initial_centroids[KMeans-<lambda>-default]"
-- reason: cuml.accel deviates in KMeans cluster_centers_ attribute
-  marker: cuml_accel_kmeans_cluster_centers_attribute
-  tests:
-  - "sklearn.cluster.tests.test_k_means::test_transform[42-KMeans]"
 - reason: These tests always pass on some platforms and always fail on others
   marker: cuml_accel_kmeans_differs_on_certain_platforms
   strict: false
