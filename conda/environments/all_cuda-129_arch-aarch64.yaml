@@ -8,7 +8,7 @@ dependencies:
 - ccache
 - certifi
 - cmake>=4.0
-- cuda-bindings>=12.9.2,<13.0
+- cuda-bindings>=12.9.3,<13.0
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api
