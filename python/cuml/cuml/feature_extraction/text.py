@@ -830,6 +830,7 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
                 if min_doc_count > 1:
                     doc_freq = doc_freq[doc_freq >= min_doc_count]
                 keep = doc_freq.index
+                pruned = True
             if max_features is not None:
                 term_freq = (
                     tokens.groupby("token")
@@ -841,6 +842,7 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
                 if keep is not None:
                     term_freq = term_freq[term_freq.token.isin(keep)]
                 keep = term_freq.iloc[:max_features].token
+                pruned = True
             if keep is not None:
                 vocabulary = cudf.Series(keep.sort_values())
             else:

@@ -148,8 +148,13 @@ def test_countvectorizer_stop_words():
 def test_countvectorizer_empty_vocabulary():
     v = CountVectorizer(max_df=1.0, stop_words="english")
     # fitting only on stopwords will result in an empty vocabulary
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="empty vocabulary"):
         v.fit(["to be or not to be", "and me too", "and so do you"])
+
+    # pruning may also result in an empty vocabulary
+    v = CountVectorizer(min_df=2)
+    with pytest.raises(ValueError, match="After pruning"):
+        v.fit(["unique", "words"])
 
 
 def test_countvectorizer_stop_words_ngrams():
