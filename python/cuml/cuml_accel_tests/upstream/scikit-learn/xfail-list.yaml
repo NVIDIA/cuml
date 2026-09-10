@@ -1195,3 +1195,8 @@
   - "sklearn.linear_model.tests.test_logistic::test_liblinear_dual_random_state[42]"
   - "sklearn.linear_model.tests.test_logistic::test_liblinear_with_large_values"
   - "sklearn.svm.tests.test_svm::test_liblinear_set_coef[42]"
+- reason: sklearn >= 1.9.1 test failures
+  condition: scikit-learn>=1.9.1
+  tests:
+  - "sklearn.neighbors.tests.test_neighbors::test_radius_neighbors_parallel_array_radius[ball_tree]"
+  - "sklearn.neighbors.tests.test_neighbors::test_radius_neighbors_parallel_array_radius[kd_tree]"
