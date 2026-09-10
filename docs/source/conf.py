@@ -123,7 +123,8 @@ html_theme = "nvidia_sphinx_theme"
 # documentation.
 #
 html_theme_options = {
-    "public_docs_features": os.environ.get("CI") == "true",
+    "public_docs_features": os.environ.get("CI") == "true"
+    and os.environ.get("RAPIDS_BUILD_TYPE") != "pull-request",
     "external_links": [],
     "icon_links": [
         {
@@ -270,7 +271,9 @@ def setup_redirects(app, docname):
 
 def setup(app):
     app.add_css_file("custom.css")
+    app.add_css_file("cuml-accel-benchmarks.css")
     app.add_js_file("open-details-on-fragment.js")
+    app.add_js_file("cuml-accel-benchmarks.js")
     app.connect("build-finished", setup_redirects)
 
 
