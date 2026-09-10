@@ -56,7 +56,7 @@ class TSNE_runner {
       input(input_),
       k_graph(k_graph_),
       params(params_),
-      COO_Matrix(handle_.get_stream())
+      COO_Matrix(handle_.get_stream().get())
   {
     this->n = input.n;
     this->p = input.d;
@@ -89,7 +89,7 @@ class TSNE_runner {
         "# of Nearest Neighbors should be at least 3 * perplexity. Your results"
         " might be a bit strange...");
 
-    auto stream         = handle.get_stream();
+    auto stream         = handle.get_stream().get();
     const value_idx dim = params.dim;
 
     if (params.init == TSNE_INIT::RANDOM) {
@@ -189,7 +189,7 @@ class TSNE_runner {
     // Get distances
     CUML_LOG_DEBUG("Getting distances.");
 
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
 
     rmm::device_uvector<value_idx> indices(0, stream);
     rmm::device_uvector<value_t> distances(0, stream);

@@ -174,7 +174,7 @@ std::pair<float, int> FFT_TSNE(value_t* VAL,
                                const value_idx n,
                                const TSNEParams& params)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto thrust_policy = handle.get_thrust_policy();
   // Fixed seeds use deterministic accumulation paths; unseeded runs keep the
   // original faster atomic/reduction paths.

@@ -28,6 +28,7 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
 
+#include <cuda/stream>
 #include <thrust/copy.h>
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
@@ -103,8 +104,8 @@ class IsolationForestTest : public ::testing::Test {
   void SetUp() override
   {
     stream_pool = std::make_shared<rmm::cuda_stream_pool>(4);
-    handle      = std::make_unique<raft::handle_t>(rmm::cuda_stream_per_thread, stream_pool);
-    stream      = handle->get_stream();
+    handle = std::make_unique<raft::handle_t>(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
+    stream = handle->get_stream().get();
   }
 
   void TearDown() override

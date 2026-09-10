@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -13,6 +13,8 @@
 #include <raft/random/make_regression.cuh>
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
+
+#include <cuda/stream>
 
 #include <fstream>
 #include <iostream>
@@ -65,7 +67,11 @@ struct RegressionParams {
  */
 template <typename D, typename L, typename IdxT = int>
 struct Dataset {
-  Dataset() : X(0, rmm::cuda_stream_default), y(0, rmm::cuda_stream_default) {}
+  Dataset()
+    : X(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}}),
+      y(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}})
+  {
+  }
   /** input data */
   rmm::device_uvector<D> X;
   /** labels or output associated with each row of input data */
@@ -97,7 +103,7 @@ struct Dataset {
   void blobs(const raft::handle_t& handle, const DatasetParams& p, const BlobsParams& b)
   {
     const auto& handle_impl = handle;
-    auto stream             = handle_impl.get_stream();
+    auto stream             = handle_impl.get_stream().get();
     auto cublas_handle      = handle_impl.get_cublas_handle();
 
     // Make blobs will generate labels of type IdxT which has to be an integer
@@ -139,7 +145,7 @@ struct Dataset {
   {
     ASSERT(!isClassification(), "make_regression: is only for regression problems!");
     const auto& handle_impl = handle;
-    auto stream             = handle_impl.get_stream();
+    auto stream             = handle_impl.get_stream().get();
     auto cublas_handle      = handle_impl.get_cublas_handle();
     auto cusolver_handle    = handle_impl.get_cusolver_dn_handle();
 

@@ -855,7 +855,7 @@ void holtwinters_optim_gpu(const raft::handle_t& handle,
                            ML::SeasonalType seasonal,
                            const ML::OptimParams<Dtype> optim_params)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // int total_blocks = GET_NUM_BLOCKS(batch_size);
   // int threads_per_block = GET_THREADS_PER_BLOCK(batch_size);

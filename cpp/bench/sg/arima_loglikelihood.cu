@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -14,6 +14,7 @@
 
 #include <rmm/device_uvector.hpp>
 
+#include <cuda/stream>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -33,9 +34,9 @@ class ArimaLoglikelihood : public TsFixtureRandom<DataT> {
   ArimaLoglikelihood(const std::string& name, const ArimaParams& p)
     : TsFixtureRandom<DataT>(name, p.data),
       order(p.order),
-      param(0, rmm::cuda_stream_default),
-      loglike(0, rmm::cuda_stream_default),
-      temp_mem(0, rmm::cuda_stream_default)
+      param(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}}),
+      loglike(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}}),
+      temp_mem(0, cuda::stream_ref{cudaStream_t{cudaStreamDefault}})
   {
   }
 
@@ -45,7 +46,7 @@ class ArimaLoglikelihood : public TsFixtureRandom<DataT> {
     using MLCommon::Bench::CudaEventTimer;
 
     auto& handle  = *this->handle;
-    auto stream   = handle.get_stream();
+    auto stream   = handle.get_stream().get();
     auto counting = thrust::make_counting_iterator(0);
 
     // Generate random parameters

@@ -525,7 +525,7 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
     min_cluster_size : int, optional (default = 5)
         The minimum number of samples in a group for that group to be
         considered a cluster; groupings smaller than this size will be left
-        as noise.
+        as noise. Must be greater than one.
 
     min_samples : int, optional (default=None)
         The number of samples in a neighborhood for a point
@@ -949,6 +949,8 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
         self._raw_data_cpu = None
 
         # Validate and prepare hyperparameters
+        if self.min_cluster_size <= 1:
+            raise ValueError("min_cluster_size must be greater than one")
         if (min_samples := self.min_samples) is None:
             min_samples = self.min_cluster_size
         if not (1 <= min_samples <= 1023):
