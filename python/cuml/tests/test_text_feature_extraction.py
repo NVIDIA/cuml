@@ -111,6 +111,26 @@ def test_tokenizer():
     )
 
 
+@pytest.mark.parametrize("lowercase", [True, False])
+@pytest.mark.parametrize(
+    "preprocessor", [None, pytest.param(lambda s: s, id="identity")]
+)
+def test_default_tokenizer(lowercase, preprocessor):
+    r"""Default tokenizer matches the regex `\b\w\w+\b`"""
+    X = ["AX_B A B ZZ", "(fizz)\t\n\rbuzz-foo _bar_"]
+    cu_vec = CountVectorizer(
+        lowercase=lowercase,
+        preprocessor=preprocessor,
+    ).fit(X)
+    sk_vec = SkCountVect(
+        lowercase=lowercase,
+        preprocessor=preprocessor,
+    ).fit(X)
+    np.testing.assert_array_equal(
+        cu_vec.get_feature_names_out(), sk_vec.get_feature_names_out()
+    )
+
+
 def test_countvectorizer_custom_vocabulary():
     vocab = {"pizza": 0, "beer": 1}
 
@@ -178,6 +198,16 @@ def test_countvectorizer_max_features_counts():
     assert "the" == features_None[as_index(counts_None.argmax())]
 
 
+def test_max_features_tied_counts():
+    docs = ["zz aa the", "yy bb the"]
+    cu_vec = CountVectorizer(max_features=3).fit(docs)
+    sk_vec = SkCountVect(max_features=3).fit(docs)
+    np.testing.assert_array_equal(
+        cu_vec.get_feature_names_out(),
+        sk_vec.get_feature_names_out(),
+    )
+
+
 def test_countvectorizer_max_df():
     test_data = ["abc", "dea", "eat"]
     vect = CountVectorizer(analyzer="char", max_df=1.0)
@@ -213,6 +243,28 @@ def test_vectorizer_min_df():
     # {bcdet} ignored
     assert "c" not in vect.vocabulary_.to_arrow().to_pylist()
     assert len(vect.vocabulary_.to_arrow().to_pylist()) == 1  # {a} remains
+
+
+@pytest.mark.parametrize(
+    "min_df, max_df, max_features",
+    [
+        (2, 0.8, None),
+        (1, 0.5, 6),
+        (2, 0.8, 6),
+    ],
+)
+def test_vectorizer_mix_min_df_max_df_max_features(
+    min_df, max_df, max_features
+):
+    cu_vec = CountVectorizer(
+        min_df=min_df, max_df=max_df, max_features=max_features
+    ).fit(DOCS)
+    sk_vec = SkCountVect(
+        min_df=min_df, max_df=max_df, max_features=max_features
+    ).fit(DOCS)
+    np.testing.assert_array_equal(
+        cu_vec.get_feature_names_out(), sk_vec.get_feature_names_out()
+    )
 
 
 def test_count_binary_occurrences():

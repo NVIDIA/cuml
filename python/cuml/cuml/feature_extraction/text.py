@@ -204,7 +204,9 @@ class _BaseVectorizer(Base):
             # We can use `X` in the common case of lowercase normalization
             # since no uppercase letters will remain. Otherwise pick
             # an unlikely key of unicode characters"
-            flag = "X" if self.lowercase else "cuᵐl"
+            flag = (
+                "X" if self.preprocessor is None and self.lowercase else "cuᵐl"
+            )
             X = (
                 X.str.replace("_", flag, regex=False)
                 .str.filter_alphanum(delimiter, keep=True)
@@ -799,10 +801,8 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
             )
 
     def _fit(self, X, tokens):
-        self.fixed_vocabulary_ = self.vocabulary is not None
-
         if self.vocabulary is not None:
-            self.vocabulary_ = _check_vocabulary(self.vocabulary)
+            vocabulary = _check_vocabulary(self.vocabulary)
         else:
             n_doc = X.shape[0]
             max_features = self.max_features
@@ -821,37 +821,48 @@ class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
                     "max_df corresponds to < documents than min_df"
                 )
 
-            if (
-                max_doc_count < n_doc
-                or min_doc_count > 1
-                or max_features is not None
-            ):
+            pruned = False
+            keep = None
+            if max_doc_count < n_doc or min_doc_count > 1:
                 doc_freq = tokens.drop_duplicates().token.value_counts()
                 if max_doc_count < n_doc:
                     doc_freq = doc_freq[doc_freq <= max_doc_count]
                 if min_doc_count > 1:
                     doc_freq = doc_freq[doc_freq >= min_doc_count]
                 keep = doc_freq.index
-                if max_features is not None:
-                    term_freq = tokens.token.value_counts()
-                    term_freq = term_freq[term_freq.index.isin(keep)]
-                    keep = term_freq.iloc[:max_features].index
-                self.vocabulary_ = cudf.Series(keep.sort_values())
-                if not len(self.vocabulary_):
-                    raise ValueError(
-                        "After pruning, no terms remain. Try a lower min_df or "
-                        "a higher max_df."
-                    )
+            if max_features is not None:
+                term_freq = (
+                    tokens.groupby("token")
+                    .size()
+                    .rename("count")
+                    .reset_index()
+                    .sort_values(["count", "token"], ascending=[False, True])
+                )
+                if keep is not None:
+                    term_freq = term_freq[term_freq.token.isin(keep)]
+                keep = term_freq.iloc[:max_features].token
+            if keep is not None:
+                vocabulary = cudf.Series(keep.sort_values())
             else:
-                self.vocabulary_ = (
+                vocabulary = (
                     tokens.token.drop_duplicates()
                     .sort_values()
                     .reset_index(drop=True)
                 )
-                if not len(self.vocabulary_):
+
+            if not len(vocabulary):
+                if pruned:
                     raise ValueError(
-                        "empty vocabulary; perhaps the documents only contain stop words"
+                        "After pruning, no terms remain. Try a lower min_df or "
+                        "a higher max_df."
                     )
+                raise ValueError(
+                    "empty vocabulary; perhaps the documents only contain stop words"
+                )
+
+        self.fixed_vocabulary_ = self.vocabulary is not None
+        self.vocabulary_ = vocabulary
+
         return self
 
     def _transform(self, X, tokens):
