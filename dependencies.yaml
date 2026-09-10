@@ -712,7 +712,7 @@ dependencies:
         matrices:
           - matrix: {dependencies: "latest"}
             packages:
-              - scikit-learn==1.9.0
+              - scikit-learn==1.9.1
           - matrix: {dependencies: "intermediate"}
             packages:
               - scikit-learn==1.8.0
