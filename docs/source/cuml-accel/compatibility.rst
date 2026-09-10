@@ -15,7 +15,7 @@ General Behavior
 ----------------
 
 **Compatibility**
-   The accelerator is tested with ``scikit-learn`` versions 1.6 through 1.9,
+   The accelerator is tested with ``scikit-learn`` versions 1.6 through 1.9.1,
    ``umap-learn`` versions 0.5.7 through 0.5.12, and ``hdbscan`` versions 0.8.39
    through 0.8.44. When ``cuml.accel`` detects a version outside these ranges,
    it issues a runtime warning and continues. The untested version will likely

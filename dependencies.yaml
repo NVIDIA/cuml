@@ -664,7 +664,7 @@ dependencies:
               dependencies: "oldest"
               cuda: "12.*"
             packages:
-              - cuda-bindings==12.9.2
+              - cuda-bindings==12.9.3
           - matrix:
               dependencies: "oldest"
               cuda: "13.*"
@@ -712,7 +712,7 @@ dependencies:
         matrices:
           - matrix: {dependencies: "latest"}
             packages:
-              - scikit-learn==1.9.0
+              - scikit-learn==1.9.1
           - matrix: {dependencies: "intermediate"}
             packages:
               - scikit-learn==1.8.0
