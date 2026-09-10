@@ -244,6 +244,26 @@ def test_mahalanobis_matches_sklearn():
     )
 
 
+@pytest.mark.parametrize("store_precision", [True, False])
+def test_singular_covariance_matches_sklearn(store_precision):
+    X = np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32)
+    cu_cov = EmpiricalCovariance(store_precision=store_precision).fit(X)
+    sk_cov = SklearnEmpiricalCovariance(store_precision=store_precision).fit(X)
+
+    np.testing.assert_allclose(
+        np.asarray(cu_cov.get_precision()),
+        sk_cov.get_precision(),
+        rtol=1e-5,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        np.asarray(cu_cov.mahalanobis(X[:2])),
+        sk_cov.mahalanobis(X[:2]),
+        rtol=1e-5,
+        atol=1e-6,
+    )
+
+
 def test_error_norm_frobenius_matches_sklearn():
     X = _make_random_data()
     cu_cov = EmpiricalCovariance().fit(X)
