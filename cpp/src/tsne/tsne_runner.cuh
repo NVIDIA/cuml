@@ -51,6 +51,7 @@ knn_graph<value_idx, value_t> make_tsne_knn_graph(int n_rows,
                                                   value_t* knn_dists,
                                                   TSNEParams& params)
 {
+  ML::default_logger().set_level(params.verbosity);
   if (params.n_neighbors > n_rows) params.n_neighbors = n_rows;
   if (params.n_neighbors > 1023) {
     CUML_LOG_WARN("FAISS only supports maximum n_neighbors = 1023.");
