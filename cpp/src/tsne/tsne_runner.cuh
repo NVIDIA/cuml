@@ -74,6 +74,8 @@ class TSNE_runner {
       CUML_LOG_WARN("FAISS only supports maximum n_neighbors = 1023.");
       params.n_neighbors = 1023;
     }
+    // Synchronize the KNN graph metadata with the clamped neighbor count.
+    k_graph.n_neighbors = params.n_neighbors;
     // Perplexity must be less than number of datapoints
     // "How to Use t-SNE Effectively" https://distill.pub/2016/misread-tsne/
     if (params.perplexity > n) params.perplexity = n;
