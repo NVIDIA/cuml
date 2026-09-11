@@ -24,7 +24,7 @@ def blobs_with_outliers():
     return np.vstack([X, outliers])
 
 
-def test_isolation_forest_fit_predict_agreement(blobs_with_outliers):
+def test_isolation_forest_fit_and_predict_agreement(blobs_with_outliers):
     X = blobs_with_outliers
     params = {"n_estimators": 100, "random_state": 0}
 
@@ -37,6 +37,30 @@ def test_isolation_forest_fit_predict_agreement(blobs_with_outliers):
     result_labels = result.predict(X)
     assert set(np.unique(result_labels)) <= {-1, 1}
     assert np.mean(expected_labels == result_labels) >= 0.9
+
+
+def test_isolation_forest_fit_predict_agreement(blobs_with_outliers):
+    X = blobs_with_outliers
+    params = {"n_estimators": 100, "random_state": 0}
+
+    expected_labels = CPUIsolationForest(**params).fit_predict(X)
+    result = IsolationForest(**params)
+    result_labels = result.fit_predict(X)
+
+    assert result._gpu is not None
+    assert set(np.unique(result_labels)) <= {-1, 1}
+    assert np.mean(expected_labels == result_labels) >= 0.9
+
+
+def test_isolation_forest_fit_predict_rejects_unknown_kwarg(
+    blobs_with_outliers,
+):
+    result = IsolationForest(n_estimators=10, random_state=0)
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'typo'"):
+        result.fit_predict(blobs_with_outliers, typo=True)
+
+    assert result._gpu is None
 
 
 def test_isolation_forest_fit_sample_weight_falls_back_to_cpu(

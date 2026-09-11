@@ -102,16 +102,18 @@ class IsolationForest(ProxyBase):
 
     @staticmethod
     def _validate_input(X):
-        # cuML's IsolationForest requires dense, finite input and raises
-        # ValueError (NaN/inf) or TypeError (sparse) otherwise. Convert
-        # those into UnsupportedOnGPU so callers fall back to CPU instead
-        # of crashing.
+        # Sparse inputs are handled by ProxyBase before dispatch. Fall back only
+        # for non-finite dense inputs, which scikit-learn supports but cuML does
+        # not, and preserve unrelated validation errors.
         try:
             check_array(
                 X, mem_type=None, order=None, ensure_2d=False, input_name="X"
             )
-        except (ValueError, TypeError) as exc:
-            raise UnsupportedOnGPU(str(exc)) from None
+        except ValueError as exc:
+            message = str(exc)
+            if "contains NaN" in message or "contains infinity" in message:
+                raise UnsupportedOnGPU(message) from None
+            raise
 
     def _gpu_fit(self, X, y=None, sample_weight=None):
         self._validate_input(X)
@@ -126,8 +128,13 @@ class IsolationForest(ProxyBase):
         # (rather than declaring sample_weight explicitly) so the proxy stays
         # signature-compatible with the CPU method.
         self._validate_input(X)
-        if kwargs.get("sample_weight") is not None:
+        sample_weight = kwargs.pop("sample_weight", None)
+        if sample_weight is not None:
             raise UnsupportedOnGPU("sample_weight is not supported")
+        if kwargs:
+            raise UnsupportedOnGPU(
+                "Additional fit parameters are not supported"
+            )
         return self._gpu.fit_predict(X, y=y)
 
     def _gpu_predict(self, X):
