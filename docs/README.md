@@ -1,14 +1,26 @@
-# Building Documentation
-## Building locally:
+# Building the documentation
 
-#### [Build and install cuML](../BUILD.md)
+## Build locally
 
-#### Generate the docs
+First [build and install cuML](../BUILD.md). Generate Doxygen XML before the
+Sphinx documentation because Breathe reads that XML while rendering the C++ API
+pages:
+
 ```bash
-bash build.sh cppdocs pydocs
+./build.sh cppdocs pydocs
 ```
 
-#### Once the process finishes, documentation can be found in build/html
+The `pydocs` target automatically generates the Doxygen XML prerequisite, so it
+also works on its own. Naming both targets as above makes the prerequisite
+explicit without generating it twice. Doxygen writes XML under `cpp/xml/`; it
+does not produce a separately published HTML API site. The Sphinx Makefile
+writes the complete documentation, including the C++ API reference, to
+`docs/build/html/`:
+
 ```bash
-xdg-open build/html/api.html
+xdg-open docs/build/html/index.html
+xdg-open docs/build/html/developer_guide/cpp/api/index.html
 ```
+
+CI uses the `dirhtml` builder instead, staging its version of the same Sphinx
+site from `docs/_html/`.

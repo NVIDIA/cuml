@@ -30,8 +30,8 @@ into three categories:
     or [help wanted](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) labels
 3. Comment on the issue saying you are going to work on it.
 4. Get familiar with the developer guide relevant for you:
-    * For C++ developers it is available here [DEVELOPER_GUIDE.md](wiki/cpp/DEVELOPER_GUIDE.md)
-    * For Python developers, a [Python DEVELOPER_GUIDE.md](wiki/python/DEVELOPER_GUIDE.md) is available as well.
+    * For Python developers, read the [Python Developer Guide](docs/source/developer_guide/python/development.md) and [Estimator Guide](docs/source/developer_guide/python/estimators.md).
+    * For C++ developers, read the [C++ and CUDA Developer Guide](docs/source/developer_guide/cpp/development.md).
 5. Code! Make sure to update unit tests!
 6. When done, [create your pull request](https://github.com/NVIDIA/cuml/compare).
 7. Verify that CI passes all [status checks](https://help.github.com/articles/about-status-checks/), or fix if needed.
