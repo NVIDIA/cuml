@@ -62,6 +62,8 @@ cdef extern from "cuml/ensemble/isolation_forest.hpp" namespace "ML" nogil:
         int n_cols,
         const IF_params& params,
         double* c_normalization,
+        int* feature_indices,
+        size_t feature_indices_size,
         level_enum verbosity
     ) except +
 
@@ -151,10 +153,13 @@ def _recover_node_sample_counts(tree, n_samples):
     return counts
 
 
-def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
+def _isolation_tree_to_sklearn(
+    exported_tree, feature_indices, n_samples, max_depth
+):
     """Rebuilds one fitted sklearn ``ExtraTreeRegressor`` from one tree of the
-    Treelite export, restoring the per-node sample counts that isolation
-    forest scoring requires."""
+    Treelite export, restoring per-node sample counts and remapping global
+    feature ids to the sampled subset used by sklearn's bagging representation.
+    """
     import sklearn
     from packaging.version import Version
     from sklearn.tree import ExtraTreeRegressor
@@ -164,7 +169,25 @@ def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
     nodes = state["nodes"].copy()
     nodes["n_node_samples"] = counts
     nodes["weighted_n_node_samples"] = counts.astype(np.float64)
-    rebuilt = ExtraTreeRegressor(max_features=1.0, max_depth=max_depth)
+
+    feature_indices = np.asarray(feature_indices, dtype=np.int64)
+    inverse = {
+        int(global_feature): local_feature
+        for local_feature, global_feature in enumerate(feature_indices)
+    }
+    split_nodes = nodes["feature"] >= 0
+    try:
+        nodes["feature"][split_nodes] = [
+            inverse[int(feature)] for feature in nodes["feature"][split_nodes]
+        ]
+    except KeyError as exc:
+        raise ValueError(
+            f"Exported tree uses feature {exc.args[0]}, which is not present "
+            "in its recorded sampled feature subset."
+        ) from None
+
+    n_features = len(feature_indices)
+    rebuilt = ExtraTreeRegressor(max_features=1, max_depth=max_depth)
     rebuilt.n_features_in_ = n_features
     rebuilt.n_outputs_ = 1
     tree_args = (n_features, np.asarray([1], dtype=np.intp), 1)
@@ -317,6 +340,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         self.bootstrap = bootstrap
         self.random_state = random_state
         self.contamination = contamination
+        self._feature_indices = None
 
     @classmethod
     def _get_param_names(cls):
@@ -365,38 +389,53 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     def _attrs_to_cpu(self, model):
         """Converts fitted state to sklearn attributes.
 
-        The tree structure comes from the Treelite export; the per-node sample
-        counts that isolation forest scoring requires are recovered from the
-        leaf values (see ``_invert_average_path_length``). ``_seeds`` is not
-        transferable because cuML does not record per-tree sample indices, so
-        ``estimators_samples_`` is unavailable on the converted model.
+        A fresh tree snapshot is built for every conversion so mutations of
+        native inspection attributes never leak into converted models.
+        ``_seeds`` is not transferable because cuML does not record per-tree
+        sample indices, so ``estimators_samples_`` remains unavailable.
         """
         from sklearn.ensemble._iforest import _average_path_length
         from sklearn.tree import ExtraTreeRegressor
 
+        check_is_fitted(self)
         tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
         exported = treelite.sklearn.export_model(tl_model)
-        n_features = self.n_features_in_
         n_samples = int(self.max_samples_)
         if self.max_depth is None:
             max_depth = int(np.ceil(np.log2(max(n_samples, 2))))
         else:
             max_depth = int(self.max_depth)
+
+        feature_indices = np.asarray(self._feature_indices, dtype=np.int64)
+        if (
+            feature_indices.ndim != 2
+            or feature_indices.shape[0] != len(exported.estimators_)
+            or feature_indices.shape[1] != self._max_features
+        ):
+            raise ValueError(
+                "Stored feature indices do not match the fitted forest shape."
+            )
         estimators = [
-            _isolation_tree_to_sklearn(tree, n_features, n_samples, max_depth)
-            for tree in exported.estimators_
+            _isolation_tree_to_sklearn(
+                tree, features, n_samples, max_depth
+            )
+            for tree, features in zip(
+                exported.estimators_, feature_indices, strict=True
+            )
         ]
         return {
-            "estimator_": ExtraTreeRegressor(max_features=1.0),
+            "estimator_": ExtraTreeRegressor(
+                max_features=1,
+                max_depth=max_depth,
+                random_state=self.random_state,
+            ),
             "estimators_": estimators,
             "estimators_features_": [
-                np.arange(n_features, dtype=np.int64) for _ in estimators
+                features.copy() for features in feature_indices
             ],
             "max_samples_": n_samples,
             "offset_": float(self.offset_),
-            # The exported trees reference features globally, so scoring uses
-            # the full feature set for every tree.
-            "_max_features": n_features,
+            "_max_features": self._max_features,
             "_max_samples": n_samples,
             "_sample_weight": None,
             "_average_path_length_per_tree": tuple(
@@ -561,6 +600,12 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         params.bootstrap = self.bootstrap
         params.seed = seed
 
+        feature_indices = np.empty(
+            (self.n_estimators, actual_max_features), dtype=np.int32
+        )
+        cdef uintptr_t feature_indices_ptr = <uintptr_t>feature_indices.ctypes.data
+        cdef size_t feature_indices_size = feature_indices.size
+
         # Get handle and verbosity
         handle = get_handle()
         cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
@@ -584,6 +629,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                         n_cols,
                         params,
                         &c_normalization,
+                        <int*>feature_indices_ptr,
+                        feature_indices_size,
                         verbose,
                     )
                 else:
@@ -595,6 +642,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                         n_cols,
                         params,
                         &c_normalization,
+                        <int*>feature_indices_ptr,
+                        feature_indices_size,
                         verbose,
                     )
 
@@ -618,6 +667,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
 
         self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
         self._normalization_constant = c_normalization
+        self._max_features = actual_max_features
+        self._feature_indices = feature_indices
         # Load the inference model here rather than on first use, so that
         # `predict` and friends don't mutate the estimator. The lazy path in
         # `_get_inference_nvforest_model` then only covers unpickled models.

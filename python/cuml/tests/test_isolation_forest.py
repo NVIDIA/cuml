@@ -395,15 +395,30 @@ def test_as_sklearn_float64_parity(anomaly_data):
 def test_as_sklearn_populates_fitted_attributes(blobs_data):
     """The converted model carries the attributes a sklearn fit would set."""
     cu_model = cuIsolationForest(
-        n_estimators=10, max_samples=64, random_state=0
+        n_estimators=10,
+        max_samples=64,
+        max_features=0.5,
+        random_state=0,
     ).fit(blobs_data)
     sk_model = cu_model.as_sklearn()
 
     assert sk_model.max_samples_ == 64
     assert sk_model.offset_ == pytest.approx(float(cu_model.offset_))
     assert sk_model.n_features_in_ == blobs_data.shape[1]
+    assert sk_model.estimator_.max_features == 1
     assert len(sk_model.estimators_) == 10
     assert len(sk_model.estimators_features_) == 10
+    np.testing.assert_array_equal(
+        np.stack(sk_model.estimators_features_), cu_model._feature_indices
+    )
+    for features, tree in zip(
+        sk_model.estimators_features_, sk_model.estimators_, strict=True
+    ):
+        assert features.shape == (2,)
+        assert len(np.unique(features)) == len(features)
+        assert np.all((features >= 0) & (features < blobs_data.shape[1]))
+        split_features = tree.tree_.feature[tree.tree_.feature >= 0]
+        assert np.all(split_features < len(features))
     # The private fit caches sklearn scoring reads must exist and align.
     assert isinstance(sk_model._average_path_length_per_tree, tuple)
     assert isinstance(sk_model._decision_path_lengths, tuple)
@@ -418,6 +433,27 @@ def test_as_sklearn_populates_fitted_attributes(blobs_data):
     # backed by `_seeds` stays unavailable rather than returning wrong ones.
     with pytest.raises(AttributeError):
         sk_model.estimators_samples_
+
+
+def test_feature_indices_survive_native_pickle(blobs_data):
+    """Native pickles retain metadata needed for sklearn conversion."""
+    model = cuIsolationForest(
+        n_estimators=5, max_features=0.5, random_state=0
+    ).fit(blobs_data)
+    restored = pickle.loads(pickle.dumps(model))
+
+    np.testing.assert_array_equal(
+        restored._feature_indices, model._feature_indices
+    )
+    converted = restored.as_sklearn()
+    np.testing.assert_array_equal(
+        np.stack(converted.estimators_features_), model._feature_indices
+    )
+    np.testing.assert_allclose(
+        converted.score_samples(blobs_data),
+        np.asarray(model.score_samples(blobs_data)),
+        atol=1e-5,
+    )
 
 
 def test_as_sklearn_pickle_roundtrip(blobs_data):
