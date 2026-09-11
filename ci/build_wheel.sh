@@ -39,31 +39,30 @@ sccache --stop-server 2>/dev/null || true
 
 rapids-logger "Building '${package_name}' wheel"
 
+build_env_dir="/tmp/${package_name}-wheel-build-env"
+# `build` preserves this environment after a failed build for debugging. CI
+# retries must start with an empty directory, as required by `--env-dir`.
+rm -rf "${build_env_dir}"
+
 RAPIDS_PIP_WHEEL_ARGS=(
-  -w dist
-  -v
-  --no-deps
-  --disable-pip-version-check
+  --wheel
+  --outdir dist
+  --verbose
+  # A fixed location keeps isolated-build include paths stable for sccache.
+  --env-dir "${build_env_dir}"
+  --dependency-constraints-txt "${PIP_CONSTRAINT}"
 )
 
 # Add py-api setting for stable ABI builds
 if [[ "${stable_abi}" == "true" ]] && [[ -n "${RAPIDS_PY_API:-}" ]]; then
-  RAPIDS_PIP_WHEEL_ARGS+=(--config-settings="skbuild.wheel.py-api=${RAPIDS_PY_API}")
+  RAPIDS_PIP_WHEEL_ARGS+=(--config-setting="skbuild.wheel.py-api=${RAPIDS_PY_API}")
 fi
 
-# Only use --build-constraint when build isolation is enabled.
-#
-# Passing '--build-constraint' and '--no-build-isolation` together results in an error from 'pip',
-# but we want to keep environment variable PIP_CONSTRAINT set unconditionally.
-# PIP_NO_BUILD_ISOLATION=0 means "add --no-build-isolation" (ref: https://github.com/pypa/pip/issues/5735)
-if [[ "${PIP_NO_BUILD_ISOLATION:-}" != "0" ]]; then
-    RAPIDS_PIP_WHEEL_ARGS+=(--build-constraint="${PIP_CONSTRAINT}")
-fi
-
-# unset PIP_CONSTRAINT (set by rapids-init-pip)... it doesn't affect builds as of pip 25.3, and
-# results in an error from 'pip wheel' when set and --build-constraint is also passed
+# `build` receives the same generated constraints explicitly. Unset the
+# environment variable so it does not constrain the frontend installation.
 unset PIP_CONSTRAINT
-rapids-pip-retry wheel \
+
+rapids-python-build-retry \
     "${RAPIDS_PIP_WHEEL_ARGS[@]}" \
     .
 

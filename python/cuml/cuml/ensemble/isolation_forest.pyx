@@ -155,6 +155,8 @@ def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
     """Rebuilds one fitted sklearn ``ExtraTreeRegressor`` from one tree of the
     Treelite export, restoring the per-node sample counts that isolation
     forest scoring requires."""
+    import sklearn
+    from packaging.version import Version
     from sklearn.tree import ExtraTreeRegressor
 
     counts = _recover_node_sample_counts(exported_tree.tree_, n_samples)
@@ -165,9 +167,12 @@ def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
     rebuilt = ExtraTreeRegressor(max_features=1.0, max_depth=max_depth)
     rebuilt.n_features_in_ = n_features
     rebuilt.n_outputs_ = 1
-    tree = type(exported_tree.tree_)(
-        n_features, np.asarray([1], dtype=np.intp), 1
-    )
+    tree_args = (n_features, np.asarray([1], dtype=np.intp), 1)
+    if Version(sklearn.__version__) >= Version("1.10.dev0"):
+        n_categories = np.full(n_features, -1, dtype=np.intp)
+        tree_args += (n_categories,)
+        rebuilt.is_categorical_ = None
+    tree = type(exported_tree.tree_)(*tree_args)
     tree.__setstate__({**state, "nodes": nodes})
     rebuilt.tree_ = tree
     return rebuilt

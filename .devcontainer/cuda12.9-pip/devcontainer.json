@@ -5,30 +5,30 @@
     "args": {
       "CUDA": "12.9",
       "PYTHON_PACKAGE_MANAGER": "pip",
-      "BASE": "rapidsai/devcontainers:26.10-cpp-cuda12.9-ucx1.19.0-openmpi5.0.10"
+      "BASE": "rapidsai/devcontainers:26.12-cpp-cuda12.9-ucx1.21.0-openmpi5.0.10"
     },
     "cacheFrom": [
-      "ghcr.io/nvidia/cuml/devcontainer:26.10-cuda12.9-pip"
+      "ghcr.io/nvidia/cuml/devcontainer:26.12-cuda12.9-pip"
     ]
   },
   "runArgs": [
     "--rm",
     "--name",
-    "${localEnv:USER:anon}-rapids-${localWorkspaceFolderBasename}-26.10-cuda12.9-pip",
+    "${localEnv:USER:anon}-rapids-${localWorkspaceFolderBasename}-26.12-cuda12.9-pip",
     "--ulimit",
     "nofile=500000"
   ],
   "hostRequirements": {"gpu": "optional"},
   "containerEnv": {"PYTHON_VERSION": "3.13"},
   "features": {
-    "ghcr.io/rapidsai/devcontainers/features/cuda:26.10": {
+    "ghcr.io/rapidsai/devcontainers/features/cuda:26.12": {
       "version": "12.9",
       "installcuBLAS": true,
       "installcuSOLVER": true,
       "installcuRAND": true,
       "installcuSPARSE": true
     },
-    "ghcr.io/rapidsai/devcontainers/features/rapids-build-utils:26.10": {}
+    "ghcr.io/rapidsai/devcontainers/features/rapids-build-utils:26.12": {}
   },
   "overrideFeatureInstallOrder": [
     "ghcr.io/rapidsai/devcontainers/features/cuda",

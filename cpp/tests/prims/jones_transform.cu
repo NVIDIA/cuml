@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2024, NVIDIA CORPORATION. *
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "test_utils.h"
@@ -34,7 +34,7 @@ template
  public:
   JonesTransTest()
     : params(::testing::TestWithParam<JonesTransParam>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       nElements(params.batchSize * params.pValue),
       d_golden_ar_trans(0, stream),
       d_computed_ar_trans(0, stream),

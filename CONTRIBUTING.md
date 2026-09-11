@@ -135,7 +135,7 @@ methods to run clang-tidy on your local machine: using Docker or Conda.
         docker run --rm --pull always \
             --mount type=bind,source="$(pwd)",target=/opt/repo --workdir /opt/repo \
             -e SCCACHE_S3_NO_CREDENTIALS=1 \
-            rapidsai/ci-conda:26.10-latest /opt/repo/ci/run_clang_tidy.sh
+            rapidsai/ci-conda:26.12-latest /opt/repo/ci/run_clang_tidy.sh
         ```
 
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -67,7 +67,7 @@ class Results {
           SvmType svmType,
           bool is_precomputed = false)
     : rmm_alloc(rmm::mr::get_current_device_resource_ref()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       handle(handle),
       n_rows(n_rows),
       n_cols(n_cols),

@@ -59,7 +59,7 @@ void compute_stabilities(const raft::handle_t& handle,
   auto n_clusters = condensed_tree.get_n_clusters();
   auto n_leaves   = condensed_tree.get_n_leaves();
 
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   rmm::device_uvector<value_idx> sorted_parents(n_edges, stream);

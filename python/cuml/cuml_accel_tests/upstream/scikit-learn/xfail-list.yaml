@@ -668,10 +668,6 @@
   marker: cuml_accel_kmeans_callable_init
   tests:
   - "sklearn.cluster.tests.test_k_means::test_kmeans_init_auto_with_initial_centroids[KMeans-<lambda>-default]"
-- reason: cuml.accel deviates in KMeans cluster_centers_ attribute
-  marker: cuml_accel_kmeans_cluster_centers_attribute
-  tests:
-  - "sklearn.cluster.tests.test_k_means::test_transform[42-KMeans]"
 - reason: These tests always pass on some platforms and always fail on others
   marker: cuml_accel_kmeans_differs_on_certain_platforms
   strict: false
@@ -1199,3 +1195,8 @@
   - "sklearn.linear_model.tests.test_logistic::test_liblinear_dual_random_state[42]"
   - "sklearn.linear_model.tests.test_logistic::test_liblinear_with_large_values"
   - "sklearn.svm.tests.test_svm::test_liblinear_set_coef[42]"
+- reason: sklearn >= 1.9.1 test failures
+  condition: scikit-learn>=1.9.1
+  tests:
+  - "sklearn.neighbors.tests.test_neighbors::test_radius_neighbors_parallel_array_radius[ball_tree]"
+  - "sklearn.neighbors.tests.test_neighbors::test_radius_neighbors_parallel_array_radius[kd_tree]"

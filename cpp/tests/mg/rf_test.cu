@@ -15,6 +15,8 @@
 #include <rmm/cuda_stream_pool.hpp>
 #include <rmm/device_uvector.hpp>
 
+#include <cuda/stream>
+
 #include <gtest/gtest.h>
 #include <mpi.h>
 
@@ -289,7 +291,7 @@ class RfMgPropertyTestImpl {
     RAFT_CUDA_TRY(cudaSetDevice(local_rank));
 
     auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(params.handle_n_streams);
-    raft::handle_t handle(rmm::cuda_stream_per_thread, stream_pool);
+    raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
     raft::comms::initialize_mpi_comms(&handle, MPI_COMM_WORLD);
 
     auto local_rows = local_rows_for_rank(params.n_rows, rank, size, params.partition_kind);
@@ -369,7 +371,8 @@ class RfMgPropertyTestImpl {
       params, global_rows, h_global_X, h_global_y, h_global_sample_weights);
 
     auto single_node_stream_pool = std::make_shared<rmm::cuda_stream_pool>(params.handle_n_streams);
-    raft::handle_t single_node_handle(rmm::cuda_stream_per_thread, single_node_stream_pool);
+    raft::handle_t single_node_handle(cuda::stream_ref{cudaStreamPerThread},
+                                      single_node_stream_pool);
     rmm::device_uvector<DataT> global_X(h_global_X.size(), single_node_handle.get_stream());
     rmm::device_uvector<LabelT> global_y(h_global_y.size(), single_node_handle.get_stream());
     rmm::device_uvector<double> global_sample_weights(h_global_sample_weights.size(),
