@@ -193,12 +193,10 @@ void fit_treelite(const raft::handle_t& handle,
     }
   } else {
     auto stream = handle.get_stream();
-    RAFT_CUDA_TRY(
-      cudaMemcpyAsync(feature_indices,
-                      forest.global_feature_indices.data(),
-                      ML::checked_mul<std::size_t>(expected_feature_indices, sizeof(int)),
-                      cudaMemcpyDeviceToHost,
-                      stream));
+    raft::copy(feature_indices,
+               static_cast<const int*>(forest.global_feature_indices.data()),
+               expected_feature_indices,
+               stream);
     handle.sync_stream(stream);
   }
 
