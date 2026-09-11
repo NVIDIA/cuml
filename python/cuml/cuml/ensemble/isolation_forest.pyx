@@ -624,8 +624,10 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         self._nvforest_model = self.as_nvforest()
 
         if use_contamination_quantile:
-            # Score the already transferred training data directly. nvForest
-            # normalizes the device-array layout during prediction.
+            # Score the already validated training data directly. Calling the
+            # public method would validate again after fit has recorded
+            # feature_names_in_, causing a spurious warning for DataFrame input
+            # because X_m no longer carries those names.
             training_scores = self._score_samples(X_m)
             self.offset_ = float(
                 cp.percentile(
@@ -680,7 +682,13 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         return nvforest_model
 
     def _score_samples(self, X_m):
-        """Compute anomaly scores from validated device input."""
+        """Compute anomaly scores from validated device input.
+
+        This helper intentionally excludes input validation so ``fit`` can
+        score its already validated training data while computing a non-auto
+        contamination threshold. Public inference methods validate before
+        calling it.
+        """
         nvforest_model = self._get_inference_nvforest_model()
         dtype = nvforest_model.forest.get_dtype()
 

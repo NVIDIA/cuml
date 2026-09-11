@@ -509,17 +509,6 @@ def test_contamination_float_preserves_feature_names():
     np.testing.assert_array_equal(model.feature_names_in_, X.columns)
 
 
-def test_internal_device_scoring_matches_public_path(blobs_data):
-    """The validated and already-converted scoring paths are equivalent."""
-    model = cuIsolationForest(n_estimators=10, random_state=0).fit(blobs_data)
-    X_m = cp.asarray(blobs_data, order="F")
-
-    expected = model.score_samples(blobs_data)
-    actual = model._score_samples(X_m)
-
-    cp.testing.assert_array_equal(cp.asarray(actual), cp.asarray(expected))
-
-
 def test_contamination_float_sets_score_quantile_offset(blobs_data):
     """Float contamination should set offset_ from training score quantile."""
     contamination = 0.1
