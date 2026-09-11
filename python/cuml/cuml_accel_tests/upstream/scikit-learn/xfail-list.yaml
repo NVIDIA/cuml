@@ -38,6 +38,29 @@
   - "sklearn.linear_model.tests.test_coordinate_descent::test_enet_sample_weight_consistency[42-csr_matrix-False-0.01-True-ElasticNet]"
   - "sklearn.linear_model.tests.test_coordinate_descent::test_random_descent[csr_array]"
   - "sklearn.linear_model.tests.test_coordinate_descent::test_random_descent[csr_matrix]"
+- reason: IsolationForest GPU inference is expected to bypass scikit-learn CPU chunking internals
+  marker: cuml_accel_bugs
+  tests:
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_chunks_works1[42-0.25-3]"
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_chunks_works1[42-auto-2]"
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_chunks_works2[42-0.25-3]"
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_chunks_works2[42-auto-2]"
+- reason: IsolationForest estimators_samples_ requires retaining and exporting sampled row indices (#8420)
+  marker: cuml_accel_bugs
+  tests:
+  - "sklearn.tests.test_docstring_parameters::test_fit_docstring_attributes[IsolationForest-IsolationForest]"
+- reason: IsolationForest sample-weight equivalence requires native GPU sample-weight support
+  marker: cuml_accel_bugs
+  tests:
+  - "sklearn.tests.test_common::test_estimators[IsolationForest()-check_sample_weight_equivalence_on_dense_data]"
+  - "sklearn.tests.test_common::test_estimators[IsolationForest()-check_sample_weight_equivalence_on_sparse_data]"
+- reason: IsolationForest sparse/dense equivalence requires native GPU sparse-input support
+  marker: cuml_accel_bugs
+  tests:
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_sparse[42-csc_array]"
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_sparse[42-csc_matrix]"
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_sparse[42-csr_array]"
+  - "sklearn.ensemble.tests.test_iforest::test_iforest_sparse[42-csr_matrix]"
 - reason: LogisticRegression behavior differs with cuml.accel in sklearn 1.9
   marker: cuml_accel_bugs
   condition: scikit-learn>=1.9
