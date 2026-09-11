@@ -494,6 +494,9 @@ This uses the same lazy conversion and caching path as external user reads.
 Externally, descriptor attributes lazily convert to the active output type:
 
 ```python
+import cupy as cp
+import numpy as np
+
 my_est = SampleEstimator()
 
 # Call fit() with a numpy array as the input
