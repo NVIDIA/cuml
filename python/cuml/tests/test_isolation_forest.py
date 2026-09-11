@@ -471,6 +471,24 @@ def test_as_sklearn_pickle_roundtrip(blobs_data):
     )
 
 
+def test_as_sklearn_preserves_strict_split_semantics():
+    X = np.arange(5, dtype=np.float32)[:, None]
+    cu_model = cuIsolationForest(
+        n_estimators=1, max_depth=1, random_state=0
+    ).fit(X)
+    sk_model = cu_model.as_sklearn()
+    threshold = (
+        treelite.sklearn.export_model(cu_model.as_treelite())
+        .estimators_[0]
+        .tree_.threshold[0]
+    )
+    X_equal = np.array([[threshold]], dtype=np.float32)
+
+    np.testing.assert_array_equal(
+        sk_model.predict(X_equal), np.asarray(cu_model.predict(X_equal))
+    )
+
+
 def test_as_sklearn_constant_data():
     """Degenerate single-node trees convert and score identically."""
     X = np.ones((300, 4), dtype=np.float32)

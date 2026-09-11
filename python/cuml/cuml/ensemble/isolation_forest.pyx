@@ -176,6 +176,10 @@ def _isolation_tree_to_sklearn(
         for local_feature, global_feature in enumerate(feature_indices)
     }
     split_nodes = nodes["feature"] >= 0
+    # Preserve native ``<`` splits with sklearn's ``<=`` tree traversal.
+    nodes["threshold"][split_nodes] = np.nextafter(
+        nodes["threshold"][split_nodes], -np.inf
+    )
     try:
         nodes["feature"][split_nodes] = [
             inverse[int(feature)] for feature in nodes["feature"][split_nodes]
