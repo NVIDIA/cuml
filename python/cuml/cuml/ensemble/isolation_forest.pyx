@@ -741,8 +741,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
 
         This helper intentionally excludes input validation so ``fit`` can
         score its already validated training data while computing a non-auto
-        contamination threshold. Public inference methods validate before
-        calling it.
+        contamination threshold. Public inference validates in ``score_samples``.
         """
         nvforest_model = self._get_inference_nvforest_model()
         dtype = nvforest_model.forest.get_dtype()
@@ -825,15 +824,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         scores : ndarray of shape (n_samples,)
             The decision function. Negative values indicate anomalies.
         """
-        check_is_fitted(self)
-        nvforest_model = self._get_inference_nvforest_model()
-        X_m = check_inputs(
-            self,
-            X,
-            dtype=nvforest_model.forest.get_dtype(),
-            order="C",
-        )
-        return self._score_samples(X_m) - self.offset_
+        return self.score_samples(X) - self.offset_
 
     @mlfunc(preserve_index=True)
     def predict(self, X):
@@ -852,17 +843,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         labels : ndarray of shape (n_samples,)
             1 for inliers, -1 for outliers.
         """
-        check_is_fitted(self)
-        nvforest_model = self._get_inference_nvforest_model()
-        X_m = check_inputs(
-            self,
-            X,
-            dtype=nvforest_model.forest.get_dtype(),
-            order="C",
-        )
-
         # ``decision_function(X) < 0`` rearranged to avoid materializing it.
-        return cp.where(self._score_samples(X_m) < self.offset_, -1, 1)
+        return cp.where(self.score_samples(X) < self.offset_, -1, 1)
 
     @mlfunc(preserve_index=True)
     def fit_predict(self, X, y=None):
