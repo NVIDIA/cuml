@@ -45,6 +45,20 @@ inline constexpr bool is_instance_of = std::false_type{};
 template <template <class> class U, class V>
 inline constexpr bool is_instance_of<U<V>, U> = std::true_type{};
 
+template <typename value_idx, typename value_t>
+knn_graph<value_idx, value_t> make_tsne_knn_graph(int n_rows,
+                                                  value_idx* knn_indices,
+                                                  value_t* knn_dists,
+                                                  TSNEParams& params)
+{
+  if (params.n_neighbors > n_rows) params.n_neighbors = n_rows;
+  if (params.n_neighbors > 1023) {
+    CUML_LOG_WARN("FAISS only supports maximum n_neighbors = 1023.");
+    params.n_neighbors = 1023;
+  }
+  return {n_rows, params.n_neighbors, knn_indices, knn_dists};
+}
+
 template <typename tsne_input, typename value_idx, typename value_t>
 class TSNE_runner {
  public:
@@ -69,13 +83,6 @@ class TSNE_runner {
         "Barnes Hut and FFT only work for dim == 2. Switching to exact "
         "solution.");
     }
-    if (params.n_neighbors > n) params.n_neighbors = n;
-    if (params.n_neighbors > 1023) {
-      CUML_LOG_WARN("FAISS only supports maximum n_neighbors = 1023.");
-      params.n_neighbors = 1023;
-    }
-    // Synchronize the KNN graph metadata with the clamped neighbor count.
-    k_graph.n_neighbors = params.n_neighbors;
     // Perplexity must be less than number of datapoints
     // "How to Use t-SNE Effectively" https://distill.pub/2016/misread-tsne/
     if (params.perplexity > n) params.perplexity = n;

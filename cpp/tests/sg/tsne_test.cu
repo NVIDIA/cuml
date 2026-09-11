@@ -260,39 +260,14 @@ const std::vector<TSNEInput> inputs = {
    0.98},
   {Diabetes::n_samples, Diabetes::n_features, Diabetes::diabetes, TSNE_INIT::PCA, 0.90}};
 
-TEST(TSNEValidationTest, SparseNNeighborsIsClampedInKnnGraph)
+TEST(TSNEValidationTest, NNeighborsIsClampedWhenKnnGraphIsCreated)
 {
-  raft::handle_t handle;
-  auto stream = handle.get_stream().get();
-
-  constexpr int n   = 2;
-  constexpr int p   = 1;
-  constexpr int nnz = 2;
-
-  std::vector<int> indptr_h{0, 1, 2};
-  std::vector<int> indices_h{0, 0};
-  std::vector<float> data_h{1.0f, 2.0f};
-
-  rmm::device_uvector<int> indptr(indptr_h.size(), stream);
-  rmm::device_uvector<int> indices(indices_h.size(), stream);
-  rmm::device_uvector<float> data(data_h.size(), stream);
-  rmm::device_uvector<float> embedding(n * 2, stream);
-
-  raft::update_device(indptr.data(), indptr_h.data(), indptr_h.size(), stream);
-  raft::update_device(indices.data(), indices_h.data(), indices_h.size(), stream);
-  raft::update_device(data.data(), data_h.data(), data_h.size(), stream);
+  constexpr int n = 2;
 
   TSNEParams params;
   params.n_neighbors = 3;
-  params.perplexity  = 1.0f;
-  params.max_iter    = 1;
-  params.algorithm   = TSNE_ALGORITHM::EXACT;
 
-  manifold_sparse_inputs_t<int, float> input(
-    indptr.data(), indices.data(), data.data(), embedding.data(), nnz, n, p);
-  knn_graph<int, float> k_graph(n, params.n_neighbors, nullptr, nullptr);
-  TSNE_runner<manifold_sparse_inputs_t<int, float>, knn_indices_sparse_t, float> runner(
-    handle, input, k_graph, params);
+  auto k_graph = make_tsne_knn_graph<int, float>(n, nullptr, nullptr, params);
 
   EXPECT_EQ(params.n_neighbors, n);
   EXPECT_EQ(k_graph.n_neighbors, n);
