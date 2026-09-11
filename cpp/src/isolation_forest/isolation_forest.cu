@@ -5,6 +5,7 @@
 
 #include "isolation_forest.cuh"
 
+#include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/ensemble/isolation_forest.hpp>
 
 #include <raft/core/error.hpp>
@@ -173,7 +174,7 @@ void fit_treelite(const raft::handle_t& handle,
   *c_normalization = forest.c_normalization;
 
   size_t expected_feature_indices =
-    static_cast<size_t>(forest.params.n_estimators) * forest.n_features_per_tree;
+    ML::checked_mul<std::size_t>(forest.params.n_estimators, forest.n_features_per_tree);
   ASSERT(feature_indices != nullptr || expected_feature_indices == 0,
          "Feature indices output buffer cannot be null.");
   ASSERT(feature_indices_size == expected_feature_indices,
@@ -183,17 +184,21 @@ void fit_treelite(const raft::handle_t& handle,
 
   if (forest.global_feature_indices.size() == 0) {
     for (int tree = 0; tree < forest.params.n_estimators; ++tree) {
+      // Bounded by expected_feature_indices (validated above), so the per-row
+      // base offset is computed once rather than checked on every write.
+      size_t row_offset = static_cast<size_t>(tree) * forest.n_features_per_tree;
       for (int feature = 0; feature < forest.n_features_per_tree; ++feature) {
-        feature_indices[static_cast<size_t>(tree) * forest.n_features_per_tree + feature] = feature;
+        feature_indices[row_offset + feature] = feature;
       }
     }
   } else {
     auto stream = handle.get_stream();
-    RAFT_CUDA_TRY(cudaMemcpyAsync(feature_indices,
-                                  forest.global_feature_indices.data(),
-                                  expected_feature_indices * sizeof(int),
-                                  cudaMemcpyDeviceToHost,
-                                  stream));
+    RAFT_CUDA_TRY(
+      cudaMemcpyAsync(feature_indices,
+                      forest.global_feature_indices.data(),
+                      ML::checked_mul<std::size_t>(expected_feature_indices, sizeof(int)),
+                      cudaMemcpyDeviceToHost,
+                      stream));
     handle.sync_stream(stream);
   }
 
