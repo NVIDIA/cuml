@@ -601,15 +601,21 @@ def test_fit_unsupported_params():
     assert hasattr(model._cpu, "n_features_in_")
 
 
-def test_fit_unsupported_args():
+@pytest.mark.parametrize("use_kwargs", [False, True])
+def test_fit_unsupported_args(use_kwargs):
     """Hyperparameters supported on GPU, but X/y type isn't"""
     X_dense, y = make_regression(
         n_samples=100, n_features=200, random_state=42
     )
     X_dense[X_dense < 2.5] = 0.0
     X = scipy.sparse.coo_matrix(X_dense)
+
     model = RandomForestRegressor()
-    assert model.fit(X, y) is model
+    if use_kwargs:
+        out = model.fit(X=X, y=y)
+    else:
+        out = model.fit(X, y)
+    assert out is model
     # Fit happened on CPU
     check_is_fitted(model)
     assert model._gpu is None
