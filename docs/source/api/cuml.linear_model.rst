@@ -13,6 +13,7 @@ cuml.linear_model
    LinearRegression
    LogisticRegression
    Ridge
+   RidgeCV
    Lasso
    ElasticNet
    MBSGDClassifier

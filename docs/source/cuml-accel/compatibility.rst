@@ -301,6 +301,16 @@ scores like ``sklearn.metrics.r2_score`` (for regression) or
    - If ``positive=True`` or ``solver="lbfgs"``.
 
 
+.. dropdown:: ``RidgeCV``
+   :name: ridgecv
+
+   ``RidgeCV`` will fall back to CPU in the following cases:
+
+   - If ``cv`` is not ``None`` (only the default Leave-One-Out/GCV path is
+     accelerated on GPU).
+   - If a custom ``scoring`` is provided.
+
+
 .. dropdown:: ``Lasso``
    :name: lasso
 
