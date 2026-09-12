@@ -259,6 +259,11 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         """
         Perform Random Forest Classification on the input data
         """
+        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
+        return self._fit_forest(X, y, sample_weight=sample_weight)
+
+    def _prepare_fit_inputs(self, X, y, sample_weight=None):
+        classes = getattr(self, "_distributed_classes", True)
         X, y, sample_weight, classes = check_inputs(
             self,
             X,
@@ -268,19 +273,27 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
             order="A",
             y_dtype="int32",
             sample_weight_dtype="float64",
-            return_classes=True,
+            return_classes=classes,
             reset=True,
         )
         self.classes_ = classes
         self.n_classes_ = len(classes)
+        class_weight = self.class_weight
+        class_counts = getattr(self, "_distributed_class_counts", None)
+        if class_weight == "balanced" and class_counts is not None:
+            class_counts = np.asarray(class_counts)
+            balanced_weights = class_counts.sum() / (
+                self.n_classes_ * class_counts
+            )
+            class_weight = dict(zip(classes, balanced_weights, strict=True))
         _, sample_weight = process_class_weight(
             classes,
             y,
-            class_weight=self.class_weight,
+            class_weight=class_weight,
             sample_weight=sample_weight,
             dtype=np.float64,
         )
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return X, y, sample_weight
 
     @nvtx.annotate(
         message="predict RF-Classifier @randomforestclassifier.pyx",

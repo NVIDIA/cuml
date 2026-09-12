@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+import warnings
+
 import cupy as cp
 import dask.array
 
@@ -26,30 +28,13 @@ class RandomForestClassifier(
     classifiers in an ensemble. This uses Dask to partition data over multiple
     GPUs (possibly on different nodes).
 
-    This implementation makes the following assumptions:
-     * The set of Dask workers used between instantiation, fit, \
-        and predict are all consistent
-     * Training data comes in the form of cuDF dataframes or Dask Arrays \
-        distributed so that each worker has at least one partition.
-
-    The distributed algorithm uses an *embarrassingly-parallel*
-    approach. For a forest with `N` trees being built on `w` workers, each
-    worker simply builds `N/w` trees on the data it has available
-    locally. In many cases, partitioning the data so that each worker
-    builds trees on a subset of the total dataset works well, but
-    it generally requires the data to be well-shuffled in advance.
-    Alternatively, callers can replicate all of the data across
-    workers so that ``rf.fit`` receives `w` partitions, each containing the
-    same data. This would produce results approximately identical to
-    single-GPU fitting.
-
-    Please check the single-GPU implementation of Random Forest
-    classifier for more information about the underlying algorithm.
+    During fitting, all workers that hold training rows collectively build the
+    same forest from the complete distributed dataset.
 
     Parameters
     ----------
     n_estimators : int (default = 100)
-                   total number of trees in the forest (not per-worker)
+                   total number of trees in the forest
     split_criterion : int or string (default = ``0`` (``'gini'``))
         The criterion used to split nodes.\n
          * ``0`` or ``'gini'`` for gini impurity
@@ -106,20 +91,17 @@ class RandomForestClassifier(
          * If type ``float``, then ``min_samples_split`` represents a fraction
            and ``ceil(min_samples_split * n_rows)`` is the minimum number of
            samples for each split.
-
-    n_streams : int (default = 4 )
-        Number of parallel streams used for forest building
+    n_streams : int
+        Deprecated. Distributed training currently builds trees serially to
+        preserve collective order.
     workers : optional, list of strings
         Dask addresses of workers to use for computation.
         If None, all available Dask workers will be used.
     random_state : int (default = None)
         Seed for the random number generator. Unseeded by default.
-
-    ignore_empty_partitions: Boolean (default = False)
-        Specify behavior when a worker does not hold any data
-        while splitting. When True, it returns the results from workers
-        with data (the number of trained estimators will be less than
-        n_estimators) When False, throws a RuntimeError.
+    ignore_empty_partitions: optional, boolean
+        Deprecated. This parameter no longer has any effect and
+        will be removed in release 26.12.
 
     Examples
     --------
@@ -135,7 +117,7 @@ class RandomForestClassifier(
         verbose=False,
         n_estimators=100,
         random_state=None,
-        ignore_empty_partitions=False,
+        ignore_empty_partitions=None,
         **kwargs,
     ):
         super().__init__(client=client, verbose=verbose, **kwargs)
@@ -155,12 +137,11 @@ class RandomForestClassifier(
             n_estimators=n_estimators, random_state=random_state, **kwargs
         )
 
-    def fit(self, X, y, broadcast_data=False):
+    def fit(self, X, y, broadcast_data=None):
         """
         Fit the input data with a Random Forest classifier
 
-        IMPORTANT: X is expected to be partitioned with at least one partition
-        on each Dask worker being used by the forest (self.workers).
+        Only workers holding one or more training rows participate in fitting.
 
         If a worker has multiple data partitions, they will be concatenated
         before fitting, which will lead to additional memory usage. To minimize
@@ -196,27 +177,48 @@ class RandomForestClassifier(
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             Labels of training examples.
             **y must be partitioned the same way as X**
-        broadcast_data : bool, optional (default = False)
-            When set to True, the whole dataset is broadcasted
-            to train the workers, otherwise each worker
-            is trained on its partition
+        broadcast_data : bool, optional
+            Deprecated. This parameter no longer has effect and will
+            be removed in release 26.12.
         """
-        # Handle both Dask Arrays and Dask Series/DataFrames
-        if isinstance(y, dask.array.Array):
-            # For Dask Arrays, use dask.array.unique
-            unique_vals = dask.array.unique(y).compute()
-            self.unique_classes = cp.sort(cp.asarray(unique_vals))
-        else:
-            # For Dask Series/DataFrames, use .unique() method
-            self.unique_classes = cp.asarray(
-                y.unique().compute().sort_values(ignore_index=True)
+        if broadcast_data is not None:
+            warnings.warn(
+                (
+                    "broadcast_data parameter is no longer valid "
+                    "and will be removed in release 26.12."
+                ),
+                FutureWarning,
+                stacklevel=2,
             )
-        self.num_classes = len(self.unique_classes)
+        if isinstance(y, dask.array.Array):
+            # Dask implements ``unique(return_counts=True)`` using structured
+            # arrays, which CuPy does not support. Compute the unique labels
+            # first, then count all labels together with scalar reductions.
+            unique_vals = cp.asarray(dask.array.unique(y).compute())
+            if unique_vals.size == 0:
+                class_counts = cp.empty(0, dtype=cp.int64)
+            else:
+                class_counts = dask.array.stack(
+                    [
+                        (y == class_value).sum()
+                        for class_value in cp.asnumpy(unique_vals)
+                    ]
+                ).compute()
+                class_counts = cp.asarray(class_counts)
+            order = cp.argsort(unique_vals)
+            classes = cp.asnumpy(unique_vals[order])
+            class_counts = cp.asnumpy(class_counts[order])
+        else:
+            counts_by_class = y.value_counts().compute().sort_index()
+            classes = cp.asnumpy(cp.asarray(counts_by_class.index))
+            class_counts = cp.asnumpy(cp.asarray(counts_by_class))
+        self.classes_ = classes
         self._set_internal_model(None)
         self._fit(
             model=self.rfs,
             dataset=(X, y),
-            broadcast_data=broadcast_data,
+            classes=classes,
+            class_counts=class_counts,
         )
         return self
 
@@ -228,7 +230,7 @@ class RandomForestClassifier(
         default_chunk_size=None,
         align_bytes=None,
         delayed=True,
-        broadcast_data=False,
+        broadcast_data=None,
     ):
         """
         Predicts the labels for X.
@@ -241,7 +243,7 @@ class RandomForestClassifier(
         threshold : float (default = 0.5)
             Threshold used for classification.
         layout : string (default = 'depth_first')
-            Specifies the in-memory layout of nodes in FIL forests. Options:
+            Specifies the in-memory layout of nodes in nvForest models. Options:
             'depth_first', 'layered', 'breadth_first'.
         default_chunk_size : int, optional (default = None)
             Determines how batches are further subdivided for parallel processing.
@@ -255,28 +257,25 @@ class RandomForestClassifier(
         delayed : bool (default = True)
             Whether to do a lazy prediction (and return Delayed objects) or an
             eagerly executed one.
-        broadcast_data : bool (default = False)
-            If False, the trees are merged in a single model before the workers
-            perform inference on their share of the prediction workload.
-            When True, trees aren't merged. Instead each worker infers on the
-            whole prediction workload using its available trees. The results are
-            reduced on the client. May be advantageous when the model is larger
-            than the data used for inference.
+        broadcast_data : bool, optional
+            Deprecated. This parameter no longer has effect and will
+            be removed in release 26.12.
 
         Returns
         -------
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             The predicted class labels.
         """
-        if broadcast_data:
-            return self.partial_inference(
-                X,
-                layout=layout,
-                default_chunk_size=default_chunk_size,
-                align_bytes=align_bytes,
-                delayed=delayed,
+        if broadcast_data is not None:
+            warnings.warn(
+                (
+                    "broadcast_data parameter is no longer valid "
+                    "and will be removed in release 26.12."
+                ),
+                FutureWarning,
+                stacklevel=2,
             )
-        return self._predict_using_fil(
+        return self._predict_using_nvforest(
             X,
             threshold=threshold,
             layout=layout,
@@ -284,26 +283,6 @@ class RandomForestClassifier(
             align_bytes=align_bytes,
             delayed=delayed,
         )
-
-    def partial_inference(self, X, delayed, **kwargs):
-        partial_infs = self._partial_inference(
-            X=X, op_type="classification", delayed=delayed, **kwargs
-        )
-        worker_weights = self._get_workers_weights()
-        merged_votes = dask.array.average(
-            partial_infs, axis=1, weights=worker_weights
-        )
-        pred_class_indices = merged_votes.argmax(axis=1)
-        unique_classes = self.unique_classes
-
-        pred_class = pred_class_indices.map_blocks(
-            lambda x: unique_classes[x],
-            meta=unique_classes[:0],
-        )
-        if delayed:
-            return pred_class
-        else:
-            return pred_class.persist()
 
     def predict_proba(self, X, delayed=True, **kwargs):
         """
@@ -326,8 +305,6 @@ class RandomForestClassifier(
         -------
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, n_classes)
         """
-        if self._get_internal_model() is None:
-            self._set_internal_model(self._concat_treelite_models())
         data = DistributedDataHandler.create(X, client=self.client)
         return self._predict_proba(
             X, delayed, output_collection_type=data.datatype, **kwargs
@@ -355,3 +332,9 @@ class RandomForestClassifier(
         params : dict of new params.
         """
         return self._set_params(**params)
+
+    @property
+    def oob_decision_function_(self):
+        raise NotImplementedError(
+            "oob_decision_function_ is not yet supported in Dask RandomForestClassifier"
+        )
