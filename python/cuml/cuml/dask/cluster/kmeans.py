@@ -132,14 +132,6 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
         ret = model.score(data, sample_weight=sample_weight)
         return ret
 
-    @staticmethod
-    def _check_normalize_sample_weight(sample_weight):
-        if sample_weight is not None:
-            n_samples = len(sample_weight)
-            scale = n_samples / sample_weight.sum()
-            sample_weight *= scale
-        return sample_weight
-
     def fit(self, X, sample_weight=None):
         """
         Fit a multi-node multi-GPU KMeans model
@@ -158,8 +150,6 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
             ndarray, cuda array interface compliant array like CuPy
 
         """
-
-        sample_weight = self._check_normalize_sample_weight(sample_weight)
 
         inputs = X if sample_weight is None else (X, sample_weight)
 
@@ -353,8 +343,6 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
 
         Inertial score
         """
-
-        sample_weight = self._check_normalize_sample_weight(sample_weight)
 
         scores = self._run_parallel_func(
             KMeans._score,
