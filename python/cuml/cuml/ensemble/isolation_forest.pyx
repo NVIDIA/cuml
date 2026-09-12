@@ -18,6 +18,7 @@ import cupy as cp
 import numpy as np
 import nvforest
 import treelite
+from cuda.core import Stream
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
@@ -30,7 +31,7 @@ from cuml.internals.validation import (
     check_random_seed,
 )
 
-from libc.stddef cimport size_t
+from cuda.bindings.cyruntime cimport cudaStream_t
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
@@ -663,13 +664,17 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         """
         check_is_fitted(self)
 
+        handle = get_handle()
+        cdef handle_t* handle_ = <handle_t*> <uintptr_t> handle.getHandle()
+        cdef cudaStream_t stream = handle_.get_stream()
+
         return nvforest.load_from_treelite_model(
             tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
             device="gpu",
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,
-            handle=get_handle(),
+            stream=Stream.from_handle(<uintptr_t>stream),
         )
 
     def _get_inference_nvforest_model(self):
