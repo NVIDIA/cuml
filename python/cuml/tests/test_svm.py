@@ -445,6 +445,17 @@ def test_svr_skl_cmp(params, dataset, n_rows, n_cols):
     compare_svr(cuSVR, sklSVR, X_test, y_test)
 
 
+def test_svr_poly_zero_delta_working_set():
+    X = np.arange(5, dtype=np.float32).reshape(-1, 1)
+    y = np.arange(5, dtype=np.float32)
+
+    model = cu_svm.SVR(kernel="poly", degree=10).fit(X, y)
+    pred = np.asarray(model.predict(np.array([[2.0]], dtype=np.float32)))
+
+    assert pred.shape == (1,)
+    assert np.isfinite(pred).all()
+
+
 def test_svr_skl_cmp_weighted():
     """Compare to Sklearn SVR, use sample weights"""
     X, y = make_regression(
