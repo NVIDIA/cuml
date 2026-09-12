@@ -513,6 +513,19 @@ class KernelCache {
   }
 
   /**
+   * @brief Finish processing a working set without updating the cache
+   *
+   * A block solve can legitimately produce no coefficient updates. In that
+   * case there is no full kernel tile to process, but the working-set state
+   * still needs to be closed before another working set can be initialized.
+   */
+  void FinishWorkingSet()
+  {
+    ASSERT(cache_state == CacheState::WS_INITIALIZED, "Working set not initialized!");
+    cache_state = CacheState::READY;
+  }
+
+  /**
    * @brief Retrieve kernel indices
    *
    * Returns the reordered (!) workspace indices corresponding

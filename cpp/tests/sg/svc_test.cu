@@ -309,6 +309,33 @@ TYPED_TEST_P(KernelCacheTest, EvalTest)
   }
 }
 
+TYPED_TEST_P(KernelCacheTest, FinishWorkingSetTest)
+{
+  KernelParams params{KernelType::LINEAR, 3, 1, 0};
+  auto dense_view =
+    raft::make_device_strided_matrix_view<TypeParam, int, raft::layout_f_contiguous>(
+      this->x_dev.data(), this->n_rows, this->n_cols, 0);
+  GramMatrixBase<TypeParam>* kernel = KernelFactory<TypeParam>::create(ML::matrix::to_cuvs(params));
+  KernelCache<TypeParam, raft::device_matrix_view<TypeParam, int, raft::layout_stride>> cache(
+    this->handle,
+    dense_view,
+    this->n_rows,
+    this->n_cols,
+    this->n_ws,
+    kernel,
+    static_cast<cuvs::distance::kernels::KernelType>(params.kernel),
+    0,
+    C_SVC);
+
+  cache.InitWorkingSet(this->ws_idx_dev.data());
+  cache.FinishWorkingSet();
+
+  // A new working set can be initialized after a solve with no coefficient updates.
+  cache.InitWorkingSet(this->ws_idx_dev.data());
+  cache.FinishWorkingSet();
+  delete kernel;
+}
+
 TYPED_TEST_P(KernelCacheTest, SvcCacheEvalTest)
 {
   KernelParams param{KernelType::LINEAR, 3, 1, 0};
@@ -490,7 +517,8 @@ TYPED_TEST_P(KernelCacheTest, SvrCacheEvalTest)
   }
 }
 
-REGISTER_TYPED_TEST_CASE_P(KernelCacheTest, EvalTest, SvcCacheEvalTest, SvrCacheEvalTest);
+REGISTER_TYPED_TEST_CASE_P(
+  KernelCacheTest, EvalTest, FinishWorkingSetTest, SvcCacheEvalTest, SvrCacheEvalTest);
 INSTANTIATE_TYPED_TEST_CASE_P(My, KernelCacheTest, FloatTypes);
 
 template <typename math_t>
