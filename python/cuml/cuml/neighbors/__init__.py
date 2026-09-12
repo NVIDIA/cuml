@@ -6,6 +6,7 @@
 from cuml.neighbors.kernel_density import VALID_KERNELS, KernelDensity
 from cuml.neighbors.kneighbors_classifier import KNeighborsClassifier
 from cuml.neighbors.kneighbors_regressor import KNeighborsRegressor
+from cuml.neighbors.local_outlier_factor import LocalOutlierFactor
 from cuml.neighbors.nearest_neighbors import NearestNeighbors, kneighbors_graph
 
 VALID_METRICS = {
