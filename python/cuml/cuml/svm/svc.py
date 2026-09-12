@@ -8,7 +8,6 @@ from cuml.common.classification import process_class_weight
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse
 from cuml.internals.interop import UnsupportedOnCPU, UnsupportedOnGPU
-from cuml.internals.logger import warn
 from cuml.internals.mixins import ClassifierMixin
 from cuml.internals.outputs import ClassLabels, mlfunc
 from cuml.internals.validation import check_inputs, check_is_fitted
@@ -289,13 +288,13 @@ class SVC(ClassifierMixin, SVMBase):
         self._intercept_ = value
 
     def _fit_multiclass(self, X, y, sample_weight):
-        if sample_weight is not None:
-            warn(
-                "Sample weights are currently ignored for multi class classification"
-            )
-
         params = self.get_params()
         decision_function_shape = params.pop("decision_function_shape")
+        # ``y`` is label encoded before reaching the multiclass wrapper.
+        # Passing the original class-weight mapping to the binary estimators
+        # would incorrectly apply it to their temporary labels 0/1. The
+        # weights have already been incorporated into ``sample_weight``.
+        params["class_weight"] = None
         wrappers = {"ovo": OneVsOneClassifier, "ovr": OneVsRestClassifier}
         if (multiclass_cls := wrappers.get(decision_function_shape)) is None:
             raise ValueError(
@@ -307,7 +306,7 @@ class SVC(ClassifierMixin, SVMBase):
             verbose=self.verbose,
             output_type=self.output_type,
         )
-        self._multiclass.fit(X, y)
+        self._multiclass.fit(X, y, sample_weight=sample_weight)
 
         # if using one-vs-one we align support_ indices to those of
         # full dataset

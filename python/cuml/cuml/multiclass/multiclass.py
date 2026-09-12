@@ -2,12 +2,74 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
+import numpy as np
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
 from cuml.internals.mixins import ClassifierMixin
 from cuml.internals.outputs import exit_internal_context, mlfunc
 from cuml.internals.validation import check_inputs
+
+
+def _fit_weighted_ovo(wrapper, X, y, sample_weight):
+    """Fit one weighted estimator for each pair of classes."""
+    from sklearn.base import clone
+    from sklearn.utils.multiclass import check_classification_targets
+
+    check_classification_targets(y)
+    classes = np.unique(y)
+    if len(classes) < 2:
+        raise ValueError(
+            "OneVsOneClassifier can not be fit when only one class is present."
+        )
+
+    estimators = []
+    pairwise_indices = []
+    pairwise = wrapper.__sklearn_tags__().input_tags.pairwise
+    for i, class_i in enumerate(classes):
+        for class_j in classes[i + 1 :]:
+            mask = (y == class_i) | (y == class_j)
+            indices = np.flatnonzero(mask)
+            X_binary = X[indices]
+            if pairwise:
+                X_binary = X_binary[:, indices]
+            y_binary = (y[indices] == class_j).astype(np.int32)
+            estimators.append(
+                clone(wrapper.estimator).fit(
+                    X_binary,
+                    y_binary,
+                    sample_weight=sample_weight[indices],
+                )
+            )
+            pairwise_indices.append(indices)
+
+    wrapper.classes_ = classes
+    wrapper.estimators_ = estimators
+    wrapper.pairwise_indices_ = pairwise_indices if pairwise else None
+    return wrapper
+
+
+def _fit_weighted_ovr(wrapper, X, y, sample_weight):
+    """Fit one weighted estimator for each class against all other classes."""
+    from sklearn.base import clone
+    from sklearn.preprocessing import LabelBinarizer
+    from sklearn.utils.multiclass import check_classification_targets
+
+    check_classification_targets(y)
+    label_binarizer = LabelBinarizer(sparse_output=False)
+    Y = label_binarizer.fit_transform(y)
+
+    wrapper.label_binarizer_ = label_binarizer
+    wrapper.classes_ = label_binarizer.classes_
+    wrapper.estimators_ = [
+        clone(wrapper.estimator).fit(
+            X,
+            y_binary,
+            sample_weight=sample_weight,
+        )
+        for y_binary in Y.T
+    ]
+    return wrapper
 
 
 class _BaseMulticlassClassifier(ClassifierMixin, Base):
@@ -33,7 +95,7 @@ class _BaseMulticlassClassifier(ClassifierMixin, Base):
 
     @generate_docstring(y="dense_anydtype")
     @mlfunc(set_input_type=True)
-    def fit(self, X, y) -> "_BaseMulticlassClassifier":
+    def fit(self, X, y, sample_weight=None) -> "_BaseMulticlassClassifier":
         """
         Fit a multiclass classifier.
         """
@@ -47,10 +109,12 @@ class _BaseMulticlassClassifier(ClassifierMixin, Base):
             raise ValueError(
                 f"Expected `strategy` to be one of {list(opts)}, got {self.strategy}"
             )
-        X, y = check_inputs(
+
+        X, y, sample_weight = check_inputs(
             self,
             X,
             y,
+            sample_weight,
             dtype=("float32", "float64"),
             y_dtype=None,
             accept_sparse=True,
@@ -59,7 +123,20 @@ class _BaseMulticlassClassifier(ClassifierMixin, Base):
         )
 
         with exit_internal_context():
-            wrapper = cls(self.estimator, n_jobs=None).fit(X, y)
+            wrapper = cls(self.estimator, n_jobs=None)
+            if sample_weight is None:
+                wrapper.fit(X, y)
+            elif self.strategy == "ovo":
+                wrapper = _fit_weighted_ovo(wrapper, X, y, sample_weight)
+            else:
+                wrapper = _fit_weighted_ovr(wrapper, X, y, sample_weight)
+
+            if hasattr(wrapper.estimators_[0], "n_features_in_"):
+                wrapper.n_features_in_ = wrapper.estimators_[0].n_features_in_
+            if hasattr(wrapper.estimators_[0], "feature_names_in_"):
+                wrapper.feature_names_in_ = wrapper.estimators_[
+                    0
+                ].feature_names_in_
 
         self.multiclass_estimator = wrapper
         return self
@@ -114,14 +191,13 @@ class _BaseMulticlassClassifier(ClassifierMixin, Base):
 
 class OneVsRestClassifier(_BaseMulticlassClassifier):
     """
-    Wrapper around Sckit-learn's class with the same name. The input can be
-    any kind of cuML compatible array, and the output type follows cuML's
-    output type configuration rules.
+    Fit one binary classifier per class. The input can be any kind of cuML
+    compatible array, and the output type follows cuML's output type
+    configuration rules.
 
-    Before passing the data to scikit-learn, it is converted to host (numpy)
-    array. Under the hood the data is partitioned for binary classification,
-    and it is transformed back to the device by the cuML estimator. These
-    copies back and forth the device and the host have some overhead. For more
+    The input is converted to a host (NumPy) array and partitioned into binary
+    classification problems. Each cuML estimator transforms its partition
+    back to the device. These host/device copies have some overhead. For more
     details see issue https://github.com/NVIDIA/cuml/issues/2876.
 
     For documentation see `scikit-learn's OneVsRestClassifier
@@ -161,14 +237,13 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
 
 class OneVsOneClassifier(_BaseMulticlassClassifier):
     """
-    Wrapper around Sckit-learn's class with the same name. The input can be
-    any kind of cuML compatible array, and the output type follows cuML's
-    output type configuration rules.
+    Fit one binary classifier per pair of classes. The input can be any kind
+    of cuML compatible array, and the output type follows cuML's output type
+    configuration rules.
 
-    Before passing the data to scikit-learn, it is converted to host (numpy)
-    array. Under the hood the data is partitioned for binary classification,
-    and it is transformed back to the device by the cuML estimator. These
-    copies back and forth the device and the host have some overhead. For more
+    The input is converted to a host (NumPy) array and partitioned into binary
+    classification problems. Each cuML estimator transforms its partition
+    back to the device. These host/device copies have some overhead. For more
     details see issue https://github.com/NVIDIA/cuml/issues/2876.
 
     For documentation see `scikit-learn's OneVsOneClassifier
