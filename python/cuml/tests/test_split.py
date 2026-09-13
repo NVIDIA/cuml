@@ -130,20 +130,28 @@ def test_kfold_dataframe() -> None:
 def test_kfold_matches_sklearn_index_order() -> None:
     """Regression test for NVIDIA/cuml#8631.
 
-    With shuffle=True, KFold must return the train and test indices in the
-    same sorted order as scikit-learn for identical parameters (the shuffle
-    only determines fold membership, never the ordering of the indices).
+    With shuffle=True, KFold must return the train and test indices in
+    sorted order like scikit-learn: the shuffle only determines fold
+    membership, never the ordering of the indices. Membership itself is
+    not asserted here because cuML shuffles with CuPy's RNG, which is
+    not guaranteed to generate the same permutation as NumPy's RNG.
     """
-    X = np.arange(6).reshape(3, 2)
+    n_samples = 3
+    X = np.arange(n_samples * 2).reshape(n_samples, 2)
+    kfold = KFold(n_splits=3, shuffle=True, random_state=1)
 
-    expected = [
-        (cp.array([1, 2]), cp.array([0])),
-        (cp.array([0, 1]), cp.array([2])),
-        (cp.array([0, 2]), cp.array([1])),
-    ]
-    splits = KFold(n_splits=3, shuffle=True, random_state=1).split(X)
+    for train_idx, test_idx in kfold.split(X):
+        # Indices must come out sorted, exactly like scikit-learn.
+        cp.testing.assert_array_equal(train_idx, cp.sort(train_idx))
+        cp.testing.assert_array_equal(test_idx, cp.sort(test_idx))
+        # Train and test indices must partition the sample set.
+        combined = cp.sort(cp.concatenate([train_idx, test_idx]))
+        cp.testing.assert_array_equal(combined, cp.arange(n_samples))
+
+    # Identical parameters must produce identical splits.
+    first = [(t.copy(), s.copy()) for t, s in kfold.split(X)]
     for (train_idx, test_idx), (exp_train, exp_test) in zip(
-        splits, expected
+        kfold.split(X), first
     ):
         cp.testing.assert_array_equal(train_idx, exp_train)
         cp.testing.assert_array_equal(test_idx, exp_test)
