@@ -209,13 +209,14 @@ texinfo_documents = [
     ),
 ]
 
+with open("../../RAPIDS_BRANCH", "r") as f:
+    branch = f.read().strip()
+intersphinx_version = "latest" if branch == "main" else version
+
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    # Versioned URLs keep intersphinx links immutable in archived docs:
-    # https://github.com/rapidsai/build-planning/issues/320
-    # rapids-pre-commit-hooks: disable-next-line
     "cudf": (
-        f"https://docs.nvidia.com/cudf/{version}/",
+        f"https://docs.nvidia.com/cudf/{intersphinx_version}/",
         None,
     ),
     "numpy": ("https://numpy.org/doc/stable/", None),
@@ -228,9 +229,8 @@ intersphinx_mapping = {
         "https://nvidia.github.io/cuda-python/cuda-core/latest/",
         None,
     ),
-    # rapids-pre-commit-hooks: disable-next-line
     "rmm": (
-        f"https://docs.nvidia.com/rmm/{version}/",
+        f"https://docs.nvidia.com/rmm/{intersphinx_version}/",
         None,
     ),
 }
