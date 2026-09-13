@@ -51,6 +51,8 @@ class RandomForestClassifier(
          * If ``True``, each tree in the forest is built on a bootstrapped
            sample with replacement.
          * If ``False``, the whole dataset is used to build each tree.
+        Weighted bootstrapping through ``sample_weight`` or ``class_weight``
+        is not yet supported for distributed random forests.
     max_samples : float (default = 1.0)
         Ratio of dataset rows used while fitting each tree.
     max_depth : int or None (default = None)
@@ -137,7 +139,7 @@ class RandomForestClassifier(
             n_estimators=n_estimators, random_state=random_state, **kwargs
         )
 
-    def fit(self, X, y, broadcast_data=None):
+    def fit(self, X, y, broadcast_data=None, sample_weight=None):
         """
         Fit the input data with a Random Forest classifier
 
@@ -177,10 +179,27 @@ class RandomForestClassifier(
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             Labels of training examples.
             **y must be partitioned the same way as X**
+        sample_weight : array-like, optional
+            Sample weights are not yet supported by distributed random
+            forests.
         broadcast_data : bool, optional
             Deprecated. This parameter no longer has effect and will
             be removed in release 26.12.
         """
+        if self.kwargs.get("bootstrap", True) and (
+            sample_weight is not None
+            or self.kwargs.get("class_weight") is not None
+        ):
+            raise NotImplementedError(
+                "Weighted bootstrapping is not yet supported for distributed "
+                "random forests. Set bootstrap=False or do not provide "
+                "sample_weight or class_weight."
+            )
+        if sample_weight is not None:
+            raise NotImplementedError(
+                "sample_weight is not yet supported for distributed random "
+                "forests"
+            )
         if broadcast_data is not None:
             warnings.warn(
                 (
@@ -331,7 +350,9 @@ class RandomForestClassifier(
         ----------
         params : dict of new params.
         """
-        return self._set_params(**params)
+        self._set_params(**params)
+        self.kwargs.update(params)
+        return self
 
     @property
     def oob_decision_function_(self):

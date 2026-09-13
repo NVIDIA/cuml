@@ -470,7 +470,7 @@ def test_rf_classification_zero_class_weight_on_one_worker(client):
     model = cuRFC_mg(
         workers=workers,
         n_estimators=1,
-        bootstrap=True,
+        bootstrap=False,
         max_depth=1,
         n_bins=2,
         random_state=42,
@@ -486,6 +486,61 @@ def test_rf_classification_zero_class_weight_on_one_worker(client):
     assert "Rank-local sample weights must sum to a positive value" in str(
         exc_info.value
     )
+
+
+@pytest.mark.parametrize(
+    "model_cls,model_kwargs,fit_kwargs",
+    [
+        pytest.param(
+            cuRFC_mg,
+            {"class_weight": "balanced"},
+            {},
+            id="classifier-class-weight",
+        ),
+        pytest.param(
+            cuRFC_mg,
+            {},
+            {"sample_weight": np.ones(4, dtype=np.float64)},
+            id="classifier-sample-weight",
+        ),
+        pytest.param(
+            cuRFR_mg,
+            {},
+            {"sample_weight": np.ones(4, dtype=np.float64)},
+            id="regressor-sample-weight",
+        ),
+        pytest.param(
+            cuRFC_mg,
+            {"class_weight": "balanced"},
+            {"sample_weight": np.ones(4, dtype=np.float64)},
+            id="classifier-sample-and-class-weight",
+        ),
+    ],
+)
+def test_rf_weighted_bootstrap_raises(
+    client, model_cls, model_kwargs, fit_kwargs
+):
+    X = dask_cudf.from_cudf(
+        cudf.DataFrame(np.arange(8, dtype=np.float32).reshape(4, 2)),
+        npartitions=1,
+    )
+    y_dtype = np.int32 if model_cls is cuRFC_mg else np.float32
+    y = dask_cudf.from_cudf(
+        cudf.Series(np.arange(4, dtype=y_dtype) % 2), npartitions=1
+    )
+    model = model_cls(
+        n_estimators=1,
+        bootstrap=True,
+        max_depth=1,
+        n_bins=2,
+        **model_kwargs,
+    )
+
+    with pytest.raises(
+        NotImplementedError,
+        match="Weighted bootstrapping is not yet supported",
+    ):
+        model.fit(X, y, **fit_kwargs)
 
 
 @pytest.mark.parametrize("mode", ["classification", "regression"])
