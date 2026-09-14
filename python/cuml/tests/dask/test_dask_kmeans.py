@@ -394,6 +394,8 @@ def test_weighted_inertia_and_score(client):
         model.score(score_X, sample_weight=score_weight),
         -8.0,
     )
+    with pytest.raises(ValueError, match="same row chunks as X"):
+        model.score(score_X, sample_weight=score_weight.rechunk((2,)))
 
 
 @pytest.mark.mg
@@ -552,6 +554,7 @@ def test_out_of_core_host_fit(
     labels = model.fit_predict(X, **fit_kwargs).compute()
     labels = cp.asnumpy(cp.asarray(labels)).reshape(-1)
 
+    assert model.labels_.chunks[0] == X.chunks[0]
     assert labels.shape[0] == n_rows
     assert model.cluster_centers_.shape == (n_clusters, n_cols)
     assert sk_adjusted_rand_score(y_np, labels) >= 0.99
