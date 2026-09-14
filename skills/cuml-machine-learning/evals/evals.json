@@ -1,0 +1,64 @@
+{
+  "skill_name": "cuml-machine-learning",
+  "evals": [
+    {
+      "id": "cuml-ml-explicit-temporal-classifier",
+      "prompt": "Use the cuML machine-learning skill to repair the provided monthly classifier. Modify code/split_contract.py and code/train.py so training uses only labels available before the supplied origin, scoring uses exactly that prediction_origin, StandardScaler is fit only on training rows, and output retains unique account_id plus prediction_origin keys with finite probabilities. Keep split_rows backend-compatible with pandas and cuDF. Run `python3 code/smoke_split.py` and a syntax check for train.py; if cuML/GPU execution is unavailable, report that blocker instead of claiming a GPU run.",
+      "expected_output": "The agent reads the skill, replaces the random split with explicit label-availability and prediction-origin masks, fits preprocessing on training rows and only transforms scoring rows, trains direct cuML LogisticRegression, and returns a keyed DataFrame with account_id, prediction_origin, and probabilities. It runs the CPU split smoke and Python syntax check, reports results, and does not claim the CPU reference proves GPU execution.",
+      "assertions": [
+        "Reads cuml-machine-learning/SKILL.md",
+        "Uses label_available_at and prediction_origin masks instead of random row splitting",
+        "Fits StandardScaler only on training data and transforms scoring data",
+        "Returns unique account_id and prediction_origin keys with finite bounded probabilities",
+        "Runs the split smoke and syntax checks and reports any GPU blocker"
+      ],
+      "expected_skill": "cuml-machine-learning",
+      "expected_script": null,
+      "files": [
+        "files/temporal-classifier/code/split_contract.py",
+        "files/temporal-classifier/code/train.py",
+        "files/temporal-classifier/code/smoke_split.py"
+      ]
+    },
+    {
+      "id": "cuml-ml-implicit-accel-fallback",
+      "prompt": "I ran an sklearn Ridge pipeline through python -m cuml.accel and it completed, so can I report that training ran on GPU and is 20x faster? The model uses positive=True.",
+      "expected_output": "The agent does not infer GPU execution from completion. It recognizes positive=True as a current Ridge fallback condition, runs or recommends INFO logging and the cuml.accel function profiler, retains the fallback reason, and measures a fair end-to-end comparison only if changing the constraint is semantically permitted. It does not remove positivity just to obtain a speedup and does not use line-profiler timing as the benchmark.",
+      "assertions": [
+        "Requires cuml.accel dispatch or profiler evidence",
+        "Recognizes positive=True as a current Ridge CPU-fallback condition",
+        "Does not change a model constraint solely for acceleration",
+        "Separates profiler diagnosis from fair benchmark timing"
+      ],
+      "expected_skill": "cuml-machine-learning",
+      "expected_script": null,
+      "files": []
+    },
+    {
+      "id": "cuml-ml-contextual-clustering",
+      "prompt": "In a telemetry project, cluster 30 million device vectors with cuML KMeans. Two runs use different numeric cluster IDs and assign 7% of devices differently. Define how to decide whether the GPU result is acceptable.",
+      "expected_output": "The agent notes that numeric cluster IDs are arbitrary and compares partitions with a permutation-invariant metric such as adjusted Rand index. It also examines stability across declared seeds/samples, feature scaling, K choice, intrinsic quality and downstream/domain usefulness. It does not decide from elementwise labels alone and retains stable device keys in outputs.",
+      "assertions": [
+        "Treats cluster label numbers as arbitrary permutations",
+        "Uses a permutation-invariant partition metric",
+        "Evaluates stability, scaling, hyperparameters, and task usefulness",
+        "Returns one cluster result per stable device key"
+      ],
+      "expected_skill": "cuml-machine-learning",
+      "expected_script": null,
+      "files": []
+    },
+    {
+      "id": "cuml-ml-negative-descriptive-etl",
+      "prompt": "Read parquet with cuDF, calculate total revenue by region, and write the grouped table. No prediction, clustering, or representation learning is needed.",
+      "expected_output": "This request should not activate cuml-machine-learning. It is data preparation and descriptive aggregation, so the agent routes it to cuDF and does not invent a model-fitting step.",
+      "assertions": [
+        "Routes the request to cuDF",
+        "Does not invent a machine-learning task"
+      ],
+      "expected_skill": null,
+      "expected_script": null,
+      "files": []
+    }
+  ]
+}
