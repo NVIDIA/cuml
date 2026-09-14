@@ -1,6 +1,6 @@
 ---
 name: cuml-machine-learning
-version: "26.10.00"
+version: "1.0.0"
 description: Use for cuML model design, evaluation, cuml.accel migration, and multi-GPU estimators. Do NOT use for data-only ETL or deep-learning training.
 license: Apache-2.0
 metadata:

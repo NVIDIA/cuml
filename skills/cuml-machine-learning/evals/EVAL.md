@@ -1,5 +1,7 @@
 # cuML machine-learning evaluation guidance
 
+Assessment evidence is produced with [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator); CPU semantic checks remain distinct from cuML/GPU execution evidence.
+
 ## Questions
 - Include one coding-agent task that repairs temporal leakage, training-only preprocessing, and keyed output.
 - Include accelerator fallback, unsupervised evaluation, and negative data-only cases.

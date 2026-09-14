@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Starter direct-cuML classifier with intentional leakage and key loss."""
@@ -16,7 +16,9 @@ FEATURES = ["balance", "payments_30d", "days_since_contact"]
 def fit_and_score(examples, origin):
     """Fit on eligible history and return keyed scores for ``origin``."""
     # BUG: this learns scaling from training, scoring, and future rows.
-    X_all = StandardScaler().fit_transform(examples[FEATURES].astype("float32"))
+    X_all = StandardScaler().fit_transform(
+        examples[FEATURES].astype("float32")
+    )
     prepared = examples.copy()
     prepared[FEATURES] = X_all
 

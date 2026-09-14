@@ -1,6 +1,6 @@
 # cuML Execution and Evaluation Patterns
 
-These patterns are grounded in the cuML 26.10 source tree. Check the installed API and [`cuml.accel` compatibility documentation](https://docs.nvidia.com/cuml/cuml-accel/compatibility/) because estimator coverage, fallback conditions, and supported dependency versions evolve.
+These patterns are grounded in the current cuML source tree. Check the installed API and [`cuml.accel` compatibility documentation](https://docs.nvidia.com/cuml/cuml-accel/compatibility/) because estimator coverage, fallback conditions, and supported dependency versions evolve.
 
 ## Path selection
 
