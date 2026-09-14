@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -56,7 +56,7 @@ def _env_data_dir() -> pathlib.Path:
         raise ValueError(
             "Set DATASET_DIR to the root directory containing datasets (e.g., directories with base.fbin).\n"
             "Datasets can be downloaded with the following command `python -m cuvs_bench.get_dataset --dataset <dataset_name> --normalize`\n"
-            "For more information, see https://docs.rapids.ai/api/cuvs/nightly/cuvs_bench"
+            "For more information, see https://docs.nvidia.com/cuvs/latest/cuvs_bench"
         )
     p = pathlib.Path(env)
     if not p.exists():

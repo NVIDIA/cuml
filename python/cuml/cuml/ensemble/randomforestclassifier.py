@@ -26,7 +26,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
 
     .. note:: You can export cuML Random Forest models and run predictions
       with them on machines without an NVIDIA GPUs. See
-      https://docs.rapids.ai/api/cuml/nightly/pickling_cuml_models.html
+      https://docs.nvidia.com/cuml/latest/pickling_cuml_models/
       for more details.
 
     Examples
