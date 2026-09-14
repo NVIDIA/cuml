@@ -51,7 +51,7 @@ def main():
         trusted = bool(
             smoke
             and hashlib.sha256(smoke.read_bytes()).hexdigest()
-            == "e5709d8287784537ad66280cec570b5714a8cb8af7968bd0c55d7862c812f022"
+            == "c61fb2dce36756772301fc9edd21f0de03b24bd8489594748cb491f72db4797c"
         )
         smoke_ok = (
             subprocess.run(
