@@ -260,6 +260,19 @@ const std::vector<TSNEInput> inputs = {
    0.98},
   {Diabetes::n_samples, Diabetes::n_features, Diabetes::diabetes, TSNE_INIT::PCA, 0.90}};
 
+TEST(TSNEValidationTest, NNeighborsIsClampedWhenKnnGraphIsCreated)
+{
+  constexpr int n = 2;
+
+  TSNEParams params;
+  params.n_neighbors = 3;
+
+  auto k_graph = make_tsne_knn_graph<int, float>(n, nullptr, nullptr, params);
+
+  EXPECT_EQ(params.n_neighbors, n);
+  EXPECT_EQ(k_graph.n_neighbors, n);
+}
+
 typedef TSNETest TSNETestF;
 TEST_P(TSNETestF, Result)
 {
