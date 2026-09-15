@@ -11,6 +11,8 @@
 # it was since modified to allow GPU acceleration.
 # This code is under BSD 3 clause license.
 # Authors mentioned above do not endorse or promote this production.
+from collections import defaultdict
+
 from cuml.internals.base import Base
 
 
@@ -101,7 +103,16 @@ class BaseComposition:
         for name in list(params.keys()):
             if '__' not in name and name in names:
                 self._replace_estimator(attr, name, params.pop(name))
-        # 3. Step parameters and other initialisation arguments
+        # 3. Nested step parameters: route ``<name>__<param>`` to the estimator
+        nested_params = defaultdict(dict)
+        for key in list(params.keys()):
+            name, delim, sub_key = key.partition('__')
+            if delim and name in names:
+                nested_params[name][sub_key] = params.pop(key)
+        estimators = dict(getattr(self, attr))
+        for name, sub_params in nested_params.items():
+            estimators[name].set_params(**sub_params)
+        # 4. Other initialisation arguments
         super().set_params(**params)
         return self
 
