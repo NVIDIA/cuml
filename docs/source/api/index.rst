@@ -290,6 +290,9 @@ Regression and Classification
    * - :obj:`~cuml.linear_model.Ridge`
      - Ridge regression.
      - :mod:`cuml.linear_model`
+   * - :obj:`~cuml.linear_model.RidgeCV`
+     - Ridge regression with built-in cross-validation.
+     - :mod:`cuml.linear_model`
    * - :obj:`~cuml.solvers.SGD`
      - Stochastic Gradient Descent solver.
      - :mod:`cuml.solvers`
