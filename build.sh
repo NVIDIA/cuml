@@ -20,7 +20,7 @@ ARGS=$*
 REPODIR=$(cd "$(dirname "$0")"; pwd)
 
 VALIDTARGETS="clean libcuml cuml cpp-mgtests prims bench prims-bench cppdocs pydocs"
-VALIDFLAGS="-v -g -n --allgpuarch --singlegpu --nolibcumltest --nvtx --show_depr_warn --codecov --ccache --configure-only --build-metrics --incl-cache-stats -h --help "
+VALIDFLAGS="-v -g -n --allgpuarch --singlegpu --nolibcumltest --nvtx --show_depr_warn --codecov --ccache --configure-only --static-treelite --build-metrics --incl-cache-stats -h --help "
 VALIDARGS="${VALIDTARGETS} ${VALIDFLAGS}"
 HELP="$0 [<target> ...] [<flag> ...]
  where <target> is:
@@ -154,6 +154,7 @@ LONG_ARGUMENT_LIST=(
     "ccache"
     "nolibcumltest"
     "configure-only"
+    "static-treelite"
     "build-metrics"
     "incl-cache-stats"
 )
