@@ -255,19 +255,21 @@ std::shared_ptr<thrust::device_vector<LabelT>> nvForestPredict(
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest, params.n_cols);
 
-  auto nvforest_model =
-    nvforest::import_from_treelite_handle(model,
-                                          nvforest::tree_layout::breadth_first,
-                                          128,
-                                          std::is_same_v<DataT, double>,
-                                          nvforest::device_type::gpu,
-                                          handle.get_device(),
-                                          handle.get_next_usable_stream().get());
+  auto device = handle.get_device();
+  auto stream = handle.get_next_usable_stream().get();
+
+  auto nvforest_model = nvforest::import_from_treelite_handle(model,
+                                                              nvforest::tree_layout::breadth_first,
+                                                              128,
+                                                              std::is_same_v<DataT, double>,
+                                                              nvforest::device_type::gpu,
+                                                              device,
+                                                              stream);
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
 
-  nvforest_model.predict(handle,
+  nvforest_model.predict(stream,
                          workspace->data().get(),
                          X_transpose,
                          params.n_rows,
@@ -327,19 +329,21 @@ auto nvForestPredictProba(const raft::handle_t& handle,
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest, params.n_cols);
 
-  auto nvforest_model =
-    nvforest::import_from_treelite_handle(model,
-                                          nvforest::tree_layout::breadth_first,
-                                          128,
-                                          std::is_same_v<DataT, double>,
-                                          nvforest::device_type::gpu,
-                                          handle.get_device(),
-                                          handle.get_next_usable_stream().get());
+  auto device = handle.get_device();
+  auto stream = handle.get_next_usable_stream().get();
+
+  auto nvforest_model = nvforest::import_from_treelite_handle(model,
+                                                              nvforest::tree_layout::breadth_first,
+                                                              128,
+                                                              std::is_same_v<DataT, double>,
+                                                              nvforest::device_type::gpu,
+                                                              device,
+                                                              stream);
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
 
-  nvforest_model.predict(handle,
+  nvforest_model.predict(stream,
                          pred->data().get(),
                          X_transpose,
                          params.n_rows,
@@ -932,19 +936,21 @@ TEST(RfTests, IntegerOverflow)
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest_ptr, n);
 
-  auto nvforest_model =
-    nvforest::import_from_treelite_handle(model,
-                                          nvforest::tree_layout::breadth_first,
-                                          128,
-                                          false,
-                                          nvforest::device_type::gpu,
-                                          handle.get_device(),
-                                          handle.get_next_usable_stream().get());
+  auto device = handle.get_device();
+  auto stream = handle.get_next_usable_stream().get();
+
+  auto nvforest_model = nvforest::import_from_treelite_handle(model,
+                                                              nvforest::tree_layout::breadth_first,
+                                                              128,
+                                                              false,
+                                                              nvforest::device_type::gpu,
+                                                              device,
+                                                              stream);
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
 
-  nvforest_model.predict(handle,
+  nvforest_model.predict(stream,
                          pred.data().get(),
                          X.data().get(),
                          m,

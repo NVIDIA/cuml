@@ -13,6 +13,7 @@ from typing import Literal
 import cupy as cp
 import numpy as np
 import treelite.sklearn
+from cuda.core import Stream
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import (
@@ -24,9 +25,11 @@ from cuml.internals.treelite import safe_treelite_call
 from cuml.internals.validation import check_is_fitted, check_random_seed
 from cuml.metrics import accuracy_score, r2_score
 
+from cuda.bindings.cyruntime cimport cudaStream_t
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
+
 import nvforest
 
 from cuml.internals.logger cimport level_enum
@@ -397,6 +400,10 @@ class BaseRandomForestModel(InteropMixin, Base):
             A forest inference model which can be used to perform
             inferencing on the random forest model.
         """
+        handle = get_handle()
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+        cdef cudaStream_t stream = handle_.get_stream()
+
         check_is_fitted(self)
 
         return nvforest.load_from_treelite_model(
@@ -405,7 +412,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,
-            handle=get_handle(),
+            stream=Stream.from_handle(<uintptr_t>stream),
         )
 
     def _fit_forest(self, X, y, sample_weight=None):

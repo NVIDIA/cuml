@@ -1,9 +1,10 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 
 rapids-logger "Downloading artifacts from previous jobs"
+source ./ci/use_conda_packages_from_prs.sh
 CPP_CHANNEL=$(rapids-download-from-github "$(rapids-artifact-name conda_cpp libcuml cuml --cuda "$RAPIDS_CUDA_VERSION")")
 PYTHON_CHANNEL=$(rapids-download-from-github "$(rapids-artifact-name conda_python cuml cuml --stable --cuda "$RAPIDS_CUDA_VERSION")")
 
@@ -21,6 +22,8 @@ rapids-dependency-file-generator \
   --output conda \
   --file-key docs \
   --matrix "cuda=${RAPIDS_CUDA_VERSION%.*};arch=$(arch);py=${RAPIDS_PY_VERSION}" \
+  --prepend-channel "${LIBNVFOREST_CHANNEL}" \
+  --prepend-channel "${NVFOREST_CHANNEL}" \
   --prepend-channel "${CPP_CHANNEL}" \
   --prepend-channel "${PYTHON_CHANNEL}" \
   | tee env.yaml
