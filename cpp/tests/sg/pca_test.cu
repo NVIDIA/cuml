@@ -42,7 +42,7 @@ class PcaTest : public ::testing::TestWithParam<PcaInputs<T>> {
  public:
   PcaTest()
     : params(::testing::TestWithParam<PcaInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       explained_vars(params.n_col, stream),
       explained_vars_ref(params.n_col, stream),
       components(params.n_col * params.n_col, stream),
@@ -193,7 +193,7 @@ TEST_P(PcaTestValF, Result)
                           explained_vars_ref.data(),
                           params.n_col,
                           MLCommon::CompareApprox<float>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<double> PcaTestValD;
@@ -203,7 +203,7 @@ TEST_P(PcaTestValD, Result)
                           explained_vars_ref.data(),
                           params.n_col,
                           MLCommon::CompareApprox<double>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<float> PcaTestLeftVecF;
@@ -213,7 +213,7 @@ TEST_P(PcaTestLeftVecF, Result)
                           components_ref.data(),
                           (params.n_col * params.n_col),
                           MLCommon::CompareApprox<float>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<double> PcaTestLeftVecD;
@@ -223,7 +223,7 @@ TEST_P(PcaTestLeftVecD, Result)
                           components_ref.data(),
                           (params.n_col * params.n_col),
                           MLCommon::CompareApprox<double>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<float> PcaTestTransDataF;
@@ -233,7 +233,7 @@ TEST_P(PcaTestTransDataF, Result)
                           trans_data_ref.data(),
                           (params.n_row * params.n_col),
                           MLCommon::CompareApprox<float>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<double> PcaTestTransDataD;
@@ -243,7 +243,7 @@ TEST_P(PcaTestTransDataD, Result)
                           trans_data_ref.data(),
                           (params.n_row * params.n_col),
                           MLCommon::CompareApprox<double>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<float> PcaTestDataVecSmallF;
@@ -253,7 +253,7 @@ TEST_P(PcaTestDataVecSmallF, Result)
                           data_back.data(),
                           (params.n_col * params.n_col),
                           MLCommon::CompareApprox<float>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<double> PcaTestDataVecSmallD;
@@ -263,7 +263,7 @@ TEST_P(PcaTestDataVecSmallD, Result)
                           data_back.data(),
                           (params.n_col * params.n_col),
                           MLCommon::CompareApprox<double>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 // FIXME: These tests are disabled due to driver 418+ making them fail:
@@ -275,7 +275,7 @@ TEST_P(PcaTestDataVecF, Result)
                           data2_back.data(),
                           (params.n_col2 * params.n_col2),
                           MLCommon::CompareApprox<float>(params.tolerance),
-                          handle.get_stream()));
+                          handle.get_stream().get()));
 }
 
 typedef PcaTest<double> PcaTestDataVecD;
@@ -285,7 +285,7 @@ TEST_P(PcaTestDataVecD, Result)
                                     data2_back.data(),
                                     (params.n_col2 * params.n_col2),
                                     MLCommon::CompareApprox<double>(params.tolerance),
-                                    handle.get_stream()));
+                                    handle.get_stream().get()));
 }
 
 INSTANTIATE_TEST_CASE_P(PcaTests, PcaTestValF, ::testing::ValuesIn(inputsf2));

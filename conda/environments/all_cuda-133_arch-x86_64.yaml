@@ -2,25 +2,24 @@
 # To make changes, edit ../../dependencies.yaml and run `rapids-dependency-file-generator`.
 channels:
 - rapidsai-nightly
-- rapidsai
 - conda-forge
 dependencies:
 - c-compiler
 - ccache
 - certifi
 - cmake>=4.0
-- cuda-bindings>=13.0.1,<14.0
+- cuda-bindings>=13.0.2,<14.0
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api
 - cuda-version=13.3
-- cudf==26.10.*,>=0.0.0a0
+- cudf==26.12.*,>=0.0.0a0
 - cupy>=14.0.1,!=14.1.0
-- cuvs==26.10.*,>=0.0.0a0
+- cuvs==26.12.*,>=0.0.0a0
 - cxx-compiler
 - cython>=3.2.2,!=3.2.7
-- dask-cuda==26.10.*,>=0.0.0a0
-- dask-cudf==26.10.*,>=0.0.0a0
+- dask-cuda==26.12.*,>=0.0.0a0
+- dask-cudf==26.12.*,>=0.0.0a0
 - dask-ml>=2024
 - doxygen=1.9.1
 - gcc_linux-64=14.*
@@ -36,10 +35,10 @@ dependencies:
 - libcurand-dev
 - libcusolver-dev
 - libcusparse-dev
-- libcuvs==26.10.*,>=0.0.0a0
-- libnvforest==26.10.*,>=0.0.0a0
-- libraft==26.10.*,>=0.0.0a0
-- librmm==26.10.*,>=0.0.0a0
+- libcuvs==26.12.*,>=0.0.0a0
+- libnvforest==26.12.*,>=0.0.0a0
+- libraft==26.12.*,>=0.0.0a0
+- librmm==26.12.*,>=0.0.0a0
 - lightgbm
 - matplotlib-base
 - msgspec
@@ -51,12 +50,12 @@ dependencies:
 - numpy>=2.0,<3.0
 - numpydoc
 - numpydoc<1.9
-- nvforest==26.10.*,>=0.0.0a0
+- nvforest==26.12.*,>=0.0.0a0
 - nvidia-ml-py>=12
 - onnxruntime
 - packaging
 - pre-commit
-- pylibraft==26.10.*,>=0.0.0a0
+- pylibraft==26.12.*,>=0.0.0a0
 - pynndescent
 - pytest
 - pytest-benchmark
@@ -64,13 +63,13 @@ dependencies:
 - pytest-xdist
 - python>=3.11
 - pyyaml
-- raft-dask==26.10.*,>=0.0.0a0
+- raft-dask==26.12.*,>=0.0.0a0
 - rapids-build-backend>=0.4.0,<0.5.0
-- rapids-dask-dependency==26.10.*,>=0.0.0a0
+- rapids-dask-dependency==26.12.*,>=0.0.0a0
 - rapids-logger==0.3.*
 - recommonmark
 - rich
-- rmm==26.10.*,>=0.0.0a0
+- rmm==26.12.*,>=0.0.0a0
 - scikit-build-core>=0.11.0
 - scikit-learn>=1.6
 - scipy>=1.14.0

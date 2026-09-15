@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -32,7 +32,7 @@ class CdTest : public ::testing::TestWithParam<CdInputs<T>> {
  public:
   CdTest()
     : params(::testing::TestWithParam<CdInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       data(params.n_row * params.n_col, stream),
       labels(params.n_row, stream),
       sample_weight(params.n_row, stream),

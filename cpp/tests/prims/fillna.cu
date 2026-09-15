@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -78,7 +78,7 @@ class FillnaTest : public ::testing::TestWithParam<FillnaInputs<T>> {
     handle.sync_stream(handle.get_stream());
 
     /* Compute using tested prims */
-    fillna(y.data(), params.batch_size, params.n_obs, handle.get_stream());
+    fillna(y.data(), params.batch_size, params.n_obs, handle.get_stream().get());
 
     /* Compute reference results.
      * Note: this is done with a sliding window: we find ranges of missing
@@ -125,7 +125,7 @@ class FillnaTest : public ::testing::TestWithParam<FillnaInputs<T>> {
                             y.data(),
                             params.n_obs * params.batch_size,
                             MLCommon::CompareApprox<T>(params.tolerance),
-                            handle.get_stream());
+                            handle.get_stream().get());
   }
 
   void SetUp() override { basicTest(); }
