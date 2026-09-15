@@ -510,7 +510,7 @@ jobs:
       target-s3-bucket: ${{ secrets.NVIDIA_DOCS_S3_BUCKET }}
     uses: rapidsai/shared-workflows/.github/workflows/publish-api-docs.yaml@release/26.10
     with:
-      docs-projects: cuml,libcuml
+      docs-projects: cuml
       dry-run: true
       version-map: ${{ vars.VERSION_MAP }}
   wheel-build-libcuml:

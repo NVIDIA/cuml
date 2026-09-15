@@ -45,27 +45,4 @@ mkdir -p "${RAPIDS_DOCS_DIR}/cuml/html"
 mv _html/* "${RAPIDS_DOCS_DIR}/cuml/html"
 popd
 
-# The publishing workflow still expects the historical libcuml project. Keep
-# that entry point without duplicating API content: publish only a redirect to
-# the version-matched C++ API inside the combined Sphinx site. This uses the
-# already-initialized RAPIDS_VERSION_MAJOR_MINOR, so it is safe under `set -u`.
-LIBCUML_REDIRECT_DIR="${RAPIDS_DOCS_DIR}/libcuml/html"
-CUML_CPP_API_URL="https://docs.nvidia.com/cuml/${RAPIDS_VERSION_MAJOR_MINOR}/developer_guide/cpp/api/"
-mkdir -p "${LIBCUML_REDIRECT_DIR}"
-cat > "${LIBCUML_REDIRECT_DIR}/index.html" <<EOF
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>cuML C++ API moved</title>
-  <link rel="canonical" href="${CUML_CPP_API_URL}">
-  <meta http-equiv="refresh" content="0; url=${CUML_CPP_API_URL}">
-  <script>window.location.replace("${CUML_CPP_API_URL}" + window.location.hash);</script>
-</head>
-<body>
-  <p>The cuML C++ API reference moved to <a href="${CUML_CPP_API_URL}">the cuML Developer Guide</a>.</p>
-</body>
-</html>
-EOF
-
 RAPIDS_VERSION_NUMBER="${RAPIDS_VERSION_MAJOR_MINOR}" rapids-upload-docs
