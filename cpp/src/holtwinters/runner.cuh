@@ -31,7 +31,7 @@ void HWTranspose(const raft::handle_t& handle, Dtype* data_in, int m, int n, Dty
   ASSERT(!(!data_in || !data_out || n < 1 || m < 1), "HW error in in line %d", __LINE__);
   const raft::handle_t& handle_impl = handle;
   raft::stream_syncer _(handle_impl);
-  cudaStream_t stream     = handle_impl.get_stream();
+  cudaStream_t stream     = handle_impl.get_stream().get();
   cublasHandle_t cublas_h = handle_impl.get_cublas_handle();
 
   raft::linalg::transpose<Dtype>(handle, data_in, data_out, n, m, stream);
@@ -110,7 +110,7 @@ void HoltWintersDecompose(const raft::handle_t& handle,
 {
   const raft::handle_t& handle_impl = handle;
   raft::stream_syncer _(handle_impl);
-  cudaStream_t stream     = handle_impl.get_stream();
+  cudaStream_t stream     = handle_impl.get_stream().get();
   cublasHandle_t cublas_h = handle_impl.get_cublas_handle();
 
   if (start_level != nullptr && start_trend == nullptr &&
@@ -160,7 +160,7 @@ void HoltWintersEval(const raft::handle_t& handle,
 {
   const raft::handle_t& handle_impl = handle;
   raft::stream_syncer _(handle_impl);
-  cudaStream_t stream = handle_impl.get_stream();
+  cudaStream_t stream = handle_impl.get_stream().get();
 
   ASSERT(!((!start_trend) != (!beta) || (!start_season) != (!gamma)),
          "HW error in in line %d",
@@ -219,7 +219,7 @@ void HoltWintersOptim(const raft::handle_t& handle,
 {
   const raft::handle_t& handle_impl = handle;
   raft::stream_syncer _(handle_impl);
-  cudaStream_t stream = handle_impl.get_stream();
+  cudaStream_t stream = handle_impl.get_stream().get();
 
   // default values
   OptimParams<Dtype> optim_params_;
@@ -298,7 +298,7 @@ void HoltWintersForecast(const raft::handle_t& handle,
 {
   const raft::handle_t& handle_impl = handle;
   raft::stream_syncer _(handle_impl);
-  cudaStream_t stream = handle_impl.get_stream();
+  cudaStream_t stream = handle_impl.get_stream().get();
 
   ASSERT(!(!level_coef && !trend_coef && !season_coef), "HW error in in line %d", __LINE__);
   ASSERT(!(season_coef && frequency < 2), "HW error in in line %d", __LINE__);
@@ -324,7 +324,7 @@ void HoltWintersFitHelper(const raft::handle_t& handle,
 {
   const raft::handle_t& handle_impl = handle;
   raft::stream_syncer _(handle_impl);
-  cudaStream_t stream = handle_impl.get_stream();
+  cudaStream_t stream = handle_impl.get_stream().get();
 
   bool optim_alpha = true, optim_beta = true, optim_gamma = true;
   // initial values for alpha, beta and gamma
@@ -425,7 +425,7 @@ void HoltWintersForecastHelper(const raft::handle_t& handle,
 {
   const raft::handle_t& handle_impl = handle;
   raft::stream_syncer _(handle_impl);
-  cudaStream_t stream = handle_impl.get_stream();
+  cudaStream_t stream = handle_impl.get_stream().get();
 
   bool optim_beta = true, optim_gamma = true;
 

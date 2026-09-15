@@ -123,7 +123,8 @@ html_theme = "nvidia_sphinx_theme"
 # documentation.
 #
 html_theme_options = {
-    "public_docs_features": os.environ.get("CI") == "true",
+    "public_docs_features": os.environ.get("CI") == "true"
+    and os.environ.get("RAPIDS_BUILD_TYPE") != "pull-request",
     "external_links": [],
     "icon_links": [
         {
@@ -208,10 +209,16 @@ texinfo_documents = [
     ),
 ]
 
+with open("../../RAPIDS_BRANCH", "r") as f:
+    branch = f.read().strip()
+intersphinx_version = "latest" if branch == "main" else version
+
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    # Main consumes the latest published documentation from RAPIDS dependencies.
-    "cudf": ("https://docs.nvidia.com/cudf/latest/", None),
+    "cudf": (
+        f"https://docs.nvidia.com/cudf/{intersphinx_version}/",
+        None,
+    ),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "python": ("https://docs.python.org/3", None),
     # TODO: re-enable once scipy docs are more reliable
@@ -222,7 +229,10 @@ intersphinx_mapping = {
         "https://nvidia.github.io/cuda-python/cuda-core/latest/",
         None,
     ),
-    "rmm": ("https://docs.nvidia.com/rmm/latest/", None),
+    "rmm": (
+        f"https://docs.nvidia.com/rmm/{intersphinx_version}/",
+        None,
+    ),
 }
 
 # Config numpydoc
@@ -270,7 +280,9 @@ def setup_redirects(app, docname):
 
 def setup(app):
     app.add_css_file("custom.css")
+    app.add_css_file("cuml-accel-benchmarks.css")
     app.add_js_file("open-details-on-fragment.js")
+    app.add_js_file("cuml-accel-benchmarks.js")
     app.connect("build-finished", setup_redirects)
 
 

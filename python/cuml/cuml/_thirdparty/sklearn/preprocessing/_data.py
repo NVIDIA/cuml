@@ -2463,17 +2463,17 @@ class QuantileTransformer(
             column_nnz_data = X.data[X.indptr[feature_idx]:
                                      X.indptr[feature_idx + 1]]
             if len(column_nnz_data) > self.subsample:
-                column_subsample = (self.subsample * len(column_nnz_data) //
-                                    n_samples)
-                if self.ignore_implicit_zeros:
-                    column_data = np.zeros(shape=column_subsample,
-                                           dtype=X.dtype)
-                else:
-                    column_data = np.zeros(shape=self.subsample, dtype=X.dtype)
+                column_data = np.zeros(shape=self.subsample, dtype=X.dtype)
+                column_subsample = (
+                    self.subsample
+                    if self.ignore_implicit_zeros
+                    else self.subsample * len(column_nnz_data) // n_samples
+                )
                 column_data[:column_subsample] = np.array(
-                    random_state.choice(column_nnz_data.get(),
-                                        size=column_subsample,
-                                        replace=False))
+                    random_state.choice(
+                        column_nnz_data.get(), size=column_subsample, replace=False
+                    )
+                )
             else:
                 if self.ignore_implicit_zeros:
                     column_data = np.zeros(shape=len(column_nnz_data),
@@ -2491,6 +2491,7 @@ class QuantileTransformer(
                     cpu_np.nanpercentile(np.asnumpy(column_data),
                                          np.asnumpy(references)))
         self.quantiles_ = cpu_np.transpose(np.asnumpy(self.quantiles_))
+
         # due to floating-point precision error in `np.nanpercentile`,
         # make sure the quantiles are monotonically increasing
         # Upstream issue in numpy:

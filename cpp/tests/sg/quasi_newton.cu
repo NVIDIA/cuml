@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -41,7 +41,7 @@ struct QuasiNewtonTest : ::testing::Test {
   QuasiNewtonTest() : handle(cuml_handle) {}
   void SetUp()
   {
-    stream = cuml_handle.get_stream();
+    stream = cuml_handle.get_stream().get();
     Xdev.reset(new SimpleMatOwning<double>(N, D, stream, ROW_MAJOR));
     raft::update_device(Xdev->data, &X[0][0], Xdev->len, stream);
 

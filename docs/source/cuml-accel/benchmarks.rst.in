@@ -1,0 +1,205 @@
+.. SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+.. SPDX-License-Identifier: Apache-2.0
+.. This file is the editable template for benchmarks.rst. Run
+.. docs/benchmarks/generate_cuml_accel_benchmarks.py render after editing it.
+
+Performance and Speedups
+========================
+
+.. role:: benchmark-throughput
+   :class: benchmark-throughput
+
+.. role:: benchmark-time
+   :class: benchmark-time
+
+.. rst-class:: benchmark-lede
+
+Zero-code-change acceleration with ``cuml.accel`` delivers an
+**@@TRAINING_PROSE_SPEEDUP@@ median speedup** across training benchmark cases
+completed on both CPU and GPU, measured on NVIDIA RTX Pro 6000. Training
+performance varies with the estimator, dataset size and shape, and
+hyperparameters, but most measured workloads are faster on GPU, with the
+largest gains appearing on wider or larger datasets.
+
+Speedup by operation and workload
+---------------------------------
+
+Rows are ranked by the median exact speedup. Green indicates a measured gain,
+gray is centered at 1×, and warm colors indicate a slowdown. Hatching marks
+CPU-timeout lower bounds and unavailable results.
+
+.. rst-class:: benchmark-footnote
+
+A timeout indicates that the complete isolated CPU benchmark case—not a
+single estimator call—exceeded its wall-clock limit. When the GPU
+run completed, the displayed value is a conservative lower bound (``≥``), not
+an exact speedup.
+
+Training and combined operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. raw:: html
+
+   <div class="benchmark-heatmap" tabindex="0" aria-label="Scrollable training heatmap">
+     <object data="../../_static/cuml-accel-benchmarks/training-heatmap.svg" type="image/svg+xml" aria-label="Training speedup heatmap. Operation labels link to estimator details; exact values and timeout labels are present in the graphic and detailed tables.">
+       <a href="../../_static/cuml-accel-benchmarks/training-heatmap.svg">Open the training speedup heatmap</a>
+     </object>
+   </div>
+
+PCA performance depends strongly on the requested component rank. The table
+below holds the input at @@PCA_RANK_ROWS@@ rows by @@PCA_RANK_FEATURES@@
+features and varies only ``n_components``. The timings show an approximate
+crossover from
+transfer-dominated low-rank work to positive speedup at higher ranks.
+
+See the :ref:`detailed PCA results <benchmark-pca>` for the remaining
+workloads.
+
+@@PCA_RANK_RESULTS@@
+
+Inference and transforms
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The heatmap shows the @@INFERENCE_HEATMAP_MAX_OPERATIONS@@ operations with the
+highest median exact speedup.
+Detailed estimator tables retain every inference and transform result,
+including short operations where dispatch and data-conversion overhead
+dominate.
+
+.. raw:: html
+
+   <div class="benchmark-heatmap" tabindex="0" aria-label="Scrollable inference heatmap">
+     <object data="../../_static/cuml-accel-benchmarks/inference-heatmap.svg" type="image/svg+xml" aria-label="Inference and transform speedup heatmap. Operation labels link to estimator details; exact values and timeout labels are present in the graphic and detailed tables.">
+       <a href="../../_static/cuml-accel-benchmarks/inference-heatmap.svg">Open the inference speedup heatmap</a>
+     </object>
+   </div>
+
+Detailed benchmark results
+--------------------------
+
+Use the workload guide to interpret the heatmaps, then open an estimator for
+exact shapes, throughput or wall times, slowdowns, and timeouts. Detailed
+results express inference and transform operations as throughput in samples
+per second, abbreviated as ``M/s``, ``k/s``, or ``/s``, with one input row
+counted as one sample. The wall time used to calculate throughput is shown
+below it. Training and combined-operation rows show wall time only.
+
+Five relative workload categories, from transfer-bound to compute-heavy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every operation uses the same five relative workload categories, ordered from
+smaller or more transfer-sensitive cases to larger or more compute-intensive
+cases. Concrete shapes follow operation-family policies, with workload sizes
+chosen to complete within reasonable runtime and resource limits. These sizes
+are illustrative examples across several workload regimes, not scaling limits
+or maximum supported sizes. The same category can therefore represent
+different rows, features, and input sizes across operations; exact values
+appear in the estimator tables.
+
+@@WORKLOAD_TABLE@@
+
+Results by estimator
+~~~~~~~~~~~~~~~~~~~~
+
+Open an estimator for every workload, throughput or wall time, slowdown,
+timeout, and actual shape.
+
+.. raw:: html
+
+   <div class="benchmark-detail-controls" aria-label="Estimator detail controls">
+     <button type="button" data-benchmark-details="expand">Expand all</button>
+     <button type="button" data-benchmark-details="collapse">Collapse all</button>
+   </div>
+
+.. container:: benchmark-estimator-details
+
+@@ESTIMATOR_SECTIONS@@
+
+What determines GPU speedup
+---------------------------
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+
+   .. grid-item-card:: Work per call
+
+      ``cuml.accel`` benefits when each estimator call has enough parallel work
+      to outweigh dispatch and compatibility overhead. Training and
+      compute-intensive operations usually accelerate more than short
+      prediction or transformation calls in practice.
+
+   .. grid-item-card:: Shape and parameters
+
+      Performance depends on feature width, operation, and estimator parameters,
+      not just total workload size. Similar-sized datasets can produce different
+      speedups when shapes or configurations differ. We selected workloads to
+      illustrate these differences.
+
+   .. grid-item-card:: Data movement
+
+      ``cuml.accel`` typically ingests and returns NumPy arrays, converting data
+      for GPU execution and scikit-learn compatibility. Native cuML can reduce
+      this overhead with GPU-resident arrays, especially when pipelines perform
+      repeated estimator operations.
+
+Methodology and reproducibility
+-------------------------------
+
+These benchmarks compare the corresponding CPU implementations with
+``cuml.accel`` on NVIDIA RTX Pro 6000 across five relative workload categories.
+CPU measurements use the corresponding scikit-learn estimators, except for
+UMAP, which uses ``umap.UMAP`` from ``umap-learn``, and HDBSCAN, which uses
+``hdbscan.HDBSCAN`` from ``hdbscan``. Each isolated case used one warmup, the
+median of three measured repetitions, operation-appropriate correctness
+validation, and a complete-case timeout.
+
+.. dropdown:: Test system, validation, and timing policy
+
+   **System.** @@GPU_NAME@@ (@@GPU_MEMORY_GB@@ GB), @@CPU_NAME@@, and
+   @@SYSTEM_MEMORY_GB@@ GB of system memory.
+
+   **Timing.** One warmup followed by three measured repetitions; tables use
+   the median end-to-end wall time. Speedup is CPU median wall time divided by
+   accelerated median wall time. For ``predict``, ``transform``,
+   ``score_samples``, and ``kneighbors``, throughput is input rows divided by
+   the same median wall time, with one row counted as one sample.
+
+   **Scale and timeout policy.** Algorithm-family-calibrated small, medium, and
+   large shapes. Each backend ran every case in a separate worker with a
+   wall-clock limit. The limit covered process startup, data
+   preparation, estimator setup, one warmup, three measured repetitions, and
+   correctness validation.
+
+   **Execution and correctness.** Successful accelerated measurements were
+   instrumented to verify GPU-only execution. The benchmark runner applied
+   each case's operation-appropriate parity check. A timeout means validation
+   could not complete.
+
+   **Packages.** @@PACKAGES@@.
+
+   **Interpretation.** These measurements describe the tested cases on this
+   system; results for other workloads and systems will vary.
+
+Continue with cuml.accel
+------------------------
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+
+   .. grid-item-card:: Getting started
+      :link: usage
+      :link-type: doc
+
+      Installation and zero-code-change usage.
+
+   .. grid-item-card:: Compatibility
+      :link: compatibility
+      :link-type: doc
+
+      Supported estimators and parameter behavior.
+
+   .. grid-item-card:: Profiling
+      :link: logging-and-profiling
+      :link-type: doc
+
+      Find GPU execution and fallback behavior.

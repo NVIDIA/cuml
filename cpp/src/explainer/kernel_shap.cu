@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -172,7 +172,7 @@ void kernel_dataset_impl(const raft::handle_t& handle,
                          uint64_t seed)
 {
   const auto& handle_impl = handle;
-  cudaStream_t stream     = handle_impl.get_stream();
+  cudaStream_t stream     = handle_impl.get_stream().get();
 
   IdxT nblks;
   IdxT nthreads;

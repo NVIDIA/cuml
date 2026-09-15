@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 from __future__ import annotations
@@ -119,7 +119,7 @@ class CheckConstraint:
 
 
 _CONSTRAINTS = {
-    "sklearn": CheckConstraint("scikit-learn>=1.6.0,<=1.9.0"),
+    "sklearn": CheckConstraint("scikit-learn>=1.6.0,<=1.9.1"),
     "hdbscan": CheckConstraint("hdbscan>=0.8.39,<=0.8.44"),
     "umap": CheckConstraint("umap-learn>=0.5.7,<=0.5.12"),
 }
