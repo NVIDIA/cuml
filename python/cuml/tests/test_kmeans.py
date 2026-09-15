@@ -165,6 +165,37 @@ def test_weighted_kmeans(nrows, ncols, nclusters, max_weight, random_state):
         assert diff / avg_score <= relative_tolerance
 
 
+# Regression test for issue #8530
+def test_weighted_kmeans_inertia_and_score():
+    X = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [10.0, 10.0],
+            [11.0, 11.0],
+            [12.0, 12.0],
+        ]
+    )
+    sample_weight = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 2.0])
+
+    model = cuml.KMeans(
+        n_clusters=2,
+        init=np.array([[1.0, 1.0], [11.0, 11.0]]),
+        n_init=1,
+    ).fit(X, sample_weight=sample_weight)
+
+    np.testing.assert_allclose(model.inertia_, 12.0)
+
+    score_X = np.array([[0.0, 0.0], [10.0, 10.0]])
+    score_weight = np.array([2.0, 2.0])
+
+    np.testing.assert_allclose(
+        model.score(score_X, sample_weight=score_weight),
+        -8.0,
+    )
+
+
 @pytest.mark.parametrize("nrows", [1000, 10000])
 @pytest.mark.parametrize("ncols", [25])
 @pytest.mark.parametrize("nclusters", [2, 5])
