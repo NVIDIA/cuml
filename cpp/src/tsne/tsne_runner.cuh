@@ -45,6 +45,21 @@ inline constexpr bool is_instance_of = std::false_type{};
 template <template <class> class U, class V>
 inline constexpr bool is_instance_of<U<V>, U> = std::true_type{};
 
+template <typename value_idx, typename value_t>
+knn_graph<value_idx, value_t> make_tsne_knn_graph(int n_rows,
+                                                  value_idx* knn_indices,
+                                                  value_t* knn_dists,
+                                                  TSNEParams& params)
+{
+  ML::default_logger().set_level(params.verbosity);
+  if (params.n_neighbors > n_rows) params.n_neighbors = n_rows;
+  if (params.n_neighbors > 1023) {
+    CUML_LOG_WARN("FAISS only supports maximum n_neighbors = 1023.");
+    params.n_neighbors = 1023;
+  }
+  return {n_rows, params.n_neighbors, knn_indices, knn_dists};
+}
+
 template <typename tsne_input, typename value_idx, typename value_t>
 class TSNE_runner {
  public:
@@ -56,7 +71,7 @@ class TSNE_runner {
       input(input_),
       k_graph(k_graph_),
       params(params_),
-      COO_Matrix(handle_.get_stream())
+      COO_Matrix(handle_.get_stream().get())
   {
     this->n = input.n;
     this->p = input.d;
@@ -68,11 +83,6 @@ class TSNE_runner {
       CUML_LOG_WARN(
         "Barnes Hut and FFT only work for dim == 2. Switching to exact "
         "solution.");
-    }
-    if (params.n_neighbors > n) params.n_neighbors = n;
-    if (params.n_neighbors > 1023) {
-      CUML_LOG_WARN("FAISS only supports maximum n_neighbors = 1023.");
-      params.n_neighbors = 1023;
     }
     // Perplexity must be less than number of datapoints
     // "How to Use t-SNE Effectively" https://distill.pub/2016/misread-tsne/
@@ -89,7 +99,7 @@ class TSNE_runner {
         "# of Nearest Neighbors should be at least 3 * perplexity. Your results"
         " might be a bit strange...");
 
-    auto stream         = handle.get_stream();
+    auto stream         = handle.get_stream().get();
     const value_idx dim = params.dim;
 
     if (params.init == TSNE_INIT::RANDOM) {
@@ -189,7 +199,7 @@ class TSNE_runner {
     // Get distances
     CUML_LOG_DEBUG("Getting distances.");
 
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
 
     rmm::device_uvector<value_idx> indices(0, stream);
     rmm::device_uvector<value_t> distances(0, stream);

@@ -1,6 +1,6 @@
 
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -21,7 +21,7 @@ double completeness_score(const raft::handle_t& handle,
                           const int upper_class_range)
 {
   return raft::stats::homogeneity_score(
-    y_hat, y, n, lower_class_range, upper_class_range, handle.get_stream());
+    y_hat, y, n, lower_class_range, upper_class_range, handle.get_stream().get());
 }
 
 }  // namespace Metrics

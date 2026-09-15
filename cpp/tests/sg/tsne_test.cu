@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -102,7 +102,7 @@ class TSNETest : public ::testing::TestWithParam<TSNEInput> {
   TSNEResults runTest(TSNE_ALGORITHM algo, bool knn = false)
   {
     raft::handle_t handle;
-    auto stream = handle.get_stream();
+    auto stream = handle.get_stream().get();
     TSNEResults results;
 
     auto DEFAULT_DISTANCE_METRIC = ML::distance::DistanceType::L2SqrtExpanded;
@@ -259,6 +259,19 @@ const std::vector<TSNEInput> inputs = {
    TSNE_INIT::PCA,
    0.98},
   {Diabetes::n_samples, Diabetes::n_features, Diabetes::diabetes, TSNE_INIT::PCA, 0.90}};
+
+TEST(TSNEValidationTest, NNeighborsIsClampedWhenKnnGraphIsCreated)
+{
+  constexpr int n = 2;
+
+  TSNEParams params;
+  params.n_neighbors = 3;
+
+  auto k_graph = make_tsne_knn_graph<int, float>(n, nullptr, nullptr, params);
+
+  EXPECT_EQ(params.n_neighbors, n);
+  EXPECT_EQ(k_graph.n_neighbors, n);
+}
 
 typedef TSNETest TSNETestF;
 TEST_P(TSNETestF, Result)
