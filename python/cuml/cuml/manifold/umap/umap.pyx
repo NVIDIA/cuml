@@ -312,7 +312,7 @@ cdef class RaftCOO:
 
         cdef RaftCOO self = RaftCOO.__new__(RaftCOO)
         cdef handle_t* handle_ = <handle_t*><size_t>handle.getHandle()
-        cdef cudaStream_t stream = handle_.get_stream()
+        cdef cudaStream_t stream = handle_.get_stream().get()
         cdef lib.COO* coo = new lib.COO(stream)
         self.ptr.reset(coo)
         coo.allocate(arr.nnz, arr.shape[0], False, stream)
