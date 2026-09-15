@@ -196,7 +196,7 @@ PRs should target `main` by default, except in the following situations:
 * changes target a soon-to-be-released version: `release/YY.MM`
 * hotfixes targeting critical issues: `hotfix/YY.MM.patch-version`
 
-For more details, see https://docs.rapids.ai/releases/process/
+For more details, see https://docs.nvidia.com/datascience/releases/process/
 
 ### Branch naming
 

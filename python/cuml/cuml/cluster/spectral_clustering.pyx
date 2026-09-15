@@ -132,7 +132,7 @@ class SpectralClustering(InteropMixin,
     Notes
     -----
     The eigensolver uses the Lanczos approach from the raft implementation
-    https://docs.rapids.ai/api/raft/stable/pylibraft_api/sparse/#pylibraft.sparse.linalg.eigsh.
+    https://docs.nvidia.com/raft/latest/pylibraft_api/sparse/#pylibraft.sparse.linalg.eigsh.
 
     Kmeans is used for assigning labels.
 
