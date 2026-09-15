@@ -135,6 +135,8 @@ TYPED_TEST(WorkingSetTest, Select)
                               this->ws->GetSize(),
                               MLCommon::Compare<int>(),
                               stream));
+  // Leave f and alpha unchanged to model an outer iteration with no progress.
+  // The next selection must still rotate part of a decomposed working set.
   this->ws->Select(
     this->f_dev.data(), this->alpha_dev.data(), this->y_dev.data(), this->C_dev.data());
 
@@ -1089,6 +1091,14 @@ class SmoSolverTest : public ::testing::Test {
 };
 
 TYPED_TEST_CASE(SmoSolverTest, FloatTypes);
+
+TEST(SmoSolverUtilsTest, NoProgressErrorRequiresFullWorkingSet)
+{
+  EXPECT_TRUE(ShouldThrowNoProgressError(true, false, 10, 10));
+  EXPECT_FALSE(ShouldThrowNoProgressError(true, false, 1025, 1024));
+  EXPECT_FALSE(ShouldThrowNoProgressError(true, true, 10, 10));
+  EXPECT_FALSE(ShouldThrowNoProgressError(false, false, 10, 10));
+}
 
 TYPED_TEST(SmoSolverTest, BlockSolveTest) { this->blockSolveTest(); }
 TYPED_TEST(SmoSolverTest, SvrBlockSolveTest) { this->svrBlockSolveTest(); }

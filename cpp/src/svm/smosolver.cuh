@@ -42,6 +42,14 @@
 namespace ML {
 namespace SVM {
 
+constexpr bool ShouldThrowNoProgressError(bool keep_going,
+                                          bool made_progress,
+                                          int n_train,
+                                          int n_ws)
+{
+  return keep_going && !made_progress && n_train <= n_ws;
+}
+
 template <typename math_t>
 void SmoSolver<math_t>::GetNonzeroDeltaAlpha(const math_t* vec,
                                              int n_ws,
@@ -206,7 +214,10 @@ void SmoSolver<math_t>::Solve(MatrixViewType matrix,
     if ((max_iter != -1 && n_iter >= max_iter) || n_outer_iter >= max_outer_iter) {
       keep_going = false;
     }
-    if (keep_going && !made_progress) {
+    // A zero-update block only establishes solver-wide stagnation when the
+    // working set contains every dual variable. Otherwise, allow the next
+    // outer iteration to rotate part of the working set and try new variables.
+    if (ShouldThrowNoProgressError(keep_going, made_progress, n_train, n_ws)) {
       const char* advice = std::is_same<math_t, float>::value
                              ? " Try using float64 input or reducing the magnitude of the kernel "
                                "values."
