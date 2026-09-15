@@ -121,6 +121,7 @@ else()
      OR kmeans_algo
      OR knn_algo
      OR metrics_algo
+     OR svm_algo
      OR tsne_algo
      OR umap_algo
   )
