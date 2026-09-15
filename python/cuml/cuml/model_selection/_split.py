@@ -234,7 +234,10 @@ class KFold(_KFoldBase):
             mask[start:stop] = True
 
             train = indices[cp.logical_not(mask)]
-            yield train, test
+            # scikit-learn shuffles only to determine fold membership and
+            # always yields the train/test indices in sorted order, so sort
+            # here to stay compatible (see NVIDIA/cuml#8631).
+            yield cp.sort(train), cp.sort(test)
             current = stop
 
 

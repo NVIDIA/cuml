@@ -125,3 +125,59 @@ def test_kfold_dataframe() -> None:
     kfold = KFold(n_splits=5, shuffle=True)
     for train_idx, test_idx in kfold.split(X, y):
         assert train_idx.shape[0] + test_idx.shape[0] == n_samples
+
+
+def test_kfold_matches_sklearn_index_order() -> None:
+    """Regression test for NVIDIA/cuml#8631.
+
+    With shuffle=True, KFold must return the train and test indices in
+    sorted order like scikit-learn: the shuffle only determines fold
+    membership, never the ordering of the indices. Membership itself is
+    not asserted here because cuML shuffles with CuPy's RNG, which is
+    not guaranteed to generate the same permutation as NumPy's RNG.
+    """
+    n_samples = 3
+    X = np.arange(n_samples * 2).reshape(n_samples, 2)
+    kfold = KFold(n_splits=3, shuffle=True, random_state=1)
+
+    for train_idx, test_idx in kfold.split(X):
+        # Indices must come out sorted, exactly like scikit-learn.
+        cp.testing.assert_array_equal(train_idx, cp.sort(train_idx))
+        cp.testing.assert_array_equal(test_idx, cp.sort(test_idx))
+        # Train and test indices must partition the sample set.
+        combined = cp.sort(cp.concatenate([train_idx, test_idx]))
+        cp.testing.assert_array_equal(combined, cp.arange(n_samples))
+
+    # Identical parameters must produce identical splits.
+    first = [(t.copy(), s.copy()) for t, s in kfold.split(X)]
+    for (train_idx, test_idx), (exp_train, exp_test) in zip(
+        kfold.split(X), first
+    ):
+        cp.testing.assert_array_equal(train_idx, exp_train)
+        cp.testing.assert_array_equal(test_idx, exp_test)
+
+
+@pytest.mark.parametrize("n_samples", [10, 11, 100])
+@pytest.mark.parametrize("n_splits", [2, 3, 5])
+@pytest.mark.parametrize("random_state", [0, 1, 42, 123])
+def test_kfold_sorted_index_order(
+    n_samples, n_splits, random_state
+) -> None:
+    """KFold must always yield sorted train/test indices like scikit-learn."""
+    X = cp.arange(n_samples * 2).reshape(n_samples, 2)
+    kfold = KFold(
+        n_splits=n_splits, shuffle=True, random_state=random_state
+    )
+
+    for train_idx, test_idx in kfold.split(X):
+        assert train_idx.shape[0] + test_idx.shape[0] == n_samples
+        cp.testing.assert_array_equal(train_idx, cp.sort(train_idx))
+        cp.testing.assert_array_equal(test_idx, cp.sort(test_idx))
+
+    # Splits must be deterministic for identical parameters.
+    first = [(t.copy(), s.copy()) for t, s in kfold.split(X)]
+    for (train_idx, test_idx), (exp_train, exp_test) in zip(
+        kfold.split(X), first
+    ):
+        cp.testing.assert_array_equal(train_idx, exp_train)
+        cp.testing.assert_array_equal(test_idx, exp_test)
