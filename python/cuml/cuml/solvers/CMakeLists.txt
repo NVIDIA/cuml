@@ -1,11 +1,11 @@
 # =============================================================================
 # cmake-format: off
-# SPDX-FileCopyrightText: Copyright (c) 2022-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 # cmake-format: on
 # =============================================================================
 
-set(cython_sources cd.pyx qn.pyx sgd.pyx)
+set(cython_sources cd.pyx qn.pyx sgd.pyx nnls.pyx)
 
 if(NOT SINGLEGPU)
   list(APPEND cython_sources cd_mg.pyx)
