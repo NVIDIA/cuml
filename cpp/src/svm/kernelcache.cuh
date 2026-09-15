@@ -484,7 +484,9 @@ class KernelCache {
    */
   void InitWorkingSet(const int* ws_idx)
   {
-    ASSERT(cache_state != CacheState::WS_INITIALIZED, "Working set has already been initialized!");
+    // A block solve can produce no coefficient updates, in which case full-tile batching is
+    // skipped and the previous working set remains initialized. Replacing it is safe because
+    // no cache update is in progress.
     ASSERT(cache_state != CacheState::BATCHING_INITIALIZED, "Previous batching step incomplete!");
     this->ws_idx = ws_idx;
     if (svmType == EPSILON_SVR) {
