@@ -17,22 +17,22 @@ This document provides comprehensive guidelines and best practices for contribut
 11. [Deprecation Policy](#deprecation-policy)
 12. [Logging](#logging)
 13. [Multi-GPU Support](#multi-gpu-support)
-14. [Benchmarking](#benchmarking)
+14. [Profiling](#profiling)
 
 ## Prerequisites
 
 Before diving into Python development for cuML, please ensure you have:
 
-1. Reviewed our [contribution guidelines](../../CONTRIBUTING.md) for general project standards
-2. Read the [Python cuML README](../../python/README.md) for setup and installation instructions
+1. Reviewed our [contribution guidelines](https://github.com/NVIDIA/cuml/blob/main/CONTRIBUTING.md) for general project standards
+2. Follow the repository [build-from-source guide](https://github.com/NVIDIA/cuml/blob/main/BUILD.md) to set up the development environment and build cuML
 
-If you are working on C++/CUDA code or need to understand the underlying implementation details, you should also familiarize yourself with the [C++ Developer Guide](../cpp/DEVELOPER_GUIDE.md).
+If you are working on C++/CUDA code or need to understand the underlying implementation details, you should also familiarize yourself with the [C++ Developer Guide](../cpp/development.md).
 
 ## Guide Map
 
 Use this document for repository-wide Python development policy: style, docstrings, testing, memory management, deprecations, logging, multi-GPU structure, and benchmarking.
 
-Use [Estimator Guide](ESTIMATOR_GUIDE.md) when creating or modifying a `cuml.Base` estimator. It contains the estimator contract, copyable estimator skeleton, input validation, array descriptor guidance, reflection guidance, and estimator-specific do's and don'ts.
+Use [Estimator Guide](estimators.md) when creating or modifying a `cuml.Base` estimator. It contains the estimator contract, copyable estimator skeleton, input validation, array descriptor guidance, reflection guidance, and estimator-specific do's and don'ts.
 
 ## Getting Started
 
@@ -61,7 +61,7 @@ The docstring should include the following sections in order:
 3. **Parameters**
    - Description of function arguments, keywords and their types
    - Format:
-   ```python
+   ```text
    Parameters
    ----------
    x : type
@@ -73,7 +73,7 @@ The docstring should include the following sections in order:
 4. **Returns**
    - Description of returned values and their types
    - Format:
-   ```python
+   ```text
    Returns
    -------
    int
@@ -129,6 +129,9 @@ def function_name(param1, param2):
 6. Document default values for optional parameters
 7. Use the `@generate_docstring` decorator for common parameter documentation
 8. Include examples that demonstrate typical usage
+9. Document public API restrictions and non-obvious behavior
+10. Cite scientific papers or standards underlying an algorithm; for a
+    nonstandard algorithm, describe the approach used
 
 For more details, refer to the [NumPy docstring style guide](https://numpydoc.readthedocs.io/en/stable/format.html).
 
@@ -168,8 +171,8 @@ We support three main approaches for test input generation:
    - Must include at least one `@example` for deterministic testing
    - Preferred for dataset generation and most hyperparameter testing
    ```python
-   @example(dataset=small_regression_dataset(np.float32), alpha=floats(0.1, 10.0))
-   @given(dataset=standard_regression_datasets(), alpha=1.0)
+   @example(dataset=small_regression_dataset(np.float32), alpha=1.0)
+   @given(dataset=standard_regression_datasets(), alpha=floats(0.1, 10.0))
    def test_estimator(dataset, alpha):
        pass
    ```
@@ -186,6 +189,8 @@ We provide three test parameter levels:
    ```python
    unit_param(2)  # For number of components
    ```
+   Keep unit-level cases fast. Check CI's slowest-test report when adding tests
+   and move expensive coverage to an appropriate quality or stress level.
 
 2. **Quality Tests** (`quality_param`): Medium values for thorough testing
    ```python
@@ -209,10 +214,16 @@ Control via these pytest options:
    - Document origin of reference values
    - Use appropriate quality metrics for equivalent but different results
    - Ensure reproducibility rather than using retry logic
+   - When cuML implements an estimator from a reference library, test its public
+     wrapper behavior and numerical correctness against that implementation on
+     representative datasets
 
 2. **Minimize resources**
    - Use minimal dataset sizes
    - Only test different scales if they would actually hit different code paths
+   - Cover supported shape regimes and numerical precisions that can expose
+     distinct behavior—for example short-wide, tall-narrow, FP32, and FP64—using
+     quality or stress levels rather than slowing the unit suite
 
 3. **Best Practices**
    - Write small, focused tests
@@ -246,12 +257,14 @@ Running pytest from outside `python/cuml/` can result in import errors or missed
 Code should use `cuml.internals.validation` for user-facing input validation.
 These helpers are the standard path for matching scikit-learn validation
 behavior, simplifying input ingest, and avoiding module-specific validation
-pipelines. See the [Estimator Guide](ESTIMATOR_GUIDE.md#input-validation) for
-estimator-specific patterns and examples.
+pipelines. See [Ingesting Arrays in the Estimator Guide](estimators.md#ingesting-arrays)
+for estimator-specific patterns and examples.
 
 Prefer `check_inputs` for estimator methods that validate `X` and optional `y`
 / `sample_weight` values. Use lower-level helpers directly only when a method
-has a non-standard shape that the higher-level helper cannot express.
+has a non-standard shape that the higher-level helper cannot express. Where
+practical, reject unsupported user inputs gracefully with an actionable error
+explaining how to correct the call.
 
 Validation helpers should be configured to describe what the estimator actually
 supports. Set `dtype`, `mem_type`, `order`, `accept_sparse`,
@@ -308,7 +321,7 @@ Additional considerations:
 ## Thread Safety
 
 Algorithms implemented in C++/CUDA should be implemented in a thread-safe manner. The Python code is generally not thread safe.
-Refer to the section on thread safety in [C++ DEVELOPER_GUIDE.md](../cpp/DEVELOPER_GUIDE.md#thread-safety)
+Refer to the section on thread safety in [C++ Developer Guide](../cpp/development.md#memory-and-streams)
 
 ## Creating New Estimators
 
@@ -321,7 +334,7 @@ When implementing a new estimator in cuML, follow these key steps:
    - Is placed in the appropriate subdirectory matching scikit-learn's structure
    - Uses `cuml.internals.validation` for public input validation
 
-For detailed implementation guidelines, including file organization, API design, output type handling, and a copyable estimator skeleton, refer to the [Estimator Guide](ESTIMATOR_GUIDE.md).
+For detailed implementation guidelines, including file organization, API design, output type handling, and a copyable estimator skeleton, refer to the [Estimator Guide](estimators.md).
 
 ## Deprecation Policy
 
@@ -432,7 +445,7 @@ Use the appropriate log level based on the message's importance and target audie
    ```python
    from cuml.internals import logger
 
-   if logger.should_log_for(logging.DEBUG):
+   if logger.should_log_for(logger.level_enum.debug):
        logger.debug(f"Expensive operation result: {expensive_operation()}")
    ```
 
@@ -520,9 +533,12 @@ Key points for implementing multi-GPU estimators:
 - The dask layer should focus on distributed computation, with base algorithms implemented in standard estimators
 - See currently implemented estimators, e.g., LogisticRegression for examples on how to implement dask-based Multi-GPU estimators
 
-## Benchmarking
+## Profiling
 
-The cuML code including its Python operations can be profiled. The `nvtx_benchmark.py` is a helper script that produces a simple benchmark summary. To use it, run `python nvtx_benchmark.py "python test.py"`.
+The cuML code, including its Python operations, can be profiled with the
+`nvtx_benchmark.py` helper script. From the repository root, run
+`python python/cuml/cuml/benchmark/nvtx_benchmark.py "python test.py"` to
+produce a simple benchmark summary.
 
 Here is an example with the following script:
 ```python
@@ -536,7 +552,7 @@ model.fit(X)
 embeddings = model.transform(X)
 ```
 
-that once benchmarked can have its profiling summarized:
+Running the script through `nvtx_benchmark.py` produces a profiling summary:
 ```
 datasets.make_blobs                                          :   1.3571 s
 

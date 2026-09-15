@@ -259,7 +259,7 @@ fi
 
 ################################################################################
 # Configure for building all C++ targets
-if completeBuild || hasArg libcuml || hasArg prims || hasArg bench || hasArg prims-bench || hasArg cppdocs || hasArg cpp-mgtests; then
+if completeBuild || hasArg libcuml || hasArg prims || hasArg bench || hasArg prims-bench || hasArg cppdocs || hasArg pydocs || hasArg cpp-mgtests; then
     if (( BUILD_ALL_GPU_ARCH == 0 )); then
         CUML_CMAKE_CUDA_ARCHITECTURES="NATIVE"
         echo "Building for the architecture of the GPU in the system..."
@@ -343,7 +343,9 @@ if (! hasArg --configure-only) && (completeBuild || hasArg libcuml || hasArg pri
       fi
 fi
 
-if (! hasArg --configure-only) && hasArg cppdocs; then
+if (! hasArg --configure-only) && (hasArg cppdocs || hasArg pydocs); then
+    # Sphinx consumes the Doxygen XML through Breathe, so pydocs also needs the
+    # docs_cuml prerequisite when it is invoked on its own.
     cmake --build "${LIBCUML_BUILD_DIR}" --target docs_cuml
 fi
 
