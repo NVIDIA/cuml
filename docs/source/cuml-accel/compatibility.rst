@@ -225,6 +225,22 @@ To compare results between estimators, we recommend comparing scores like
    - If ``y`` is a multi-output target.
 
 
+.. dropdown:: ``IsolationForest``
+   :name: isolationforest
+
+   ``IsolationForest`` will fall back to CPU in the following cases:
+
+   - If ``warm_start=True``.
+   - If a non-``None`` ``sample_weight`` is passed to ``fit`` or
+     ``fit_predict``.
+   - If ``X`` is sparse.
+   - If ``X`` contains missing or non-finite values.
+
+   Additionally, the following fitted attributes are currently not computed:
+
+   - ``estimators_samples_``
+
+
 sklearn.kernel_ridge
 ~~~~~~~~~~~~~~~~~~~~
 

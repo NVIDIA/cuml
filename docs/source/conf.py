@@ -209,10 +209,16 @@ texinfo_documents = [
     ),
 ]
 
+with open("../../RAPIDS_BRANCH", "r") as f:
+    branch = f.read().strip()
+intersphinx_version = "latest" if branch == "main" else version
+
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    # Main consumes the latest published documentation from RAPIDS dependencies.
-    "cudf": ("https://docs.nvidia.com/cudf/latest/", None),
+    "cudf": (
+        f"https://docs.nvidia.com/cudf/{intersphinx_version}/",
+        None,
+    ),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "python": ("https://docs.python.org/3", None),
     # TODO: re-enable once scipy docs are more reliable
@@ -223,7 +229,10 @@ intersphinx_mapping = {
         "https://nvidia.github.io/cuda-python/cuda-core/latest/",
         None,
     ),
-    "rmm": ("https://docs.nvidia.com/rmm/latest/", None),
+    "rmm": (
+        f"https://docs.nvidia.com/rmm/{intersphinx_version}/",
+        None,
+    ),
 }
 
 # Config numpydoc
