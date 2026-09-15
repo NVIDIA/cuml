@@ -72,7 +72,7 @@ void ridgeSolve(const raft::handle_t& handle,
     raft::make_device_vector_view<const T, std::size_t>(S, UDesc.N));
 
   MLCommon::Matrix::Data<T> S_nnz_data;
-  S_nnz_data.totalSize = UDesc.N;
+  S_nnz_data.setNumElements(UDesc.N);
   S_nnz_data.ptr       = S_nnz;
   MLCommon::LinAlg::opg::mv_aTb(handle, S_nnz_data, U, UDesc, b, streams, n_streams);
 
@@ -125,7 +125,7 @@ void ridgeEig(raft::handle_t& handle,
 
   for (std::size_t i = 0; i < partsToRanks.size(); i++) {
     MLCommon::Matrix::Data<T> d;
-    d.totalSize = partsToRanks[i]->size;
+    d.setNumElements(partsToRanks[i]->size);
     d.ptr       = curr_ptr;
     curr_ptr    = curr_ptr + (partsToRanks[i]->size * ADesc.N);
     U_temp.push_back(d);
