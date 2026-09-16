@@ -10,6 +10,6 @@ cuml.ensemble
    :toctree: generated/
    :template: base.rst
 
+   IsolationForest
    RandomForestClassifier
    RandomForestRegressor
-   IsolationForest
