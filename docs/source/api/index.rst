@@ -406,6 +406,21 @@ Neighbors
      - :mod:`cuml.neighbors`
 
 
+Outlier Detection
+=================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 50 20
+
+   * - Object
+     - Description
+     - Module
+   * - :obj:`~cuml.ensemble.IsolationForest`
+     - Isolation Forest Algorithm.
+     - :mod:`cuml.ensemble`
+
+
 Time Series
 ===========
 

@@ -12,3 +12,4 @@ cuml.ensemble
 
    RandomForestClassifier
    RandomForestRegressor
+   IsolationForest
