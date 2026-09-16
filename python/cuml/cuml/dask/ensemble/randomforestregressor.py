@@ -36,9 +36,10 @@ class RandomForestRegressor(
         ``0``, ``'gini'``, ``1``, ``'entropy'`` not valid for regression
     bootstrap : boolean (default = True)
         Control bootstrapping.\n
-         * If ``True``, each tree in the forest is built on a bootstrapped
-           sample with replacement.
-         * If ``False``, the whole dataset is used to build each tree.
+        * If ``True``, each tree in the forest is built on a bootstrapped
+          sample with replacement.
+        * If ``False``, the whole dataset is used to build each tree.
+
         Weighted bootstrapping through ``sample_weight`` is not yet supported
         for distributed random forests.
     max_samples : float (default = 1.0)
