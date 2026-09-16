@@ -273,6 +273,54 @@ class DelayedParallelFunc(object):
         y : dask cuDF (n_rows, 1)
         """
         X_d = X.to_delayed()
+        if isinstance(X, dask.array.Array):
+            X_d = X_d.ravel()
+
+        # Dask collections passed as keyword arguments need to be split along
+        # with X. Passing the collection directly would broadcast the fully
+        # computed value to every task, while the array path previously
+        # dropped keyword arguments altogether.
+        partitioned_kwargs = {}
+        for name, value in kwargs.items():
+            if isinstance(value, (dcDataFrame, dcSeries)):
+                parts = value.to_delayed()
+            elif isinstance(value, dask.array.Array):
+                if value.ndim == 0:
+                    raise ValueError(
+                        f"Dask array keyword argument {name!r} must have "
+                        "at least one dimension"
+                    )
+                if (
+                    isinstance(X, dask.array.Array)
+                    and value.chunks[0] != X.chunks[0]
+                ):
+                    raise ValueError(
+                        f"Dask array keyword argument {name!r} must have "
+                        "the same row chunks as X"
+                    )
+                if any(len(chunks) != 1 for chunks in value.chunks[1:]):
+                    raise ValueError(
+                        f"Dask array keyword argument {name!r} must have "
+                        "a single chunk along every non-row dimension"
+                    )
+                parts = value.to_delayed().ravel()
+            else:
+                continue
+
+            if len(parts) != len(X_d):
+                raise ValueError(
+                    f"Dask collection keyword argument {name!r} must have "
+                    "the same number of row partitions as X"
+                )
+            partitioned_kwargs[name] = parts
+
+        def kwargs_for_partition(index):
+            return {
+                name: partitioned_kwargs[name][index]
+                if name in partitioned_kwargs
+                else value
+                for name, value in kwargs.items()
+            }
 
         if output_collection_type is None:
             output_collection_type = self.datatype
@@ -282,14 +330,13 @@ class DelayedParallelFunc(object):
         )
 
         func = dask.delayed(func, pure=False, nout=1)
+        preds = [
+            func(model_delayed, part, **kwargs_for_partition(index))
+            for index, part in enumerate(X_d)
+        ]
         if isinstance(X, dcDataFrame):
-            preds = [func(model_delayed, part, **kwargs) for part in X_d]
             dtype = first(X.dtypes) if output_dtype is None else output_dtype
-        elif isinstance(X, dcSeries):
-            preds = [func(model_delayed, part, **kwargs) for part in X_d]
-            dtype = X.dtype if output_dtype is None else output_dtype
         else:
-            preds = [func(model_delayed, part[0]) for part in X_d]
             dtype = X.dtype if output_dtype is None else output_dtype
 
         # TODO: Put the following conditionals in a

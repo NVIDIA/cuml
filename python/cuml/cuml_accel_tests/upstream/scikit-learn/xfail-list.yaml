@@ -708,10 +708,6 @@
   - "sklearn.cluster.tests.test_k_means::test_float_precision[42-KMeans-dense]"
   - "sklearn.cluster.tests.test_k_means::test_kmeans_relocated_clusters[elkan-dense]"
   - "sklearn.cluster.tests.test_k_means::test_kmeans_relocated_clusters[lloyd-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float32-elkan-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float32-lloyd-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float64-elkan-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float64-lloyd-dense]"
 - reason: Integer inputs are converted to float32 instead of float64 with cuml.accel
   marker: cuml_accel_kmeans_integer_dtype
   tests:

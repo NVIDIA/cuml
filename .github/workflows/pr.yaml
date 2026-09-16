@@ -523,7 +523,6 @@ jobs:
     with:
       docs-projects: cuml
       dry-run: true
-      version-map: ${{ vars.VERSION_MAP }}
   wheel-build-libcuml:
     needs: [build-details, checks]
     permissions:

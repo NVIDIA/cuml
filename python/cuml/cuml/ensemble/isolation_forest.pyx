@@ -251,6 +251,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         The number of isolation trees in the ensemble.
     max_samples : int, float or "auto", default="auto"
         The number of samples to draw from X to train each isolation tree.
+
         - If int, then draw `max_samples` samples.
         - If float, then draw `max_samples * n_samples` samples.
         - If "auto", then `max_samples=min(256, n_samples)`.
@@ -258,8 +259,9 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         Maximum depth of each isolation tree. If None, depth is set to
         `ceil(log2(max_samples))`, which is the theoretical maximum depth
         needed to isolate any sample.
-    max_features : float, default=1.0
+    max_features : float or int, default=1.0
         The number of features to draw from X to train each isolation tree.
+
         - If int, draw exactly ``max_features`` features.
         - If float, draw ``max_features * n_features`` features.
     bootstrap : bool, default=False
@@ -272,6 +274,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     contamination : float or "auto", default="auto"
         The proportion of outliers in the data set, used to define the offset
         for ``decision_function`` and ``predict``.
+
         - If ``"auto"``, the offset is set to -0.5.
         - If float, must be in the range (0, 0.5] and the offset is set to
           the corresponding training-score quantile.
@@ -304,6 +307,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     The anomaly score is computed as: s(x) = 2^(-E[h(x)] / c(n))
 
     where:
+
     - h(x) is the path length of sample x in an isolation tree
     - E[h(x)] is the average path length over all trees
     - c(n) is the average path length in an unsuccessful search in a BST
