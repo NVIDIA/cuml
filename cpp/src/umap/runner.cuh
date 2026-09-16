@@ -105,7 +105,6 @@ inline value_t get_threshold(const raft::handle_t& handle,
                              raft::sparse::COO<value_t>& in,
                              int n_epochs)
 {
-  auto stream             = raft::resource::get_cuda_stream(handle);
   auto thrust_exec_policy = raft::resource::get_thrust_policy(handle);
 
   thrust::device_ptr<const value_t> vals_ptr = thrust::device_pointer_cast(in.vals());
