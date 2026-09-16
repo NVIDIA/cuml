@@ -20,7 +20,7 @@ inline void cuml_rf_allreduce_validation_status(const raft::handle_t& handle,
                                                 int* global_status)
 {
   auto const& comm    = raft::resource::get_comms(handle);
-  cudaStream_t stream = raft::resource::get_cuda_stream(handle);
+  cudaStream_t stream = raft::resource::get_cuda_stream(handle).get();
   comm.allreduce(local_status, global_status, 1, raft::comms::op_t::MAX, stream);
   RAFT_EXPECTS(comm.sync_stream(stream) == raft::comms::status_t::SUCCESS,
                "Input validation status all-reduce failed");
@@ -32,7 +32,7 @@ inline void cuml_rf_allreduce_oob_stats(const raft::handle_t& handle,
                                         std::size_t count)
 {
   auto const& comm    = raft::resource::get_comms(handle);
-  cudaStream_t stream = raft::resource::get_cuda_stream(handle);
+  cudaStream_t stream = raft::resource::get_cuda_stream(handle).get();
   comm.allreduce(local_stats, global_stats, count, raft::comms::op_t::SUM, stream);
   RAFT_EXPECTS(comm.sync_stream(stream) == raft::comms::status_t::SUCCESS,
                "OOB statistics all-reduce failed");
