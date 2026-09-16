@@ -20,7 +20,7 @@ from cuml.testing.utils import get_all_base_subclasses
 API_DOCS = Path(__file__).resolve().parents[3] / "docs" / "source" / "api"
 
 
-def _check_api_docs_present() -> None:
+def _check_api_docs_present():
     assert API_DOCS.is_dir(), (
         f"API documentation not found at {API_DOCS}. These tests must be run "
         "from a full repository checkout."
