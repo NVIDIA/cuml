@@ -259,7 +259,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         Maximum depth of each isolation tree. If None, depth is set to
         `ceil(log2(max_samples))`, which is the theoretical maximum depth
         needed to isolate any sample.
-    max_features : float, default=1.0
+    max_features : float or int, default=1.0
         The number of features to draw from X to train each isolation tree.
 
         - If int, draw exactly ``max_features`` features.
