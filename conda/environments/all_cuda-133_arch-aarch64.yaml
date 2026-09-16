@@ -2,6 +2,7 @@
 # To make changes, edit ../../dependencies.yaml and run `rapids-dependency-file-generator`.
 channels:
 - rapidsai-nightly
+- rapidsai
 - conda-forge
 dependencies:
 - breathe
