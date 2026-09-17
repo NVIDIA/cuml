@@ -51,6 +51,7 @@ class RandomForestClassifier(
         * If ``True``, each tree in the forest is built on a bootstrapped
           sample with replacement.
         * If ``False``, the whole dataset is used to build each tree.
+
         Weighted bootstrapping through ``sample_weight`` or ``class_weight``
         is not yet supported for distributed random forests.
     max_samples : float (default = 1.0)
