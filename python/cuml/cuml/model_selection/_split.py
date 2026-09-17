@@ -197,6 +197,14 @@ class KFold(_KFoldBase):
         parameter has no effect. Pass an int for reproducible output across
         multiple function calls.
 
+    sort_indices : bool, default=False
+        Whether to sort the train and test indices before yielding them.
+        When True, the indices of each split are returned in sorted order,
+        matching the ordering produced by scikit-learn's ``KFold`` (where
+        the shuffle only determines fold membership). Defaults to False,
+        which preserves cuML's existing behavior with no performance
+        impact.
+
     Examples
     --------
     >>> import cupy as cp
@@ -218,6 +226,19 @@ class KFold(_KFoldBase):
       Test:  index=[2 3]
     """
 
+    def __init__(
+        self,
+        n_splits=5,
+        *,
+        shuffle=False,
+        random_state=None,
+        sort_indices=False,
+    ):
+        super().__init__(
+            n_splits, shuffle=shuffle, random_state=random_state
+        )
+        self.sort_indices = sort_indices
+
     def _split(self, X, y, indices):
         n_samples = len(indices)
         fold_sizes = cp.full(
@@ -234,7 +255,15 @@ class KFold(_KFoldBase):
             mask[start:stop] = True
 
             train = indices[cp.logical_not(mask)]
-            yield train, test
+            if self.sort_indices:
+                # Match scikit-learn's index ordering: the shuffle only
+                # determines fold membership, so yield the train and test
+                # indices in sorted order (see NVIDIA/cuml#8631). Opt-in
+                # only; the default path is unchanged and performance
+                # neutral.
+                yield cp.sort(train), cp.sort(test)
+            else:
+                yield train, test
             current = stop
 
 

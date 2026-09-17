@@ -125,3 +125,100 @@ def test_kfold_dataframe() -> None:
     kfold = KFold(n_splits=5, shuffle=True)
     for train_idx, test_idx in kfold.split(X, y):
         assert train_idx.shape[0] + test_idx.shape[0] == n_samples
+
+
+
+
+def test_kfold_sort_indices_matches_sklearn_order() -> None:
+    """sort_indices=True yields scikit-learn-like sorted index order.
+
+    Coverage for NVIDIA/cuml#8631: with shuffle=True,
+    KFold(sort_indices=True) must return the train and test indices in
+    sorted order like scikit-learn - the shuffle only determines fold
+    membership. Membership itself is not asserted here because cuML
+    shuffles with CuPy's RNG, which is not guaranteed to generate the
+    same permutation as NumPy's RNG.
+    """
+    n_samples = 3
+    X = np.arange(n_samples * 2).reshape(n_samples, 2)
+    kfold = KFold(n_splits=3, shuffle=True, random_state=1, sort_indices=True)
+
+    for train_idx, test_idx in kfold.split(X):
+        # Indices must come out sorted, exactly like scikit-learn.
+        cp.testing.assert_array_equal(train_idx, cp.sort(train_idx))
+        cp.testing.assert_array_equal(test_idx, cp.sort(test_idx))
+        # Train and test indices must partition the sample set.
+        combined = cp.sort(cp.concatenate([train_idx, test_idx]))
+        cp.testing.assert_array_equal(combined, cp.arange(n_samples))
+
+    # Identical parameters must produce identical splits.
+    first = [(t.copy(), s.copy()) for t, s in kfold.split(X)]
+    for (train_idx, test_idx), (exp_train, exp_test) in zip(
+        kfold.split(X), first
+    ):
+        cp.testing.assert_array_equal(train_idx, exp_train)
+        cp.testing.assert_array_equal(test_idx, exp_test)
+
+
+@pytest.mark.parametrize("n_samples", [10, 11, 100])
+@pytest.mark.parametrize("n_splits", [2, 3, 5])
+@pytest.mark.parametrize("random_state", [0, 1, 42, 123])
+def test_kfold_sort_indices_sweep(
+    n_samples, n_splits, random_state
+) -> None:
+    """KFold(sort_indices=True) always yields sorted train/test indices."""
+    X = cp.arange(n_samples * 2).reshape(n_samples, 2)
+    kfold = KFold(
+        n_splits=n_splits,
+        shuffle=True,
+        random_state=random_state,
+        sort_indices=True,
+    )
+
+    for train_idx, test_idx in kfold.split(X):
+        assert train_idx.shape[0] + test_idx.shape[0] == n_samples
+        cp.testing.assert_array_equal(train_idx, cp.sort(train_idx))
+        cp.testing.assert_array_equal(test_idx, cp.sort(test_idx))
+
+    # Splits must be deterministic for identical parameters.
+    first = [(t.copy(), s.copy()) for t, s in kfold.split(X)]
+    for (train_idx, test_idx), (exp_train, exp_test) in zip(
+        kfold.split(X), first
+    ):
+        cp.testing.assert_array_equal(train_idx, exp_train)
+        cp.testing.assert_array_equal(test_idx, exp_test)
+
+
+def test_kfold_default_behavior_unchanged() -> None:
+    """The default path (sort_indices=False) must stay exactly as before.
+
+    Uses a fixed, deliberately unsorted index array so the test does not
+    depend on CuPy's RNG: the default path preserves the shuffled order
+    untouched, while sort_indices=True only reorders the same indices.
+    """
+    X = np.arange(6).reshape(3, 2)
+    indices = cp.asarray([2, 0, 1])
+
+    default = KFold(n_splits=3, sort_indices=False)
+    opt_in = KFold(n_splits=3, sort_indices=True)
+
+    default_splits = list(default._split(X, None, indices.copy()))
+    optin_splits = list(opt_in._split(X, None, indices.copy()))
+
+    assert len(default_splits) == len(optin_splits) == 3
+    for (d_train, d_test), (o_train, o_test) in zip(
+        default_splits, optin_splits
+    ):
+        # Opt-in only reorders: fold membership must be identical.
+        cp.testing.assert_array_equal(cp.sort(d_train), o_train)
+        cp.testing.assert_array_equal(cp.sort(d_test), o_test)
+        # Opt-in output is sorted.
+        cp.testing.assert_array_equal(o_train, cp.sort(o_train))
+        cp.testing.assert_array_equal(o_test, cp.sort(o_test))
+
+    # The default path keeps the unsorted shuffle order ([2, 1] and [2, 0]
+    # for folds 1 and 2 with these indices), i.e. behavior is unchanged.
+    cp.testing.assert_array_equal(default_splits[1][0], cp.asarray([2, 1]))
+    cp.testing.assert_array_equal(default_splits[2][0], cp.asarray([2, 0]))
+    cp.testing.assert_array_equal(optin_splits[1][0], cp.asarray([1, 2]))
+    cp.testing.assert_array_equal(optin_splits[2][0], cp.asarray([0, 2]))
