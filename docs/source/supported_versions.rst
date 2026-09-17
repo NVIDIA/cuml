@@ -42,6 +42,8 @@ The following dependencies are optional and provide additional functionality:
 CUDA-X Dependencies
 -------------------
 
-cuML dependencies within the CUDA-X ecosystem are pinned to the same version.
-For example, cuML 25.08 is compatible with and only with cuDF 25.08, cuVS
-25.08, and other CUDA-X libraries at version 25.08.
+Some cuML dependencies within the CUDA-X Data Science ecosystem are pinned to
+the same version. For example, cuML 25.08 is compatible with and only with cuDF
+25.08, cuVS 25.08, rmm 25.08, etc. These constraints are expressed as part of
+the package dependencies and aren't something a user should typically need to
+worry about manually ensuring.
