@@ -192,6 +192,7 @@ void swap_kernel(long long int* I, float* D, int n_rows, int n_cols) {
 
 def _drop_self_edges(distances, indices):
     """Drop edges between a point and itself in the knn graph"""
+    indices = cp.ascontiguousarray(indices, dtype=cp.int64)
     rows, cols = indices.shape
 
     # Launch config
@@ -1107,7 +1108,7 @@ class NearestNeighbors(NeighborsBase):
     Notes
     -----
     For an additional example see `the NearestNeighbors notebook
-    <https://github.com/rapidsai/cuml/blob/main/notebooks/nearest_neighbors_demo.ipynb>`_.
+    <https://github.com/NVIDIA/cuml/blob/main/notebooks/nearest_neighbors_demo.ipynb>`_.
 
     For additional docs, see `scikit-learn's NearestNeighbors
     <https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.NearestNeighbors.html#sklearn.neighbors.NearestNeighbors>`_.

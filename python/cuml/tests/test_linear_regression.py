@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import cupy as cp
 import numpy as np
@@ -203,7 +203,7 @@ def test_linear_regression_model_default(dataset):
 
 # TODO: Replace test_linear_regression_model_default with this test once #4963
 # is resolved.
-@pytest.mark.skip(reason="https://github.com/rapidsai/cuml/issues/4963")
+@pytest.mark.skip(reason="https://github.com/NVIDIA/cuml/issues/4963")
 @given(split_datasets(regression_datasets()))
 @example(small_regression_dataset(np.float32))
 @example(small_regression_dataset(np.float64))

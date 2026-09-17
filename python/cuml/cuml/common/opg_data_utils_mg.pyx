@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import numpy as np
@@ -98,7 +98,7 @@ def build_rank_size_pair(parts_to_sizes):
     """
     cdef vector[RankSizePair*] *rsp_vec = new vector[RankSizePair*]()
 
-    for idx, (rank, size) in enumerate(parts_to_sizes):
+    for (rank, size) in parts_to_sizes:
         rsp_vec.push_back(new RankSizePair(rank, size))
 
     return <uintptr_t>rsp_vec

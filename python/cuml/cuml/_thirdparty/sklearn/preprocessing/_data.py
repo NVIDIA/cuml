@@ -411,7 +411,7 @@ class MinMaxScaler(
         self.data_range_ = data_range
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Scale features of X according to feature_range.
 
@@ -438,7 +438,7 @@ class MinMaxScaler(
 
         return X
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Undo the scaling of X according to feature_range.
 
@@ -866,7 +866,7 @@ class StandardScaler(
 
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X, copy=None):
         """Perform standardization by centering and scaling
 
@@ -906,7 +906,7 @@ class StandardScaler(
 
         return X
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X, copy=None):
         """Scale back the data to the original representation
 
@@ -1103,7 +1103,7 @@ class MaxAbsScaler(
         self.scale_ = _handle_zeros_in_scale(max_abs)
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Scale the data
 
@@ -1129,7 +1129,7 @@ class MaxAbsScaler(
 
         return X
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Scale back the data to the original representation
 
@@ -1372,7 +1372,7 @@ class RobustScaler(
 
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Center and scale the data.
 
@@ -1401,7 +1401,7 @@ class RobustScaler(
                 X /= self.scale_
         return X
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Scale back the data to the original representation
 
@@ -1663,7 +1663,7 @@ class PolynomialFeatures(
         self.n_output_features_ = sum(1 for _ in combinations)
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Transform data to polynomial features
 
@@ -1962,7 +1962,7 @@ class Normalizer(
         check_inputs(self, X, accept_sparse="csr", reset=True)
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X, copy=None):
         """Scale each non zero row of X to unit norm
 
@@ -2100,7 +2100,7 @@ class Binarizer(
         check_inputs(self, X, accept_sparse=['csr', 'csc'], reset=True)
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X, copy=None):
         """Binarize each element of X
 
@@ -2265,7 +2265,7 @@ class KernelCenterer(
         self.K_fit_all_ = self.K_fit_rows_.sum() / n_samples
         return self
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, K, copy=True):
         """Center kernel matrix.
 
@@ -2463,17 +2463,17 @@ class QuantileTransformer(
             column_nnz_data = X.data[X.indptr[feature_idx]:
                                      X.indptr[feature_idx + 1]]
             if len(column_nnz_data) > self.subsample:
-                column_subsample = (self.subsample * len(column_nnz_data) //
-                                    n_samples)
-                if self.ignore_implicit_zeros:
-                    column_data = np.zeros(shape=column_subsample,
-                                           dtype=X.dtype)
-                else:
-                    column_data = np.zeros(shape=self.subsample, dtype=X.dtype)
+                column_data = np.zeros(shape=self.subsample, dtype=X.dtype)
+                column_subsample = (
+                    self.subsample
+                    if self.ignore_implicit_zeros
+                    else self.subsample * len(column_nnz_data) // n_samples
+                )
                 column_data[:column_subsample] = np.array(
-                    random_state.choice(column_nnz_data.get(),
-                                        size=column_subsample,
-                                        replace=False))
+                    random_state.choice(
+                        column_nnz_data.get(), size=column_subsample, replace=False
+                    )
+                )
             else:
                 if self.ignore_implicit_zeros:
                     column_data = np.zeros(shape=len(column_nnz_data),
@@ -2491,6 +2491,7 @@ class QuantileTransformer(
                     cpu_np.nanpercentile(np.asnumpy(column_data),
                                          np.asnumpy(references)))
         self.quantiles_ = cpu_np.transpose(np.asnumpy(self.quantiles_))
+
         # due to floating-point precision error in `np.nanpercentile`,
         # make sure the quantiles are monotonically increasing
         # Upstream issue in numpy:
@@ -2677,7 +2678,7 @@ class QuantileTransformer(
 
         return X
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Feature-wise transformation of the data.
 
@@ -2699,7 +2700,7 @@ class QuantileTransformer(
 
         return self._transform(X, inverse=False)
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Back-projection to the original space.
 
@@ -2950,7 +2951,11 @@ class PowerTransformer(
         self._fit(X, y=y, force_transform=False)
         return self
 
-    @mlfunc(set_input_type=True)
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     def fit_transform(self, X, y=None):
         return self._fit(X, y, force_transform=True)
 
@@ -2989,7 +2994,7 @@ class PowerTransformer(
 
         return X
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Apply the power transform to each feature using the fitted lambdas.
 
@@ -3024,7 +3029,7 @@ class PowerTransformer(
 
         return X
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Apply the inverse power transformation using the fitted lambdas.
 

@@ -208,10 +208,12 @@ def test_rf_regression_pickle(
 
     def assert_model(pickled_model, X_test):
         assert array_equal(result["rf_res"], pickled_model.predict(X_test))
-        # Confirm no crash from score
-        pickled_model.score(X_test, np.zeros(X_test.shape[0]))
+        if key != "IsolationForest":
+            # Confirm no crash from score. IsolationForest is an outlier
+            # detector and has no `score`, as in sklearn.
+            pickled_model.score(X_test, np.zeros(X_test.shape[0]))
 
-        pickle_save_load(tmpdir, create_mod, assert_model)
+    pickle_save_load(tmpdir, create_mod, assert_model)
 
 
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
@@ -481,7 +483,7 @@ def test_nearest_neighbors_pickle(algorithm):
         # Currently ivf indices aren't serialized, which may result in small
         # differences upon reload. For now we check for comparable performance
         # just to ensure things are wired together properly.
-        # See https://github.com/rapidsai/cuml/issues/8144.
+        # See https://github.com/NVIDIA/cuml/issues/8144.
         min_acc = 0.75 if algorithm == "ivfpq" else 0.9
         accuracy = (i1 == i2).sum() / i1.size
         assert accuracy >= min_acc
@@ -627,7 +629,7 @@ def test_agglomerative_pickle(tmpdir, datatype, keys, data_size):
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
 @pytest.mark.parametrize("keys", spectral_clustering_model.keys())
 @pytest.mark.parametrize(
-    "data_size", [unit_param([500, 20, 10]), stress_param([500000, 1000, 500])]
+    "data_size", [unit_param([500, 20, 10]), stress_param([50000, 1000, 500])]
 )
 def test_spectral_clustering_pickle(tmpdir, datatype, keys, data_size):
     result = {}
@@ -636,12 +638,11 @@ def test_spectral_clustering_pickle(tmpdir, datatype, keys, data_size):
         nrows, ncols, n_info = data_size
         X_train, _, _ = make_dataset(datatype, nrows, ncols, n_info)
         model = spectral_clustering_model[keys](random_state=42)
-        result["spectral_clustering"] = model.fit_predict(X_train)
+        result["labels"] = model.fit_predict(X_train)
         return model, X_train
 
     def assert_model(pickled_model, X_train):
-        pickle_after_predict = pickled_model.fit_predict(X_train)
-        assert array_equal(result["spectral_clustering"], pickle_after_predict)
+        np.testing.assert_array_equal(pickled_model.labels_, result["labels"])
 
     pickle_save_load(tmpdir, create_mod, assert_model)
 

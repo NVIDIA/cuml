@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -49,7 +49,10 @@ def _set_cuda_cache_path_per_xdist_worker(config):
 # =============================================================================
 
 # Add the import here for any plugins that should be loaded EVERY TIME
-pytest_plugins = "cuml.testing.plugins.quick_run_plugin"
+pytest_plugins = [
+    "cuml.testing.plugins.quick_run_plugin",
+    "cuml.testing.plugins.restart_corrupted_xdist_worker",
+]
 
 
 # =============================================================================
@@ -63,7 +66,6 @@ HYPOTHESIS_ENABLED = os.environ.get("HYPOTHESIS_ENABLED") in (
     "true",
     "1",
 )
-IS_XDIST_WORKER = os.environ.get("PYTEST_XDIST_WORKER") is not None
 
 
 # =============================================================================
@@ -347,32 +349,6 @@ def _get_gpu_memory(device_index=0):
         return ceil(pynvml.nvmlDeviceGetMemoryInfo(handle).total / 2**30)
     except pynvml.NVMLError_NotSupported:
         return None
-
-
-@pytest.hookimpl(trylast=True)
-def pytest_runtest_logreport(report):
-    """Some CUDA errors are "sticky" and cause subsequent CUDA calls in a
-    process to error.
-
-    When running under pytest-xdist, this hook checks for sticky errors on
-    failed tests, and if present will crash the worker after reporting the
-    failure. pytest-xdist will then start a new worker with a clean CUDA
-    context, avoiding sticky errors.
-
-    This hook is a no-op when run outside of pytest-xdist.
-    """
-    if not IS_XDIST_WORKER:
-        return
-
-    # Only check on failed test runs, not other events
-    if report.when == "call" and report.failed:
-        try:
-            # Try allocating a tiny array to invoke a CUDA API. If this fails,
-            # then the context is definitely corrupted.
-            cp.ones(1)
-        except Exception:
-            # Hardcrash the worker
-            os._exit(1)
 
 
 # =============================================================================

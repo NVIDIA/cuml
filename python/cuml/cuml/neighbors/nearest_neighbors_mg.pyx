@@ -52,7 +52,7 @@ def _build_part_inputs(arrays, parts_to_ranks, m, n, local_rank):
         )
 
     cdef vector[RankSizePair*] parts_to_ranks_vec
-    for idx, (rank, size) in enumerate(parts_to_ranks):
+    for (rank, size) in parts_to_ranks:
         parts_to_ranks_vec.push_back(new RankSizePair(rank, size))
 
     cdef PartDescriptor *descriptor = new PartDescriptor(

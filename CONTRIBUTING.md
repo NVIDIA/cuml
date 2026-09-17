@@ -30,8 +30,8 @@ into three categories:
     or [help wanted](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) labels
 3. Comment on the issue saying you are going to work on it.
 4. Get familiar with the developer guide relevant for you:
-    * For C++ developers it is available here [DEVELOPER_GUIDE.md](wiki/cpp/DEVELOPER_GUIDE.md)
-    * For Python developers, a [Python DEVELOPER_GUIDE.md](wiki/python/DEVELOPER_GUIDE.md) is available as well.
+    * For Python developers, read the [Python Developer Guide](docs/source/developer_guide/python/development.md) and [Estimator Guide](docs/source/developer_guide/python/estimators.md).
+    * For C++ developers, read the [C++ and CUDA Developer Guide](docs/source/developer_guide/cpp/development.md).
 5. Code! Make sure to update unit tests!
 6. When done, [create your pull request](https://github.com/NVIDIA/cuml/compare).
 7. Verify that CI passes all [status checks](https://help.github.com/articles/about-status-checks/), or fix if needed.
@@ -135,7 +135,7 @@ methods to run clang-tidy on your local machine: using Docker or Conda.
         docker run --rm --pull always \
             --mount type=bind,source="$(pwd)",target=/opt/repo --workdir /opt/repo \
             -e SCCACHE_S3_NO_CREDENTIALS=1 \
-            rapidsai/ci-conda:26.10-latest /opt/repo/ci/run_clang_tidy.sh
+            rapidsai/ci-conda:26.12-latest /opt/repo/ci/run_clang_tidy.sh
         ```
 
 
@@ -196,7 +196,7 @@ PRs should target `main` by default, except in the following situations:
 * changes target a soon-to-be-released version: `release/YY.MM`
 * hotfixes targeting critical issues: `hotfix/YY.MM.patch-version`
 
-For more details, see https://docs.rapids.ai/releases/process/
+For more details, see https://docs.nvidia.com/datascience/releases/process/
 
 ### Branch naming
 

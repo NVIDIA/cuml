@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import cudf
@@ -11,7 +11,7 @@ from cuml.preprocessing._target_encoder import TargetEncoder
 from cuml.testing.utils import array_equal
 
 # TODO: many of these tests use `output_type="numpy"` to work around
-# https://github.com/rapidsai/cuml/issues/7893. These can be
+# https://github.com/NVIDIA/cuml/issues/7893. These can be
 # reverted once that's resolved.
 
 
@@ -197,6 +197,7 @@ def test_targetencoder_smooth():
     )
     smooths = [0, 1, 2, 10000]
     for smooth, answer in zip(smooths, answers):
+        answer = np.array(answer)[:, None]
         encoder = TargetEncoder(smooth=smooth)
         train_encoded = encoder.fit_transform(train, label)
         assert array_equal(train_encoded, answer)
@@ -321,3 +322,18 @@ def test_target_encoder_target_type_and_classes():
     enc = TargetEncoder().fit(X, y)
     assert enc.target_type_ == "continuous"
     assert enc.classes_ is None
+
+
+def test_get_feature_names_out():
+    X = np.array([[0, 1], [1, 2], [2, 3]])
+    y = np.array(["a", "b", "a"], dtype="object")
+
+    model = TargetEncoder(multi_feature_mode="combination").fit(X, y)
+    res = model.get_feature_names_out()
+    sol = np.array(["targetencoder0"], dtype=object)
+    np.testing.assert_array_equal(res, sol)
+
+    model = TargetEncoder(multi_feature_mode="independent").fit(X, y)
+    res = model.get_feature_names_out(["a", "b"])
+    sol = np.array(["a", "b"], dtype=object)
+    np.testing.assert_array_equal(res, sol)

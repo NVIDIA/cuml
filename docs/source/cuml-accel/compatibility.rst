@@ -15,7 +15,7 @@ General Behavior
 ----------------
 
 **Compatibility**
-   The accelerator is tested with ``scikit-learn`` versions 1.6 through 1.9,
+   The accelerator is tested with ``scikit-learn`` versions 1.6 through 1.9.1,
    ``umap-learn`` versions 0.5.7 through 0.5.12, and ``hdbscan`` versions 0.8.39
    through 0.8.44. When ``cuml.accel`` detects a version outside these ranges,
    it issues a runtime warning and continues. The untested version will likely
@@ -223,6 +223,22 @@ To compare results between estimators, we recommend comparing scores like
    - If ``X`` is sparse.
    - If ``X`` contains missing values (represented as ``NaN``).
    - If ``y`` is a multi-output target.
+
+
+.. dropdown:: ``IsolationForest``
+   :name: isolationforest
+
+   ``IsolationForest`` will fall back to CPU in the following cases:
+
+   - If ``warm_start=True``.
+   - If a non-``None`` ``sample_weight`` is passed to ``fit`` or
+     ``fit_predict``.
+   - If ``X`` is sparse.
+   - If ``X`` contains missing or non-finite values.
+
+   Additionally, the following fitted attributes are currently not computed:
+
+   - ``estimators_samples_``
 
 
 sklearn.kernel_ridge
@@ -490,6 +506,25 @@ sklearn.preprocessing
    :name: labelbinarizer
 
    ``LabelBinarizer`` has no known estimator-specific ``cuml.accel`` limitations.
+
+
+.. dropdown:: ``OneHotEncoder``
+   :name: onehotencoder
+
+   ``OneHotEncoder`` will fall back to CPU in the following cases:
+
+   - If any columns in ``X`` have ``bytes`` values (``str`` values work fine).
+   - If ``dtype`` is not a float or bool dtype.
+   - If ``drop`` is ``"if_binary"``
+   - If ``handle_unknown`` is ``"warn"`` or ``"infrequent_if_exist"``.
+   - If ``min_frequency`` is not ``None``.
+   - If ``max_categories`` is not ``None``.
+   - If ``feature_name_combiner`` is a callable.
+
+   Additional notes:
+
+   - cuML's encoder treats ``None`` and ``NaN`` values as identical, while
+     scikit-learn's encoder treats these as different categories.
 
 
 .. dropdown:: ``TargetEncoder``

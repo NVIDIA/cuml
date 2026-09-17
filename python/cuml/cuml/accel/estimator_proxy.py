@@ -101,10 +101,14 @@ class _ReconstructProxy:
     def __reduce__(self):
         import pickle
 
-        # Use cloudpickle bundled with joblib. Since joblib is a required dependency
-        # of sklearn (and sklearn is a required dep of cuml & all accelerated modules),
-        # this should always be installed.
-        import joblib.externals.cloudpickle as cloudpickle
+        # Prefer cloudpickle bundled with joblib (found in joblib < 1.6.0),
+        # falling back to cloudpickle otherwise (required for joblib >= 1.6.0).
+        # Since joblib is a required dependency of sklearn (and sklearn is a
+        # required dep of cuml) one of these should always be available.
+        try:
+            import joblib.externals.cloudpickle as cloudpickle
+        except ImportError:
+            import cloudpickle
 
         return (pickle.loads, (cloudpickle.dumps(self._reconstruct),))
 
@@ -379,10 +383,8 @@ class ProxyBase(BaseEstimator, metaclass=ProxyBaseMeta):
         from cuml.common.sparse import is_sparse
 
         if (
-            args
-            and is_sparse(args[0])
-            and "sparse" not in self._gpu.__sklearn_tags__().X_types_gpu
-        ):
+            (args and is_sparse(args[0])) or is_sparse(kwargs.get("X"))
+        ) and "sparse" not in self._gpu.__sklearn_tags__().X_types_gpu:
             raise UnsupportedOnGPU("Sparse inputs are not supported")
 
         if getattr(self._cpu, "_skl_callbacks", ()) and method in (
@@ -596,7 +598,7 @@ class ProxyBase(BaseEstimator, metaclass=ProxyBaseMeta):
                         f"The `{type(self).__name__}.{name}` attribute is not yet "
                         "implemented in `cuml.accel`.\n\n"
                         "If this attribute is important for your use case, please open "
-                        "an issue: https://github.com/rapidsai/cuml/issues."
+                        "an issue: https://github.com/NVIDIA/cuml/issues."
                     ) from None
                 raise
         elif name in ("_parent_callback_ctx", "_skl_callbacks"):

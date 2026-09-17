@@ -1,17 +1,44 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import cupy as cp
+import cupyx.scipy.sparse as cp_sp
 import dask
 import dask.array
-from toolz import first
 
+import cuml.feature_extraction.text
 from cuml.dask.common.base import BaseEstimator, DelayedTransformMixin
 from cuml.dask.common.func import reduce
 from cuml.dask.common.input_utils import DistributedDataHandler
 from cuml.dask.common.utils import wait_and_raise_from_futures
-from cuml.feature_extraction.text import TfidfTransformer as s_TfidfTransformer
+
+
+def _get_df_and_n_samples(X):
+    """Compute doc frequencies and n_samples for X"""
+    X = cp_sp.csr_matrix(X)
+    df = cp.bincount(X.indices, minlength=X.shape[1]).astype(
+        X.dtype, copy=False
+    )
+    return df, X.shape[0]
+
+
+def _merge_df_and_n_samples(parts):
+    """Merge doc frequencies and n_samples for X"""
+    dfs, ns = zip(*parts)
+    df = cp.vstack(dfs).sum(axis=0)
+    n_samples = sum(ns)
+    return df, n_samples
+
+
+def _build_fit_tfidf_transformer(df_and_n_samples, kwargs):
+    """Build a fit TfidfTransformer from df, n_samples, and kwargs"""
+    df, n_samples = df_and_n_samples
+    model = cuml.feature_extraction.text.TfidfTransformer(**kwargs)
+    model._set_idf(df, n_samples)
+    model.n_features_in_ = len(df)
+    return model
 
 
 class TfidfTransformer(BaseEstimator, DelayedTransformMixin):
@@ -77,30 +104,9 @@ class TfidfTransformer(BaseEstimator, DelayedTransformMixin):
 
         # Make any potential model args available and catch any potential
         # ValueErrors before distributed training begins.
-        self._set_internal_model(s_TfidfTransformer(**kwargs))
-
-    @staticmethod
-    def _set_doc_stats(X, kwargs):
-        model = s_TfidfTransformer(**kwargs)
-        # Below is only required if we have to set stats
-        if model.use_idf:
-            model._set_doc_stats(X)
-
-        return model
-
-    @staticmethod
-    def _merge_stats_to_model(models):
-        modela = first(models)
-        if modela.use_idf:
-            for model in models[1:]:
-                modela.__n_samples += model.__n_samples
-                modela.__df += model.__df
-        return modela
-
-    @staticmethod
-    def _set_idf_diag(model):
-        model._set_idf_diag()
-        return model
+        model = cuml.feature_extraction.text.TfidfTransformer(**kwargs)
+        model._check_params()
+        self._set_internal_model(model)
 
     def fit(self, X, y=None):
         """
@@ -126,38 +132,28 @@ class TfidfTransformer(BaseEstimator, DelayedTransformMixin):
                 "Multi-dimensional chunking is not supported"
             )
 
-        # We don't' do anything if we don't need idf
+        # No need to compute if we don't need idf
         if not self.internal_model.use_idf:
+            self.internal_model.n_features_in_ = X.shape[1]
             return self
 
-        futures = DistributedDataHandler.create(X, self.client)
-
-        models = [
-            self.client.submit(
-                self._set_doc_stats, part, self.kwargs, pure=False
-            )
-            for w, part in futures.gpu_futures
-        ]
-
-        models = reduce(models, self._merge_stats_to_model, client=self.client)
-
-        wait_and_raise_from_futures([models])
-
-        models = self.client.submit(self._set_idf_diag, models, pure=False)
-
-        wait_and_raise_from_futures([models])
-
-        self._set_internal_model(models)
+        handler = DistributedDataHandler.create(X, self.client)
+        chunks = [chunk for _, chunk in handler.gpu_futures]
+        df_and_n_samples = reduce(
+            self.client.map(_get_df_and_n_samples, chunks, pure=False),
+            _merge_df_and_n_samples,
+            client=self.client,
+        )
+        model = self.client.submit(
+            _build_fit_tfidf_transformer,
+            df_and_n_samples,
+            self.kwargs,
+            pure=False,
+        )
+        wait_and_raise_from_futures([model])
+        self._set_internal_model(model)
 
         return self
-
-    @staticmethod
-    def _get_part(parts, idx):
-        return parts[idx]
-
-    @staticmethod
-    def _get_size(arrs):
-        return arrs.shape[0]
 
     def fit_transform(self, X, y=None):
         """

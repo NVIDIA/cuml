@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -21,7 +21,7 @@
 #include <rmm/device_uvector.hpp>
 
 // optimize, maybe im2col ?
-// https://github.com/rapidsai/cuml/issues/891
+// https://github.com/NVIDIA/cuml/issues/891
 template <typename Dtype>
 CUML_KERNEL void conv1d_kernel(const Dtype* input,
                                int batch_size,
@@ -55,10 +55,10 @@ void conv1d(const raft::handle_t& handle,
     <<<GET_NUM_BLOCKS(total_threads),
        GET_THREADS_PER_BLOCK(total_threads),
        0,
-       handle.get_stream()>>>(input, batch_size, filter, filter_size, output, output_size);
+       handle.get_stream().get()>>>(input, batch_size, filter, filter_size, output, output_size);
 }
 
-// https://github.com/rapidsai/cuml/issues/891
+// https://github.com/NVIDIA/cuml/issues/891
 template <typename Dtype>
 CUML_KERNEL void season_mean_kernel(const Dtype* season,
                                     int len,
@@ -104,7 +104,7 @@ void season_mean(const raft::handle_t& handle,
                  int half_filter_size,
                  ML::SeasonalType seasonal)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   bool is_additive    = seasonal == ML::SeasonalType::ADDITIVE;
   season_mean_kernel<Dtype>
     <<<GET_NUM_BLOCKS(batch_size), GET_THREADS_PER_BLOCK(batch_size), 0, stream>>>(
@@ -151,7 +151,7 @@ void batched_ls(const raft::handle_t& handle,
                 Dtype* level,
                 Dtype* trend)
 {
-  cudaStream_t stream           = handle.get_stream();
+  cudaStream_t stream           = handle.get_stream().get();
   cublasHandle_t cublas_h       = handle.get_cublas_handle();
   cusolverDnHandle_t cusolver_h = handle.get_cusolver_dn_handle();
 
@@ -252,7 +252,7 @@ void stl_decomposition_gpu(const raft::handle_t& handle,
                            Dtype* start_season,
                            ML::SeasonalType seasonal)
 {
-  cudaStream_t stream     = handle.get_stream();
+  cudaStream_t stream     = handle.get_stream().get();
   cublasHandle_t cublas_h = handle.get_cublas_handle();
 
   const int end         = ML::checked_mul<int>(start_periods, frequency);

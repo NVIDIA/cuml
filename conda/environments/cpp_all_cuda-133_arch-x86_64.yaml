@@ -18,10 +18,10 @@ dependencies:
 - libcurand-dev
 - libcusolver-dev
 - libcusparse-dev
-- libcuvs==26.10.*,>=0.0.0a0
-- libnvforest==26.10.*,>=0.0.0a0
-- libraft-headers==26.10.*,>=0.0.0a0
-- librmm==26.10.*,>=0.0.0a0
+- libcuvs==26.12.*,>=0.0.0a0
+- libnvforest==26.12.*,>=0.0.0a0
+- libraft-headers==26.12.*,>=0.0.0a0
+- librmm==26.12.*,>=0.0.0a0
 - ninja
 - sysroot_linux-64==2.28
 name: cpp_all_cuda-133_arch-x86_64

@@ -904,7 +904,11 @@ class ColumnTransformer(
         self.fit_transform(X, y=y)
         return self
 
-    @cuml.internals.mlfunc(set_input_type=True)
+    @cuml.internals.mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
     def fit_transform(self, X, y=None):
         """Fit all transformers, transform the data and concatenate results.
 
@@ -956,7 +960,7 @@ class ColumnTransformer(
 
         return self._hstack(list(Xs))
 
-    @cuml.internals.mlfunc
+    @cuml.internals.mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """Transform X separately by each transformer, concatenate results.
 

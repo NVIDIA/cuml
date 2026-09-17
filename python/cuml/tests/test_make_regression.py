@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -64,12 +64,19 @@ def test_make_regression(
     )
 
     if coef:
-        out, values, coefs = result
+        X, y, coefs = result
     else:
-        out, values = result
+        X, y = result
 
-    assert out.shape == (n_samples, n_features), "out shape mismatch"
-    assert values.shape == (n_samples, n_targets), "values shape mismatch"
+    assert X.shape == (n_samples, n_features)
+
+    if n_targets == 1:
+        assert y.shape == (n_samples,)
+    else:
+        assert y.shape == (n_samples, n_targets)
 
     if coef:
-        assert coefs.shape == (n_features, n_targets), "coefs shape mismatch"
+        if n_targets == 1:
+            assert coefs.shape == (n_features,)
+        else:
+            assert coefs.shape == (n_features, n_targets)

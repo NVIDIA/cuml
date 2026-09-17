@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -91,18 +91,17 @@ def _get_meta(df):
     return ret
 
 
-@dask.delayed
 def _to_cudf(arr):
     if arr.ndim == 2:
         return cudf.DataFrame(arr)
-    elif arr.ndim == 1:
-        return cudf.Series(arr)
+    return cudf.Series(arr)
 
 
 def to_dask_cudf(dask_arr, client=None):
     client = default_client() if client is None else client
 
-    elms = [_to_cudf(dp) for dp in dask_arr.to_delayed().flatten()]
+    func = dask.delayed(_to_cudf)
+    elms = [func(dp) for dp in dask_arr.to_delayed().flatten()]
     dfs = client.compute(elms)
 
     meta = client.submit(_get_meta, dfs[0])

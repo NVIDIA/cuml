@@ -165,6 +165,37 @@ def test_weighted_kmeans(nrows, ncols, nclusters, max_weight, random_state):
         assert diff / avg_score <= relative_tolerance
 
 
+@pytest.mark.parametrize("device_buffer_samples", [0, 2])
+def test_weighted_kmeans_inertia_and_score(device_buffer_samples):
+    X = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [10.0, 10.0],
+            [11.0, 11.0],
+            [12.0, 12.0],
+        ]
+    )
+    sample_weight = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 2.0])
+
+    model = cuml.KMeans(
+        n_clusters=2,
+        init=np.array([[1.0, 1.0], [11.0, 11.0]]),
+        n_init=1,
+        device_buffer_samples=device_buffer_samples,
+    ).fit(X, sample_weight=sample_weight)
+
+    np.testing.assert_allclose(model.inertia_, 12.0)
+
+    score_X = np.array([[0.0, 0.0], [10.0, 10.0]])
+    score_weight = np.array([2.0, 2.0])
+    np.testing.assert_allclose(
+        model.score(score_X, sample_weight=score_weight),
+        -8.0,
+    )
+
+
 @pytest.mark.parametrize("nrows", [1000, 10000])
 @pytest.mark.parametrize("ncols", [25])
 @pytest.mark.parametrize("nclusters", [2, 5])
@@ -182,7 +213,7 @@ def test_kmeans_clusters_blobs(
     )
 
     # Set n_init to 2 to improve stability of k-means|| initialization
-    # See https://github.com/rapidsai/cuml/issues/5530 for details
+    # See https://github.com/NVIDIA/cuml/issues/5530 for details
     cuml_kmeans = cuml.KMeans(
         init="k-means||",
         n_clusters=nclusters,
@@ -543,6 +574,36 @@ def test_kmeans_device_buffer_samples_host_path(
         rtol=1e-3,
     )
     assert adjusted_rand_score(dev_labels, host_labels) >= 0.97
+
+
+def test_kmeans_transform_euclidean():
+    """transform should return Euclidean distances, matching sklearn."""
+    X = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [10.0, 10.0],
+            [11.0, 11.0],
+            [12.0, 12.0],
+        ]
+    )
+    init = np.array([[1.0, 1.0], [11.0, 11.0]])
+    query = np.array([[0.0, 0.0], [10.0, 10.0]])
+
+    cuml_model = cuml.KMeans(
+        n_clusters=2, init=init, n_init=1, output_type="numpy"
+    )
+    cuml_model.fit(X)
+    cu_dist = cuml_model.transform(query)
+
+    sk_model = cluster.KMeans(n_clusters=2, init=init, n_init=1)
+    sk_model.fit(X)
+    sk_dist = sk_model.transform(query)
+
+    expected = np.sqrt(np.array([[2.0, 242.0], [162.0, 2.0]]))
+    np.testing.assert_allclose(cu_dist, expected)
+    np.testing.assert_allclose(cu_dist, sk_dist)
 
 
 def test_get_feature_names_out():

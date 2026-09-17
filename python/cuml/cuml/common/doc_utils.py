@@ -231,7 +231,7 @@ def generate_docstring(
         if skip_parameters_heading and prepend_parameters:
             # indexing at 8 to match indentation of inserted parameters
             # this can be replaced with indentation detection
-            # https://github.com/rapidsai/cuml/issues/2714
+            # https://github.com/NVIDIA/cuml/issues/2714
             func.__doc__ += current_params_in_docstring[8:]
 
         # Add return section header if needed, no option to skip currently.

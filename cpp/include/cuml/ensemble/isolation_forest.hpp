@@ -136,6 +136,35 @@ void fit(const raft::handle_t& handle,
          rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
 
 /**
+ * @brief Fit an Isolation Forest and export it as a Treelite model.
+ *
+ *
+ * @param[in]  handle          RAFT handle for GPU resources
+ * @param[out] model_handle    Treelite model handle owned by the caller
+ * @param[in]  input           Training data, column-major [n_rows × n_cols], device pointer
+ * @param[in]  n_rows          Number of training samples
+ * @param[in]  n_cols          Number of features
+ * @param[in]  params          Hyperparameters (n_estimators, max_samples, max_depth, seed)
+ * @param[out] c_normalization    Normalization constant c(n) for the trained forest, needed to
+ *                                turn average path lengths into anomaly scores
+ * @param[out] feature_indices    Host buffer receiving each tree's sampled feature indices in
+ *                                row-major [n_estimators, resolved max_features] order
+ * @param[in]  feature_indices_size Number of elements available in feature_indices
+ * @param[in]  verbosity          Logging level
+ */
+template <typename T>
+void fit_treelite(const raft::handle_t& handle,
+                  TreeliteModelHandle* model_handle,
+                  const T* input,
+                  size_t n_rows,
+                  int n_cols,
+                  const IF_params& params,
+                  double* c_normalization,
+                  int* feature_indices,
+                  size_t feature_indices_size,
+                  rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
+
+/**
  * @brief Compute anomaly scores.
  *
  * Returns scores following the original paper convention (Liu et al. 2008):

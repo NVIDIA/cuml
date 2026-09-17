@@ -2151,3 +2151,85 @@ def test_check_cudf_coerces_numeric_objects():
     s = check_cudf(x, ensure_ndim=1)
     assert (s == cudf.Series([1.0, 2.0, 3.0])).all()
     assert s.dtype == "float64"
+
+
+@pytest.mark.parametrize("kind", ["list", "array", "array-like"])
+def test_check_cudf_mixed_dtype_array_like_inputs(kind):
+    class ArrayLike:
+        def __init__(self, array):
+            self.array = array
+
+        def __array__(self, dtype=None, copy=None):
+            return self.array
+
+    data = [
+        [1, 2.0, "x", "a", None, np.nan],
+        [2, 4.0, "y", None, None, np.nan],
+    ]
+    sol = cudf.DataFrame(data, nan_as_null=True)
+    if kind == "list":
+        X = data
+    elif kind == "array":
+        X = np.array(data, dtype=object)
+    else:
+        assert kind == "array-like"
+        X = ArrayLike(np.array(data, dtype=object))
+
+    res = check_cudf(X)
+    cudf.testing.assert_frame_equal(res, sol)
+
+
+@pytest.mark.parametrize("kind", ["list", "numpy-object", "numpy-float"])
+def test_check_cudf_nan_as_null(kind):
+    """cudf's default is to treat NaN as NULL in inputs, but that default
+    changes when `cudf.pandas` is active. Here we check that the code paths in
+    `check_cudf` hardcode the `nan_as_null` configuration so that behavior
+    doesn't change if cudf.pandas is active."""
+
+    if kind == "list":
+        X = [[1, None], [np.nan, 1]]
+    elif kind == "numpy-object":
+        X = np.array([[1, None], [np.nan, 1]], dtype=object)
+    else:
+        assert kind == "numpy-float"
+        X = np.array([[1, np.nan], [np.nan, 1]], dtype="float32")
+
+    res = check_cudf(X, ensure_ndim=None)
+    vals = cudf.Series([1, np.nan], nan_as_null=True)
+    assert res.iloc[:, 0].isin(vals).all()
+    assert res.iloc[:, 1].isin(vals).all()
+
+
+@pytest.mark.parametrize(
+    "kind, dtype",
+    [
+        ("list", None),
+        ("numpy", "O"),
+        ("numpy", "S"),
+        ("pandas", "O"),
+        ("pandas", "S"),
+    ],
+)
+@pytest.mark.parametrize("ndim", [1, 2])
+def test_check_cudf_bytes_dtype_errors(kind, dtype, ndim):
+    X = [b"a", b"b"] if ndim == 1 else [[b"a", b"b"], [b"c", b"d"]]
+    if kind == "numpy":
+        X = np.array(X, dtype=dtype)
+    elif kind == "pandas":
+        X = (pd.DataFrame if ndim == 2 else pd.Series)(X).astype(dtype)
+
+    with pytest.raises(TypeError, match="X with bytes dtype is not supported"):
+        check_cudf(X, ensure_ndim=None, input_name="X")
+
+
+@pytest.mark.parametrize("kind", ["list", "array"])
+def test_check_cudf_unsupported_object_inputs(kind):
+    X = [[{"x": 1}, 1], [1, 2]]
+    if kind == "array":
+        X = np.array(X, dtype=object)
+
+    with pytest.raises(
+        TypeError,
+        match="An object dtype X argument must be composed of",
+    ):
+        check_cudf(X, input_name="X")

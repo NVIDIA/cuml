@@ -426,7 +426,7 @@ class ClassLabels:
         elif output_type == "numpy":
             # XXX: dtype coercion not needed for object, and when specified
             # cudf will sometimes coerce `None -> <NA>` erroneously.
-            # See https://github.com/rapidsai/cudf/issues/22419
+            # See https://github.com/NVIDIA/cudf/issues/22419
             # Better to leave unspecified in this case.
             return out.to_numpy(dtype=None if dtype == "object" else dtype)
         else:
@@ -697,6 +697,7 @@ def mlfunc(
     convert_output=True,
     set_input_type=False,
     preserve_index=False,
+    column_names=None,
 ):
     """A decorator for enabling common `cuml` machinery on a function/method.
 
@@ -753,6 +754,11 @@ def mlfunc(
         Whether to preserve the index of the ``array_arg`` argument (if any)
         in the function output. This should typically be set to ``True`` on
         any inference (predict/transform-like) methods.
+    column_names : {"feature_names_in", "feature_names_out", None}, default=None
+        Where to get the column names from when outputting a DataFrame. Options
+        are ``None`` (for default column names), ``"feature_names_in"`` (to
+        use ``model.feature_names_in_``) or ``"feature_names_out"`` (to
+        determine feature names from ``get_feature_names_out``.
     """
     if func is None:
         return lambda func: mlfunc(
@@ -762,9 +768,20 @@ def mlfunc(
             convert_output=convert_output,
             preserve_index=preserve_index,
             set_input_type=set_input_type,
+            column_names=column_names,
         )
 
     sig = inspect.signature(func, follow_wrapped=True)
+
+    # XXX: For legacy reasons, cuml will coerce a 1 column 2D output to a
+    # Series instead of a DataFrame when outputting pandas/cudf types. In the
+    # long run we want to deprecate and remove this (See #7893). However, many
+    # methods in sklearn have a defined expectation of whether they return a 1D
+    # or 2D output. For example, `transform` must always return a 2D output,
+    # coercing to a Series breaks the sklearn interface and makes it harder for
+    # sklearn to mix with cuml transformers. For now we restrict this legacy
+    # coercion to only `predict` methods.
+    one_col_2d_as_series = func.__name__.startswith(("predict", "fit_predict"))
 
     # Normalize model_arg to str | None
     if model_arg is ...:
@@ -793,6 +810,13 @@ def mlfunc(
     if preserve_index and array_arg is None:
         raise ValueError(
             "`preserve_index=True` is not valid with `array_arg=None`"
+        )
+
+    if column_names not in ("feature_names_in", "feature_names_out", None):
+        raise ValueError(f"`{column_names=}` is not valid")
+    elif column_names is not None and model_arg is None:
+        raise ValueError(
+            f"`{column_names=}` is not valid with `model_arg=None`"
         )
 
     @functools.wraps(func)
@@ -844,7 +868,26 @@ def mlfunc(
                     res,
                     output_type,
                     index=index,
+                    one_col_2d_as_series=one_col_2d_as_series,
                 )
+
+                if isinstance(res, (cudf.DataFrame, pd.DataFrame)):
+                    if column_names == "feature_names_in":
+                        cols = getattr(model, "feature_names_in_", None)
+                    elif column_names == "feature_names_out":
+                        try:
+                            cols = model.get_feature_names_out()
+                        except AttributeError:
+                            # Can happen if no `get_feature_names_out` method
+                            # exists, or in meta-estimators (like
+                            # ColumnTransformer) where the sub-estimator
+                            # doesn't support `get_feature_names_out`.
+                            cols = None
+                    else:
+                        cols = None
+
+                    if cols is not None:
+                        res.columns = cols
 
         return res
 

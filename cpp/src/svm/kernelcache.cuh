@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -383,7 +383,7 @@ class KernelCache {
               size_t kernel_tile_byte_limit   = 1 << 30,
               size_t dense_extract_byte_limit = 1 << 30,
               bool is_precomputed             = false)
-    : batch_cache(n_rows, cache_size, handle.get_stream()),
+    : batch_cache(n_rows, cache_size, handle.get_stream().get()),
       handle(handle),
       kernel(kernel),
       kernel_type(kernel_type),
@@ -393,18 +393,18 @@ class KernelCache {
       n_ws(n_ws),
       svmType(svmType),
       is_precomputed(is_precomputed),
-      kernel_tile(0, handle.get_stream()),
-      matrix_l2(0, handle.get_stream()),
-      matrix_l2_ws(0, handle.get_stream()),
-      ws_idx_mod(n_ws, handle.get_stream()),
-      ws_idx_mod_svr(svmType == EPSILON_SVR ? n_ws : 0, handle.get_stream()),
+      kernel_tile(0, handle.get_stream().get()),
+      matrix_l2(0, handle.get_stream().get()),
+      matrix_l2_ws(0, handle.get_stream().get()),
+      ws_idx_mod(n_ws, handle.get_stream().get()),
+      ws_idx_mod_svr(svmType == EPSILON_SVR ? n_ws : 0, handle.get_stream().get()),
       x_ws_csr(nullptr),
       x_ws_dense(0, handle.get_stream()),
       indptr_batched(0, handle.get_stream()),
       ws_cache_idx(n_ws * 2, handle.get_stream())
   {
     ASSERT(kernel != nullptr || is_precomputed, "Kernel pointer required for KernelCache!");
-    stream = handle.get_stream();
+    stream = handle.get_stream().get();
 
     batching_enabled = false;
     is_csr           = !isDenseType<MatrixViewType>();
@@ -510,6 +510,19 @@ class KernelCache {
     }
 
     cache_state = CacheState::WS_INITIALIZED;
+  }
+
+  /**
+   * @brief Finish processing a working set without updating the cache
+   *
+   * A block solve can legitimately produce no coefficient updates. In that
+   * case there is no full kernel tile to process, but the working-set state
+   * still needs to be closed before another working set can be initialized.
+   */
+  void FinishWorkingSet()
+  {
+    ASSERT(cache_state == CacheState::WS_INITIALIZED, "Working set not initialized!");
+    cache_state = CacheState::READY;
   }
 
   /**

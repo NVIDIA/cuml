@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -37,7 +37,7 @@ def test_to_sparse_dask_array(input_type, nrows, ncols, client):
     if input_type == "dask_dataframe":
         pytest.xfail(
             reason="Dask nightlies break task fusing for this, "
-            "issue https://github.com/rapidsai/cuml/issues/6169"
+            "issue https://github.com/NVIDIA/cuml/issues/6169"
         )
         df = cudf.DataFrame(a.todense())
         inp = dask_cudf.from_cudf(df, npartitions=2)

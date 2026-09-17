@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -438,21 +438,21 @@ void matrixRowNorm(const raft::handle_t& handle,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::L1Norm) {
       raft::linalg::rowNorm<raft::linalg::NormType::L1Norm, true>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::LinfNorm) {
       raft::linalg::rowNorm<raft::linalg::NormType::LinfNorm, true>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else {
       RAFT_FAIL("Unsupported norm type");
     }
@@ -463,21 +463,21 @@ void matrixRowNorm(const raft::handle_t& handle,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::L1Norm) {
       raft::linalg::rowNorm<raft::linalg::NormType::L1Norm, false>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else if (norm == raft::linalg::NormType::LinfNorm) {
       raft::linalg::rowNorm<raft::linalg::NormType::LinfNorm, false>(
         target,
         matrix.data_handle(),
         matrix.extent(1),  //! cols first arg!
         matrix.extent(0),
-        handle.get_stream());
+        handle.get_stream().get());
     } else {
       RAFT_FAIL("Unsupported norm type");
     }
@@ -581,7 +581,7 @@ void extractRows(raft::device_matrix_view<math_t, int, LayoutPolicyIn> matrix_in
  *     'DENSE -> DENSE (raw pointer)'
  *
  * TODO: move this functionality to
- * https://github.com/rapidsai/raft/issues/1524
+ * https://github.com/NVIDIA/raft/issues/1524
  *
  * @param [in] matrix_in matrix input (dense view)  [i, j]
  * @param [out] matrix_out matrix output raw pointer, size at least num_indices*j
@@ -628,7 +628,7 @@ void extractRows(raft::device_csr_matrix_view<math_t, int, int, int> matrix_in,
                  int num_indices,
                  const raft::handle_t& handle)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto csr_struct_in = matrix_in.structure_view();
 
   // initialize dense target
@@ -718,7 +718,7 @@ void copyIndptrToHost(raft::device_matrix_view<math_t, int, LayoutPolicyIn> matr
  *     'CSR -> CSR (data owning)'
  *
  * TODO: move this functionality to
- * https://github.com/rapidsai/raft/issues/1524
+ * https://github.com/NVIDIA/raft/issues/1524
  *
  * @param [in] matrix_in matrix input in CSR  [i, j]
  * @param [out] matrix_out matrix output in CSR  [num_indices, j]
@@ -733,7 +733,7 @@ void extractRows(raft::device_csr_matrix_view<math_t, int, int, int> matrix_in,
                  int num_indices,
                  const raft::handle_t& handle)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto csr_struct_in = matrix_in.structure_view();
   int* indptr_in     = csr_struct_in.get_indptr().data();
   int* indices_in    = csr_struct_in.get_indices().data();
@@ -807,7 +807,7 @@ void extractRows(raft::device_csr_matrix_view<math_t, int, int, int> matrix_in,
                  int num_indices,
                  const raft::handle_t& handle)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto csr_struct_in = matrix_in.structure_view();
   int* indptr_in     = csr_struct_in.get_indptr().data();
   int* indices_in    = csr_struct_in.get_indices().data();

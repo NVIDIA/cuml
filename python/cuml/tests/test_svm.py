@@ -467,6 +467,14 @@ def test_svr_skl_cmp_weighted():
     compare_svr(cuSVR, sklSVR, X, y)
 
 
+def test_svr_float32_numerical_stagnation_error():
+    X = np.arange(5, dtype=np.float32).reshape(-1, 1)
+    y = np.arange(5, dtype=np.float32)
+
+    with pytest.raises(RuntimeError, match="made no progress.*float64"):
+        cu_svm.SVR(kernel="poly", degree=10).fit(X, y)
+
+
 @pytest.mark.parametrize("classifier", [True, False])
 @pytest.mark.parametrize("train_dtype", [np.float32, np.float64])
 @pytest.mark.parametrize("test_dtype", [np.float64, np.float32])
@@ -490,7 +498,7 @@ def test_svm_predict_mixed_dtypes(train_dtype, test_dtype, classifier):
 @pytest.mark.skipif(
     IS_ARM,
     reason="Test fails unexpectedly on ARM. "
-    "github.com/rapidsai/cuml/issues/5100",
+    "https://github.com/rapidsai/NVIDIA/issues/5100",
 )
 @pytest.mark.skipif(
     cudf_pandas_active,
@@ -513,7 +521,7 @@ def test_svm_no_support_vectors():
     assert model.dual_coef_.shape == (1, 0)
     assert model.support_.shape == (0,)
     assert model.support_vectors_.shape[0] == 0
-    # Check disabled due to https://github.com/rapidsai/cuml/issues/4095
+    # Check disabled due to https://github.com/NVIDIA/cuml/issues/4095
     # assert model.support_vectors_.shape[1] == n_cols
 
 

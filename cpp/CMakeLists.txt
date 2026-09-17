@@ -159,6 +159,16 @@ if(DETECT_CONDA_ENV)
 endif()
 
 # ##################################################################################################
+# * find C++ libraries from wheels in site-packages --------------------------------------
+find_package(Python COMPONENTS Interpreter)
+if(Python_FOUND)
+  include(${rapids-cmake-dir}/cython-core/find_prefix_paths.cmake)
+  rapids_cython_find_prefix_paths("${Python_EXECUTABLE}" wheel_prefix_paths)
+  set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS TRUE)
+  list(APPEND CMAKE_PREFIX_PATH ${wheel_prefix_paths})
+endif()
+
+# ##################################################################################################
 # * compiler options ---------------------------------------------------------
 
 set(_ctk_static_suffix "")
@@ -398,7 +408,7 @@ if(BUILD_CUML_CPP_LIBRARY)
     )
 
     # When using GCC 13, some maybe-uninitialized warnings appear from CCCL and are treated as
-    # errors. See this issue: https://github.com/rapidsai/cuml/issues/6225
+    # errors. See this issue: https://github.com/NVIDIA/cuml/issues/6225
     set_property(
       SOURCE src/hdbscan/condensed_hierarchy.cu
       APPEND_STRING

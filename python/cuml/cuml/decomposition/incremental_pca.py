@@ -387,7 +387,7 @@ class IncrementalPCA(PCA):
 
         return self
 
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Apply dimensionality reduction to X.

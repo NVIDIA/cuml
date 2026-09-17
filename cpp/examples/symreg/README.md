@@ -28,7 +28,7 @@ Scanning dependencies of target symreg_example
 [100%] Linking CUDA executable symreg_example
 [100%] Built target symreg_example
 ```
-`CMakeLists_standalone.txt` also loads a minimal set of header dependencies(namely [raft](https://github.com/rapidsai/raft) and [cub](https://github.com/NVIDIA/cub)) if they are not detected in the system.
+`CMakeLists_standalone.txt` also loads a minimal set of header dependencies(namely [raft](https://github.com/NVIDIA/raft) and [cub](https://github.com/NVIDIA/cub)) if they are not detected in the system.
 ## Run
 
 1. Generate a toy training and test dataset

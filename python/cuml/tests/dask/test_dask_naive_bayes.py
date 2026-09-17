@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -66,7 +66,7 @@ def test_score(client):
 @pytest.mark.parametrize("dtype", [cp.float32, cp.float64, cp.int32])
 def test_model_multiple_chunks(client, dtype):
     # tests naive_bayes with n_chunks being greater than one, related to issue
-    # https://github.com/rapidsai/cuml/issues/3150
+    # https://github.com/NVIDIA/cuml/issues/3150
     X = cp.array([[0, 0, 0, 1], [1, 0, 0, 1], [1, 0, 0, 0]])
 
     X = dask.array.from_array(X, chunks=((1, 1, 1), -1)).astype(dtype)

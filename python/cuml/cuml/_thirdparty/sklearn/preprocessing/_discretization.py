@@ -297,7 +297,7 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator, SparseInputTagMixin):
             )
         return n_bins
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Discretize the data.
@@ -328,7 +328,7 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator, SparseInputTagMixin):
         Xt = self._encoder.transform(Xt)
         return Xt
 
-    @mlfunc
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, Xt):
         """
         Transform discretized data back to original feature space.

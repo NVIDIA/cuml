@@ -126,7 +126,7 @@ endif()
 if(BUILD_CUML_TESTS AND (all_algo OR hdbscan_algo))
   ConfigureTest(PREFIX SG NAME HDBSCAN_TEST sg/hdbscan_test.cu ML_INCLUDE)
   # When using GCC 13, some maybe-uninitialized warnings appear from CCCL and are treated as errors.
-  # See this issue: https://github.com/rapidsai/cuml/issues/6225
+  # See this issue: https://github.com/NVIDIA/cuml/issues/6225
   set_property(
     SOURCE sg/hdbscan_test.cu
     APPEND_STRING
@@ -207,7 +207,7 @@ endif()
 if(BUILD_CUML_MG_TESTS)
 
   # This test needs to be rewritten to use the MPI comms, not the std comms, and moved to RAFT:
-  # https://github.com/rapidsai/cuml/issues/5058 ConfigureTest(PREFIX MG NAME KMEANS_TEST
+  # https://github.com/NVIDIA/cuml/issues/5058 ConfigureTest(PREFIX MG NAME KMEANS_TEST
   # mg/kmeans_test.cu NCCL ML_INCLUDE)
   if(MPI_CXX_FOUND)
     # (please keep the filenames in alphabetical order)
@@ -241,6 +241,7 @@ endif()
 if(BUILD_PRIMS_TESTS)
   # (please keep the filenames in alphabetical order)
   ConfigureTest(PREFIX PRIMS NAME ADD_SUB_DEV_SCALAR_TEST prims/add_sub_dev_scalar.cu)
+  ConfigureTest(PREFIX PRIMS NAME ARIMA_MEMORY_TEST prims/arima_memory.cpp ML_INCLUDE)
   ConfigureTest(PREFIX PRIMS NAME BATCHED_CSR_TEST prims/batched/csr.cu)
   ConfigureTest(PREFIX PRIMS NAME BATCHED_GEMV_TEST prims/batched/gemv.cu)
   ConfigureTest(PREFIX PRIMS NAME BATCHED_MAKE_SYMM_TEST prims/batched/make_symm.cu)

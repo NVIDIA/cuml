@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import numpy as np
@@ -11,12 +11,14 @@ from cuml.accel.estimator_proxy import (
     classproperty,
 )
 from cuml.internals.interop import UnsupportedOnGPU
+from cuml.internals.validation import check_cudf
 
 __all__ = (
     "StandardScaler",
     "MinMaxScaler",
     "MaxAbsScaler",
     "PolynomialFeatures",
+    "OneHotEncoder",
     "TargetEncoder",
     "LabelEncoder",
     "LabelBinarizer",
@@ -53,6 +55,30 @@ class PolynomialFeatures(ArrayAPIProxyBase):
         if model.order == "F":
             raise UnsupportedOnGPU("order='F' is not supported")
         return model.get_params(deep=False)
+
+
+def _check_onehotencoder_X(X):
+    """Check if inputs are supported on GPU"""
+    try:
+        return check_cudf(X, input_name="X")
+    except TypeError as exc:
+        if str(exc).startswith("X with bytes dtype"):
+            raise UnsupportedOnGPU(
+                "X with bytes dtype is not supported"
+            ) from None
+        raise
+
+
+class OneHotEncoder(ProxyBase):
+    _gpu_class = cuml.preprocessing.OneHotEncoder
+
+    def _gpu_fit(self, X, y=None):
+        X = _check_onehotencoder_X(X)
+        return self._gpu.fit(X, y=y)
+
+    def _gpu_fit_transform(self, X, y=None, **fit_params):
+        X = _check_onehotencoder_X(X)
+        return self._gpu.fit_transform(X, y=y, **fit_params)
 
 
 class LabelEncoder(ProxyBase):

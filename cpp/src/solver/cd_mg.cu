@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -275,7 +275,7 @@ int fit_impl(raft::handle_t& handle,
   int rank = handle.get_comms().get_rank();
 
   // TODO: These streams should come from raft::handle_t
-  // Tracking issue: https://github.com/rapidsai/cuml/issues/2470
+  // Tracking issue: https://github.com/NVIDIA/cuml/issues/2470
 
   int n_streams = input_desc.blocksOwnedBy(rank).size();
   ;
@@ -366,7 +366,7 @@ void predict_impl(raft::handle_t& handle,
   std::vector<MLCommon::Matrix::Data<T>*> preds_data(preds, preds + n_parts);
 
   // TODO: These streams should come from raft::handle_t
-  // Tracking issue: https://github.com/rapidsai/cuml/issues/2470
+  // Tracking issue: https://github.com/NVIDIA/cuml/issues/2470
   int n_streams = n_parts;
   cudaStream_t streams[n_streams];
   for (int i = 0; i < n_streams; i++) {

@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -713,7 +713,7 @@ def evaluate_spectral_quality(
     return should_fail, fail_reason, metrics_dict
 
 
-@pytest.mark.skip  # see https://github.com/rapidsai/cuml/issues/7713
+@pytest.mark.skip  # see https://github.com/NVIDIA/cuml/issues/7713
 @pytest.mark.slow
 @settings(
     max_examples=5,  # Random testing across dataset types

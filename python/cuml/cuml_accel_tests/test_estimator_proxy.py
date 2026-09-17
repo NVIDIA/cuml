@@ -155,7 +155,7 @@ def test_repr():
     # machine, but :shrug:. All we care about is that things are plumbed
     # properly, so ignoring this error here for now. This is repeated twice
     # below as well.
-    # See https://github.com/rapidsai/cuml/issues/8212.
+    # See https://github.com/NVIDIA/cuml/issues/8212.
     try:
         mimebundle = model._repr_mimebundle_()
     except UnicodeDecodeError:
@@ -167,7 +167,7 @@ def test_repr():
 def test_repr_mimebundle():
     model = LogisticRegression(C=1.5)
     X, y = make_classification()
-    # TODO: see https://github.com/rapidsai/cuml/issues/8212
+    # TODO: see https://github.com/NVIDIA/cuml/issues/8212
     try:
         html_repr = model._repr_mimebundle_()["text/html"]
     except UnicodeDecodeError:
@@ -205,7 +205,7 @@ def test_pipeline_repr():
     native = Pipeline([("cls", model._cpu)])
     assert str(pipe) == str(native)
     assert repr(pipe) == repr(native)
-    # TODO: see https://github.com/rapidsai/cuml/issues/8212
+    # TODO: see https://github.com/NVIDIA/cuml/issues/8212
     try:
         mimebundle = pipe._repr_mimebundle_()
     except UnicodeDecodeError:
@@ -601,15 +601,21 @@ def test_fit_unsupported_params():
     assert hasattr(model._cpu, "n_features_in_")
 
 
-def test_fit_unsupported_args():
+@pytest.mark.parametrize("use_kwargs", [False, True])
+def test_fit_unsupported_args(use_kwargs):
     """Hyperparameters supported on GPU, but X/y type isn't"""
     X_dense, y = make_regression(
         n_samples=100, n_features=200, random_state=42
     )
     X_dense[X_dense < 2.5] = 0.0
     X = scipy.sparse.coo_matrix(X_dense)
+
     model = RandomForestRegressor()
-    assert model.fit(X, y) is model
+    if use_kwargs:
+        out = model.fit(X=X, y=y)
+    else:
+        out = model.fit(X, y)
+    assert out is model
     # Fit happened on CPU
     check_is_fitted(model)
     assert model._gpu is None

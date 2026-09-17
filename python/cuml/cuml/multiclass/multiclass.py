@@ -122,7 +122,7 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
     array. Under the hood the data is partitioned for binary classification,
     and it is transformed back to the device by the cuML estimator. These
     copies back and forth the device and the host have some overhead. For more
-    details see issue https://github.com/rapidsai/cuml/issues/2876.
+    details see issue https://github.com/NVIDIA/cuml/issues/2876.
 
     For documentation see `scikit-learn's OneVsRestClassifier
     <https://scikit-learn.org/stable/modules/generated/sklearn.multiclass.OneVsRestClassifier.html>`_.
@@ -169,7 +169,7 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
     array. Under the hood the data is partitioned for binary classification,
     and it is transformed back to the device by the cuML estimator. These
     copies back and forth the device and the host have some overhead. For more
-    details see issue https://github.com/rapidsai/cuml/issues/2876.
+    details see issue https://github.com/NVIDIA/cuml/issues/2876.
 
     For documentation see `scikit-learn's OneVsOneClassifier
     <https://scikit-learn.org/stable/modules/generated/sklearn.multiclass.OneVsOneClassifier.html>`_.

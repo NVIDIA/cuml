@@ -46,13 +46,11 @@ def test_kmeans_input(input_type):
         cp.testing.assert_array_equal(summary[0], [[1.0, 23.0], [0.0, 52.0]])
         assert isinstance(summary[0], np.ndarray)
     elif input_type == "cudf-series":
-        cp.testing.assert_array_equal(summary[0].values.tolist(), [23.0, 52.0])
-        assert isinstance(summary[0], cudf.Series)
+        cp.testing.assert_array_equal(summary[0].to_numpy(), [[23.0], [52.0]])
+        assert isinstance(summary[0], cudf.DataFrame)
     elif input_type == "pandas-series" and not cudf_pandas_active:
-        cp.testing.assert_array_equal(
-            summary[0].to_numpy().flatten(), [23.0, 52.0]
-        )
-        assert isinstance(summary[0], pd.Series)
+        cp.testing.assert_array_equal(summary[0].to_numpy(), [[23.0], [52.0]])
+        assert isinstance(summary[0], pd.DataFrame)
     elif input_type == "cupy":
         cp.testing.assert_array_equal(
             summary[0].tolist(), [[1.0, 23.0], [0.0, 52.0]]

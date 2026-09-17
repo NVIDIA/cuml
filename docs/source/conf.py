@@ -16,9 +16,11 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import datetime
+import glob
 import os
 import sys
 import textwrap
+import xml.etree.ElementTree as ET
 
 from packaging.version import Version
 
@@ -43,6 +45,7 @@ from github_link import make_linkcode_resolve  # noqa
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "breathe",
     "numpydoc",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -57,6 +60,55 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_design",
 ]
+
+breathe_projects = {
+    "cuml": os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../cpp/xml")
+    )
+}
+breathe_default_project = "cuml"
+
+
+def clean_doxygen_xml(path: str) -> None:
+    # Doxygen 1.9.1 emits concepts and instantiations that Sphinx cannot parse,
+    # duplicates enum IDs, and gives TSNE_INIT::PCA the same C++ target as ML::PCA.
+    for filename in glob.glob(os.path.join(path, "*.xml")):
+        tree = ET.parse(filename)
+        changed = False
+        for section in tree.findall(".//sectiondef"):
+            for member in list(section.findall("memberdef")):
+                type_node = member.find("type")
+                type_text = (
+                    "".join(type_node.itertext())
+                    if type_node is not None
+                    else ""
+                )
+                if type_text in {"concept", "template void"}:
+                    section.remove(member)
+                    changed = True
+                    continue
+
+                if member.get("kind") != "enum":
+                    continue
+                member_id = member.get("id", "")
+                for value in list(member.findall("enumvalue")):
+                    if (
+                        member.findtext("name") == "TSNE_INIT"
+                        and value.findtext("name") == "PCA"
+                    ):
+                        member.remove(value)
+                        changed = True
+                    elif not value.get("id", "").startswith(member_id):
+                        value.set(
+                            "id", f"{member_id}_{value.findtext('name')}"
+                        )
+                        changed = True
+        if changed:
+            tree.write(filename, encoding="UTF-8", xml_declaration=True)
+
+
+for project_path in breathe_projects.values():
+    clean_doxygen_xml(project_path)
 
 ipython_mplbackend = "str"
 
@@ -123,6 +175,8 @@ html_theme = "nvidia_sphinx_theme"
 # documentation.
 #
 html_theme_options = {
+    "public_docs_features": os.environ.get("CI") == "true"
+    and os.environ.get("RAPIDS_BUILD_TYPE") != "pull-request",
     "external_links": [],
     "icon_links": [
         {
@@ -207,12 +261,16 @@ texinfo_documents = [
     ),
 ]
 
+with open("../../RAPIDS_BRANCH", "r") as f:
+    branch = f.read().strip()
+intersphinx_version = "latest" if branch == "main" else version
+
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    # TODO: Use stable URLs once subpath redirects are available:
-    # https://github.com/rapidsai/build-infra/issues/395
-    # rapids-pre-commit-hooks: disable-next-line
-    "cudf": ("https://docs.nvidia.com/cudf/26.10/", None),
+    "cudf": (
+        f"https://docs.nvidia.com/cudf/{intersphinx_version}/",
+        None,
+    ),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "python": ("https://docs.python.org/3", None),
     # TODO: re-enable once scipy docs are more reliable
@@ -223,8 +281,10 @@ intersphinx_mapping = {
         "https://nvidia.github.io/cuda-python/cuda-core/latest/",
         None,
     ),
-    # rapids-pre-commit-hooks: disable-next-line
-    "rmm": ("https://docs.nvidia.com/rmm/26.10/", None),
+    "rmm": (
+        f"https://docs.nvidia.com/rmm/{intersphinx_version}/",
+        None,
+    ),
 }
 
 # Config numpydoc
@@ -272,7 +332,9 @@ def setup_redirects(app, docname):
 
 def setup(app):
     app.add_css_file("custom.css")
+    app.add_css_file("cuml-accel-benchmarks.css")
     app.add_js_file("open-details-on-fragment.js")
+    app.add_js_file("cuml-accel-benchmarks.js")
     app.connect("build-finished", setup_redirects)
 
 

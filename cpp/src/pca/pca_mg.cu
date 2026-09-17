@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -125,7 +125,7 @@ void fit_impl(raft::handle_t& handle,
   int rank = handle.get_comms().get_rank();
 
   // TODO: These streams should come from raft::handle_t
-  // Reference issue https://github.com/rapidsai/cuml/issues/2470
+  // Reference issue https://github.com/NVIDIA/cuml/issues/2470
   auto n_streams = input_desc.blocksOwnedBy(rank).size();
   cudaStream_t streams[n_streams];
   for (std::uint32_t i = 0; i < n_streams; i++) {
@@ -255,7 +255,7 @@ void transform_impl(raft::handle_t& handle,
                     bool verbose)
 {
   // We want to update the API of this function, and other functions with
-  // regards to https://github.com/rapidsai/cuml/issues/2471
+  // regards to https://github.com/NVIDIA/cuml/issues/2471
 
   int rank = handle.get_comms().get_rank();
 

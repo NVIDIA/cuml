@@ -330,10 +330,12 @@ class RandomForest {
     // Distributed tree builders issue collectives independently, so train them serially until
     // the forest-level scheduler can impose a global collective order across concurrent trees.
     if (distributed) { n_streams = 1; }
-    ASSERT(static_cast<std::size_t>(n_streams) <= handle.get_stream_pool_size(),
-           "effective RF n_streams (=%d) should be <= raft::handle_t.n_streams (=%lu)",
-           n_streams,
-           handle.get_stream_pool_size());
+    auto stream_pool_size = handle.get_stream_pool_size();
+    if (static_cast<std::size_t>(n_streams) > stream_pool_size) {
+      CUML_LOG_WARN("Resizing n_streams to fit the available stream pool size (%lu)",
+                    stream_pool_size);
+      n_streams = ML::narrow_cast<int>(stream_pool_size);
+    }
 
     auto quantile_result = DT::computeQuantiles(handle,
                                                 input,
@@ -363,7 +365,7 @@ class RandomForest {
       int stream_id = omp_get_thread_num();
       auto s        = handle.get_stream_from_stream_pool(stream_id);
 
-      auto& selected_rows = row_sampler.sample(i, stream_id, s);
+      auto& selected_rows = row_sampler.sample(i, stream_id, s.get());
 
       /* Build individual tree in the forest.
         - input is a pointer to orig data that have n_cols features and n_rows rows.
@@ -375,7 +377,7 @@ class RandomForest {
       */
 
       forest->trees[i] = DT::DecisionTree::fit(handle,
-                                               s,
+                                               s.get(),
                                                input,
                                                n_cols,
                                                n_rows,
@@ -415,7 +417,7 @@ class RandomForest {
     ML::default_logger().set_level(verbosity);
     this->error_checking(input, predictions, n_rows, n_cols, true);
     std::vector<L> h_predictions(n_rows);
-    cudaStream_t stream = user_handle.get_stream();
+    cudaStream_t stream = user_handle.get_stream().get();
 
     std::vector<T> h_input(std::size_t(n_rows) * n_cols);
     raft::update_host(h_input.data(), input, std::size_t(n_rows) * n_cols, stream);
@@ -480,7 +482,7 @@ class RandomForest {
                           int rf_type = RF_type::CLASSIFICATION)
   {
     ML::default_logger().set_level(verbosity);
-    cudaStream_t stream = user_handle.get_stream();
+    cudaStream_t stream = user_handle.get_stream().get();
     RF_metrics stats;
     if (rf_type == RF_type::CLASSIFICATION) {  // task classifiation: get classification metrics
       float accuracy = raft::stats::accuracy(predictions, ref_labels, n_rows, stream);

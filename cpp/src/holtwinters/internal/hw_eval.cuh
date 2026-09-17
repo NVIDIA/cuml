@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -217,7 +217,7 @@ CUML_KERNEL void holtwinters_eval_gpu_global_kernel(const Dtype* ts,
 }
 
 // Test global and shared kernels
-// https://github.com/rapidsai/cuml/issues/890
+// https://github.com/NVIDIA/cuml/issues/890
 template <typename Dtype>
 void holtwinters_eval_gpu(const raft::handle_t& handle,
                           const Dtype* ts,
@@ -237,7 +237,7 @@ void holtwinters_eval_gpu(const raft::handle_t& handle,
                           Dtype* error,
                           ML::SeasonalType seasonal)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   int total_blocks      = GET_NUM_BLOCKS(batch_size);
   int threads_per_block = GET_THREADS_PER_BLOCK(batch_size);

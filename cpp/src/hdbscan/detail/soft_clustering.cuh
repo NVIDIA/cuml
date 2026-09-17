@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -7,7 +7,7 @@
 
 #include "kernels/soft_clustering.cuh"
 #include "select.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 #include <cuml/cluster/hdbscan.hpp>
 #include <cuml/common/distance_type.hpp>
@@ -59,7 +59,7 @@ void dist_membership_vector(const raft::handle_t& handle,
                             size_t batch_size,
                             bool softmax = false)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   rmm::device_uvector<value_t> exemplars_dense(n_exemplars * n, stream);
@@ -161,7 +161,7 @@ void all_points_outlier_membership_vector(
   value_t* outlier_membership_vec,
   bool softmax)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   auto parents      = condensed_tree.get_parents();
@@ -217,7 +217,6 @@ void all_points_prob_in_some_cluster(const raft::handle_t& handle,
                                      value_t* merge_heights,
                                      value_t* prob_in_some_cluster)
 {
-  auto stream      = handle.get_stream();
   auto exec_policy = handle.get_thrust_policy();
 
   value_t* lambdas = condensed_tree.get_lambdas();
@@ -266,7 +265,7 @@ void outlier_membership_vector(const raft::handle_t& handle,
                                value_t* outlier_membership_vec,
                                bool softmax)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   auto parents      = condensed_tree.get_parents();
@@ -334,7 +333,6 @@ void prob_in_some_cluster(const raft::handle_t& handle,
                           value_t* prediction_lambdas,
                           value_t* prob_in_some_cluster)
 {
-  auto stream      = handle.get_stream();
   auto exec_policy = handle.get_thrust_policy();
 
   value_t* lambdas = condensed_tree.get_lambdas();
@@ -391,7 +389,7 @@ void all_points_membership_vectors(const raft::handle_t& handle,
                                    value_t* membership_vec,
                                    size_t batch_size)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   size_t m = prediction_data.n_rows;
@@ -513,7 +511,7 @@ void membership_vector(const raft::handle_t& handle,
   RAFT_EXPECTS(metric == ML::distance::DistanceType::L2SqrtExpanded,
                "Currently only L2 expanded distance is supported");
 
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   size_t m                       = prediction_data.n_rows;

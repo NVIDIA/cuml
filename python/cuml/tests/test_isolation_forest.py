@@ -13,6 +13,7 @@ These tests are designed to be:
 """
 
 import pickle
+import warnings
 
 import cupy as cp
 import numpy as np
@@ -20,6 +21,7 @@ import pytest
 import treelite
 from sklearn.datasets import make_blobs
 from sklearn.ensemble import IsolationForest as skIsolationForest
+from sklearn.exceptions import NotFittedError
 
 from cuml import IsolationForest as cuIsolationForest
 from cuml.internals.interop import UnsupportedOnGPU
@@ -269,7 +271,16 @@ def test_max_features_parameter(blobs_data, max_features, expected_features):
         n_estimators=10, max_features=max_features, random_state=42
     )
     clf.fit(blobs_data)
-    assert clf._n_features_per_tree == expected_features
+    # Each tree may only split on the features sampled for it, so the number
+    # of distinct split features per tree is the resolved `max_features`.
+    tl_model = clf.as_treelite()
+    for tree_id in range(tl_model.num_tree):
+        split_index = tl_model.get_tree_accessor(tree_id).get_field(
+            "split_index"
+        )
+        # Leaves carry ``split_index == -1``.
+        used = set(split_index[split_index >= 0].tolist())
+        assert len(used) == expected_features
     predictions = clf.predict(blobs_data)
     assert predictions.shape[0] == blobs_data.shape[0]
 
@@ -334,17 +345,6 @@ def test_as_sklearn_respects_max_depth(anomaly_data):
     )
 
 
-def test_as_sklearn_after_failed_fit_raises(blobs_data):
-    """A failed fit sets ``n_features_in_`` before raising, which makes the
-    model look fitted to ``InteropMixin``; conversion must still fail
-    loudly rather than deserialize a missing forest."""
-    cu_model = cuIsolationForest(max_features=0)
-    with pytest.raises(ValueError, match="max_features"):
-        cu_model.fit(blobs_data)
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        cu_model.as_sklearn()
-
-
 @pytest.mark.parametrize(
     "params",
     [
@@ -395,15 +395,30 @@ def test_as_sklearn_float64_parity(anomaly_data):
 def test_as_sklearn_populates_fitted_attributes(blobs_data):
     """The converted model carries the attributes a sklearn fit would set."""
     cu_model = cuIsolationForest(
-        n_estimators=10, max_samples=64, random_state=0
+        n_estimators=10,
+        max_samples=64,
+        max_features=0.5,
+        random_state=0,
     ).fit(blobs_data)
     sk_model = cu_model.as_sklearn()
 
     assert sk_model.max_samples_ == 64
     assert sk_model.offset_ == pytest.approx(float(cu_model.offset_))
     assert sk_model.n_features_in_ == blobs_data.shape[1]
+    assert sk_model.estimator_.max_features == 1
     assert len(sk_model.estimators_) == 10
     assert len(sk_model.estimators_features_) == 10
+    np.testing.assert_array_equal(
+        np.stack(sk_model.estimators_features_), cu_model._feature_indices
+    )
+    for features, tree in zip(
+        sk_model.estimators_features_, sk_model.estimators_, strict=True
+    ):
+        assert features.shape == (2,)
+        assert len(np.unique(features)) == len(features)
+        assert np.all((features >= 0) & (features < blobs_data.shape[1]))
+        split_features = tree.tree_.feature[tree.tree_.feature >= 0]
+        assert np.all(split_features < len(features))
     # The private fit caches sklearn scoring reads must exist and align.
     assert isinstance(sk_model._average_path_length_per_tree, tuple)
     assert isinstance(sk_model._decision_path_lengths, tuple)
@@ -420,6 +435,27 @@ def test_as_sklearn_populates_fitted_attributes(blobs_data):
         sk_model.estimators_samples_
 
 
+def test_feature_indices_survive_native_pickle(blobs_data):
+    """Native pickles retain metadata needed for sklearn conversion."""
+    model = cuIsolationForest(
+        n_estimators=5, max_features=0.5, random_state=0
+    ).fit(blobs_data)
+    restored = pickle.loads(pickle.dumps(model))
+
+    np.testing.assert_array_equal(
+        restored._feature_indices, model._feature_indices
+    )
+    converted = restored.as_sklearn()
+    np.testing.assert_array_equal(
+        np.stack(converted.estimators_features_), model._feature_indices
+    )
+    np.testing.assert_allclose(
+        converted.score_samples(blobs_data),
+        np.asarray(model.score_samples(blobs_data)),
+        atol=1e-5,
+    )
+
+
 def test_as_sklearn_pickle_roundtrip(blobs_data):
     """The converted model survives pickling with identical behavior."""
     cu_model = cuIsolationForest(n_estimators=10, random_state=0).fit(
@@ -432,6 +468,24 @@ def test_as_sklearn_pickle_roundtrip(blobs_data):
     )
     np.testing.assert_array_equal(
         restored.predict(blobs_data), sk_model.predict(blobs_data)
+    )
+
+
+def test_as_sklearn_preserves_strict_split_semantics():
+    X = np.arange(5, dtype=np.float32)[:, None]
+    cu_model = cuIsolationForest(
+        n_estimators=1, max_depth=1, random_state=0
+    ).fit(X)
+    sk_model = cu_model.as_sklearn()
+    threshold = (
+        treelite.sklearn.export_model(cu_model.as_treelite())
+        .estimators_[0]
+        .tree_.threshold[0]
+    )
+    X_equal = np.array([[threshold]], dtype=np.float32)
+
+    np.testing.assert_array_equal(
+        sk_model.predict(X_equal), np.asarray(cu_model.predict(X_equal))
     )
 
 
@@ -493,6 +547,22 @@ def test_invert_average_path_length_fails_loudly():
         _invert_average_path_length(midpoint)
 
 
+def test_contamination_float_preserves_feature_names():
+    """Computing the training quantile must retain input feature metadata."""
+    pd = pytest.importorskip("pandas")
+    X = pd.DataFrame(
+        np.random.RandomState(0).normal(size=(20, 2)), columns=["a", "b"]
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        model = cuIsolationForest(
+            n_estimators=5, contamination=0.05, random_state=0
+        ).fit(X)
+
+    np.testing.assert_array_equal(model.feature_names_in_, X.columns)
+
+
 def test_contamination_float_sets_score_quantile_offset(blobs_data):
     """Float contamination should set offset_ from training score quantile."""
     contamination = 0.1
@@ -543,8 +613,8 @@ def test_float_dtypes(dtype):
     assert predictions.shape == (X.shape[0],)
 
 
-def test_refit_replaces_native_model():
-    """Refitting should replace the native model, including across dtypes."""
+def test_refit_replaces_model():
+    """Refitting should replace the fitted model, including across dtypes."""
     rng = np.random.RandomState(42)
     X = rng.randn(100, 4)
     clf = cuIsolationForest(n_estimators=10, random_state=42)
@@ -748,46 +818,25 @@ def test_as_nvforest_loads(blobs_data):
     assert bool(cp.all(cp.isfinite(avg_path_lengths)))
 
 
-def test_nvforest_score_parity(blobs_data):
-    """nvForest-backed scores should match the current C++ scoring path."""
-    X = cp.asarray(blobs_data)
-    clf = cuIsolationForest(n_estimators=25, random_state=42)
-    clf.fit(X)
-
-    cpp_scores = cp.asarray(clf.score_samples(X))
-    nvforest_scores = cp.asarray(clf._score_samples_nvforest(X))
-
-    cp.testing.assert_allclose(
-        cpp_scores, nvforest_scores, rtol=1e-5, atol=1e-6
-    )
-
-
-def test_nvforest_score_parity_single_sample():
-    """c(1)=0 should produce the neutral -0.5 score on both paths."""
+def test_score_samples_single_sample():
+    """c(1)=0 should produce the neutral -0.5 score."""
     X = cp.asarray([[1.0, 2.0]], dtype=cp.float32)
     clf = cuIsolationForest(n_estimators=2, random_state=42).fit(X)
 
-    cpp_scores = cp.asarray(clf.score_samples(X))
-    nvforest_scores = cp.asarray(clf._score_samples_nvforest(X))
-
     cp.testing.assert_allclose(
-        cpp_scores, cp.asarray([-0.5], dtype=cp.float32)
+        cp.asarray(clf.score_samples(X)), cp.asarray([-0.5], dtype=cp.float32)
     )
-    cp.testing.assert_allclose(cpp_scores, nvforest_scores)
 
 
-def test_treelite_export_before_fit_raises(blobs_data):
+def test_treelite_export_before_fit_raises():
     """Treelite and nvForest export should require a fitted model."""
     clf = cuIsolationForest()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_treelite()
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.as_nvforest()
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf._score_samples_nvforest(blobs_data)
 
 
 # =============================================================================
@@ -899,21 +948,16 @@ def test_many_features():
     assert scores.shape == (X.shape[0],)
 
 
-def test_predict_before_fit_raises():
-    """predict() before fit() should raise an error."""
-    clf = cuIsolationForest()
-    X = np.random.randn(10, 3).astype(np.float32)
-
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        clf.predict(X)
-
-
 def test_score_samples_before_fit_raises():
-    """score_samples() before fit() should raise an error."""
+    """score_samples() before fit() should raise an error.
+
+    ``predict`` and ``decision_function`` are covered by sklearn's
+    ``check_estimators_unfitted``, which never calls ``score_samples``.
+    """
     clf = cuIsolationForest()
     X = np.random.randn(10, 3).astype(np.float32)
 
-    with pytest.raises(RuntimeError, match="not been fitted"):
+    with pytest.raises(NotFittedError, match="not fitted"):
         clf.score_samples(X)
 
 

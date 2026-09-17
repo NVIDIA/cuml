@@ -312,9 +312,10 @@ cdef class RaftCOO:
 
         cdef RaftCOO self = RaftCOO.__new__(RaftCOO)
         cdef handle_t* handle_ = <handle_t*><size_t>handle.getHandle()
-        cdef lib.COO* coo = new lib.COO(handle_.get_stream())
+        cdef cudaStream_t stream = handle_.get_stream().get()
+        cdef lib.COO* coo = new lib.COO(stream)
         self.ptr.reset(coo)
-        coo.allocate(arr.nnz, arr.shape[0], False, handle_.get_stream())
+        coo.allocate(arr.nnz, arr.shape[0], False, stream)
         handle_.sync_stream()
 
         copy_from_cupy(<uintptr_t>coo.vals(), arr.data, np.float32)
@@ -501,7 +502,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
             # TODO: for now, users should be able to see the same results
             # as previous version (i.e. running brute force knn) when they
             # explicitly pass random_state
-            # https://github.com/rapidsai/cuml/issues/5985
+            # https://github.com/NVIDIA/cuml/issues/5985
             build_algo ="brute_force_knn"
         elif n_rows <= 50_000 or is_sparse:
             # brute force is faster for small datasets
@@ -516,7 +517,7 @@ cdef init_params(self, lib.UMAPParams &params, n_rows, is_sparse=False, is_fit=T
         )
 
     if build_algo == "nn_descent" and n_rows < 150:
-        # https://github.com/rapidsai/cuvs/issues/184
+        # https://github.com/NVIDIA/cuvs/issues/184
         warnings.warn(
             "using build_algo='nn_descent' on a small dataset (< 150 samples) "
             "is unstable"
@@ -1345,7 +1346,7 @@ class UMAP(
                         init.data.ptr if isinstance(init, cp.ndarray) else init.ctypes.data
                     ),
                     <size_t> init.nbytes,
-                    <cudaStream_t> handle_.get_stream(),
+                    handle_.get_stream(),
                     any_resource[device_accessible](
                         get_current_device_resource().get_mr()
                     )
@@ -1434,7 +1435,7 @@ class UMAP(
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def fit_transform(self, X, y=None, *, knn_graph=None):
         """
         Fit X into an embedded space and return that transformed
@@ -1467,7 +1468,7 @@ class UMAP(
             "shape": "(n_samples, n_components)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_out")
     def transform(self, X):
         """
         Transform X into the existing embedded space and return that
@@ -1592,7 +1593,7 @@ class UMAP(
             "shape": "(n_samples, n_features)"
         }
     )
-    @mlfunc(preserve_index=True)
+    @mlfunc(preserve_index=True, column_names="feature_names_in")
     def inverse_transform(self, X):
         """Transform X in the existing embedded space back into the input
         data space and return that transformed output.

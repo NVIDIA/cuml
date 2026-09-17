@@ -20,10 +20,10 @@ dependencies:
 - libcurand-dev
 - libcusolver-dev
 - libcusparse-dev
-- libcuvs==26.10.*,>=0.0.0a0
-- libnvforest==26.10.*,>=0.0.0a0
-- libraft-headers==26.10.*,>=0.0.0a0
-- librmm==26.10.*,>=0.0.0a0
+- libcuvs==26.12.*,>=0.0.0a0
+- libnvforest==26.12.*,>=0.0.0a0
+- libraft-headers==26.12.*,>=0.0.0a0
+- librmm==26.12.*,>=0.0.0a0
 - llvm-openmp==20.1.8
 - ninja
 - sysroot_linux-64==2.28

@@ -150,7 +150,7 @@ class LinearRegression(InteropMixin,
     :class:`sklearn.linear_model.LinearRegression`.
 
     For an additional example see `the OLS notebook
-    <https://github.com/rapidsai/cuml/blob/main/notebooks/linear_regression_demo.ipynb>`__.
+    <https://github.com/NVIDIA/cuml/blob/main/notebooks/linear_regression_demo.ipynb>`__.
 
     Examples
     --------

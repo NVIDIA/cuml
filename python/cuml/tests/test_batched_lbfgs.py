@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -57,7 +57,7 @@ def g_batched_rosenbrock(
 
 @pytest.mark.xfail(
     condition=Version(scipy.__version__) >= Version("1.15"),
-    reason="https://github.com/rapidsai/cuml/issues/6210",
+    reason="https://github.com/NVIDIA/cuml/issues/6210",
 )
 def test_batched_lbfgs_rosenbrock():
     """Test batched rosenbrock using batched lbfgs implemtnation"""

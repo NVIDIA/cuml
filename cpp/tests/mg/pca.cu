@@ -140,7 +140,7 @@ TEST_P(PCAOpgTestF, Result)
 {
   if (myRank == 0) {
     // We should be inverse transforming and checking against the original
-    // data here. Github reference: https://github.com/rapidsai/cuml/issues/2474
+    // data here. Github reference: https://github.com/NVIDIA/cuml/issues/2474
 
     ASSERT_TRUE(true);
   }
@@ -154,7 +154,7 @@ TEST_P(PCAOpgTestD, Result)
 {
   if (myRank == 0) {
     // We should be inverse transforming and checking against the original
-    // data here. Github reference: https://github.com/rapidsai/cuml/issues/2474
+    // data here. Github reference: https://github.com/NVIDIA/cuml/issues/2474
 
     ASSERT_TRUE(true);
   }

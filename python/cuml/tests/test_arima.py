@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -400,11 +400,11 @@ def test_integration(key, data, dtype):
     """Full integration test: estimate, fit, forecast"""
     if data.dataset == "endog_hourly_earnings_by_industry_missing_exog":
         pytest.xfail(
-            reason="test_111_200_4c_missing_exog dataset causes issues on some GPU architectures (see https://github.com/rapidsai/cuml/issues/6209)"
+            reason="test_111_200_4c_missing_exog dataset causes issues on some GPU architectures (see https://github.com/NVIDIA/cuml/issues/6209)"
         )
     if data.dataset == "passenger_movements":
         pytest.xfail(
-            reason="test_112_012_4 dataset causes issues on some GPU architectures (see https://github.com/rapidsai/cuml/issues/6209)"
+            reason="test_112_012_4 dataset causes issues on some GPU architectures (see https://github.com/NVIDIA/cuml/issues/6209)"
         )
     order, seasonal_order, intercept = extract_order(key)
     s = max(1, seasonal_order[3])

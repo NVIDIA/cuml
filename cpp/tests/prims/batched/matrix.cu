@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -401,7 +401,7 @@ const std::vector<MatrixInputs<double>> inputsd = {
 
 // Note: Schur and Lyapunov tests have had stability issues on CI so
 // they are disabled temporarily. See issue:
-// https://github.com/rapidsai/cuml/issues/1949
+// https://github.com/NVIDIA/cuml/issues/1949
 
 // Test parameters (op, batch_size, m, n, p, q, s, t, tolerance)
 const std::vector<MatrixInputs<float>> inputsf = {
