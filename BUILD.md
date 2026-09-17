@@ -21,7 +21,7 @@ Note that while a GPU is not required to build or develop cuML itself, it is nec
 5. Python (>= 3.11 and <= 3.14)
 6. Cython (>= 3.2.2)
 
-**CUDA-X Datascience Ecosystem Libraries:**
+**CUDA-X Dependencies:**
 
 These libraries must match the cuML version (e.g., all version 25.10 if building cuML 25.10):
 
