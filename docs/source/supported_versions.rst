@@ -1,7 +1,7 @@
 Supported Versions
 ==================
 
-Please see https://docs.rapids.ai/install/ for RAPIDS-wide version support.
+Please see https://docs.nvidia.com/datascience/install/ for RAPIDS-wide version support.
 
 We aim to meet the `SPEC 0 guidelines <https://scientific-python.org/specs/spec-0000/>`_ for minimal supported versions.
 

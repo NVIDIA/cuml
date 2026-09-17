@@ -467,6 +467,14 @@ def test_svr_skl_cmp_weighted():
     compare_svr(cuSVR, sklSVR, X, y)
 
 
+def test_svr_float32_numerical_stagnation_error():
+    X = np.arange(5, dtype=np.float32).reshape(-1, 1)
+    y = np.arange(5, dtype=np.float32)
+
+    with pytest.raises(RuntimeError, match="made no progress.*float64"):
+        cu_svm.SVR(kernel="poly", degree=10).fit(X, y)
+
+
 @pytest.mark.parametrize("classifier", [True, False])
 @pytest.mark.parametrize("train_dtype", [np.float32, np.float64])
 @pytest.mark.parametrize("test_dtype", [np.float64, np.float32])

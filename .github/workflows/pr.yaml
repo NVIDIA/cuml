@@ -160,7 +160,6 @@ jobs:
           - '!notebooks/**'
           - '!python/**'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
         test_notebooks:
           - '**'
           - '!**/*/agents.md'
@@ -198,7 +197,6 @@ jobs:
           - '!cpp/README.md'
           - '!cpp/header.html'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
         test_python_conda:
           - '**'
           - '!**/*/agents.md'
@@ -241,7 +239,6 @@ jobs:
           - '!img/**'
           - '!notebooks/**'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
         test_python_wheels:
           - '**'
           - '!**/*/agents.md'
@@ -288,7 +285,6 @@ jobs:
           - '!img/**'
           - '!notebooks/**'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
   checks:
     needs: telemetry-setup
     permissions:
@@ -525,9 +521,8 @@ jobs:
       target-s3-bucket: ${{ secrets.NVIDIA_DOCS_S3_BUCKET }}
     uses: rapidsai/shared-workflows/.github/workflows/publish-api-docs.yaml@main
     with:
-      docs-projects: cuml,libcuml
+      docs-projects: cuml
       dry-run: true
-      version-map: ${{ vars.VERSION_MAP }}
   wheel-build-libcuml:
     needs: [build-details, checks]
     permissions:

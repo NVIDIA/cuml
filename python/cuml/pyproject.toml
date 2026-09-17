@@ -150,7 +150,7 @@ test-dask = [
 
 [project.urls]
 Homepage = "https://github.com/NVIDIA/cuml"
-Documentation = "https://docs.rapids.ai/api/cuml/stable/"
+Documentation = "https://docs.nvidia.com/cuml/latest/"
 
 [project.entry-points.rapids_doctor_check]
 cuml_import = "cuml.health_checks:import_check"
