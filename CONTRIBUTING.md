@@ -159,7 +159,7 @@ methods to run clang-tidy on your local machine: using Docker or Conda.
 ### Managing PR labels
 
 Each PR must be labeled according to whether it is a "breaking" or
-"non-breaking" change (using Github labels). This is used to highlight changes
+"non-breaking" change (using GitHub labels). This is used to highlight changes
 that users should know about when upgrading.
 
 For cuML, a "breaking" change is one that modifies the public,

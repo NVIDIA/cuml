@@ -90,5 +90,5 @@ For more details, see the `RMM documentation`_.
 .. _per-thread default stream: https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html#per-thread-default-stream
 .. _legacy default stream: https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html#legacy-default-stream
 .. _NVIDIA RMM:
-.. _RMM documentation: https://docs.nvidia.com/rmm/latest/
+.. _RMM documentation: https://docs.nvidia.com/rmm/
 .. _CUDA Unified Memory: https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/unified-memory.html
