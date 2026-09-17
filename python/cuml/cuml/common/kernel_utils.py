@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -43,10 +43,10 @@ def cuda_kernel_factory(nvrtc_kernel_str, dtypes, kernel_name=None):
     A factory wrapper function to perform some of the boiler-plate involved in
     making cuPy RawKernels type-agnostic.
 
-    Until a better method is created, either by RAPIDS or cuPy, this function
-    will perform a string search and replace of c-based datatype primitives
-    in ``nvrtc_kernel_str`` using a numerical placeholder (eg. {0}, {1}) for
-    the dtype in the corresponding index of tuple ``dtypes``.
+    Until a better method is created, this function will perform a string
+    search and replace of c-based datatype primitives in ``nvrtc_kernel_str``
+    using a numerical placeholder (eg. {0}, {1}) for the dtype in the
+    corresponding index of tuple ``dtypes``.
 
     Note that the extern, function scope, and function name should not be
     included in the kernel string. These will be added by this function and
