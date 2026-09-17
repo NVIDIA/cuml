@@ -80,4 +80,3 @@ Community & Support
    Zero Code Change Acceleration <cuml-accel/index.rst>
    api/index
    developer_guide/index
-   cuml_blogs.rst
