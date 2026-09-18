@@ -19,6 +19,7 @@ into three categories:
     - Once we agree that the plan looks good, go ahead and implement it, using
     the [code contributions](#code-contributions) guide below.
 3. You want to implement a feature or bug-fix for an outstanding issue
+    - Important: Before starting work, ask to be assigned to the issue. We do not accept PRs that are not associated with an assigned issue.
     - Follow the [code contributions](#code-contributions) guide below.
     - If you need more context on a particular issue, please ask and we shall
     provide.
@@ -48,13 +49,17 @@ These standards apply regardless of the tools used.
 
 ## Code contributions
 
+Except for trivial changes, pull requests should close an issue to which the PR
+author is assigned. Maintainers may close a PR without review if it does not
+close an issue to which the author is assigned.
+
 ### Your first issue
 
 1. Read the project's [README.md](https://github.com/NVIDIA/cuml/blob/main/README.md)
     to learn how to setup the development environment.
 2. Find an issue to work on. The best way is to look for the [good first issue](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
     or [help wanted](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) labels
-3. Comment on the issue saying you are going to work on it.
+3. Comment on the issue to ask to be assigned before starting work.
 4. Get familiar with the developer guide relevant for you:
     * For Python developers, read the [Python Developer Guide](docs/source/developer_guide/python/development.md) and [Estimator Guide](docs/source/developer_guide/python/estimators.md).
     * For C++ developers, read the [C++ and CUDA Developer Guide](docs/source/developer_guide/cpp/development.md).
@@ -199,6 +204,8 @@ Additional labels must be applied to indicate whether the change is a feature,
 improvement, bugfix, or documentation change. See the [maintainer docs
 here](https://docs.nvidia.com/datascience/resources/label-checker/) for more
 information.
+
+If you are not able to apply labels, please comment on the PR with the request for the labels to be assigned.
 
 
 ### Branches and Versions
