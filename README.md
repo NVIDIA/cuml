@@ -69,7 +69,7 @@ cluster setup, supported algorithms, and examples.
 
 ## Installation
 
-Use the [installation selector](https://docs.rapids.ai/install#selector) to
+Use the [installation selector](https://docs.nvidia.com/datascience/install#selector) to
 generate a command for installing nightly or release cuML packages with conda,
 pip, or Docker.
 
