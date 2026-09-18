@@ -100,7 +100,6 @@ They do not replace human judgment and communication.
 Maintainers may close submissions without technical review when they appear
 fully autonomous, unvalidated, misleading, or otherwise impose disproportionate
 review cost. Repeated submissions of this kind may result in account blocking.
-These standards apply regardless of the tools used.
 
 ## Attribution
 
