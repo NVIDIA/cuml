@@ -55,9 +55,8 @@ performed and any gaps.
 
 ### Target branch
 
-Target `main` by default. Changes for a soon-to-be-released version target
-`release/YY.MM`; critical hotfixes target `hotfix/YY.MM.patch-version`. Once a
-release is complete, its release branch is for hotfixes only. See the
+Target `main` by default. Changes for a soon-to-be-released version may target
+`release/YY.MM`. See the
 [RAPIDS release process](https://docs.nvidia.com/datascience/releases/process/)
 for details, and ask maintainers if the appropriate target is unclear.
 
