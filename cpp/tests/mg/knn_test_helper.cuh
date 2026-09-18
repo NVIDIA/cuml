@@ -118,7 +118,7 @@ class KNNTestHelper {
       params.n_cols,
       params.n_classes,
       my_rank,
-      this->stream);
+      this->stream.get());
 
     y.resize(this->index_parts_per_rank);
     for (int i = 0; i < this->index_parts_per_rank; i++) {
@@ -173,7 +173,7 @@ class KNNTestHelper {
 
     std::cout << "Finished!" << std::endl;
 
-    std::cout << raft::arr2Str(out_parts[0]->ptr, 10, "final_out", stream) << std::endl;
+    std::cout << raft::arr2Str(out_parts[0]->ptr, 10, "final_out", stream.get()) << std::endl;
   }
 
   void release_ressources(const KNNParams& params)
@@ -237,7 +237,7 @@ class KNNTestHelper {
   Matrix::PartDescriptor* query_desc = nullptr;
   std::vector<std::vector<T*>> y;
 
-  cudaStream_t stream = 0;
+  cuda::stream_ref stream;
 
  private:
   int index_parts_per_rank;
