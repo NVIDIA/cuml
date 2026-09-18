@@ -10,16 +10,15 @@ into three categories:
     - Explain the user impact: how the problem affects your use of cuML, or,
     if you found it through automated analysis rather than actual use, say so.
     The team uses this context to assess impact and prioritize work.
-    - The cuML team will evaluate the issues and triage them, scheduling
-    them for a release. If you believe the issue needs priority attention,
-    comment on the issue with concrete impact information to notify the team.
+    - The cuML team will evaluate and triage issues. If you believe an issue
+    needs priority attention, comment with concrete impact information.
 2. You want to propose a new Feature and implement it
     - Post about your intended feature, and we shall discuss the design and
     implementation.
     - Once we agree that the plan looks good, go ahead and implement it, using
     the [code contributions](#code-contributions) guide below.
 3. You want to implement a feature or bug-fix for an outstanding issue
-    - Important: Before starting work, ask to be assigned to the issue. We do not accept PRs that are not associated with an assigned issue.
+    - Before starting work, ask to be assigned to the issue.
     - Follow the [code contributions](#code-contributions) guide below.
     - If you need more context on a particular issue, please ask and we shall
     provide.
@@ -59,7 +58,8 @@ close an issue to which the author is assigned.
     to learn how to setup the development environment.
 2. Find an issue to work on. The best way is to look for the [good first issue](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
     or [help wanted](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) labels
-3. Comment on the issue to ask to be assigned before starting work.
+3. Comment on the issue with your proposed scope and ask to be assigned. Wait
+    for the assignment before starting work.
 4. Get familiar with the developer guide relevant for you:
     * For Python developers, read the [Python Developer Guide](docs/source/developer_guide/python/development.md) and [Estimator Guide](docs/source/developer_guide/python/estimators.md).
     * For C++ developers, read the [C++ and CUDA Developer Guide](docs/source/developer_guide/cpp/development.md).
@@ -205,7 +205,7 @@ improvement, bugfix, or documentation change. See the [maintainer docs
 here](https://docs.nvidia.com/datascience/resources/label-checker/) for more
 information.
 
-If you are not able to apply labels, please comment on the PR with the request for the labels to be assigned.
+If you cannot apply labels, comment on the PR to request them.
 
 
 ### Branches and Versions

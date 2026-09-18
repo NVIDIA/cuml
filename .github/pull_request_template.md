@@ -12,9 +12,9 @@ validate.
 
 ## Contributor responsibility
 
-- I reviewed and understand every change in this pull request: [ ]
-- I can explain and discuss the implementation and remain responsible for all
-  responses submitted under my account: [ ]
+- [ ] I reviewed and understand every change in this pull request.
+- [ ] I can explain and discuss the implementation and remain responsible for
+      all responses submitted under my account.
 
 <!--
 Except for trivial changes, pull requests should close an issue to which the
