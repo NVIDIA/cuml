@@ -21,10 +21,9 @@ and clearly describe consequential API changes during review.
 
 ## Formatting and implementation style
 
-The configured pre-commit hooks and
-[`CONTRIBUTING.md`](https://github.com/NVIDIA/cuml/blob/main/CONTRIBUTING.md#code-formatting)
-are the formatting authority. Install pre-commit and run the hooks on changed
-files before opening a pull request:
+The configured pre-commit hooks enforce formatting and lint checks. Follow the
+shared [code quality guide](../code_quality.md) to install the hooks, then run
+them on changed files before opening a pull request:
 
 ```bash
 pre-commit run --files cpp/include/cuml/example.hpp cpp/src/example.cu
@@ -37,6 +36,44 @@ algorithms. Use the RAFT error-checking facilities appropriate to the CUDA
 library call. Avoid unnecessary host/device transfers and synchronization. Keep
 algorithm array inputs and outputs device-accessible; do not require host
 staging unless the API contract requires it.
+
+## Clang-tidy
+
+CI runs clang-tidy to detect potential C++ issues beyond the pre-commit checks.
+Running it locally is optional, but useful when investigating CI failures.
+Use either Docker or Conda on a Linux development machine with the build
+prerequisites described in
+[`BUILD.md`](https://github.com/NVIDIA/cuml/blob/main/BUILD.md).
+Run the commands below from the repository root.
+
+### Docker
+
+Use the CI image matching the branch's cuML version (shown here for 26.12):
+
+```bash
+docker run --rm --pull always \
+    --mount type=bind,source="$(pwd)",target=/opt/repo --workdir /opt/repo \
+    -e SCCACHE_S3_NO_CREDENTIALS=1 \
+    rapidsai/ci-conda:26.12-latest /opt/repo/ci/run_clang_tidy.sh
+```
+
+The CI script creates its environment, configures the build, and runs
+clang-tidy.
+
+### Conda
+
+Choose an existing `clang_tidy_*.yaml` file from `conda/environments/` matching
+your CUDA version and architecture. For example, on Linux x86_64 with CUDA 13.3:
+
+```bash
+conda env create -n cuml-clang-tidy \
+    -f conda/environments/clang_tidy_cuda-133_arch-x86_64.yaml
+conda activate cuml-clang-tidy
+./build.sh --configure-only libcuml
+python cpp/scripts/run-clang-tidy.py --config pyproject.toml
+```
+
+The configure step generates the compilation database used by clang-tidy.
 
 ## Memory and streams
 
