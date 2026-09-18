@@ -7,7 +7,7 @@ into three categories:
     describing what you encountered or what you want to see changed.
     - Please run and paste the output of the `cuml/print_env.sh` script while
     reporting a bug to gather and report relevant environment details.
-    - The RAPIDS team will evaluate the issues and triage them, scheduling
+    - The cuML team will evaluate the issues and triage them, scheduling
     them for a release. If you believe the issue needs priority attention
     comment on the issue to notify the team.
 2. You want to propose a new Feature and implement it
@@ -36,7 +36,7 @@ into three categories:
 6. When done, [create your pull request](https://github.com/NVIDIA/cuml/compare).
 7. Verify that CI passes all [status checks](https://help.github.com/articles/about-status-checks/), or fix if needed.
 8. Wait for other developers to review your code and update code as needed.
-9. Once reviewed and approved, a RAPIDS developer will merge your pull request.
+9. Once reviewed and approved, a cuML developer will merge your pull request.
 
 Remember, if you are unsure about anything, don't hesitate to comment on issues and ask for clarifications!
 
@@ -158,27 +158,22 @@ methods to run clang-tidy on your local machine: using Docker or Conda.
 
 ### Managing PR labels
 
-Each PR must be labeled according to whether it is a "breaking" or "non-breaking" change (using Github labels). This is used to highlight changes that users should know about when upgrading.
+Each PR must be labeled according to whether it is a "breaking" or
+"non-breaking" change (using GitHub labels). This is used to highlight changes
+that users should know about when upgrading.
 
-For cuML, a "breaking" change is one that modifies the public, non-experimental, Python API in a
-non-backward-compatible way. The C++ API does not have an expectation of backward compatibility at this
-time, so changes to it are not typically considered breaking. Backward-compatible API changes to the Python
-API (such as adding a new keyword argument to a function) do not need to be labeled.
+For cuML, a "breaking" change is one that modifies the public,
+non-experimental, Python API in a non-backward-compatible way. The C++ API does
+not have an expectation of backward compatibility at this time, so changes to
+it are not typically considered breaking. Backward-compatible API changes to
+the Python API (such as adding a new keyword argument to a function) do not
+need to be labeled.
 
-Additional labels must be applied to indicate whether the change is a feature, improvement, bugfix, or documentation change. See the shared RAPIDS documentation for these labels: https://github.com/rapidsai/kb/issues/42.
+Additional labels must be applied to indicate whether the change is a feature,
+improvement, bugfix, or documentation change. See the [maintainer docs
+here](https://docs.nvidia.com/datascience/resources/label-checker/) for more
+information.
 
-### Seasoned developers
-
-Once you have gotten your feet wet and are more comfortable with the code, you
-can look at the prioritized issues of our next release in our [project boards](https://github.com/NVIDIA/cuml/projects).
-
-> **Pro Tip:** Always look at the release board with the highest number for
-issues to work on. This is where RAPIDS developers also focus their efforts.
-
-Look at the unassigned issues, and find an issue you are comfortable with
-contributing to. Start with _Step 3_ from above, commenting on the issue to let
-others know you are working on it. If you have any questions related to the
-implementation of the issue, ask them in the issue instead of the PR.
 
 ### Branches and Versions
 

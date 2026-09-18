@@ -564,7 +564,7 @@ dependencies:
           - sphinx-markdown-tables
       - output_types: conda
         packages:
-          - doxygen=1.9.1
+          - doxygen=1.18.0
           - matplotlib-base
           - numpydoc
           - pip:

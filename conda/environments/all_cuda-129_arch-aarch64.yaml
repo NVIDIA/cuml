@@ -23,7 +23,7 @@ dependencies:
 - dask-cuda==26.12.*,>=0.0.0a0
 - dask-cudf==26.12.*,>=0.0.0a0
 - dask-ml>=2024
-- doxygen=1.9.1
+- doxygen=1.18.0
 - gcc_linux-aarch64=14.*
 - graphviz
 - hdbscan>=0.8.39

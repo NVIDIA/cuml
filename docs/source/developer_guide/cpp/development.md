@@ -69,7 +69,7 @@ threading should be avoided.
 Include [`cuml/common/logger.hpp`](https://github.com/NVIDIA/cuml/blob/main/cpp/include/cuml/common/logger.hpp)
 and use `CUML_LOG_TRACE`, `CUML_LOG_DEBUG`, `CUML_LOG_INFO`, `CUML_LOG_WARN`,
 `CUML_LOG_ERROR`, or `CUML_LOG_CRITICAL` as appropriate. The logger is the
-RAPIDS Logger instance returned by `ML::default_logger()`; its levels use
+`rapids_logger` instance returned by `ML::default_logger()`; its levels use
 `rapids_logger::level_enum`. Do not append a newline to log messages, and avoid
 formatting expensive diagnostic values unless the level will be logged.
 
