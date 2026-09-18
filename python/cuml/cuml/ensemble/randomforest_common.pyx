@@ -418,7 +418,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         """
         handle = get_handle()
         cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
-        cdef cudaStream_t stream = handle_.get_stream()
+        cdef cudaStream_t stream = handle_.get_stream().get()
 
         check_is_fitted(self)
 
