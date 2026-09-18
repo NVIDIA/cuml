@@ -23,6 +23,29 @@ into three categories:
     - If you need more context on a particular issue, please ask and we shall
     provide.
 
+## Automated and AI-assisted contributions
+
+Tools that help people analyze code, draft text, or implement changes are
+welcome. They do not replace the human judgment and communication required to
+contribute to cuML.
+
+- Do not submit issues, pull requests, or review responses through a fully
+  autonomous process. A human contributor must remain available and engaged.
+- Review, understand, and take responsibility for everything submitted under
+  your account. You must be able to explain the problem, the implementation,
+  its fit with cuML's goals, and the validation performed.
+- Review all generated issue descriptions, pull request descriptions, and
+  replies before submitting them. They must accurately represent your judgment,
+  and you remain responsible for the resulting communication.
+- Do not use GitHub review as the validation loop for speculative or bulk-
+  generated changes. Run relevant checks, remove irrelevant generated content,
+  and keep the contribution focused before requesting maintainer attention.
+
+Maintainers may close submissions without technical review when they appear
+fully autonomous, unvalidated, misleading, or otherwise impose disproportionate
+review cost. Repeated submissions of this kind may result in account blocking.
+These standards apply regardless of the tools used.
+
 ## Code contributions
 
 ### Your first issue
