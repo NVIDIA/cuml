@@ -3,13 +3,13 @@ Contributing
 
 Start with the repository's `contribution guidelines
 <https://github.com/NVIDIA/cuml/blob/main/CONTRIBUTING.md>`_ for proposing
-changes, preparing pull requests, running repository checks, and working with
-continuous integration. Those guidelines are the canonical source for the
-contribution process.
+changes, preparing pull requests, and working through review. Those guidelines
+are the canonical source for the contribution process.
 
-Use the implementation-specific sections of this Developer Guide after choosing
-a change:
+Use these sections of the Developer Guide when preparing your change:
 
+* :doc:`Code quality checks <code_quality>` explains how to install and run
+  pre-commit hooks and handle formatting, lint, and spelling checks.
 * :doc:`Python development <python/development>` covers Python style, testing,
   validation, memory management, and documentation.
 * :doc:`Python estimator development <python/estimators>` describes the
