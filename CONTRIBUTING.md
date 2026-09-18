@@ -7,9 +7,12 @@ into three categories:
     describing what you encountered or what you want to see changed.
     - Please run and paste the output of the `cuml/print_env.sh` script while
     reporting a bug to gather and report relevant environment details.
+    - Explain the user impact: how the problem affects your use of cuML, or,
+    if you found it through automated analysis rather than actual use, say so.
+    The team uses this context to assess impact and prioritize work.
     - The cuML team will evaluate the issues and triage them, scheduling
-    them for a release. If you believe the issue needs priority attention
-    comment on the issue to notify the team.
+    them for a release. If you believe the issue needs priority attention,
+    comment on the issue with concrete impact information to notify the team.
 2. You want to propose a new Feature and implement it
     - Post about your intended feature, and we shall discuss the design and
     implementation.
