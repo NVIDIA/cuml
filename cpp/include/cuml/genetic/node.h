@@ -143,7 +143,7 @@ struct node {
 
   /** node type */
   type t;
-  union {
+  union data {
     /**
      * if the node is `variable` type, then this is the column id to be used to
      * fetch its value, from the input dataset
