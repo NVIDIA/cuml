@@ -45,6 +45,8 @@ def test_stratified_kfold_single_class():
     n_test = 0
     for train_index, test_index in kf.split(X, y):
         assert len(train_index) + len(test_index) == 1000
+        # No sample may appear on both sides of a fold.
+        assert not set(train_index.tolist()) & set(test_index.tolist())
         n_test += len(test_index)
     assert n_test == 1000
 
