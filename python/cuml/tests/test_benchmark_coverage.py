@@ -32,7 +32,7 @@ BENCHMARK_EXCLUSIONS = {
 
 
 def _public_estimators() -> dict[str, type]:
-    """Return concrete, public estimators exported by the top-level API."""
+    """Return concrete public estimators exported by the top-level API."""
     import cuml
     from cuml.internals.base import Base
     from cuml.testing.utils import ClassEnumerator
@@ -83,7 +83,11 @@ def _coverage_errors(
     manifest_names: set[str],
     exclusions: Mapping[str, str],
 ) -> list[str]:
-    """Return actionable errors for missing, invalid, or stale declarations."""
+    """Return actionable errors for missing or invalid declarations.
+
+    Registry and manifest coverage are checked independently so a missing
+    estimator reports whether one or both declarations must be added.
+    """
     errors = []
     for name, reason in exclusions.items():
         if name not in estimators:
@@ -93,9 +97,13 @@ def _coverage_errors(
 
     for name in sorted(set(estimators) - set(exclusions)):
         algorithm_names = set(registry.get(name, ()))
-        if not algorithm_names:
+        has_registry = bool(algorithm_names)
+        has_manifest = name in manifest_names or bool(algorithm_names & manifest_names)
+        if not has_registry and not has_manifest:
+            errors.append(f"{name}: missing benchmark registry and manifest entries")
+        elif not has_registry:
             errors.append(f"{name}: missing benchmark registry entry")
-        elif not algorithm_names & manifest_names:
+        elif not has_manifest:
             names = ", ".join(sorted(algorithm_names))
             errors.append(
                 f"{name}: registry entries [{names}] are absent from manifests"
@@ -104,6 +112,7 @@ def _coverage_errors(
 
 
 def test_public_estimators_have_benchmark_coverage():
+    """Require every public estimator to have registry or documented coverage."""
     errors = _coverage_errors(
         _public_estimators(),
         _registry_estimators(),
@@ -114,6 +123,7 @@ def test_public_estimators_have_benchmark_coverage():
 
 
 def test_benchmark_exclusion_reasons_are_required():
+    """Reject exclusions whose justification is empty or whitespace-only."""
     errors = _coverage_errors(
         {"ExampleEstimator": object},
         {},
@@ -124,16 +134,20 @@ def test_benchmark_exclusion_reasons_are_required():
 
 
 def test_uncovered_estimator_is_rejected():
+    """Report both missing declarations when an estimator is entirely absent."""
     errors = _coverage_errors(
         {"ExampleEstimator": object},
         {},
         set(),
         {},
     )
-    assert errors == ["ExampleEstimator: missing benchmark registry entry"]
+    assert errors == [
+        "ExampleEstimator: missing benchmark registry and manifest entries"
+    ]
 
 
 def test_registry_entry_without_manifest_is_rejected():
+    """Report a registry-only estimator as missing manifest coverage."""
     errors = _coverage_errors(
         {"ExampleEstimator": object},
         {"ExampleEstimator": {"ExampleEstimator"}},
@@ -148,7 +162,19 @@ def test_registry_entry_without_manifest_is_rejected():
     ]
 
 
+def test_manifest_entry_without_registry_is_rejected():
+    """Report a manifest-only estimator as missing registry coverage."""
+    errors = _coverage_errors(
+        {"ExampleEstimator": object},
+        {},
+        {"ExampleEstimator"},
+        {},
+    )
+    assert errors == ["ExampleEstimator: missing benchmark registry entry"]
+
+
 def test_stale_benchmark_exclusion_is_rejected():
+    """Reject exclusion entries for estimators no longer discoverable."""
     errors = _coverage_errors(
         {},
         {},
