@@ -27,7 +27,7 @@ jobs:
       ITEM_NODE_ID: "${{ github.event.pull_request.node_id }}"
 
   update-status:
-    # This job sets the PR and its linked issues to "In Progress" status
+    # Set the PR's Status to In Progress on opening, edits, and pushes.
     uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@main
     if: ${{ github.event.pull_request.state == 'open' && (github.event.action == 'opened' || github.event.action == 'edited' || github.event.action == 'synchronize') && needs.get-project-id.outputs.ITEM_PROJECT_ID != '' }}
     needs: get-project-id
@@ -45,90 +45,35 @@ jobs:
       ITEM_PROJECT_ID: "${{ needs.get-project-id.outputs.ITEM_PROJECT_ID }}"
       ITEM_NODE_ID: "${{ github.event.pull_request.node_id }}"
       UPDATE_ITEM: true
-      UPDATE_LINKED_ISSUES: true
-    secrets: inherit # zizmor: ignore[secrets-inherit]
-
-  get-release-version:
-    # release/*: version from branch name; main: first two segments of VERSION on main. Other bases: no output.
-    if: ${{ github.event.pull_request.state == 'open' && needs.get-project-id.outputs.ITEM_PROJECT_ID != '' }}
-    needs: get-project-id
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      release-version: ${{ steps.determine-version.outputs.release-version }}
-    steps:
-      - name: Checkout main branch if needed
-        if: ${{ github.event.pull_request.base.ref == 'main' }}
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          ref: main
-          persist-credentials: false
-      - name: Determine release version
-        id: determine-version
-        run: |
-          if [[ "$BASE_BRANCH" == release/* ]]; then
-            release="${BASE_BRANCH#release/}"
-            echo "release-version=$release" >> "$GITHUB_OUTPUT"
-          elif [ "$BASE_BRANCH" = "main" ] && [ -f VERSION ]; then
-            release=$(head -n 1 VERSION | cut -d. -f1,2)
-            echo "release-version=$release" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
-
-  update-release:
-    # This job sets the PR's Release field based on the target branch
-    # Only sets the field if it is not already set.
-    uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@main
-    if: ${{ github.event.pull_request.state == 'open' && needs.get-project-id.outputs.ITEM_PROJECT_ID != '' && needs.get-release-version.outputs.release-version != '' }}
-    needs: [get-project-id, get-release-version]
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-      packages: read
-      pull-requests: read
-    with:
-      PROJECT_ID: "PVT_kwDOABpemM4BgFBJ"
-      SINGLE_SELECT_FIELD_ID: "PVTSSF_lADOABpemM4BgFBJzhaTRP8"
-      SINGLE_SELECT_FIELD_NAME: "Release"
-      SINGLE_SELECT_OPTION_VALUE: "${{ needs.get-release-version.outputs.release-version }}"
-      ITEM_PROJECT_ID: "${{ needs.get-project-id.outputs.ITEM_PROJECT_ID }}"
-      ITEM_NODE_ID: "${{ github.event.pull_request.node_id }}"
-      UPDATE_ITEM: true
-      OVERRIDE_ITEM: false
       UPDATE_LINKED_ISSUES: false
     secrets: inherit # zizmor: ignore[secrets-inherit]
 
-  validate-release-target:
-    # This job reports whether the PR's Release field matches where the PR
-    # will actually land, and whether linked issues are delivered late.
-    if: ${{ always() && github.event.pull_request.state == 'open' && needs.get-release-version.outputs.release-version != '' }}
-    needs: [get-project-id, get-release-version, update-release]
+  sync-planning-fields:
+    # Inherit the earliest Release and highest Priority available on closing issues.
+    # Advance Todo issues assigned to the PR author to In Progress.
+    # Report failures while continuing independent updates and the PR workflow.
+    if: ${{ github.event.pull_request.state == 'open' && needs.get-project-id.outputs.ITEM_PROJECT_ID != '' }}
+    needs: get-project-id
     continue-on-error: true
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: read
-      pull-requests: read
-      repository-projects: read
     steps:
       - name: Checkout base branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
-      - name: Validate PR Release target
+      - name: Inherit Release and Priority from associated issues
         env:
           GH_TOKEN: ${{ secrets.ADD_TO_PROJECT_GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
-          TARGET_RELEASE: ${{ needs.get-release-version.outputs.release-version }}
         run: |
-          python .github/scripts/check_pr_release_target.py \
+          python .github/scripts/sync_pr_project_fields.py \
             --repo "$REPOSITORY" \
             --pr-number "$PR_NUMBER" \
-            --target-release "$TARGET_RELEASE" \
             --project-id "PVT_kwDOABpemM4BgFBJ" \
-            --release-field-id "PVTSSF_lADOABpemM4BgFBJzhaTRP8"
+            --release-field-id "PVTSSF_lADOABpemM4BgFBJzhaTRP8" \
+            --priority-field-id "PVTSSF_lADOABpemM4BgFBJzhaTRP4" \
+            --status-field-id "PVTSSF_lADOABpemM4BgFBJzhaTRPI"
