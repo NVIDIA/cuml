@@ -1,8 +1,9 @@
 # Contributing to cuML
 
 Contribute to cuML by reporting problems, proposing improvements, or submitting
-code and documentation changes. Start by describing the problem and agreeing
-on the scope; use the developer guides for implementation details.
+code and documentation changes. Start by describing the problem and, before
+implementing a nontrivial change, agreeing on the scope with maintainers. Use
+the developer guides for implementation details.
 
 ## Report a bug or request a change
 
@@ -97,13 +98,14 @@ They do not replace human judgment and communication.
   validation. Communication must accurately represent your judgment. Be able to
   explain the problem, the implementation, its fit with cuML's goals, and the
   validation performed.
-- Do not use GitHub review as the validation loop for speculative or
-  bulk-generated changes. Run relevant checks, remove irrelevant generated
-  content, and keep contributions focused before requesting maintainer attention.
+- Do not use the GitHub review process as the primary validation loop for
+  speculative or bulk-generated changes. Run relevant checks, remove irrelevant
+  generated content, and keep contributions focused before requesting
+  maintainer attention.
 
 Maintainers may close submissions without technical review when they appear
-fully autonomous, unvalidated, misleading, or otherwise impose disproportionate
-review cost. Repeated submissions of this kind may result in account blocking.
+unvetted, misleading, or otherwise impose disproportionate review cost. Repeated
+submissions of this kind may result in account blocking.
 
 ## Attribution
 
