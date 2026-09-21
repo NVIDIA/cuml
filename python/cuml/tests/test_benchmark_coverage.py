@@ -98,7 +98,7 @@ def _coverage_errors(
     for name in sorted(set(estimators) - set(exclusions)):
         algorithm_names = set(registry.get(name, ()))
         has_registry = bool(algorithm_names)
-        has_manifest = name in manifest_names or bool(algorithm_names & manifest_names)
+        has_manifest = bool(algorithm_names & manifest_names)
         if not has_registry and not has_manifest:
             errors.append(f"{name}: missing benchmark registry and manifest entries")
         elif not has_registry:
@@ -163,14 +163,39 @@ def test_registry_entry_without_manifest_is_rejected():
 
 
 def test_manifest_entry_without_registry_is_rejected():
-    """Report a manifest-only estimator as missing registry coverage."""
+    """Report an unregistered class-name manifest entry as lacking both."""
     errors = _coverage_errors(
         {"ExampleEstimator": object},
         {},
         {"ExampleEstimator"},
         {},
     )
-    assert errors == ["ExampleEstimator: missing benchmark registry entry"]
+    assert errors == [
+        "ExampleEstimator: missing benchmark registry and manifest entries"
+    ]
+
+
+def test_manifest_must_use_registered_algorithm_name():
+    """Reject class-name manifest entries when the registry uses an alias."""
+    registry = {"ExampleEstimator": {"Alias"}}
+
+    errors = _coverage_errors(
+        {"ExampleEstimator": object},
+        registry,
+        {"ExampleEstimator"},
+        {},
+    )
+    assert errors == [
+        "ExampleEstimator: registry entries [Alias] are absent from manifests"
+    ]
+
+    errors = _coverage_errors(
+        {"ExampleEstimator": object},
+        registry,
+        {"Alias"},
+        {},
+    )
+    assert errors == []
 
 
 def test_stale_benchmark_exclusion_is_rejected():
