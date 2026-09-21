@@ -76,8 +76,13 @@ so C++ API changes are not typically considered breaking.
 ### Review and merge
 
 Check CI results and address failures. Respond to review feedback and update
-your contribution as needed. A cuML maintainer will merge the PR once it is
-reviewed and approved and the required checks pass.
+your contribution as needed. Do not use GitHub's **Update branch** button only
+to bring the PR up to date with its base branch. Resolve conflicts when needed;
+otherwise, let maintainers update the branch when necessary. Unnecessary base
+branch merges trigger costly CI runs and can delay the PR.
+
+A cuML maintainer will merge the PR once it is reviewed and approved and the
+required checks pass.
 
 ## Automated and AI-assisted contributions
 
