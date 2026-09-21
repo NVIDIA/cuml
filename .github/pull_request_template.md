@@ -1,7 +1,8 @@
 ## Summary
 
 Explain the problem and the key implementation choices. Link the issue this
-resolves; the PR author should be assigned to that issue.
+resolves. The PR author should already be assigned to the issue unless it is
+labeled `Contributions welcome`.
 
 Closes #
 
@@ -19,8 +20,9 @@ By opening this pull request, you confirm that:
   responses submitted under your account.
 
 Except for trivial changes, pull requests should close an issue to which the
-author is assigned. PRs that do not meet this requirement, omit required
-validation, do not meet the contributor responsibilities above, appear
-misleading, or otherwise impose disproportionate review cost may be closed
-without technical review. See CONTRIBUTING.md.
+author is assigned, unless the issue is labeled `Contributions welcome`. PRs
+that do not meet this requirement, omit required validation, do not meet the
+contributor responsibilities above, appear misleading, or otherwise impose
+disproportionate review cost may be closed without technical review. See
+CONTRIBUTING.md.
 -->

@@ -20,17 +20,24 @@ attention, comment with concrete impact information.
 ## Agree on the scope
 
 Discuss new features in an issue and agree on the design and implementation
-plan with maintainers before starting work. For an existing issue, comment
-with your proposed scope and ask to be assigned. Wait for assignment before
-starting work, and ask on the issue if you need clarification.
+plan with maintainers before starting work.
+
+Prefer issues labeled
+[Contributions welcome](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22Contributions+welcome%22).
+Anyone may open a pull request addressing the stated scope of one of these
+issues without prior assignment. Consider commenting before starting to reduce
+the risk of duplicate work.
+
+For other existing issues, consider volunteering only when the issue affects
+your work or you have another concrete reason to take it on; for example, you
+bring relevant domain expertise or have a very specific learning goal. Access
+to AI or other automated tools is not by itself a reason to take on an issue.
+Comment with your proposed scope and rationale, ask to be assigned, and wait
+for assignment before starting work.
 
 Except for trivial changes, pull requests should close an issue to which the
-author is assigned. Maintainers may close a PR without review if it does not
-meet this requirement.
-
-To find a first contribution, look for issues labeled
-[good first issue](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-or [help wanted](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+author is assigned, unless the issue is labeled `Contributions welcome`.
+Maintainers may close a PR without review if it does not meet this requirement.
 
 ## Prepare your contribution
 
