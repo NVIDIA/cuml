@@ -24,6 +24,7 @@ Follow this guide http://matthewrocklin.com/blog/work/2018/02/28/minimal-bug-rep
 A clear and concise description of what you expected to happen.
 
 **Environment details (please complete the following information):**
+ - Consider running `print_env.sh` from the repository root and including its output
  - Environment location: [Bare-metal, Docker, Cloud(specify cloud provider)]
  - Linux Distro/Architecture: [Ubuntu 16.04 amd64]
  - GPU Model/Driver: [V100 and driver 396.44]
