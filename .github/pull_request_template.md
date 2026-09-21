@@ -19,7 +19,8 @@ validate.
 
 <!--
 Except for trivial changes, pull requests should close an issue to which the
-author is assigned. PRs that do not meet this requirement, and fully autonomous
-or unvalidated submissions, may be closed without technical review.
-See CONTRIBUTING.md.
+author is assigned. PRs that do not meet this requirement, omit required
+validation or contributor-responsibility disclosures, appear misleading, or
+otherwise impose disproportionate review cost may be closed without technical
+review. See CONTRIBUTING.md.
 -->

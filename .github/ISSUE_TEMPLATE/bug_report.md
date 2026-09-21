@@ -38,6 +38,8 @@ Add any other context about the problem here.
 
 <!--
 By submitting this report, you confirm that you reviewed and understand its
-contents and remain responsible for responding to maintainer questions. Fully
-autonomous submissions may be closed without investigation. See CONTRIBUTING.md.
+contents and remain responsible for responding to maintainer questions.
+Submissions that appear unvetted, misleading, or otherwise impose
+disproportionate review cost may be closed without investigation. See
+CONTRIBUTING.md.
 -->
