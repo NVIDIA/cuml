@@ -1052,7 +1052,7 @@ inline void nnls_lawson_batched_dispatch(
   }
   const lawson_selected<T>& sel = plan.pick(n_problems);
 
-  cudaStream_t stream = raft::resource::get_cuda_stream(handle);
+  cudaStream_t stream = raft::resource::get_cuda_stream(handle).get();
 
   // Persistent grid: launch min(n_problems, resident) co-resident blocks that
   // stride over the problems, so the per-block global scratch for the Cholesky

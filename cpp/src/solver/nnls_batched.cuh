@@ -42,7 +42,7 @@ void nnls_batched_impl(raft::handle_t& handle,
   ASSERT(n >= 1, "ML::Solver::nnlsBatched: n must be >= 1.");
   ASSERT(P >= 1, "ML::Solver::nnlsBatched: n_problems must be >= 1.");
 
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // Precompute the resident Gram matrix and RHS projections once, then reuse
   // them across every problem in the batch: G = A^T A (n x n), C = A^T B (n x P).
