@@ -1,10 +1,9 @@
 ## Summary
 
-Explain the problem and the key implementation choices. Link the issue this
-resolves. The PR author should already be assigned to the issue unless it is
-labeled `Contributions welcome`.
-
-Closes #
+Explain the problem and key implementation choices. Link the issue using a
+[GitHub closing keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword),
+for example, `Closes #1234`. The PR author should already be assigned unless
+the issue is labeled `Contributions welcome`.
 
 ## Validation
 
