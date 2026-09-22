@@ -62,8 +62,9 @@ clang-tidy.
 
 ### Conda
 
-Choose an existing `clang_tidy_*.yaml` file from `conda/environments/` matching
-your CUDA version and architecture. For example, on Linux x86_64 with CUDA 13.3:
+Choose an existing `clang_tidy_*.yaml` environment file from
+`conda/environments/` matching your CUDA version and architecture. For example,
+on Linux x86_64 with CUDA 13.3:
 
 ```bash
 conda env create -n cuml-clang-tidy \
