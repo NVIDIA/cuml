@@ -107,7 +107,7 @@ They do not replace human judgment and communication.
   cuML's goals, and the validation performed.
 - Do not use the GitHub review process as the primary validation loop for
   speculative or bulk-generated changes. Run relevant checks, remove irrelevant
-  generated content, and keep contributions focused before requesting
+  generated content, and keep contributions narrowly scoped before requesting
   maintainer attention.
 
 Maintainers may close submissions without technical review when they appear
