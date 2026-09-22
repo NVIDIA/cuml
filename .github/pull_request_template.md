@@ -18,8 +18,8 @@ validate.
 <!--
 By opening this pull request, you confirm that:
 
-- You reviewed or otherwise validated every change and disclosed the scope and
-  basis of any non-line-by-line validation.
+- You reviewed or otherwise validated every change and disclosed which parts
+  you did not review line by line and how you validated them.
 - You can explain and discuss the implementation and remain responsible for all
   responses submitted under your account.
 

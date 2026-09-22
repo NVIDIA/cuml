@@ -101,10 +101,10 @@ They do not replace human judgment and communication.
   autonomous process. A human contributor must remain available and engaged.
 - Understand and take responsibility for everything submitted under your
   account, including generated descriptions and replies. Review or otherwise
-  validate every change, and disclose the scope and basis of any non-line-by-line
-  validation. Communication must accurately represent your judgment. Be able to
-  explain the problem, the implementation, its fit with cuML's goals, and the
-  validation performed.
+  validate every change, and disclose which parts you did not review line by
+  line and how you validated them. Communication must accurately represent your
+  judgment. Be able to explain the problem, the implementation, its fit with
+  cuML's goals, and the validation performed.
 - Do not use the GitHub review process as the primary validation loop for
   speculative or bulk-generated changes. Run relevant checks, remove irrelevant
   generated content, and keep contributions focused before requesting
