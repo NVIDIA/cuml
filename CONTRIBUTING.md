@@ -72,9 +72,9 @@ for details, and ask maintainers if the appropriate target is unclear.
 
 Each PR needs the labels described in the
 [RAPIDS label checker documentation](https://docs.nvidia.com/datascience/resources/label-checker/):
-a `breaking` or `non-breaking` label and a label identifying it as a feature,
-improvement, bugfix, or documentation change. If you cannot apply labels,
-comment on the PR to request them.
+a `breaking` or `non-breaking` label and a `bug`, `doc`, `feature request`, or
+`improvement` label. If you cannot apply labels, comment on the PR to request
+them.
 
 A breaking change modifies the public, non-experimental Python API in a
 backward-incompatible way. Backward-compatible additions do not require a
