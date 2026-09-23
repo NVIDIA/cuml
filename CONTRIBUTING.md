@@ -1,209 +1,117 @@
 # Contributing to cuML
 
-If you are interested in contributing to cuML, your contributions will fall
-into three categories:
-1. You want to report a bug, feature request, or documentation issue
-    - File an [issue](https://github.com/NVIDIA/cuml/issues/new/choose)
-    describing what you encountered or what you want to see changed.
-    - Please run and paste the output of the `cuml/print_env.sh` script while
-    reporting a bug to gather and report relevant environment details.
-    - The cuML team will evaluate the issues and triage them, scheduling
-    them for a release. If you believe the issue needs priority attention
-    comment on the issue to notify the team.
-2. You want to propose a new Feature and implement it
-    - Post about your intended feature, and we shall discuss the design and
-    implementation.
-    - Once we agree that the plan looks good, go ahead and implement it, using
-    the [code contributions](#code-contributions) guide below.
-3. You want to implement a feature or bug-fix for an outstanding issue
-    - Follow the [code contributions](#code-contributions) guide below.
-    - If you need more context on a particular issue, please ask and we shall
-    provide.
+Contribute to cuML by reporting problems, proposing improvements, or submitting
+code and documentation changes. Start by describing the problem and, before
+implementing a nontrivial change, agreeing on the scope with maintainers. Use
+the developer guides for implementation details.
 
-## Code contributions
+## Report a bug or request a change
 
-### Your first issue
+Open an [issue](https://github.com/NVIDIA/cuml/issues/new/choose) using the
+appropriate template. For bugs, include a minimal reproducer, expected and
+actual behavior, and relevant environment details, including the output of
+[`print_env.sh`](print_env.sh) from the repository root.
 
-1. Read the project's [README.md](https://github.com/NVIDIA/cuml/blob/main/README.md)
-    to learn how to setup the development environment.
-2. Find an issue to work on. The best way is to look for the [good first issue](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-    or [help wanted](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) labels
-3. Comment on the issue saying you are going to work on it.
-4. Get familiar with the developer guide relevant for you:
-    * For Python developers, read the [Python Developer Guide](docs/source/developer_guide/python/development.md) and [Estimator Guide](docs/source/developer_guide/python/estimators.md).
-    * For C++ developers, read the [C++ and CUDA Developer Guide](docs/source/developer_guide/cpp/development.md).
-5. Code! Make sure to update unit tests!
-6. When done, [create your pull request](https://github.com/NVIDIA/cuml/compare).
-7. Verify that CI passes all [status checks](https://help.github.com/articles/about-status-checks/), or fix if needed.
-8. Wait for other developers to review your code and update code as needed.
-9. Once reviewed and approved, a cuML developer will merge your pull request.
+Explain the user impact: how the problem affects your use of cuML. If you found
+it through automated analysis rather than actual use, say so. The cuML team
+uses this context to triage and prioritize issues. If an issue needs priority
+attention, comment with concrete impact information.
 
-Remember, if you are unsure about anything, don't hesitate to comment on issues and ask for clarifications!
+## Agree on the scope
 
+Discuss new features in an issue and agree on the design and implementation
+plan with maintainers before starting work.
 
-## Code Formatting
+Prefer issues labeled
+[Contributions welcome](https://github.com/NVIDIA/cuml/issues?q=is%3Aissue+is%3Aopen+label%3A%22Contributions+welcome%22).
+Anyone may open a pull request addressing the stated scope of one of these
+issues without prior assignment. Consider commenting before starting to reduce
+the risk of duplicate work.
 
-Consistent code formatting is important in the cuML project to ensure
-readability, maintainability, and thus simplifies collaboration.
+For other existing issues, consider volunteering only when the issue affects
+your work or you have another concrete reason to take it on; for example, you
+bring relevant domain expertise or have a very specific learning goal. Access
+to AI or other automated tools is not by itself a reason to take on an issue.
+Comment with your proposed scope and rationale, ask to be assigned, and wait
+for assignment before starting work.
 
-### Using pre-commit hooks
+Except for trivial changes, pull requests should close an issue to which the
+author is assigned, unless the issue is labeled `Contributions welcome`.
+Maintainers may close a PR without review if it does not meet this requirement.
 
-cuML uses [pre-commit](https://pre-commit.com) to execute code linters and
-formatters that check the code for common issues, such as syntax errors, code
-style violations, and help to detect bugs. Using pre-commit ensures that linter
-versions and options are aligned for all developers. The same hooks are executed
-as part of the CI checks. This means running pre-commit checks locally avoids
-unnecessary CI iterations.
+## Prepare your contribution
 
-To use `pre-commit`, install the tool via `conda` or `pip` into your development
-environment:
+Work on a branch in your own fork. Follow the [build-from-source guide](BUILD.md)
+to set up your development environment, then consult the relevant guides:
 
-```console
-conda install -c conda-forge pre-commit
-```
-Alternatively:
-```console
-pip install pre-commit
-```
+- [Python development](docs/source/developer_guide/python/development.md)
+- [Python estimator development](docs/source/developer_guide/python/estimators.md)
+- [C++ and CUDA development](docs/source/developer_guide/cpp/development.md)
 
-After installing pre-commit, it is recommended to install pre-commit hooks to
-run automatically before creating a git commit. In this way, it is less likely
-that style checks will fail as part of CI checks. To install pre-commit hooks,
-simply run the following command within the repository root directory:
+Keep changes focused on the agreed scope. Add or update tests for changed
+behavior and update affected documentation. Install and use the
+[pre-commit hooks](docs/source/developer_guide/code_quality.md) to check
+formatting, lint, and spelling. Run relevant tests and checks locally before
+requesting review; identify anything you could not validate.
 
-```console
-pre-commit install
-```
+## Open a pull request and work through review
 
-By default, pre-commit runs on staged files only, meaning only on changes that
-are about to be committed. To run pre-commit checks on all files, execute:
+Open a [pull request](https://github.com/NVIDIA/cuml/compare) when your change
+is ready for review. Follow the PR template: link the issue it closes, explain
+the problem and key implementation choices, and summarize the validation
+performed and any gaps.
 
-```bash
-pre-commit run --all-files
-```
+### Target branch
 
-To skip the checks temporarily, use `git commit --no-verify` or its short form
-`-n`.
+Target `main` by default. Changes for a soon-to-be-released version may target
+`release/YY.MM`. See the
+[RAPIDS release process](https://docs.nvidia.com/datascience/releases/process/)
+for details, and ask maintainers if the appropriate target is unclear.
 
-_Note_: If the auto-formatters' changes affect each other, you may need to go
-through multiple iterations of `git commit` and `git add -u`.
+### PR labels
 
-cuML also uses [codespell](https://github.com/codespell-project/codespell) to find spelling
-mistakes, and this check is run as part of the pre-commit hook. To apply the suggested spelling
-fixes, you can run  `codespell -i 3 -w .` from the command-line in the cuML root directory.
-This will bring up an interactive prompt to select which spelling fixes to apply.
+Each PR needs the labels described in the
+[RAPIDS label checker documentation](https://docs.nvidia.com/datascience/resources/label-checker/):
+a `breaking` or `non-breaking` label and a `bug`, `doc`, `feature request`, or
+`improvement` label. If you cannot apply labels, comment on the PR to request
+them.
 
-If you want to ignore errors highlighted by codespell you can:
- * Add the word to the ignore-words-list in pyproject.toml, to exclude for all of cuML
- * Exclude the entire file from spellchecking, by adding to the `exclude` regex in .pre-commit-config.yaml
- * Ignore only specific lines as shown in https://github.com/codespell-project/codespell/issues/1212#issuecomment-654191881
+A breaking change modifies the public, non-experimental Python API in a
+backward-incompatible way. Backward-compatible additions do not require a
+`breaking` label. The C++ API currently has no backward-compatibility guarantee,
+so C++ API changes are not typically considered breaking.
 
-### Summary of pre-commit hooks
+### Review and merge
 
-The pre-commit hooks configured for this repository consist of a number of
-linters and auto-formatters that we summarize here. For a full and current list,
-please see the `.pre-commit-config.yaml` file.
+Check CI results and address failures. Respond to review feedback and update
+your contribution as needed. Do not use GitHub's **Update branch** button only
+to bring the PR up to date with its base branch. Resolve conflicts when needed;
+otherwise, let maintainers update the branch when necessary. Unnecessary base
+branch merges trigger costly CI runs and can delay the PR.
 
-- `clang-format`: Formats C++ and CUDA code for consistency and readability.
-- `black`: Auto-formats Python code to conform to the PEP 8 style guide.
-- `flake8`: Lints Python code for syntax errors and common code style issues.
-- `cython-lint`: Lints Cython code for syntax errors and common code style issues.
-- _`DeprecationWarning` checker_: Checks for new `DeprecationWarning` being
-  introduced in Python code, and instead `FutureWarning` should be used.
-- _`#include` syntax checker_: Ensures consistent syntax for C++ `#include` statements.
-- _Copyright header checker and auto-formatter_: Ensures the copyright headers
-  of files are up-to-date and in the correct format.
-- `codespell`: Checks for spelling mistakes
+A cuML maintainer will merge the PR once it is reviewed and approved and the
+required checks pass.
 
-### Clang-tidy
+## Automated and AI-assisted contributions
 
-In order to maintain high-quality code, cuML uses not only pre-commit hooks
-featuring various formatters and linters but also the clang-tidy tool.
-Clang-tidy is designed to detect potential issues within the C and C++ code. It
-is typically run as part of our continuous integration (CI) process.
+Tools that help analyze code, draft text, or implement changes are welcome.
+They do not replace human judgment and communication.
 
-While it's generally unnecessary for contributors to run clang-tidy locally,
-there might be cases where you would want to do so. There are two primary
-methods to run clang-tidy on your local machine: using Docker or Conda.
+- Do not submit issues, pull requests, or review responses through a fully
+  autonomous process. A human contributor must remain available and engaged.
+- Understand and take responsibility for everything submitted under your
+  account, including generated descriptions and replies. Review or otherwise
+  validate every change, and disclose which parts you did not review line by
+  line and how you validated them. Communication must accurately represent your
+  judgment. Be able to explain the problem, the implementation, its fit with
+  cuML's goals, and the validation performed.
+- Run relevant checks, remove irrelevant generated content, and keep
+  contributions narrowly scoped before requesting maintainer attention.
 
-* **Docker**
-
-    1. Navigate to the repository root directory.
-    2. Run the following Docker command:
-
-        ```bash
-        docker run --rm --pull always \
-            --mount type=bind,source="$(pwd)",target=/opt/repo --workdir /opt/repo \
-            -e SCCACHE_S3_NO_CREDENTIALS=1 \
-            rapidsai/ci-conda:26.12-latest /opt/repo/ci/run_clang_tidy.sh
-        ```
-
-
-* **Conda**
-
-    1. Navigate to the repository root directory.
-    2. Create and activate the needed conda environment:
-        ```bash
-        conda env create --yes -n cuml-clang-tidy -f conda/environments/clang_tidy_cuda-133_arch-$(uname -m).yaml
-        conda activate cuml-clang-tidy
-        ```
-    3. Generate the compile command database with
-        ```bash
-        ./build.sh --configure-only libcuml
-        ```
-    3. Run clang-tidy with the following command:
-        ```bash
-        python cpp/scripts/run-clang-tidy.py --config pyproject.toml
-        ```
-
-### Managing PR labels
-
-Each PR must be labeled according to whether it is a "breaking" or
-"non-breaking" change (using GitHub labels). This is used to highlight changes
-that users should know about when upgrading.
-
-For cuML, a "breaking" change is one that modifies the public,
-non-experimental, Python API in a non-backward-compatible way. The C++ API does
-not have an expectation of backward compatibility at this time, so changes to
-it are not typically considered breaking. Backward-compatible API changes to
-the Python API (such as adding a new keyword argument to a function) do not
-need to be labeled.
-
-Additional labels must be applied to indicate whether the change is a feature,
-improvement, bugfix, or documentation change. See the [maintainer docs
-here](https://docs.nvidia.com/datascience/resources/label-checker/) for more
-information.
-
-
-### Branches and Versions
-
-The cuML repository has two main branches:
-
-1. `main` branch: primary development for the next release
-2. `release/YY.MM` (e.g. `release/26.02`): release branch for a given release. Once that release is completed, only hotfixes should be targeted at this branch.
-
-### Additional details
-
-For all development, your changes should be pushed into a branch (created using the naming instructions below) in your own fork of cuML and then create a pull request when the code is ready.
-
-PRs should target `main` by default, except in the following situations:
-
-* changes target a soon-to-be-released version: `release/YY.MM`
-* hotfixes targeting critical issues: `hotfix/YY.MM.patch-version`
-
-For more details, see https://docs.nvidia.com/datascience/releases/process/
-
-### Branch naming
-
-Branches used to create PRs should have a name of the form `<type>-<name>`
-which conforms to the following conventions:
-- Type:
-    - fea - For if the branch is for a new feature(s)
-    - enh - For if the branch is an enhancement of an existing feature(s)
-    - bug - For if the branch is for fixing a bug(s) or regression(s)
-- Name:
-    - A name to convey what is being worked on
-    - Please use dashes or underscores between words as opposed to spaces.
+Maintainers may close submissions without technical review when they appear
+unvetted, misleading, or otherwise impose disproportionate review cost. Repeated
+submissions of this kind may result in account blocking.
 
 ## Attribution
-Portions adopted from https://github.com/pytorch/pytorch/blob/master/CONTRIBUTING.md
+
+The automated-contribution guidance was informed by the contribution policies of [scikit-learn](https://scikit-learn.org/stable/developers/contributing.html#automated-contributions-policy) and [Dask](https://github.com/dask/dask/pull/12320).
