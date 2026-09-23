@@ -78,10 +78,6 @@ model's output properties will be cuDF objects. You can always
 override this behavior and select a default datatype with
 :func:`cuml.set_global_output_type`.
 
-The `RAPIDS Configurable Input and Output Types
-<https://medium.com/@dantegd/e719d72c135b>`_ blog post goes into much
-more detail explaining this approach.
-
 GPU-Accelerated Performance
 ---------------------------
 

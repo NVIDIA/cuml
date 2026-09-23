@@ -20,7 +20,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
 
     .. note:: You can export cuML Random Forest models and run predictions
       with them on machines without an NVIDIA GPUs. See
-      https://docs.rapids.ai/api/cuml/nightly/pickling_cuml_models.html
+      https://docs.nvidia.com/cuml/latest/pickling_cuml_models/
       for more details.
 
     Examples
@@ -202,7 +202,11 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         Perform Random Forest Regression on the input data
 
         """
-        X, y, sample_weight = check_inputs(
+        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
+        return self._fit_forest(X, y, sample_weight=sample_weight)
+
+    def _prepare_fit_inputs(self, X, y, sample_weight=None):
+        return check_inputs(
             self,
             X,
             y,
@@ -212,7 +216,6 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             sample_weight_dtype="float64",
             reset=True,
         )
-        return self._fit_forest(X, y, sample_weight=sample_weight)
 
     @nvtx.annotate(
         message="predict RF-Regressor @randomforestclassifier.pyx",

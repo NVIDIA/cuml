@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -143,7 +143,7 @@ struct node {
 
   /** node type */
   type t;
-  union {
+  union data {
     /**
      * if the node is `variable` type, then this is the column id to be used to
      * fetch its value, from the input dataset

@@ -503,15 +503,14 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
     Recursively merges the pair of clusters that minimally increases a
     given linkage distance.
 
-    Note that while the algorithm is generally deterministic and should
-    provide matching results between RAPIDS and the Scikit-learn Contrib
-    versions, the construction of the k-nearest neighbors graph and
-    minimum spanning tree can introduce differences between the two
-    algorithms, especially when several nearest neighbors around a
-    point might have the same distance. While the differences in
-    the minimum spanning trees alone might be subtle, they can
-    (and often will) lead to some points being assigned different
-    cluster labels between the two implementations.
+    Note that while the algorithm is generally deterministic and should provide
+    similar results with the Scikit-learn Contrib version, the construction of
+    the k-nearest neighbors graph and minimum spanning tree can introduce
+    differences between the two algorithms, especially when several nearest
+    neighbors around a point might have the same distance. While the
+    differences in the minimum spanning trees alone might be subtle, they can
+    (and often will) lead to some points being assigned different cluster
+    labels between the two implementations.
 
     Parameters
     ----------

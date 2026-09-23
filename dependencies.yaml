@@ -11,6 +11,7 @@ files:
     includes:
       - common_build
       - cuda
+      - cutile_python
       - cuda_version
       - depends_on_cudf
       - depends_on_cuda_python
@@ -37,40 +38,6 @@ files:
       - test_python
       - test_python_dask
       - test_python_xgboost
-  devcontainers:
-    output: none
-    includes:
-      # "devcontainers" includes everything in "all", excluding test_python_xgboost
-      # The libxgboost package depends on librmm but we do not want to have a
-      # package depending on librmm in devcontainers since it should be built
-      # from source.
-      - common_build
-      - cuda
-      - cutile_python
-      - cuda_version
-      - depends_on_cudf
-      - depends_on_cuda_python
-      - depends_on_cupy
-      - depends_on_rapids_dask_dependency
-      - depends_on_dask_cuda
-      - depends_on_dask_cudf
-      - depends_on_libcuvs
-      - depends_on_libnvforest
-      - depends_on_libraft
-      - depends_on_librmm
-      - depends_on_numba_cuda
-      - depends_on_nvforest
-      - depends_on_pylibraft
-      - depends_on_raft_dask
-      - depends_on_rapids_logger
-      - depends_on_rmm
-      - docs
-      - py_build_cuml
-      - py_run_cuml
-      - py_version
-      - rapids_build_backend
-      - test_python
-      - test_python_dask
   cpp_all:
     output: conda
     matrix:
@@ -194,6 +161,9 @@ files:
   py_rapids_build_cuml:
     output: pyproject
     pyproject_dir: python/cuml
+    matrix:
+      cuda_suffixed: ["false"]
+      use_cuda_wheels: ["true"]
     extras:
       table: tool.rapids-build-backend
       key: requires
@@ -211,6 +181,9 @@ files:
   py_run_cuml:
     output: pyproject
     pyproject_dir: python/cuml
+    matrix:
+      cuda_suffixed: ["false"]
+      use_cuda_wheels: ["true"]
     extras:
       table: project
     includes:
@@ -227,6 +200,9 @@ files:
   py_test_cuml:
     output: pyproject
     pyproject_dir: python/cuml
+    matrix:
+      cuda_suffixed: ["false"]
+      use_cuda_wheels: ["true"]
     extras:
       table: project.optional-dependencies
       key: test
@@ -236,6 +212,9 @@ files:
   py_dask_cuml:
     output: pyproject
     pyproject_dir: python/cuml
+    matrix:
+      cuda_suffixed: ["false"]
+      use_cuda_wheels: ["true"]
     extras:
       table: project.optional-dependencies
       key: dask
@@ -246,6 +225,9 @@ files:
   py_test_dask_cuml:
     output: pyproject
     pyproject_dir: python/cuml
+    matrix:
+      cuda_suffixed: ["false"]
+      use_cuda_wheels: ["true"]
     extras:
       table: project.optional-dependencies
       key: test-dask
@@ -262,6 +244,9 @@ files:
   py_rapids_build_libcuml:
     output: pyproject
     pyproject_dir: python/libcuml
+    matrix:
+      cuda_suffixed: ["false"]
+      use_cuda_wheels: ["true"]
     extras:
       table: tool.rapids-build-backend
       key: requires
@@ -275,6 +260,9 @@ files:
   py_run_libcuml:
     output: pyproject
     pyproject_dir: python/libcuml
+    matrix:
+      cuda_suffixed: ["false"]
+      use_cuda_wheels: ["true"]
     extras:
       table: project
     includes:
@@ -286,6 +274,7 @@ files:
       - depends_on_rapids_logger
 channels:
   - rapidsai-nightly
+  - rapidsai
   - conda-forge
 dependencies:
   rapids_build_backend:
@@ -519,6 +508,7 @@ dependencies:
           # if no matching matrix selectors passed, list the CUDA 13 requirement
           # (just as a source of documentation, as this populates pyproject.toml in source control)
           - matrix:
+              use_cuda_wheels: "true"
             packages:
               - *ctk_cu13
               - *nvjitlink_cu13
@@ -526,6 +516,8 @@ dependencies:
     common:
       - output_types: [conda, requirements]
         packages:
+          # Wait for https://github.com/breathe-doc/breathe/issues/1074 to be fixed
+          - breathe<5.0.0
           - graphviz
           - ipython
           - ipykernel
@@ -540,7 +532,7 @@ dependencies:
           - sphinx-markdown-tables
       - output_types: conda
         packages:
-          - doxygen=1.9.1
+          - doxygen=1.18.0
           - matplotlib-base
           - numpydoc
           - pip:
@@ -745,20 +737,6 @@ dependencies:
             packages:
               - xgboost-cu12>=2.1.0
           - matrix:
-              arch: aarch64
-              cuda: "13.*"
-              cuda_suffixed: "true"
-            packages:
-              # TODO: always install xgboost-cu13 once there are xgboost-cu13 aarch64 wheels
-              #
-              # xgboost-cu13 originally shipped without aarch64 wheels
-              # Using the unsuffixed name pulls in CUDA 12 packages for some versions and may
-              # at some point in the future pull in CUDA 13 packages.
-              #
-              # ref: https://github.com/NVIDIA/cuml/pull/7550#issuecomment-3603279934
-              - &xgboost_unsuffixed xgboost>=2.1.0
-          - matrix:
-              arch: x86_64
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
@@ -766,8 +744,9 @@ dependencies:
           # this unsuffixed dependency is useful in environments where xgboost is built from source
           # (like RAPIDS DLFW builds)
           - matrix:
+              cuda_suffixed: "false"
             packages:
-              - *xgboost_unsuffixed
+              - xgboost>=2.1.0
   test_notebooks:
     common:
       - output_types: [conda, requirements]
@@ -819,6 +798,7 @@ dependencies:
             packages:
               - cudf-cu13==26.12.*,>=0.0.0a0
           - matrix:
+              cuda_suffixed: "false"
             packages:
               - *cudf_unsuffixed
   depends_on_cuml:
@@ -875,10 +855,12 @@ dependencies:
               - *cupy_cu13
           - matrix:
               cuda: "12.*"
+              use_cuda_wheels: "true"
             packages:
               - cupy-cuda12x[ctk]>=14.0.1,!=14.1.0
           # fallback to CUDA 13 versions if 'cuda' is '13.*' or not provided
           - matrix:
+              use_cuda_wheels: "true"
             packages:
               - cupy-cuda13x[ctk]>=14.0.1,!=14.1.0
       - output_types: requirements
@@ -946,6 +928,7 @@ dependencies:
             packages:
               - dask-cudf-cu13==26.12.*,>=0.0.0a0
           - matrix:
+              cuda_suffixed: "false"
             packages:
               - *dask_cudf_unsuffixed
   depends_on_libcuml:
@@ -970,7 +953,10 @@ dependencies:
               cuda_suffixed: "true"
             packages:
               - libcuml-cu13==26.12.*,>=0.0.0a0
-          - {matrix: null, packages: [*libcuml_unsuffixed]}
+          - matrix:
+              cuda_suffixed: "false"
+            packages:
+              - *libcuml_unsuffixed
   depends_on_libcuvs:
     common:
       - output_types: conda
@@ -993,7 +979,10 @@ dependencies:
               cuda_suffixed: "true"
             packages:
               - libcuvs-cu13==26.12.*,>=0.0.0a0
-          - {matrix: null, packages: [*libcuvs_unsuffixed]}
+          - matrix:
+              cuda_suffixed: "false"
+            packages:
+              - *libcuvs_unsuffixed
   depends_on_libnvforest:
     common:
       - output_types: conda
@@ -1016,7 +1005,10 @@ dependencies:
               cuda_suffixed: "true"
             packages:
               - libnvforest-cu13==26.12.*,>=0.0.0a0
-          - {matrix: null, packages: [*libnvforest_unsuffixed]}
+          - matrix:
+              cuda_suffixed: "false"
+            packages:
+              - *libnvforest_unsuffixed
   depends_on_libraft:
     common:
       - output_types: conda
@@ -1039,7 +1031,10 @@ dependencies:
               cuda_suffixed: "true"
             packages:
               - libraft-cu13==26.12.*,>=0.0.0a0
-          - {matrix: null, packages: [*libraft_unsuffixed]}
+          - matrix:
+              cuda_suffixed: "false"
+            packages:
+              - *libraft_unsuffixed
   depends_on_libraft_headers:
     common:
       - output_types: conda
@@ -1067,7 +1062,10 @@ dependencies:
               cuda_suffixed: "true"
             packages:
               - librmm-cu13==26.12.*,>=0.0.0a0
-          - {matrix: null, packages: [*librmm_unsuffixed]}
+          - matrix:
+              cuda_suffixed: "false"
+            packages:
+              - *librmm_unsuffixed
   depends_on_numba_cuda:
     common:
       - output_types: [conda]
@@ -1113,6 +1111,7 @@ dependencies:
             packages:
               - nvforest-cu13==26.12.*,>=0.0.0a0
           - matrix:
+              cuda_suffixed: "false"
             packages:
               - *nvforest_unsuffixed
   depends_on_pylibraft:
@@ -1138,6 +1137,7 @@ dependencies:
             packages:
               - pylibraft-cu13==26.12.*,>=0.0.0a0
           - matrix:
+              cuda_suffixed: "false"
             packages:
               - *pylibraft_unsuffixed
   depends_on_raft_dask:
@@ -1163,6 +1163,7 @@ dependencies:
             packages:
               - raft-dask-cu13==26.12.*,>=0.0.0a0
           - matrix:
+              cuda_suffixed: "false"
             packages:
               - *raft_dask_unsuffixed
   depends_on_rapids_logger:
@@ -1198,5 +1199,6 @@ dependencies:
             packages:
               - rmm-cu13==26.12.*,>=0.0.0a0
           - matrix:
+              cuda_suffixed: "false"
             packages:
               - *rmm_unsuffixed
