@@ -114,4 +114,4 @@ submissions of this kind may result in account blocking.
 
 ## Attribution
 
-Portions adopted from [PyTorch's contribution guidelines](https://github.com/pytorch/pytorch/blob/master/CONTRIBUTING.md). The automated-contribution guidance was informed by the contribution policies of [scikit-learn](https://scikit-learn.org/stable/developers/contributing.html#automated-contributions-policy) and [Dask](https://github.com/dask/dask/pull/12320).
+The automated-contribution guidance was informed by the contribution policies of [scikit-learn](https://scikit-learn.org/stable/developers/contributing.html#automated-contributions-policy) and [Dask](https://github.com/dask/dask/pull/12320).
