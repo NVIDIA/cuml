@@ -39,42 +39,8 @@ staging unless the API contract requires it.
 
 ## Clang-tidy
 
-CI runs clang-tidy to detect potential C++ issues beyond the pre-commit checks.
-Running it locally is optional, but useful when investigating CI failures.
-Use either Docker or Conda on a Linux development machine with the build
-prerequisites described in
-[`BUILD.md`](https://github.com/NVIDIA/cuml/blob/main/BUILD.md).
-Run the commands below from the repository root.
-
-### Docker
-
-Use the CI image matching the branch's cuML version (shown here for 26.12):
-
-```bash
-docker run --rm --pull always \
-    --mount type=bind,source="$(pwd)",target=/opt/repo --workdir /opt/repo \
-    -e SCCACHE_S3_NO_CREDENTIALS=1 \
-    rapidsai/ci-conda:26.12-latest /opt/repo/ci/run_clang_tidy.sh
-```
-
-The CI script creates its environment, configures the build, and runs
-clang-tidy.
-
-### Conda
-
-Choose an existing `clang_tidy_*.yaml` environment file from
-`conda/environments/` matching your CUDA version and architecture. For example,
-on Linux x86_64 with CUDA 13.3:
-
-```bash
-conda env create -n cuml-clang-tidy \
-    -f conda/environments/clang_tidy_cuda-133_arch-x86_64.yaml
-conda activate cuml-clang-tidy
-./build.sh --configure-only libcuml
-python cpp/scripts/run-clang-tidy.py --config pyproject.toml
-```
-
-The configure step generates the compilation database used by clang-tidy.
+CI runs clang-tidy for C++ and CUDA changes. Running it locally is optional; see
+[Code quality checks](../code_quality.md#clang-tidy) for instructions.
 
 ## Memory and streams
 
