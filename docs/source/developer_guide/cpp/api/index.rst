@@ -13,7 +13,9 @@ for ``libcuml``.
    every documented precondition, validating dimensions, types, memory
    locations, device state, stream ordering, and resource lifetimes, and
    checking outputs and failures. Prefer the supported :doc:`Python APIs
-   <../../../api/index>` whenever possible.
+   <../../../api/index>` whenever possible. See the :doc:`compatibility and
+   deprecation policy <../../../deprecation_policy>` for the user-facing API
+   stability policy.
 
 Namespaces
 ----------

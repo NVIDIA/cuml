@@ -338,6 +338,10 @@ For detailed implementation guidelines, including file organization, API design,
 
 ## Deprecation Policy
 
+See the [user-facing compatibility and deprecation policy](../../deprecation_policy.md)
+for the stability commitments communicated to users. This section defines the
+implementation requirements for Python API deprecations.
+
 cuML follows the policy of deprecating code for one release prior to removal. This applies
 to publicly accessible functions, classes, methods, attributes and parameters. During the
 deprecation cycle the old name or value is still supported, but will raise a deprecation

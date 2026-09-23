@@ -24,3 +24,4 @@ GitHub repository instead.
    advanced.rst
    health_checks.rst
    supported_versions.rst
+   Compatibility and deprecation policy <deprecation_policy>
