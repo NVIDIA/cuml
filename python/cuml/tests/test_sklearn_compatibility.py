@@ -142,7 +142,6 @@ _MODULE_TO_IGNORE = {
     "dask",
     "accel",
     "solvers",
-    "tsa",
     "explainer",
     "fil",
     "experimental",
