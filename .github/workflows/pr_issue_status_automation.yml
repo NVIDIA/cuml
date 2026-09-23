@@ -70,6 +70,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
+          # Allow GitHub time to populate closingIssuesReferences after a PR event.
+          sleep 30
           python .github/scripts/sync_pr_project_fields.py \
             --repo "$REPOSITORY" \
             --pr-number "$PR_NUMBER" \
