@@ -10,11 +10,6 @@ Explain the problem and key implementation choices. Link the issue using a
 [GitHub closing keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword),
 for example, `Closes #1234`.
 
-## Validation
-
-List the relevant tests and checks you ran. Identify anything you could not
-validate.
-
 <!--
 By opening this pull request, you confirm that:
 
@@ -23,7 +18,7 @@ By opening this pull request, you confirm that:
 - You can explain and discuss the implementation and remain responsible for all
   responses submitted under your account.
 
-PRs that omit required validation, do not meet these responsibilities, appear
-misleading, or otherwise impose disproportionate review cost may be closed
-without technical review. See CONTRIBUTING.md.
+PRs that do not meet these responsibilities, appear misleading, or otherwise
+impose disproportionate review cost may be closed without technical review.
+See CONTRIBUTING.md.
 -->
