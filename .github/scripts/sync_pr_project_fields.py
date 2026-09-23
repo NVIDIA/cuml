@@ -23,30 +23,20 @@ PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2}
 NOT_STARTED_STATUS = "Todo"
 IN_PROGRESS_STATUS = "In Progress"
 
-QUERY = """
-query(
-  $owner: String!,
-  $repo: String!,
-  $number: Int!,
-  $releaseFieldId: ID!,
-  $priorityFieldId: ID!,
-  $statusFieldId: ID!
-) {
+REPOSITORY_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $number) {
+      id
       author {
         login
-      }
-      projectItems(first: 20) {
-        nodes {
-          ...ProjectItem
-        }
       }
       closingIssuesReferences(first: 100) {
         pageInfo {
           hasNextPage
         }
         nodes {
+          id
           number
           assignees(first: 100) {
             pageInfo {
@@ -59,11 +49,37 @@ query(
           repository {
             nameWithOwner
           }
-          projectItems(first: 20) {
-            nodes {
-              ...ProjectItem
-            }
-          }
+        }
+      }
+    }
+  }
+}
+"""
+
+PROJECT_QUERY = """
+query(
+  $prId: ID!,
+  $issueIds: [ID!]!,
+  $releaseFieldId: ID!,
+  $priorityFieldId: ID!,
+  $statusFieldId: ID!
+) {
+  pr: node(id: $prId) {
+    id
+    ... on PullRequest {
+      projectItems(first: 20) {
+        nodes {
+          ...ProjectItem
+        }
+      }
+    }
+  }
+  issues: nodes(ids: $issueIds) {
+    id
+    ... on Issue {
+      projectItems(first: 20) {
+        nodes {
+          ...ProjectItem
         }
       }
     }
@@ -228,6 +244,49 @@ def graphql(
     return payload["data"]
 
 
+def fetch_data(
+    repository_token: str,
+    project_token: str,
+    owner: str,
+    repo: str,
+    number: int,
+    release_field_id: str,
+    priority_field_id: str,
+    status_field_id: str,
+) -> dict[str, Any]:
+    data = graphql(
+        repository_token,
+        REPOSITORY_QUERY,
+        {"owner": owner, "repo": repo, "number": number},
+    )
+    pr = data.get("repository", {}).get("pullRequest")
+    if pr is None:
+        return data
+
+    issues = pr.get("closingIssuesReferences", {}).get("nodes", [])
+    project_data = graphql(
+        project_token,
+        PROJECT_QUERY,
+        {
+            "prId": pr["id"],
+            "issueIds": [issue["id"] for issue in issues],
+            "releaseFieldId": release_field_id,
+            "priorityFieldId": priority_field_id,
+            "statusFieldId": status_field_id,
+        },
+    )
+    project_items = {
+        item["id"]: item.get("projectItems", {})
+        for item in [project_data.get("pr"), *project_data.get("issues", [])]
+        if item is not None
+    }
+    pr["projectItems"] = project_items.get(pr["id"], {})
+    for issue in issues:
+        issue["projectItems"] = project_items.get(issue["id"], {})
+
+    return {**data, **project_data}
+
+
 def project_item(
     node: dict[str, Any], project_id: str
 ) -> dict[str, Any] | None:
@@ -377,20 +436,24 @@ def set_issue_in_progress(
 
 def main() -> int:
     args = parse_args()
-    token = os.environ.get("GH_TOKEN")
-    if not token:
-        raise RuntimeError("GH_TOKEN is not set")
+    repository_token = os.environ.get("GH_REPOSITORY_TOKEN")
+    if not repository_token:
+        raise RuntimeError("GH_REPOSITORY_TOKEN is not set")
+    project_token = os.environ.get("GH_PROJECT_TOKEN")
+    if not project_token:
+        raise RuntimeError("GH_PROJECT_TOKEN is not set")
 
     owner, name = args.repo.split("/", 1)
-    variables = {
-        "owner": owner,
-        "repo": name,
-        "number": args.pr_number,
-        "releaseFieldId": args.release_field_id,
-        "priorityFieldId": args.priority_field_id,
-        "statusFieldId": args.status_field_id,
-    }
-    data = graphql(token, QUERY, variables)
+    data = fetch_data(
+        repository_token,
+        project_token,
+        owner,
+        name,
+        args.pr_number,
+        args.release_field_id,
+        args.priority_field_id,
+        args.status_field_id,
+    )
     author, pr_item, current_release, current_priority, issues = extract(
         data,
         args.project_id,
@@ -428,7 +491,7 @@ def main() -> int:
                 continue
             print(f"{label}: {current or 'unset'} -> {desired}")
             update_field(
-                token,
+                project_token,
                 args.project_id,
                 pr_item["id"],
                 field_id,
@@ -457,7 +520,7 @@ def main() -> int:
                     and issue.status == NOT_STARTED_STATUS
                 ):
                     set_issue_in_progress(
-                        token,
+                        project_token,
                         args.project_id,
                         issue,
                         args.status_field_id,
