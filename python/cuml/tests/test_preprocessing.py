@@ -1163,6 +1163,63 @@ def test_quantile_transformer_sparse_subsampling_ignore_implicit_zeros():
 
 
 @pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names:UserWarning"
+)
+@pytest.mark.parametrize("n_quantiles", [30, 100])
+def test_quantile_transformer_subsample_none(
+    failure_logger,
+    nan_filled_positive,  # noqa: F811
+    n_quantiles,
+):
+    X_np, X = nan_filled_positive
+
+    transformer = cuQuantileTransformer(
+        n_quantiles=n_quantiles, subsample=None, random_state=42
+    )
+    t_X = transformer.fit_transform(X)
+
+    sk_transformer = skQuantileTransformer(
+        n_quantiles=n_quantiles, subsample=None, random_state=42
+    )
+    sk_t_X = sk_transformer.fit_transform(X_np)
+
+    assert_allclose(transformer.quantiles_, sk_transformer.quantiles_)
+    assert_allclose(transformer.references_, sk_transformer.references_)
+    assert_allclose(t_X, sk_t_X)
+
+
+@pytest.mark.parametrize("ignore_implicit_zeros", [False, True])
+def test_quantile_transformer_sparse_subsample_none(
+    failure_logger,
+    sparse_nan_filled_positive,  # noqa: F811
+    ignore_implicit_zeros,
+):
+    X_np, X = sparse_nan_filled_positive
+    X_np = X_np.tocsc()
+    X = X.tocsr().tocsc()
+
+    transformer = cuQuantileTransformer(
+        n_quantiles=100,
+        ignore_implicit_zeros=ignore_implicit_zeros,
+        subsample=None,
+        random_state=42,
+    )
+    t_X = transformer.fit_transform(X).tocsc()
+
+    sk_transformer = skQuantileTransformer(
+        n_quantiles=100,
+        ignore_implicit_zeros=ignore_implicit_zeros,
+        subsample=None,
+        random_state=42,
+    )
+    sk_t_X = sk_transformer.fit_transform(X_np)
+
+    assert_allclose(transformer.quantiles_, sk_transformer.quantiles_)
+    assert_allclose(transformer.references_, sk_transformer.references_)
+    assert_allclose(t_X, sk_t_X)
+
+
+@pytest.mark.filterwarnings(
     "ignore:'ignore_implicit_zeros' takes effect only with sparse matrix.*:UserWarning"
 )
 @pytest.mark.filterwarnings(
