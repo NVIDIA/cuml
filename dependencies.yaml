@@ -608,15 +608,17 @@ dependencies:
               - umap-learn==0.5.7
               - hdbscan==0.8.39
               - numpy==2.0
+          - matrix:
+            packages:
+      - output_types: requirements
+        matrices:
           - matrix: {dependencies: "nightly"}
             packages:
+              - --extra-index-url=https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
               # Pre-release specifier tells pip to accept dev/alpha/beta versions
               - scikit-learn>=1.6.0a0
           - matrix:
             packages:
-              - *scikit_learn
-              - hdbscan>=0.8.39
-              - ipython>=7.32.0
       # ipython for "oldest" is split: conda uses 8.x (7.x has no Python 3.11+ packages),
       # pip uses 7.34.0 from PyPI (which supports Python 3.11+)
       - output_types: [conda]
@@ -632,13 +634,6 @@ dependencies:
             packages:
               - ipython==7.34.0
           - matrix:
-            packages:
-      - output_types: requirements
-        matrices:
-          - matrix: {dependencies: "nightly"}
-            packages:
-              - --extra-index-url=https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
-          - matrix:  # fallback for non-nightly dependencies
             packages:
       # TODO: we're seeing test failures with openblas > 0.3.30 on aarch64. For
       # now we pin openblas in tests on that architecture.
@@ -669,7 +664,9 @@ dependencies:
         packages:
           - certifi
           - *cython
+          - hdbscan>=0.8.39
           - hypothesis>=6.0,<7
+          - ipython>=7.32.0
           - msgspec
           - nltk
           # 'nvidia-ml-py' provides the 'pynvml' module
@@ -681,6 +678,7 @@ dependencies:
           - pytest-cov
           - pytest-xdist
           - pyyaml
+          - *scikit_learn
           - seaborn
           - statsmodels
           - umap-learn>=0.5.7,<0.5.13
