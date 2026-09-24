@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -16,7 +16,7 @@ template <typename value_idx, typename value_t>
 __device__ inline value_t get_lambda(value_idx node, value_idx num_points, const value_t* deltas)
 {
   value_t delta = deltas[node - num_points];
-  return delta > 0.0 ? 1.0 / delta : std::numeric_limits<value_t>::max();
+  return delta > value_t(0.0) ? value_t(1.0) / delta : std::numeric_limits<value_t>::max();
 }
 
 /**
