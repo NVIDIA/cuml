@@ -11,6 +11,8 @@ package_dir="python/cuml"
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen "${RAPIDS_CUDA_VERSION}")"
 
+source ./ci/use_wheels_from_prs.sh
+
 # Download the libcuml wheel built in the previous step and make it
 # available for pip to find.
 #
