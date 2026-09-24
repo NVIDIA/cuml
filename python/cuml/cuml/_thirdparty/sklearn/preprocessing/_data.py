@@ -1943,6 +1943,10 @@ class Normalizer(
         self.norm = norm
         self.copy = copy
 
+    @classmethod
+    def _get_param_names(cls):
+        return super()._get_param_names() + ["norm", "copy"]
+
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
         tags.requires_fit = False
