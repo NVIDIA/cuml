@@ -345,18 +345,8 @@ if(BUILD_CUML_CPP_LIBRARY)
     target_compile_definitions(cuml_objs PUBLIC CUML_ENABLE_GPU)
   endif()
 
-  if(all_algo OR arima_algo)
-    target_sources(
-      cuml_objs PRIVATE src/arima/arima_common.cu src/arima/batched_arima.cu
-                        src/arima/batched_kalman.cu
-    )
-  endif()
-
   if(all_algo OR datasets_algo)
-    target_sources(
-      cuml_objs PRIVATE src/datasets/make_arima.cu src/datasets/make_blobs.cu
-                        src/datasets/make_regression.cu
-    )
+    target_sources(cuml_objs PRIVATE src/datasets/make_blobs.cu src/datasets/make_regression.cu)
   endif()
 
   if(all_algo OR dbscan_algo)
@@ -426,10 +416,6 @@ if(BUILD_CUML_CPP_LIBRARY)
     )
   endif()
 
-  if(all_algo OR holtwinters_algo)
-    target_sources(cuml_objs PRIVATE src/holtwinters/holtwinters.cu)
-  endif()
-
   if(all_algo OR kmeans_algo)
     target_sources(
       cuml_objs PRIVATE src/kmeans/kmeans_transform.cu src/kmeans/kmeans_fit.cu
@@ -494,10 +480,6 @@ if(BUILD_CUML_CPP_LIBRARY)
 
   if(all_algo OR svm_algo)
     target_sources(cuml_objs PRIVATE src/svm/svc.cu src/svm/svr.cu src/svm/linear.cu)
-  endif()
-
-  if(all_algo OR autoarima_algo)
-    target_sources(cuml_objs PRIVATE src/tsa/auto_arima.cu src/tsa/stationarity.cu)
   endif()
 
   if(all_algo OR tsne_algo)

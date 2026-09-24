@@ -70,12 +70,6 @@ else()
     set(qn_algo ON)
   endif()
 
-  if(tsa_algo)
-    set(arima_algo ON)
-    set(autoarima_algo ON)
-    set(holtwinters_algo ON)
-  endif()
-
   # Set linking options and algorithms that require other algorithms #######
 
   if(treeshap_algo)
