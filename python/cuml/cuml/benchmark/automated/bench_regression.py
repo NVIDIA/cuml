@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2021-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -62,6 +62,10 @@ def bench_elastic(gpubenchmark, bench_step, regression1):  # noqa: F811
 
 def bench_ridge(gpubenchmark, bench_step, regression1):  # noqa: F811
     _benchmark_algo(gpubenchmark, "Ridge", bench_step, regression1)
+
+
+def bench_ridge_cv(gpubenchmark, bench_step, regression1):  # noqa: F811
+    _benchmark_algo(gpubenchmark, "RidgeCV", bench_step, regression1)
 
 
 def bench_knnregressor(gpubenchmark, bench_step, regression1):  # noqa: F811
