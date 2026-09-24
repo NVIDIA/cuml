@@ -597,6 +597,24 @@ dependencies:
       - output_types: conda
         packages:
           - *cmake_ver
+          - openmpi
+          - ninja
+          - c-compiler
+          - cuda-nvcc
+          - cxx-compiler
+    specific:
+      - output_types: conda
+        matrices:
+          - matrix:
+              arch: x86_64
+            packages:
+              - gcc_linux-64=14.*
+              - sysroot_linux-64==2.28
+          - matrix:
+              arch: aarch64
+            packages:
+              - gcc_linux-aarch64=14.*
+              - sysroot_linux-aarch64==2.28
   test_python:
     specific:
       - output_types: [conda, requirements, pyproject]
