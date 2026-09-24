@@ -346,7 +346,13 @@ class TargetEncoder(InteropMixin, Base):
         # Extract unique categories for each feature
         self.categories_ = []
         for col in x_cols:
-            cats = df[col].drop_duplicates().sort_values().to_numpy()
+            cats = df[col].drop_duplicates().sort_values()
+            if cudf.api.types.is_string_dtype(cats.dtype):
+                # Like sklearn, represent missing strings as None
+                # (`to_numpy` would give NaN)
+                cats = np.array(cats.to_arrow().to_pylist(), dtype=object)
+            else:
+                cats = cats.to_numpy()
             self.categories_.append(cats)
 
         if self.multi_feature_mode not in {"combination", "independent"}:
@@ -430,11 +436,17 @@ class TargetEncoder(InteropMixin, Base):
         unq_vals = df.fold.drop_duplicates().sort_values().to_numpy()
         for f in unq_vals:
             mask = df.fold.values == f
-            dg = df.loc[~mask].groupby(x_cols).agg({"y": self.stat})
+            dg = (
+                df.loc[~mask]
+                .groupby(x_cols, dropna=False)
+                .agg({"y": self.stat})
+            )
             dg = _rename_col(dg, "out")
             res.append(df.loc[mask].merge(dg, on=x_cols, how="left"))
         res = cudf.concat(res, axis=0)
-        self.encode_all = df.groupby(x_cols).agg({"y": self.stat})
+        self.encode_all = df.groupby(x_cols, dropna=False).agg(
+            {"y": self.stat}
+        )
         self.encode_all = _rename_col(self.encode_all, "out")
         return self._impute_and_sort(res), df
 
@@ -464,15 +476,11 @@ class TargetEncoder(InteropMixin, Base):
             self.encode_all.append(encode_all_i)
 
             # Extract encodings in category order for sklearn compatibility
-            feature_encodings = []
-            for cat_val in self.categories_[i]:
-                mask = encode_all_i[col] == cat_val
-                if mask.any():
-                    enc_val = float(encode_all_i.loc[mask, "out"].iloc[0])
-                else:
-                    enc_val = float(self.mean)
-                feature_encodings.append(enc_val)
-            self._encodings_per_feature.append(np.array(feature_encodings))
+            self._encodings_per_feature.append(
+                self._category_encodings(
+                    encode_all_i, col, self.categories_[i]
+                )
+            )
 
             # Merge encoding into df for this feature
             df = df.merge(
@@ -492,10 +500,14 @@ class TargetEncoder(InteropMixin, Base):
     def _compute_single_feature_encoding(self, train, col, out_col):
         """Compute target encoding for a single feature column."""
         # Group by single feature and compute stats
-        df_count = train.groupby(col, as_index=False).agg({"y": "count"})
+        df_count = train.groupby(col, as_index=False, dropna=False).agg(
+            {"y": "count"}
+        )
         df_count.columns = [col, "y_count"]
 
-        df_sum = train.groupby(col, as_index=False).agg({"y": "sum"})
+        df_sum = train.groupby(col, as_index=False, dropna=False).agg(
+            {"y": "sum"}
+        )
         df_sum.columns = [col, "y_sum"]
 
         df = df_sum.merge(df_count, on=col, how="left")
@@ -508,9 +520,24 @@ class TargetEncoder(InteropMixin, Base):
 
     def _compute_single_feature_encoding_median(self, train, col):
         """Compute median target encoding for a single feature column."""
-        encode_all = train.groupby(col, as_index=False).agg({"y": self.stat})
+        encode_all = train.groupby(col, as_index=False, dropna=False).agg(
+            {"y": self.stat}
+        )
         encode_all.columns = [col, "out"]
         return encode_all
+
+    def _category_encodings(self, encode_all, col, categories):
+        """Encodings of `categories` in order, falling back to the mean.
+
+        Uses a merge rather than comparing values so that a missing
+        category matches the missing key in `encode_all`.
+        """
+        cats = cudf.DataFrame(
+            {col: categories, "pos": cp.arange(len(categories))}
+        )
+        cats = cats.merge(encode_all[[col, "out"]], on=col, how="left")
+        out = cats.sort_values("pos")["out"].fillna(float(self.mean))
+        return out.to_numpy()
 
     def _make_fold_column(self, n_samples, fold_ids):
         """
@@ -576,12 +603,12 @@ class TargetEncoder(InteropMixin, Base):
         grouped by `x_cols` and agg by `op`
         """
         cols = ["fold", *x_cols]
-        df_each_fold = train.groupby(cols, as_index=False).agg(
+        df_each_fold = train.groupby(cols, as_index=False, dropna=False).agg(
             {y_col: op for y_col in y_cols}
         )
-        df_all = df_each_fold.groupby(x_cols, as_index=False).agg(
-            {y_col: "sum" for y_col in y_cols}
-        )
+        df_all = df_each_fold.groupby(
+            x_cols, as_index=False, dropna=False
+        ).agg({y_col: "sum" for y_col in y_cols})
 
         df_each_fold = df_each_fold.merge(df_all, on=x_cols, how="left")
         for y_col in y_cols:
@@ -773,16 +800,11 @@ class TargetEncoder(InteropMixin, Base):
                 encodings_list.append(cp.asnumpy(enc))
         elif n_features == 1:
             # Single feature: extract encodings directly (exact conversion)
-            cats = self.categories_[0]
-            feature_encodings = []
-            for cat_val in cats:
-                mask = self.encode_all["X_0"] == cat_val
-                if mask.any():
-                    enc_val = float(self.encode_all.loc[mask, "out"].iloc[0])
-                else:
-                    enc_val = float(self.mean)
-                feature_encodings.append(enc_val)
-            encodings_list = [np.array(feature_encodings)]
+            encodings_list = [
+                self._category_encodings(
+                    self.encode_all, "X_0", self.categories_[0]
+                )
+            ]
         else:
             # Multi-feature combination mode cannot be converted to sklearn
             raise UnsupportedOnCPU(

@@ -337,3 +337,70 @@ def test_get_feature_names_out():
     res = model.get_feature_names_out(["a", "b"])
     sol = np.array(["a", "b"], dtype=object)
     np.testing.assert_array_equal(res, sol)
+
+
+def _make_missing_X(values, kind):
+    """Build a single-column input with missing values (``None``) in the
+    representation given by ``kind``."""
+    if kind == "numpy-object":
+        return np.array(values, dtype=object)[:, None]
+    elif kind == "numpy-float":
+        codes = {"a": 0.0, "b": 1.0, "c": 2.0, "d": 3.0, None: np.nan}
+        return np.array([codes[v] for v in values])[:, None]
+    elif kind == "pandas-object":
+        return pandas.DataFrame({"category": values})
+    elif kind == "cudf-str":
+        return cudf.DataFrame({"category": values})
+
+
+MISSING_KINDS = ["numpy-object", "numpy-float", "pandas-object", "cudf-str"]
+
+
+@pytest.mark.parametrize("kind", MISSING_KINDS)
+@pytest.mark.parametrize(
+    "multi_feature_mode, stat, expected",
+    [
+        ("combination", "mean", [3.5, 8.0, 4.5]),
+        ("combination", "var", [2.0, 12.5, 26 / 3]),
+        ("combination", "median", [3.5, 8.0, 3.5]),
+        ("independent", "mean", [3.5, 8.0, 4.5]),
+        ("independent", "median", [3.5, 8.0, 3.5]),
+    ],
+)
+def test_targetencoder_missing_category_transform(
+    kind, multi_feature_mode, stat, expected
+):
+    """A missing value seen during fit is a category of its own, it must
+    not be treated as unseen by transform (gh-8697)."""
+    X = _make_missing_X(["a", "b", None, "c", "b", "c", None], kind)
+    y = np.array([1.5, 2.5, 5.5, 3.5, 4.5, 3.5, 10.5])
+    X_test = _make_missing_X(["b", None, "d"], kind)
+
+    encoder = TargetEncoder(
+        smooth=0,
+        stat=stat,
+        multi_feature_mode=multi_feature_mode,
+        output_type="numpy",
+    ).fit(X, y)
+
+    np.testing.assert_allclose(
+        encoder.transform(X_test), np.array(expected)[:, None]
+    )
+
+
+@pytest.mark.parametrize("kind", MISSING_KINDS)
+@pytest.mark.parametrize("stat", ["mean", "median"])
+def test_targetencoder_missing_category_fit_transform(kind, stat):
+    """Out-of-fold encodings of a missing category use the missing values
+    of the other folds (gh-8697)."""
+    X = _make_missing_X(["a", "b", None, "b", None, "a"], kind)
+    y = np.array([1.5, 2.5, 3.5, 4.5, 5.5, 6.5])
+    fold_ids = [0, 0, 0, 1, 1, 1]
+
+    encoder = TargetEncoder(
+        smooth=0, stat=stat, split_method="customize", output_type="numpy"
+    )
+    train_encoded = encoder.fit_transform(X, y, fold_ids=fold_ids)
+
+    answer = np.array([6.5, 4.5, 5.5, 2.5, 3.5, 1.5])[:, None]
+    np.testing.assert_allclose(train_encoded, answer)
