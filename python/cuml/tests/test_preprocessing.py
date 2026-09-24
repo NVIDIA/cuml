@@ -884,6 +884,39 @@ def test_kbinsdiscretizer_uniform_edge_parity(X_fit, X_transform, n_bins):
     )
 
 
+def test_kbinsdiscretizer_per_feature_n_bins(failure_logger, blobs_dataset):  # noqa: F811
+    X_np, X = blobs_dataset
+    n_bins = [2 + (i % 5) for i in range(X_np.shape[1])]
+
+    cu_transformer = cuKBinsDiscretizer(
+        n_bins=n_bins, encode="ordinal", strategy="uniform"
+    )
+    t_X = cu_transformer.fit_transform(X)
+
+    sk_transformer = skKBinsDiscretizer(
+        n_bins=n_bins, encode="ordinal", strategy="uniform"
+    )
+    sk_t_X = sk_transformer.fit_transform(X_np)
+
+    assert_allclose(t_X, sk_t_X)
+
+
+@pytest.mark.parametrize(
+    "n_bins",
+    [
+        pytest.param([2, 2, 2], id="wrong-length"),
+        pytest.param([1, 3], id="below-minimum"),
+        pytest.param([2.5, 3], id="non-integer"),
+    ],
+)
+def test_kbinsdiscretizer_invalid_per_feature_n_bins(n_bins):
+    X = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    with pytest.raises(ValueError):
+        cuKBinsDiscretizer(
+            n_bins=n_bins, encode="ordinal", strategy="uniform"
+        ).fit(X)
+
+
 @pytest.mark.parametrize("missing_values", [0, 1, np.nan])
 @pytest.mark.parametrize("features", ["missing-only", "all"])
 def test_missing_indicator(
