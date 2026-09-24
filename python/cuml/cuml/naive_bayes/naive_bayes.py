@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+from numbers import Real
+
 import cupy as cp
 import cupyx
 import numpy as np
@@ -583,6 +585,15 @@ class _BaseDiscreteNB(_BaseNB):
         tags.classifier_tags.poor_score = True
         return tags
 
+    def _check_alpha(self, n_features):
+        """Validate `self.alpha`. Overridden by `ComplementNB` to also
+        accept a per-feature array; every other subclass gets this
+        scalar-only check unchanged.
+        """
+        if self.alpha < 0:
+            raise ValueError(f"Expected alpha >= 0, got {self.alpha}")
+        return self.alpha
+
     def _update_class_log_prior(self, class_prior=None):
         if class_prior is not None:
             if class_prior.shape[0] != self.n_classes_:
@@ -652,15 +663,19 @@ class _BaseDiscreteNB(_BaseNB):
         classes=None,
         reset=False,
     ) -> "_BaseDiscreteNB":
-        if self.alpha < 0:
-            raise ValueError(f"Expected alpha >= 0, got {self.alpha}")
-
         classes, reset = self._check_classes(classes, reset)
         X, y, classes, _ = self._check_fit(
             X,
             y,
             classes=classes,
             reset=reset,
+        )
+
+        alpha = self._check_alpha(X.shape[1])
+        self._alpha_ = (
+            alpha
+            if isinstance(alpha, Real)
+            else cp.asarray(alpha, dtype=X.dtype)
         )
 
         if reset:
@@ -675,7 +690,7 @@ class _BaseDiscreteNB(_BaseNB):
         else:
             self._count(X, y)
 
-        self._update_feature_log_prob(self.alpha)
+        self._update_feature_log_prob(self._alpha_)
         self._update_class_log_prior(class_prior=self.class_prior)
         return self
 
@@ -709,7 +724,12 @@ class _BaseDiscreteNB(_BaseNB):
         can be updated incrementally without incurring this cost each
         time.
         """
-        self._update_feature_log_prob(self.alpha)
+        alpha = self._check_alpha(self.n_features_)
+        if isinstance(alpha, Real):
+            self._alpha_ = alpha
+        else:
+            self._alpha_ = cp.asarray(alpha, dtype=self.feature_count_.dtype)
+        self._update_feature_log_prob(self._alpha_)
         self._update_class_log_prior(class_prior=self.class_prior)
 
     def _count(self, X, y):
@@ -1029,7 +1049,7 @@ class ComplementNB(_BaseDiscreteNB):
 
     Parameters
     ----------
-    alpha : float, default=1.0
+    alpha : float or array-like of shape (n_features,), default=1.0
         Additive (Laplace/Lidstone) smoothing parameter
         (0 for no smoothing).
     fit_prior : bool, default=True
@@ -1112,6 +1132,36 @@ class ComplementNB(_BaseDiscreteNB):
         tags = super().__sklearn_tags__()
         tags.input_tags.positive_only = True
         return tags
+
+    def _check_alpha(self, n_features):
+        """Validate `self.alpha`: a scalar, or an array-like of shape
+        `(n_features,)`, finite and >= 0. Returns the original scalar,
+        or a plain host-side array — coercing it to a GPU array with
+        the right dtype is left to the caller.
+        """
+        if isinstance(self.alpha, Real):
+            alpha = self.alpha
+        else:
+            # cp.ndarray can't be passed to np.asarray directly; unwrap.
+            alpha = (
+                self.alpha.get()
+                if isinstance(self.alpha, cp.ndarray)
+                else self.alpha
+            )
+            alpha = np.asarray(alpha)
+            if alpha.ndim == 0:
+                alpha = alpha.item()  # e.g. np.array(1.5) is just a scalar
+            elif alpha.ndim != 1 or alpha.shape[0] != n_features:
+                raise ValueError(
+                    "alpha must be a scalar or an array-like of shape "
+                    f"(n_features,)=({n_features},); got shape "
+                    f"{alpha.shape} instead."
+                )
+
+        if not np.all(np.isfinite(alpha)) or np.any(np.asarray(alpha) < 0):
+            raise ValueError(f"alpha must be finite and >= 0, got {alpha!r}")
+
+        return alpha
 
     def _count(self, X, y):
         super()._count(X, y)
