@@ -466,6 +466,21 @@ def test_homogeneity_score_big_array(input_range):
 
 
 @pytest.mark.parametrize(
+    "score",
+    [score_homogeneity, score_completeness, score_mutual_info],
+)
+def test_cluster_metrics_label_permutation_invariance(score):
+    labels_true = [0, 0, 0, 1, 1, 0, 1]
+    labels_pred = [1, 0, 1, 0, 1, 1, 0]
+    permuted_labels_pred = [0, 1, 0, 1, 0, 0, 1]
+
+    original = score(labels_true, labels_pred)
+    permuted = score(labels_true, permuted_labels_pred)
+
+    np.testing.assert_almost_equal(original, permuted, decimal=6)
+
+
+@pytest.mark.parametrize(
     "input_range", [[0, 2], [-5, 20], [int(-10e2), int(10e2)]]
 )
 def test_homogeneity_completeness_symmetry(input_range):
