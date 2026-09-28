@@ -86,6 +86,7 @@ files:
   test_cpp:
     output: none
     includes:
+      - common_build
       - cuda
       - cuda_version
       - depends_on_libcuml
@@ -599,73 +600,7 @@ dependencies:
         packages:
           - *cmake_ver
           - openmpi
-          - ninja
-          - c-compiler
-          - cuda-nvcc
-          - cxx-compiler
-    specific:
-      - output_types: conda
-        matrices:
-          - matrix:
-              arch: x86_64
-              cuda: "12.2"
-            packages:
-              - gcc_linux-64=12.*
-              - sysroot_linux-64==2.28
-          - matrix:
-              arch: aarch64
-              cuda: "12.2"
-            packages:
-              - gcc_linux-aarch64=12.*
-              - sysroot_linux-aarch64==2.28
-          - matrix:
-              arch: x86_64
-              cuda: "12.5"
-            packages:
-              - gcc_linux-64=12.*
-              - sysroot_linux-64==2.28
-          - matrix:
-              arch: aarch64
-              cuda: "12.5"
-            packages:
-              - gcc_linux-aarch64=12.*
-              - sysroot_linux-aarch64==2.28
-          - matrix:
-              arch: x86_64
-              cuda: "12.8"
-            packages:
-              - gcc_linux-64=14.*
-              - sysroot_linux-64==2.28
-          - matrix:
-              arch: aarch64
-              cuda: "12.8"
-            packages:
-              - gcc_linux-aarch64=14.*
-              - sysroot_linux-aarch64==2.28
-          - matrix:
-              arch: x86_64
-              cuda: "12.9"
-            packages:
-              - gcc_linux-64=14.*
-              - sysroot_linux-64==2.28
-          - matrix:
-              arch: aarch64
-              cuda: "12.9"
-            packages:
-              - gcc_linux-aarch64=14.*
-              - sysroot_linux-aarch64==2.28
-          - matrix:
-              arch: x86_64
-              cuda: "13.*"
-            packages:
-              - gcc_linux-64=14.*
-              - sysroot_linux-64==2.28
-          - matrix:
-              arch: aarch64
-              cuda: "13.*"
-            packages:
-              - gcc_linux-aarch64=14.*
-              - sysroot_linux-aarch64==2.28
+          - ccache
   test_python:
     specific:
       - output_types: [conda, requirements, pyproject]
