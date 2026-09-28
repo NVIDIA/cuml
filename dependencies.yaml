@@ -607,11 +607,61 @@ dependencies:
         matrices:
           - matrix:
               arch: x86_64
+              cuda: "12.2"
+            packages:
+              - gcc_linux-64=12.*
+              - sysroot_linux-64==2.28
+          - matrix:
+              arch: aarch64
+              cuda: "12.2"
+            packages:
+              - gcc_linux-aarch64=12.*
+              - sysroot_linux-aarch64==2.28
+          - matrix:
+              arch: x86_64
+              cuda: "12.5"
+            packages:
+              - gcc_linux-64=12.*
+              - sysroot_linux-64==2.28
+          - matrix:
+              arch: aarch64
+              cuda: "12.5"
+            packages:
+              - gcc_linux-aarch64=12.*
+              - sysroot_linux-aarch64==2.28
+          - matrix:
+              arch: x86_64
+              cuda: "12.8"
             packages:
               - gcc_linux-64=14.*
               - sysroot_linux-64==2.28
           - matrix:
               arch: aarch64
+              cuda: "12.8"
+            packages:
+              - gcc_linux-aarch64=14.*
+              - sysroot_linux-aarch64==2.28
+          - matrix:
+              arch: x86_64
+              cuda: "12.9"
+            packages:
+              - gcc_linux-64=14.*
+              - sysroot_linux-64==2.28
+          - matrix:
+              arch: aarch64
+              cuda: "12.9"
+            packages:
+              - gcc_linux-aarch64=14.*
+              - sysroot_linux-aarch64==2.28
+          - matrix:
+              arch: x86_64
+              cuda: "13.*"
+            packages:
+              - gcc_linux-64=14.*
+              - sysroot_linux-64==2.28
+          - matrix:
+              arch: aarch64
+              cuda: "13.*"
             packages:
               - gcc_linux-aarch64=14.*
               - sysroot_linux-aarch64==2.28
