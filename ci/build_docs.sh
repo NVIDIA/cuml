@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 
@@ -33,14 +33,12 @@ rapids-print-env
 RAPIDS_DOCS_DIR="$(mktemp -d)"
 export RAPIDS_DOCS_DIR
 
-rapids-logger "Build CPP docs"
+rapids-logger "Generate C++ API XML for Breathe"
 pushd cpp
 doxygen Doxyfile.in
-mkdir -p "${RAPIDS_DOCS_DIR}/libcuml/html"
-mv html/* "${RAPIDS_DOCS_DIR}/libcuml/html"
 popd
 
-rapids-logger "Build Python docs"
+rapids-logger "Build the combined Python and C++ Sphinx documentation"
 pushd docs
 sphinx-build -b dirhtml ./source _html -W
 mkdir -p "${RAPIDS_DOCS_DIR}/cuml/html"

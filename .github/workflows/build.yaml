@@ -105,7 +105,6 @@ jobs:
     with:
       docs-projects: cuml,libcuml
       dry-run: false
-      version-map: ${{ vars.VERSION_MAP }}
   python-build:
     needs: [build-details, cpp-build]
     permissions:

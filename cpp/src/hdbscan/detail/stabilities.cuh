@@ -160,7 +160,6 @@ void get_stability_scores(const raft::handle_t& handle,
                           value_t* result,
                           value_idx* label_map)
 {
-  auto stream      = handle.get_stream();
   auto exec_policy = handle.get_thrust_policy();
 
   /**

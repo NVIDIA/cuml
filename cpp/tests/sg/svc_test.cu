@@ -135,6 +135,8 @@ TYPED_TEST(WorkingSetTest, Select)
                               this->ws->GetSize(),
                               MLCommon::Compare<int>(),
                               stream));
+  // Leave f and alpha unchanged to model an outer iteration with no progress.
+  // The next selection must still rotate part of a decomposed working set.
   this->ws->Select(
     this->f_dev.data(), this->alpha_dev.data(), this->y_dev.data(), this->C_dev.data());
 
@@ -307,6 +309,33 @@ TYPED_TEST_P(KernelCacheTest, EvalTest)
     ASSERT_FALSE(cache.getNextBatchKernel(batch_descriptor));
     delete kernel;
   }
+}
+
+TYPED_TEST_P(KernelCacheTest, FinishWorkingSetTest)
+{
+  KernelParams params{KernelType::LINEAR, 3, 1, 0};
+  auto dense_view =
+    raft::make_device_strided_matrix_view<TypeParam, int, raft::layout_f_contiguous>(
+      this->x_dev.data(), this->n_rows, this->n_cols, 0);
+  GramMatrixBase<TypeParam>* kernel = KernelFactory<TypeParam>::create(ML::matrix::to_cuvs(params));
+  KernelCache<TypeParam, raft::device_matrix_view<TypeParam, int, raft::layout_stride>> cache(
+    this->handle,
+    dense_view,
+    this->n_rows,
+    this->n_cols,
+    this->n_ws,
+    kernel,
+    static_cast<cuvs::distance::kernels::KernelType>(params.kernel),
+    0,
+    C_SVC);
+
+  cache.InitWorkingSet(this->ws_idx_dev.data());
+  cache.FinishWorkingSet();
+
+  // A new working set can be initialized after a solve with no coefficient updates.
+  cache.InitWorkingSet(this->ws_idx_dev.data());
+  cache.FinishWorkingSet();
+  delete kernel;
 }
 
 TYPED_TEST_P(KernelCacheTest, SvcCacheEvalTest)
@@ -490,7 +519,8 @@ TYPED_TEST_P(KernelCacheTest, SvrCacheEvalTest)
   }
 }
 
-REGISTER_TYPED_TEST_CASE_P(KernelCacheTest, EvalTest, SvcCacheEvalTest, SvrCacheEvalTest);
+REGISTER_TYPED_TEST_CASE_P(
+  KernelCacheTest, EvalTest, FinishWorkingSetTest, SvcCacheEvalTest, SvrCacheEvalTest);
 INSTANTIATE_TYPED_TEST_CASE_P(My, KernelCacheTest, FloatTypes);
 
 template <typename math_t>
@@ -1061,6 +1091,14 @@ class SmoSolverTest : public ::testing::Test {
 };
 
 TYPED_TEST_CASE(SmoSolverTest, FloatTypes);
+
+TEST(SmoSolverUtilsTest, NoProgressErrorRequiresFullWorkingSet)
+{
+  EXPECT_TRUE(ShouldThrowNoProgressError(true, false, 10, 10));
+  EXPECT_FALSE(ShouldThrowNoProgressError(true, false, 1025, 1024));
+  EXPECT_FALSE(ShouldThrowNoProgressError(true, true, 10, 10));
+  EXPECT_FALSE(ShouldThrowNoProgressError(false, false, 10, 10));
+}
 
 TYPED_TEST(SmoSolverTest, BlockSolveTest) { this->blockSolveTest(); }
 TYPED_TEST(SmoSolverTest, SvrBlockSolveTest) { this->svrBlockSolveTest(); }

@@ -45,7 +45,7 @@ reviews:
         For public C++ API headers, additionally check:
         - Doxygen documentation for all public functions/classes
         - API changes flagged for docs/ updates
-        - Breaking changes require deprecation warnings and migration guide updates
+        - Consequential changes called out clearly; the C++ API currently has no stability or deprecation guarantee
 
     - path: "cpp/{src,src_prims,include}/**/*.{cu,cuh,cpp,hpp,h}"
       instructions: |
@@ -108,6 +108,6 @@ knowledge_base:
       - "cpp/agents.md"
       - "python/agents.md"
       - "CONTRIBUTING.md"
-      - "wiki/cpp/DEVELOPER_GUIDE.md"
-      - "wiki/python/DEVELOPER_GUIDE.md"
-      - "wiki/python/ESTIMATOR_GUIDE.md"
+      - "docs/source/developer_guide/cpp/development.md"
+      - "docs/source/developer_guide/python/development.md"
+      - "docs/source/developer_guide/python/estimators.md"

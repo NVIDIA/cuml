@@ -482,6 +482,128 @@ TEST_F(IsolationForestTest, MaxFeaturesFitStoresOriginalFeatureIds)
   EXPECT_EQ(model.global_feature_indices.size(), 0);
 }
 
+TEST_F(IsolationForestTest, FitTreeliteReturnsSampledFeatureIds)
+{
+  const int n_samples    = 128;
+  const int n_features   = 8;
+  const int n_estimators = 5;
+  const int max_features = 3;
+
+  thrust::device_vector<float> X_rowmajor(n_samples * n_features);
+  thrust::device_vector<float> X_colmajor(n_samples * n_features);
+  raft::random::Rng rng(42);
+  rng.normal(X_rowmajor.data().get(), X_rowmajor.size(), 0.0f, 1.0f, stream);
+  handle->sync_stream(stream);
+  transpose_data(X_rowmajor, X_colmajor, n_samples, n_features);
+
+  IF_params params;
+  params.n_estimators = n_estimators;
+  params.max_samples  = 64;
+  params.max_features = max_features;
+  params.seed         = 42;
+
+  std::vector<int> feature_indices(static_cast<size_t>(n_estimators) * max_features);
+  TreeliteModelHandle tl_handle = nullptr;
+  double c_normalization        = 0.0;
+  fit_treelite(*handle,
+               &tl_handle,
+               X_colmajor.data().get(),
+               n_samples,
+               n_features,
+               params,
+               &c_normalization,
+               feature_indices.data(),
+               feature_indices.size());
+  ASSERT_NE(tl_handle, nullptr);
+  delete static_cast<tl::Model*>(tl_handle);
+
+  for (int tree = 0; tree < n_estimators; ++tree) {
+    auto first = feature_indices.begin() + static_cast<size_t>(tree) * max_features;
+    auto last  = first + max_features;
+    for (auto it = first; it != last; ++it) {
+      EXPECT_GE(*it, 0);
+      EXPECT_LT(*it, n_features);
+    }
+    std::vector<int> sorted(first, last);
+    std::sort(sorted.begin(), sorted.end());
+    EXPECT_EQ(std::unique(sorted.begin(), sorted.end()), sorted.end());
+  }
+}
+
+TEST_F(IsolationForestTest, FitTreeliteValidatesFeatureBufferSize)
+{
+  const int n_samples  = 32;
+  const int n_features = 4;
+
+  thrust::device_vector<float> X_rowmajor(n_samples * n_features);
+  thrust::device_vector<float> X_colmajor(n_samples * n_features);
+  raft::random::Rng rng(42);
+  rng.normal(X_rowmajor.data().get(), X_rowmajor.size(), 0.0f, 1.0f, stream);
+  handle->sync_stream(stream);
+  transpose_data(X_rowmajor, X_colmajor, n_samples, n_features);
+
+  IF_params params;
+  params.n_estimators = 2;
+  params.max_samples  = 16;
+  params.max_features = 2;
+
+  std::vector<int> feature_indices(3);
+  TreeliteModelHandle tl_handle = nullptr;
+  double c_normalization        = 0.0;
+  EXPECT_THROW(fit_treelite(*handle,
+                            &tl_handle,
+                            X_colmajor.data().get(),
+                            n_samples,
+                            n_features,
+                            params,
+                            &c_normalization,
+                            feature_indices.data(),
+                            feature_indices.size()),
+               raft::exception);
+  EXPECT_EQ(tl_handle, nullptr);
+}
+
+TEST_F(IsolationForestTest, FitTreeliteReturnsFullFeatureRange)
+{
+  const int n_samples    = 32;
+  const int n_features   = 4;
+  const int n_estimators = 2;
+
+  thrust::device_vector<float> X_rowmajor(n_samples * n_features);
+  thrust::device_vector<float> X_colmajor(n_samples * n_features);
+  raft::random::Rng rng(42);
+  rng.normal(X_rowmajor.data().get(), X_rowmajor.size(), 0.0f, 1.0f, stream);
+  handle->sync_stream(stream);
+  transpose_data(X_rowmajor, X_colmajor, n_samples, n_features);
+
+  IF_params params;
+  params.n_estimators = n_estimators;
+  params.max_samples  = 16;
+  params.max_features = n_features;
+  params.seed         = 42;
+
+  std::vector<int> feature_indices(static_cast<size_t>(n_estimators) * n_features);
+  TreeliteModelHandle tl_handle = nullptr;
+  double c_normalization        = 0.0;
+  fit_treelite(*handle,
+               &tl_handle,
+               X_colmajor.data().get(),
+               n_samples,
+               n_features,
+               params,
+               &c_normalization,
+               feature_indices.data(),
+               feature_indices.size());
+  ASSERT_NE(tl_handle, nullptr);
+  delete static_cast<tl::Model*>(tl_handle);
+
+  for (int tree = 0; tree < n_estimators; ++tree) {
+    for (int feature = 0; feature < n_features; ++feature) {
+      EXPECT_EQ(feature_indices[static_cast<size_t>(tree) * n_features + feature], feature);
+    }
+  }
+}
+
 TEST_F(IsolationForestTest, ConstantFeaturesDoNotStopSplitting)
 {
   const int n_samples    = 64;

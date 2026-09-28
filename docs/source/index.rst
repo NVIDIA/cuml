@@ -49,25 +49,26 @@ Installation
 ============
 
 cuML is available through conda and pip. For detailed installation instructions,
-visit the `RAPIDS Release Selector <https://docs.rapids.ai/install#selector>`_.
+visit the `install guide <https://docs.nvidia.com/datascience/install#selector>`_.
 
 .. note::
    cuML is only supported on Linux operating systems and WSL 2. See
-   `the RAPIDS install page <https://docs.rapids.ai/install/#system-req>`_
+   `the install page <https://docs.nvidia.com/datascience/install/#system-req>`_
    for details on system and hardware requirements.
 
 CUDA-X Data Science
 ===================
 
-NVIDIA cuML is an open-source CUDA-X Data Science library for GPU-accelerated
-machine learning. It integrates with libraries in the broader RAPIDS ecosystem,
+NVIDIA cuML is an open-source library for GPU-accelerated machine learning. It
+integrates with libraries in the broader CUDA-X Data Science ecosystem,
 including cuDF for data manipulation and cuGraph for graph analytics.
 
 Community & Support
 ===================
 
 * :doc:`User Guide <user_guide>` - Comprehensive usage documentation
-* :doc:`API Reference <api/index>` - Complete API documentation
+* :doc:`Python API Reference <api/index>` - Supported user-facing API documentation
+* :doc:`Developer Guide <developer_guide/index>` - Contributor guidance and internal C++ reference
 * `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_ - Report bugs and request features
 * `CUDA-X Data Science Community <https://developer.nvidia.com/topics/ai/data-science/cuda-x-for-data-science#join-the-community>`_ - Join our community
 
@@ -78,4 +79,4 @@ Community & Support
    user_guide.rst
    Zero Code Change Acceleration <cuml-accel/index.rst>
    api/index
-   cuml_blogs.rst
+   developer_guide/index

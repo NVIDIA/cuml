@@ -88,7 +88,6 @@ struct Dataset {
   /** free-up the buffers */
   void deallocate(const raft::handle_t& handle, const DatasetParams& p)
   {
-    auto stream = handle.get_stream();
     X.release();
     y.release();
   }

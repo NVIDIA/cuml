@@ -153,8 +153,6 @@ void qnFit_impl(raft::handle_t& handle,
     n_samples += p->size;
   }
 
-  auto stream = handle.get_stream();
-
   qnFit_impl<T>(handle,
                 pams,
                 data_X->ptr,

@@ -5,10 +5,12 @@
 
 #include "isolation_forest.cuh"
 
+#include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/ensemble/isolation_forest.hpp>
 
 #include <raft/core/error.hpp>
 #include <raft/core/handle.hpp>
+#include <raft/util/cudart_utils.hpp>
 
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
@@ -161,6 +163,8 @@ void fit_treelite(const raft::handle_t& handle,
                   int n_cols,
                   const IF_params& params,
                   double* c_normalization,
+                  int* feature_indices,
+                  size_t feature_indices_size,
                   rapids_logger::level_enum verbosity)
 {
   ASSERT(c_normalization != nullptr, "Normalization output pointer cannot be null.");
@@ -168,6 +172,34 @@ void fit_treelite(const raft::handle_t& handle,
   IsolationForestModel<T> forest;
   fit(handle, &forest, input, n_rows, n_cols, params, verbosity);
   *c_normalization = forest.c_normalization;
+
+  size_t expected_feature_indices =
+    ML::checked_mul<std::size_t>(forest.params.n_estimators, forest.n_features_per_tree);
+  ASSERT(feature_indices != nullptr || expected_feature_indices == 0,
+         "Feature indices output buffer cannot be null.");
+  ASSERT(feature_indices_size == expected_feature_indices,
+         "Expected feature indices output buffer of size %zu, got %zu.",
+         expected_feature_indices,
+         feature_indices_size);
+
+  if (forest.global_feature_indices.size() == 0) {
+    for (int tree = 0; tree < forest.params.n_estimators; ++tree) {
+      // Bounded by expected_feature_indices (validated above), so the per-row
+      // base offset is computed once rather than checked on every write.
+      size_t row_offset = static_cast<size_t>(tree) * forest.n_features_per_tree;
+      for (int feature = 0; feature < forest.n_features_per_tree; ++feature) {
+        feature_indices[row_offset + feature] = feature;
+      }
+    }
+  } else {
+    auto stream = handle.get_stream();
+    raft::copy(feature_indices,
+               static_cast<const int*>(forest.global_feature_indices.data()),
+               expected_feature_indices,
+               stream);
+    handle.sync_stream(stream);
+  }
+
   build_treelite_isolation_forest<T>(model_handle, handle, &forest);
 }
 
@@ -273,6 +305,8 @@ template CUML_EXPORT void fit_treelite<float>(const raft::handle_t&,
                                               int,
                                               const IF_params&,
                                               double*,
+                                              int*,
+                                              size_t,
                                               rapids_logger::level_enum);
 template CUML_EXPORT void fit_treelite<double>(const raft::handle_t&,
                                                TreeliteModelHandle*,
@@ -281,6 +315,8 @@ template CUML_EXPORT void fit_treelite<double>(const raft::handle_t&,
                                                int,
                                                const IF_params&,
                                                double*,
+                                               int*,
+                                               size_t,
                                                rapids_logger::level_enum);
 
 }  // namespace ML

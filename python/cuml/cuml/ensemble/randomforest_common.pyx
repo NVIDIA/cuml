@@ -24,6 +24,7 @@ from cuml.internals.treelite import safe_treelite_call
 from cuml.internals.validation import check_is_fitted, check_random_seed
 from cuml.metrics import accuracy_score, r2_score
 
+from libc.stddef cimport size_t
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
@@ -35,6 +36,21 @@ from cuml.internals.treelite cimport (
     TreeliteModelHandle,
     TreeliteSerializeModelToBytes,
 )
+
+
+cdef extern from "cuml/ensemble/randomforest_mg_utils.hpp" namespace "ML::detail" nogil:
+    void cuml_rf_allreduce_validation_status(
+        const handle_t& handle,
+        const int* local_status,
+        int* global_status,
+    ) except + nogil
+
+    void cuml_rf_allreduce_oob_stats(
+        const handle_t& handle,
+        const double* local_stats,
+        double* global_stats,
+        size_t count,
+    ) except + nogil
 
 
 cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
@@ -417,8 +433,11 @@ class BaseRandomForestModel(InteropMixin, Base):
         cdef uintptr_t sample_weight_ptr = (
             0 if sample_weight is None else sample_weight.data.ptr
         )
-        cdef int n_rows = X.shape[0]
-        cdef int n_cols = X.shape[1]
+        cdef uint64_t n_rows = X.shape[0]
+        cdef uint64_t n_cols = X.shape[1]
+        cdef uint64_t parameter_n_rows = getattr(
+            self, "_distributed_n_rows", n_rows
+        )
         cdef level_enum verbose = <level_enum> self._verbose_level
         cdef int n_classes = self.n_classes_ if is_classifier else 0
         cdef bool input_row_major = not X.flags.f_contiguous
@@ -469,19 +488,19 @@ class BaseRandomForestModel(InteropMixin, Base):
         )
         cdef int min_samples_leaf = (
             self.min_samples_leaf if isinstance(self.min_samples_leaf, int)
-            else math.ceil(self.min_samples_leaf * n_rows)
+            else math.ceil(self.min_samples_leaf * parameter_n_rows)
         )
         cdef int min_samples_split = (
             self.min_samples_split if isinstance(self.min_samples_split, int)
-            else max(2, math.ceil(self.min_samples_split * n_rows))
+            else max(2, math.ceil(self.min_samples_split * parameter_n_rows))
         )
 
         cdef int n_bins
-        if self.n_bins > n_rows:
+        if self.n_bins > parameter_n_rows:
             warnings.warn("The number of bins, `n_bins` is greater than "
                           "the number of samples used for training. "
                           "Changing `n_bins` to number of training samples.")
-            n_bins = n_rows
+            n_bins = parameter_n_rows
         else:
             n_bins = self.n_bins
 
@@ -503,7 +522,9 @@ class BaseRandomForestModel(InteropMixin, Base):
         )
 
         cdef TreeliteModelHandle tl_handle
-        handle = get_handle(n_streams=n_streams_c)
+        handle = getattr(self, "_raft_handle", None)
+        if handle is None:
+            handle = get_handle(n_streams=n_streams_c)
         cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
 
         # Store oob_score in C variable for nogil block
@@ -604,7 +625,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             TreeliteFreeModel(tl_handle), "Failed to free Treelite model:"
         )
 
-        self._n_samples = y.shape[0]
+        self._n_samples = parameter_n_rows
         self._n_samples_bootstrap = (
             self._n_samples if self.max_samples is None
             else max(round(self._n_samples * self.max_samples), 1)
@@ -620,6 +641,53 @@ class BaseRandomForestModel(InteropMixin, Base):
 
         self.feature_importances_ = feature_importances
         return self
+
+    def _allreduce_validation_status(self, int local_status):
+        """Return whether input validation failed on any distributed rank."""
+        handle = getattr(self, "_raft_handle", None)
+        if handle is None:
+            return local_status != 0
+
+        local_status_array = cp.asarray([local_status], dtype=cp.int32)
+        global_status_array = cp.empty_like(local_status_array)
+        cdef const int* local_status_ptr = (
+            <const int*><uintptr_t>local_status_array.data.ptr
+        )
+        cdef int* global_status_ptr = (
+            <int*><uintptr_t>global_status_array.data.ptr
+        )
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+
+        with nogil:
+            cuml_rf_allreduce_validation_status(
+                handle_[0], local_status_ptr, global_status_ptr
+            )
+
+        return global_status_array.item() != 0
+
+    def _allreduce_oob_stats(self, local_stats):
+        """Sum OOB statistics across distributed ranks."""
+        local_stats = cp.asarray(local_stats, dtype=cp.float64)
+        handle = getattr(self, "_raft_handle", None)
+        if handle is None:
+            return local_stats
+
+        global_stats = cp.empty_like(local_stats)
+        cdef const double* local_stats_ptr = (
+            <const double*><uintptr_t>local_stats.data.ptr
+        )
+        cdef double* global_stats_ptr = (
+            <double*><uintptr_t>global_stats.data.ptr
+        )
+        cdef size_t count = local_stats.size
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+
+        with nogil:
+            cuml_rf_allreduce_oob_stats(
+                handle_[0], local_stats_ptr, global_stats_ptr, count
+            )
+
+        return global_stats
 
     def _get_inference_nvforest_model(
         self,
@@ -694,9 +762,50 @@ class BaseRandomForestModel(InteropMixin, Base):
             # Compute accuracy score for classification
             oob_pred_classes = cp.argmax(oob_predictions[valid_oob], axis=1)
             y_valid = y[valid_oob]
-            self.oob_score_ = float(accuracy_score(y_valid, oob_pred_classes))
+            if getattr(self, "_raft_handle", None) is None:
+                self.oob_score_ = float(
+                    accuracy_score(y_valid, oob_pred_classes)
+                )
+            else:
+                local_stats = cp.empty(2, dtype=cp.float64)
+                local_stats[0] = cp.count_nonzero(
+                    y_valid == oob_pred_classes
+                )
+                local_stats[1] = y_valid.size
+                global_stats = self._allreduce_oob_stats(local_stats)
+                self.oob_score_ = (
+                    global_stats[0] / global_stats[1]
+                ).item()
         else:
             self.oob_prediction_ = oob_predictions
 
             # Compute R² score for regression
-            self.oob_score_ = float(r2_score(y[valid_oob], oob_predictions[valid_oob]))
+            predictions_valid = oob_predictions[valid_oob]
+            y_valid = y[valid_oob]
+            if getattr(self, "_raft_handle", None) is None:
+                self.oob_score_ = float(
+                    r2_score(y_valid, predictions_valid)
+                )
+            else:
+                y_valid = y_valid.astype(cp.float64, copy=False)
+                local_mean_stats = cp.empty(2, dtype=cp.float64)
+                local_mean_stats[0] = y_valid.sum()
+                local_mean_stats[1] = y_valid.size
+                mean_stats = self._allreduce_oob_stats(local_mean_stats)
+                global_mean = mean_stats[0] / mean_stats[1]
+                local_score_stats = cp.empty(2, dtype=cp.float64)
+                local_score_stats[0] = cp.sum(
+                    (y_valid - predictions_valid) ** 2
+                )
+                local_score_stats[1] = cp.sum(
+                    (y_valid - global_mean) ** 2
+                )
+                score_stats = self._allreduce_oob_stats(local_score_stats)
+                if score_stats[0] == 0:
+                    self.oob_score_ = 1.0
+                elif score_stats[1] == 0:
+                    self.oob_score_ = 0.0
+                else:
+                    self.oob_score_ = float(
+                        1 - score_stats[0] / score_stats[1]
+                    )

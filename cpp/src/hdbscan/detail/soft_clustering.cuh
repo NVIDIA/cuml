@@ -217,7 +217,6 @@ void all_points_prob_in_some_cluster(const raft::handle_t& handle,
                                      value_t* merge_heights,
                                      value_t* prob_in_some_cluster)
 {
-  auto stream      = handle.get_stream();
   auto exec_policy = handle.get_thrust_policy();
 
   value_t* lambdas = condensed_tree.get_lambdas();
@@ -334,7 +333,6 @@ void prob_in_some_cluster(const raft::handle_t& handle,
                           value_t* prediction_lambdas,
                           value_t* prob_in_some_cluster)
 {
-  auto stream      = handle.get_stream();
   auto exec_policy = handle.get_thrust_policy();
 
   value_t* lambdas = condensed_tree.get_lambdas();

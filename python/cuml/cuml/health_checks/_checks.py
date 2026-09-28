@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -17,7 +17,7 @@ def import_check(verbose=False, **kwargs):
     except ImportError as e:
         raise ImportError(
             "cuML could not be imported. Install cuML with conda or pip as "
-            "described at https://docs.rapids.ai/install/"
+            "described at https://docs.nvidia.com/datascience/install/"
         ) from e
     if verbose:
         return f"cuML {cuml.__version__} is available"
