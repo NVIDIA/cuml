@@ -7,6 +7,7 @@
 
 #include <cuml/common/logger.hpp>
 #include <cuml/common/utils.hpp>
+#include <cuml/common/checked_arithmetic.hpp>
 
 #include <raft/util/cudart_utils.hpp>
 
@@ -158,7 +159,7 @@ class Fixture : public ::benchmark::Fixture {
   template <typename T>
   void alloc(T*& ptr, size_t len, bool init = false)
   {
-    auto nBytes  = len * sizeof(T);
+    auto nBytes = ML::checked_mul<size_t>(len, sizeof(T));
     auto d_alloc = rmm::mr::get_current_device_resource_ref();
     ptr          = (T*)d_alloc.allocate(stream, nBytes);
     if (init) { RAFT_CUDA_TRY(cudaMemsetAsync(ptr, 0, nBytes, stream)); }
@@ -168,7 +169,8 @@ class Fixture : public ::benchmark::Fixture {
   void dealloc(T* ptr, size_t len)
   {
     auto d_alloc = rmm::mr::get_current_device_resource_ref();
-    d_alloc.deallocate(stream, ptr, len * sizeof(T));
+    auto nBytes = ML::checked_mul<size_t>(len, sizeof(T));
+    d_alloc.deallocate(stream, ptr, nBytes);
   }
 
   cudaStream_t stream = 0;
