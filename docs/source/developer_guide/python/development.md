@@ -40,7 +40,9 @@ The cuML Python library provides a scikit-learn style API for GPU-accelerated ma
 
 ## Coding Style
 
-The majority of style guidelines are enforced through pre-commit hooks. Run the configured hooks before submitting changes so formatting and lint checks match the repository's current toolchain.
+The majority of style guidelines are enforced through pre-commit hooks. Follow
+the shared [code quality guide](../code_quality.md) to install and run the hooks
+before submitting changes.
 
 See [Documentation](#documentation) for guidelines on doc-string formatting.
 

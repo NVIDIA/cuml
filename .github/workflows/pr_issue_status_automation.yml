@@ -58,15 +58,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
+      pull-requests: read
     steps:
-      - name: Checkout base branch
+      - name: Checkout automation from the default branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - name: Inherit Release and Priority from associated issues
         env:
-          GH_TOKEN: ${{ secrets.ADD_TO_PROJECT_GITHUB_TOKEN }}
+          GH_PROJECT_TOKEN: ${{ secrets.ADD_TO_PROJECT_GITHUB_TOKEN }}
+          GH_REPOSITORY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
