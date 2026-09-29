@@ -21,10 +21,9 @@ and clearly describe consequential API changes during review.
 
 ## Formatting and implementation style
 
-The configured pre-commit hooks and
-[`CONTRIBUTING.md`](https://github.com/NVIDIA/cuml/blob/main/CONTRIBUTING.md#code-formatting)
-are the formatting authority. Install pre-commit and run the hooks on changed
-files before opening a pull request:
+The configured pre-commit hooks enforce formatting and lint checks. Follow the
+shared [code quality guide](../code_quality.md) to install the hooks, then run
+them on changed files before opening a pull request:
 
 ```bash
 pre-commit run --files cpp/include/cuml/example.hpp cpp/src/example.cu
@@ -37,6 +36,11 @@ algorithms. Use the RAFT error-checking facilities appropriate to the CUDA
 library call. Avoid unnecessary host/device transfers and synchronization. Keep
 algorithm array inputs and outputs device-accessible; do not require host
 staging unless the API contract requires it.
+
+## Clang-tidy
+
+CI runs clang-tidy for C++ and CUDA changes. Running it locally is optional; see
+[Code quality checks](../code_quality.md#clang-tidy) for instructions.
 
 ## Memory and streams
 
