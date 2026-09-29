@@ -105,11 +105,6 @@ class RandomForestClassifier(
     ignore_empty_partitions: optional, boolean
         Deprecated. This parameter no longer has any effect and
         will be removed in release 26.12.
-
-    Examples
-    --------
-    For usage examples, please see the RAPIDS notebooks repository:
-    https://github.com/NVIDIA/cuml/blob/main/notebooks/random_forest_mnmg_demo.ipynb
     """
 
     def __init__(

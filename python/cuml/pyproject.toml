@@ -78,7 +78,7 @@ filterwarnings = [
 [project]
 name = "cuml"
 dynamic = ["version"]
-description = "cuML - RAPIDS ML Algorithms"
+description = "NVIDIA cuML: GPU-Accelerated Machine Learning"
 readme = { file = "README.md", content-type = "text/markdown" }
 authors = [
     { name = "NVIDIA Corporation" },

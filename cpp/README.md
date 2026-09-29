@@ -37,7 +37,7 @@ Current cmake offers the following configuration options:
 | BUILD_CUML_BENCH | [ON, OFF]  | ON  | Enable/disable building of cuML C++ benchmark. |
 | SINGLEGPU | [ON, OFF] | OFF | Disable cuML MNMG C++ sources and tests, and build cuVS without multi-GPU algorithms. Forces `BUILD_CUML_MG_TESTS` to `OFF`. |
 | DISABLE_OPENMP | [ON, OFF]  | OFF  | Set to `ON` to disable OpenMP  |
-| CMAKE_CUDA_ARCHITECTURES |  List of GPU architectures, semicolon-separated | Empty  | List the GPU architectures to compile the GPU targets for. Set to "NATIVE" to auto detect GPU architecture of the system, set to "ALL" to compile for all RAPIDS supported archs: ["60" "62" "70" "72" "75" "80" "86"].  |
+| CMAKE_CUDA_ARCHITECTURES |  List of GPU architectures, semicolon-separated | Empty  | List the GPU architectures to compile the GPU targets for. Set to "NATIVE" to auto detect GPU architecture of the system, set to "ALL" to compile for all supported archs. |
 | USE_CCACHE | [ON, OFF]  | ON  | Cache build artifacts with ccache. |
 
 - Debug configuration options:

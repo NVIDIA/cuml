@@ -1,6 +1,6 @@
 # cuML Python Developer Guide
 
-This document provides comprehensive guidelines and best practices for contributing to the cuML Python library, the machine learning library within the CUDA and RAPIDS ecosystem. As an evolving document, we welcome contributions, clarifications, and issue reports to help maintain and improve these guidelines.
+This document provides comprehensive guidelines and best practices for contributing to the cuML Python library. As an evolving document, we welcome contributions, clarifications, and issue reports to help maintain and improve these guidelines.
 
 ## Table of Contents
 
@@ -40,7 +40,9 @@ The cuML Python library provides a scikit-learn style API for GPU-accelerated ma
 
 ## Coding Style
 
-The majority of style guidelines are enforced through pre-commit hooks. Run the configured hooks before submitting changes so formatting and lint checks match the repository's current toolchain.
+The majority of style guidelines are enforced through pre-commit hooks. Follow
+the shared [code quality guide](../code_quality.md) to install and run the hooks
+before submitting changes.
 
 See [Documentation](#documentation) for guidelines on doc-string formatting.
 
@@ -290,11 +292,11 @@ scikit-learn compatibility tests and the `cuml.accel` upstream xfail list.
 
 ## Memory Management
 
-cuML uses RMM (RAPIDS Memory Manager) for GPU memory management and configures
-CuPy to allocate through RMM when `cuml` is imported. Validated user inputs
-should generally be processed as standard arrays (`cupy`, `numpy`,
-`cupyx.scipy.sparse`, or `scipy.sparse`) returned by the input validation
-helpers.
+cuML uses [NVIDIA RMM](https://docs.nvidia.com/rmm/latest/) for GPU memory
+management and configures CuPy to allocate through RMM when `cuml` is imported.
+Validated user inputs should generally be processed as standard arrays (`cupy`,
+`numpy`, `cupyx.scipy.sparse`, or `scipy.sparse`) returned by the input
+validation helpers.
 
 Use standard array libraries for allocations and conversions in new internal
 code:
