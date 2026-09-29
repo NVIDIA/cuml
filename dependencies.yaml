@@ -11,6 +11,7 @@ files:
     includes:
       - common_build
       - cuda
+      - cutile_python
       - cuda_version
       - depends_on_cudf
       - depends_on_cuda_python
@@ -37,40 +38,6 @@ files:
       - test_python
       - test_python_dask
       - test_python_xgboost
-  devcontainers:
-    output: none
-    includes:
-      # "devcontainers" includes everything in "all", excluding test_python_xgboost
-      # The libxgboost package depends on librmm but we do not want to have a
-      # package depending on librmm in devcontainers since it should be built
-      # from source.
-      - common_build
-      - cuda
-      - cutile_python
-      - cuda_version
-      - depends_on_cudf
-      - depends_on_cuda_python
-      - depends_on_cupy
-      - depends_on_rapids_dask_dependency
-      - depends_on_dask_cuda
-      - depends_on_dask_cudf
-      - depends_on_libcuvs
-      - depends_on_libnvforest
-      - depends_on_libraft
-      - depends_on_librmm
-      - depends_on_numba_cuda
-      - depends_on_nvforest
-      - depends_on_pylibraft
-      - depends_on_raft_dask
-      - depends_on_rapids_logger
-      - depends_on_rmm
-      - docs
-      - py_build_cuml
-      - py_run_cuml
-      - py_version
-      - rapids_build_backend
-      - test_python
-      - test_python_dask
   cpp_all:
     output: conda
     matrix:
@@ -549,7 +516,8 @@ dependencies:
     common:
       - output_types: [conda, requirements]
         packages:
-          - breathe
+          # Wait for https://github.com/breathe-doc/breathe/issues/1074 to be fixed
+          - breathe<5.0.0
           - graphviz
           - ipython
           - ipykernel
@@ -640,15 +608,17 @@ dependencies:
               - umap-learn==0.5.7
               - hdbscan==0.8.39
               - numpy==2.0
+          - matrix:
+            packages:
+      - output_types: requirements
+        matrices:
           - matrix: {dependencies: "nightly"}
             packages:
+              - --extra-index-url=https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
               # Pre-release specifier tells pip to accept dev/alpha/beta versions
               - scikit-learn>=1.6.0a0
           - matrix:
             packages:
-              - *scikit_learn
-              - hdbscan>=0.8.39
-              - ipython>=7.32.0
       # ipython for "oldest" is split: conda uses 8.x (7.x has no Python 3.11+ packages),
       # pip uses 7.34.0 from PyPI (which supports Python 3.11+)
       - output_types: [conda]
@@ -664,13 +634,6 @@ dependencies:
             packages:
               - ipython==7.34.0
           - matrix:
-            packages:
-      - output_types: requirements
-        matrices:
-          - matrix: {dependencies: "nightly"}
-            packages:
-              - --extra-index-url=https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
-          - matrix:  # fallback for non-nightly dependencies
             packages:
       # TODO: we're seeing test failures with openblas > 0.3.30 on aarch64. For
       # now we pin openblas in tests on that architecture.
@@ -701,7 +664,9 @@ dependencies:
         packages:
           - certifi
           - *cython
+          - hdbscan>=0.8.39
           - hypothesis>=6.0,<7
+          - ipython>=7.32.0
           - msgspec
           - nltk
           # 'nvidia-ml-py' provides the 'pynvml' module
@@ -713,6 +678,7 @@ dependencies:
           - pytest-cov
           - pytest-xdist
           - pyyaml
+          - *scikit_learn
           - seaborn
           - statsmodels
           - umap-learn>=0.5.7,<0.5.13

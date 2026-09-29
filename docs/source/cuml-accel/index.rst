@@ -12,11 +12,11 @@ Your existing code then remains unchanged:
 
 .. code-block:: python
 
-   from sklearn.datasets import make_regression
-   from sklearn.linear_model import Ridge
+   from sklearn.datasets import make_classification
+   from sklearn.ensemble import RandomForestClassifier
 
-   X, y = make_regression(n_samples=1_000_000, random_state=0)
-   model = Ridge().fit(X, y)
+   X, y = make_classification(n_samples=100_000, random_state=0)
+   model = RandomForestClassifier().fit(X, y)
    predictions = model.predict(X)
 
 Run a script through the ``cuml.accel`` command-line interface:

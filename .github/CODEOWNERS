@@ -21,6 +21,9 @@ CMakeLists.txt @NVIDIA/cuml-cmake-codeowners
 
 #CI code owners
 /.github/                @NVIDIA/adi-ci-codeowners
+# Contributor-facing templates are project policy rather than CI infrastructure.
+/.github/ISSUE_TEMPLATE/          @NVIDIA/cuml-python-codeowners
+/.github/pull_request_template.md @NVIDIA/cuml-python-codeowners
 /.coderabbit.yaml        @NVIDIA/adi-ci-codeowners
 /.yamllint.yaml          @NVIDIA/adi-ci-codeowners
 /ci/                     @NVIDIA/adi-ci-codeowners
