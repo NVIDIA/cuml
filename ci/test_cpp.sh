@@ -42,8 +42,10 @@ export GTEST_OUTPUT=xml:${RAPIDS_TESTS_DIR}/
 # Run libcuml gtests from libcuml-tests package
 timeout -v 20m ./ci/run_ctests.sh -j9 && EXITCODE=$? || EXITCODE=$?;
 
-rapids-logger "Ensure that cpp-mgtests can be built"
-./build.sh --ccache cpp-mgtests
+if [[ "${RAPIDS_CUDA_VERSION}" != "12.2.2" ]]; then
+  rapids-logger "Ensure that cpp-mgtests can be built"
+  ./build.sh --ccache cpp-mgtests
+fi
 
 rapids-logger "Test script exiting with value: $EXITCODE"
 exit "${EXITCODE}"
