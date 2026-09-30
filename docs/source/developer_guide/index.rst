@@ -6,7 +6,9 @@ document, and benchmark cuML. Start with :doc:`contributing`, then use the
 implementation-specific guidance below.
 
 * :doc:`Contributing <contributing>` covers how to propose changes, prepare pull
-  requests, run repository checks, and work with continuous integration.
+  requests, and work through review.
+* :doc:`Code quality checks <code_quality>` covers pre-commit setup, formatting,
+  lint, and spelling checks.
 * :doc:`Python development <python/development>` covers style, testing,
   validation, memory management, and Python documentation.
 
@@ -27,6 +29,7 @@ implementation-specific guidance below.
    :maxdepth: 3
 
    contributing
+   code_quality
    python/development
    python/estimators
    cpp/index

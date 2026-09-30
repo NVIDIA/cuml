@@ -32,8 +32,8 @@ print(dbscan.labels_)
 ```
 
 `cuml` supports clustering, dimensionality reduction, regression,
-classification, preprocessing, model selection, time series, model
-explanation, and nearest-neighbor workflows. Browse the [API
+classification, preprocessing, model selection, model explanation, and
+nearest-neighbor workflows. Browse the [API
 reference](https://docs.nvidia.com/cuml/latest/api/) for the current list of
 estimators and functions.
 
