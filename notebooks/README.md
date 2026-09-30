@@ -17,7 +17,6 @@ documentation tree.
 
 Notebook Title | Status | Description
 --- | --- | ---
-[ARIMA Demo](arima_demo.ipynb) | Working | Forecast using ARIMA on time-series data.
 [KMeans Demo](kmeans_demo.ipynb) | Working | Predict using k-means, visualize and compare the results with Scikit-learn's k-means.
 [KMeans Multi-Node Multi-GPU Demo](kmeans_mnmg_demo.ipynb) | Working | Predict with MNMG k-means using dask distributed inputs.
 [Linear Regression Demo](linear_regression_demo.ipynb) | Working | Demonstrate the use of OLS Linear Regression for prediction.
