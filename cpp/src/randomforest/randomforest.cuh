@@ -493,6 +493,7 @@ class RandomForest {
     const raft::handle_t& handle = user_handle;
     bool distributed =
       raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1;
+    auto const comm_size = distributed ? handle.get_comms().get_size() : 1;
     this->error_checking(input, labels, n_rows, n_cols, false, distributed);
     std::int64_t const n_rows_i64 = n_rows;
     std::int64_t global_n_rows    = n_rows_i64;
@@ -512,8 +513,9 @@ class RandomForest {
     }
     std::int64_t n_sampled_rows = 0;
     if (this->rf_params.bootstrap) {
-      n_sampled_rows =
+      auto const global_n_sampled_rows =
         static_cast<std::int64_t>(std::round(this->rf_params.max_samples * global_n_rows));
+      n_sampled_rows = raft::ceildiv(global_n_sampled_rows, static_cast<std::int64_t>(comm_size));
     } else {
       if (this->rf_params.max_samples != 1.0) {
         CUML_LOG_WARN(
