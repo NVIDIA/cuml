@@ -10,9 +10,9 @@ automatically accelerate existing code with zero code changes.
 cuML delivers on average **10-50x faster performance** than CPU-based
 alternatives for realistic workloads and supports **50+ algorithms** across all
 major machine learning categories, including clustering, regression,
-classification, dimensionality reduction, and time series analysis. With
-comprehensive **multi-GPU and multi-node support** via Dask, cuML scales from
-single workstations to large clusters.
+classification, and dimensionality reduction. With comprehensive **multi-GPU
+and multi-node support** via Dask, cuML scales from single workstations to
+large clusters.
 
 Especially if your scikit-learn, umap-learn, or hdbscan workflows take many
 minutes to complete, you will likely benefit from using cuML. The equivalent
