@@ -237,7 +237,7 @@ class KNNTestHelper {
   Matrix::PartDescriptor* query_desc = nullptr;
   std::vector<std::vector<T*>> y;
 
-  cuda::stream_ref stream{cudaStream_t{nullptr}};
+  cuda::stream_ref stream{cudaStream_t{cudaStreamDefault}};
 
  private:
   int index_parts_per_rank;
