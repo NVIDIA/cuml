@@ -56,6 +56,7 @@ extensions = [
     "IPython.sphinxext.ipython_directive",
     "nbsphinx",
     "recommonmark",
+    "release_notes",
     "sphinx_markdown_tables",
     "sphinx_copybutton",
     "sphinx_design",

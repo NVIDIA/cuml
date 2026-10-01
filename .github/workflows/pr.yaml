@@ -119,6 +119,7 @@ jobs:
           - '!ci/test_python*.sh'
           - '!ci/test_wheel*.sh'
           - '!codecov.yml'
+          - 'CHANGELOG.md'
         test_cpp:
           - '**'
           - '!**/*/agents.md'

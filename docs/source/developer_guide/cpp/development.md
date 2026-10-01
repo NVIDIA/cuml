@@ -18,6 +18,8 @@ The C++ interfaces are used by cuML's bindings and by some direct libcuml
 consumers. The C++ API currently has no backward-compatibility or deprecation
 guarantee. Describe behavior and preconditions precisely, keep changes focused,
 and clearly describe consequential API changes during review.
+See the [user-facing compatibility and deprecation policy](../../deprecation_policy.md)
+for how this limitation is communicated to users.
 
 ## Formatting and implementation style
 

@@ -79,4 +79,5 @@ Community & Support
    user_guide.rst
    Zero Code Change Acceleration <cuml-accel/index.rst>
    api/index
+   Release notes <release_notes>
    developer_guide/index
