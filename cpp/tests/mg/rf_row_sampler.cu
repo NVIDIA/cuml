@@ -107,12 +107,12 @@ TEST_P(RfRowSamplerTest, SamplesFollowGlobalWeights)
   rf_params.max_samples = params.max_samples;
   rf_params.seed        = 123456789ULL;
   rf_params.n_streams   = 1;
-  auto local_sample_count =
-    static_cast<std::int64_t>(std::round(params.max_samples * local_rows.size()));
+  auto global_sample_count =
+    static_cast<std::int64_t>(std::round(params.max_samples * params.sample_weights.size()));
   detail::RowSampler sampler(handle,
                              rf_params,
                              static_cast<std::int64_t>(local_rows.size()),
-                             local_sample_count,
+                             global_sample_count,
                              1,
                              nullptr,
                              device_weights.data());
