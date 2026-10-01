@@ -23,6 +23,12 @@ def _empirical_covariance(X, assume_centered=False):
     return cp.dot(X_centered.T, X_centered) / X.shape[0]
 
 
+def _pinv(covariance):
+    """Compute a dtype-aware Moore-Penrose pseudoinverse."""
+    rcond = max(covariance.shape) * cp.finfo(covariance.dtype).eps
+    return cp.linalg.pinv(covariance, rcond=rcond)
+
+
 def _log_likelihood(emp_cov, precision):
     """Compute the sample mean log-likelihood under a covariance model."""
     sign, log_det_precision = cp.linalg.slogdet(precision)
@@ -188,7 +194,7 @@ class EmpiricalCovariance(InteropMixin, Base):
         self.covariance_ = covariance
 
         if self.store_precision:
-            self.precision_ = cp.linalg.pinv(covariance)
+            self.precision_ = _pinv(covariance)
         else:
             self.precision_ = None
 
@@ -207,7 +213,7 @@ class EmpiricalCovariance(InteropMixin, Base):
 
         if self.store_precision:
             return self.precision_
-        return cp.linalg.pinv(self.covariance_)
+        return _pinv(self.covariance_)
 
     @mlfunc(convert_output=False)
     def score(self, X_test, y=None) -> float:

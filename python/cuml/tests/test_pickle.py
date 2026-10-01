@@ -27,7 +27,6 @@ from cuml.testing.utils import (
     stress_param,
     unit_param,
 )
-from cuml.tsa.arima import ARIMA
 
 regression_config = ClassEnumerator(module=cuml.linear_model)
 regression_models = regression_config.get_models()
@@ -86,16 +85,11 @@ k_neighbors_config = ClassEnumerator(
 k_neighbors_models = k_neighbors_config.get_models()
 
 unfit_pickle_xfail = [
-    "ARIMA",
-    "AutoARIMA",
-    "KalmanFilter",
     "BaseRandomForestModel",
     "OneVsOneClassifier",
     "OneVsRestClassifier",
 ]
 unfit_clone_xfail = [
-    "AutoARIMA",
-    "ARIMA",
     "BaseRandomForestModel",
     "OneVsOneClassifier",
     "OneVsRestClassifier",
@@ -117,10 +111,6 @@ all_models.update(
         **umap_model,
         **rf_models,
         **k_neighbors_models,
-        "ARIMA": lambda: ARIMA(np.random.normal(0.0, 1.0, (10,))),
-        "ExponentialSmoothing": lambda: cuml.ExponentialSmoothing(
-            np.array([-217.72, -206.77])
-        ),
     }
 )
 
@@ -381,10 +371,6 @@ def test_umap_pickle(tmpdir, datatype, keys):
 @pytest.mark.parametrize("model_name", all_models.keys())
 @pytest.mark.filterwarnings(
     "ignore:Transformers((.|\n)*):UserWarning:cuml[.*]"
-)
-@pytest.mark.filterwarnings(
-    "ignore:`cuml.tsa.ExponentialSmoothing`, along with the entire `cuml.tsa` "
-    "module, was deprecated:FutureWarning"
 )
 def test_unfit_pickle(model_name):
     # Any model xfailed in this test cannot be used for hyperparameter sweeps

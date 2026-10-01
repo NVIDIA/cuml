@@ -61,4 +61,5 @@
   condition: umap-learn==0.5.7
   strict: false
   tests:
+  - "umap.tests.test_umap_on_iris::test_umap_sparse_transform_on_iris"
   - "umap.tests.test_umap_on_iris::test_umap_transform_on_iris_w_pynndescent"
