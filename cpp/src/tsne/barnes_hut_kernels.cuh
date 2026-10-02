@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -296,7 +296,7 @@ CUML_KERNEL __launch_bounds__(THREADS2) void TreeBuildingKernel(/* int *restrict
             y += ((y < py) ? (j |= 2, r) : (-r));
 
             ch = childd[n * 4 + j];
-            if (r <= 1e-10) { break; }
+            if (r <= value_t(1e-10)) { break; }
           }
 
           childd[n * 4 + j] = i;
