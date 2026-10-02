@@ -1130,6 +1130,34 @@ def test_target_encoder(random_state):
     assert array_equal(original_output, roundtrip_output)
 
 
+@pytest.mark.parametrize("missing", [None, np.nan])
+def test_target_encoder_missing_category(missing):
+    # A missing value seen during fit is a category of its own (gh-8697)
+    if missing is None:
+        X = np.array(["a", "b", None, "b", None, "a"], dtype=object)[:, None]
+        X_test = np.array(["b", None, "c"], dtype=object)[:, None]
+    else:
+        X = np.array([0.0, 1.0, np.nan, 1.0, np.nan, 0.0])[:, None]
+        X_test = np.array([1.0, np.nan, 2.0])[:, None]
+    y = np.array([1.5, 2.5, 3.5, 4.5, 7.5, 7.5])
+    expected = np.array([3.5, 5.5, 4.5])[:, None]
+
+    cu_model = TargetEncoder(multi_feature_mode="independent", smooth=0).fit(
+        X, y
+    )
+    sk_model = sklearn.preprocessing.TargetEncoder(
+        smooth=0, target_type="continuous", random_state=42
+    ).fit(X, y)
+
+    cu_model2 = TargetEncoder.from_sklearn(sk_model)
+    sk_model2 = cu_model.as_sklearn()
+
+    assert_allclose(cu_model.transform(X_test), expected)
+    assert_allclose(sk_model.transform(X_test), expected)
+    assert_allclose(cu_model2.transform(X_test), expected)
+    assert_allclose(sk_model2.transform(X_test), expected)
+
+
 def test_label_encoder():
     y = np.array(["a", "b", "b", "a"])
     cu_model = cuml.preprocessing.LabelEncoder().fit(y)
