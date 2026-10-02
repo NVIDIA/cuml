@@ -501,6 +501,17 @@ def test_poly_features_get_feature_names_deprecated():
     np.testing.assert_array_equal(res, model.get_feature_names_out())
 
 
+def test_poly_features_degree_zero():
+    X = np.array([[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]])
+
+    t_X = cuPolynomialFeatures(degree=0).fit_transform(X)
+    sk_t_X = skPolynomialFeatures(degree=0).fit_transform(X)
+    assert_allclose(t_X, sk_t_X)
+
+    with pytest.raises(ValueError):
+        cuPolynomialFeatures(degree=0, include_bias=False).fit(X)
+
+
 @pytest.mark.parametrize("degree", [2, 3])
 @pytest.mark.parametrize("interaction_only", [True, False])
 @pytest.mark.parametrize("include_bias", [True, False])
