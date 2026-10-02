@@ -91,7 +91,7 @@ files:
       - depends_on_libnvforest
       - test_libcuml
       - test_cpp
-  test_mg_cpp:
+  build_cpp_mg_tests:
     output: none
     includes:
       - common_build
@@ -608,7 +608,7 @@ dependencies:
       - output_types: conda
         packages:
           - *cmake_ver
-  test_mg_cpp:
+  build_cpp_mg_tests:
     common:
       - output_types: conda
         packages:
