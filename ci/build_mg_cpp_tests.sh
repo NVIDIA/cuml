@@ -18,7 +18,7 @@ CPP_CHANNEL=$(rapids-download-from-github "$(rapids-artifact-name conda_cpp libc
 rapids-logger "Generate C++ testing dependencies"
 rapids-dependency-file-generator \
   --output conda \
-  --file-key test_mg_cpp \
+  --file-key build_cpp_mg_tests \
   --matrix "cuda=${RAPIDS_CUDA_VERSION%.*};arch=$(arch)" \
   --prepend-channel "${CPP_CHANNEL}" | tee env.yaml
 
