@@ -3,7 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from cuml.metrics._classification import accuracy_score, log_loss
+from cuml.metrics._classification import (
+    accuracy_score,
+    log_loss,
+    precision_score,
+)
 from cuml.metrics._ranking import precision_recall_curve, roc_auc_score
 from cuml.metrics.cluster.adjusted_rand_index import adjusted_rand_score
 from cuml.metrics.cluster.completeness_score import (
@@ -50,6 +54,7 @@ __all__ = [
     "adjusted_rand_score",
     "roc_auc_score",
     "precision_recall_curve",
+    "precision_score",
     "log_loss",
     "homogeneity_score",
     "completeness_score",
