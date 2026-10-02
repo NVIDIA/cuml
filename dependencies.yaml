@@ -95,6 +95,8 @@ files:
     output: none
     includes:
       - cuda
+      - cuda_version
+      - cutile_python
       - common_build
       - test_mg_cpp
   test_integration_bertopic:
