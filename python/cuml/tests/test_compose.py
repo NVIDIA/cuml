@@ -383,3 +383,33 @@ def test_column_transform_properly_handles_sub_output_type():
         ]
     ).fit(df)
     transformer.transform(df)
+
+
+@pytest.mark.parametrize("with_mean", [True, False])
+def test_column_transformer_nested_set_params(clf_dataset, with_mean):  # noqa: F811
+    X_np, X = clf_dataset
+
+    sk_selec = [0, 1]
+    cu_selec = sk_selec
+    if isinstance(X, (pd.DataFrame, cudf.DataFrame)):
+        cu_selec = ["c" + str(i) for i in sk_selec]
+
+    transformer = cuColumnTransformer(
+        [("scaler", cuStandardScaler(), cu_selec)]
+    )
+    transformer.set_params(scaler__with_mean=with_mean)
+    ft_X = transformer.fit_transform(X)
+
+    sk_transformer = skColumnTransformer(
+        [("scaler", skStandardScaler(), sk_selec)]
+    )
+    sk_transformer.set_params(scaler__with_mean=with_mean)
+    sk_t_X = sk_transformer.fit_transform(X_np)
+
+    assert_allclose(ft_X, sk_t_X)
+
+
+def test_column_transformer_set_params_invalid():
+    transformer = cuColumnTransformer([("scaler", cuStandardScaler(), [0, 1])])
+    with pytest.raises(ValueError):
+        transformer.set_params(scaler__not_a_real_param=1)
