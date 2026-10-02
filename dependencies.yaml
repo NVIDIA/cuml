@@ -529,20 +529,19 @@ dependencies:
           - sphinx
           - sphinx-copybutton
           - sphinx-design
+          - sphinx-llm>=1.1.0
           - sphinx-markdown-tables
       - output_types: conda
         packages:
           - doxygen=1.18.0
           - matplotlib-base
           - numpydoc
-          - sphinx-llm>=1.1.0
           - pip:
               - nvidia-sphinx-theme
       - output_types: requirements
         packages:
           - matplotlib
           - nvidia-sphinx-theme
-          - sphinx-llm>=1.1.0
   py_version:
     specific:
       - output_types: conda
