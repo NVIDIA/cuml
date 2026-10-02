@@ -63,6 +63,7 @@ extensions = [
 ]
 
 # configuration for 'sphinx-llm'
+llms_txt_summary_enabled = False
 llms_txt_suppress_unknown_node_warnings = True
 
 breathe_projects = {
