@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import warnings
+
 import cupy as cp
 import cupyx as cpx
 import numpy as np
@@ -1162,6 +1164,26 @@ def test_quantile_transformer_sparse_subsampling_ignore_implicit_zeros():
     assert cp.isclose(quantiles, 0).mean() > 0.9
 
 
+# TODO(27.02): Remove this test once the default of `subsample` is 10_000
+def test_quantile_transformer_subsample_default_deprecation():
+    X = cp.random.RandomState(42).uniform(size=(200, 3))
+
+    qt = cuQuantileTransformer(n_quantiles=50)
+    with pytest.warns(FutureWarning, match="default value of `subsample`"):
+        qt.fit(X)
+    assert qt.get_params()["subsample"] == "warn"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        qt_explicit = cuQuantileTransformer(
+            n_quantiles=50, subsample=100_000
+        ).fit(X)
+        cuQuantileTransformer(n_quantiles=50, subsample=10_000).fit(X)
+        cu_quantile_transform(X, n_quantiles=50)
+
+    assert_allclose(qt.quantiles_, qt_explicit.quantiles_)
+
+
 @pytest.mark.filterwarnings(
     "ignore:'ignore_implicit_zeros' takes effect only with sparse matrix.*:UserWarning"
 )
@@ -1330,7 +1352,11 @@ def test__repr__():
         (cuMaxAbsScaler, skMaxAbsScaler, {}),
         (cuRobustScaler, skRobustScaler, {}),
         (cuStandardScaler, skStandardScaler, {}),
-        (cuQuantileTransformer, skQuantileTransformer, {"n_quantiles": 10}),
+        (
+            cuQuantileTransformer,
+            skQuantileTransformer,
+            {"n_quantiles": 10, "subsample": 10_000},
+        ),
         (cuPowerTransformer, skPowerTransformer, {}),
         (cuNormalizer, skNormalizer, {}),
         (cuBinarizer, skBinarizer, {}),

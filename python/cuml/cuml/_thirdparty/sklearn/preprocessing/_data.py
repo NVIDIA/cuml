@@ -2338,10 +2338,14 @@ class QuantileTransformer(
         matrix are discarded to compute the quantile statistics. If False,
         these entries are treated as zeros.
 
-    subsample : int, optional (default=1e5)
+    subsample : int, optional (default=100_000)
         Maximum number of samples used to estimate the quantiles for
         computational efficiency. Note that the subsampling procedure may
         differ for value-identical sparse and dense matrices.
+
+        .. deprecated:: 26.12
+            The default value of `subsample` will change from 100_000 to
+            10_000 in 27.02 to match scikit-learn.
 
     random_state : int, RandomState instance or None, optional (default=None)
         Determines random number generation for subsampling and smoothing
@@ -2396,7 +2400,7 @@ class QuantileTransformer(
     references_ = ReflectedAttr()
 
     def __init__(self, *, n_quantiles=1000, output_distribution='uniform',
-                 ignore_implicit_zeros=False, subsample=int(1e5),
+                 ignore_implicit_zeros=False, subsample="warn",
                  random_state=None, copy=True):
         self.n_quantiles = n_quantiles
         self.output_distribution = output_distribution
@@ -2432,11 +2436,11 @@ class QuantileTransformer(
         references = np.asnumpy(self.references_ * 100)
 
         X = np.asnumpy(X)
-        if self.subsample is not None and self.subsample < n_samples:
+        if self._subsample is not None and self._subsample < n_samples:
             # Take a subsample of `X`
             from sklearn.utils import resample
             X = resample(
-                X, replace=False, n_samples=self.subsample, random_state=random_state
+                X, replace=False, n_samples=self._subsample, random_state=random_state
             )
 
         self.quantiles_ = cpu_np.nanpercentile(X, references, axis=0)
@@ -2462,12 +2466,12 @@ class QuantileTransformer(
         for feature_idx in range(n_features):
             column_nnz_data = X.data[X.indptr[feature_idx]:
                                      X.indptr[feature_idx + 1]]
-            if len(column_nnz_data) > self.subsample:
-                column_data = np.zeros(shape=self.subsample, dtype=X.dtype)
+            if len(column_nnz_data) > self._subsample:
+                column_data = np.zeros(shape=self._subsample, dtype=X.dtype)
                 column_subsample = (
-                    self.subsample
+                    self._subsample
                     if self.ignore_implicit_zeros
-                    else self.subsample * len(column_nnz_data) // n_samples
+                    else self._subsample * len(column_nnz_data) // n_samples
                 )
                 column_data[:column_subsample] = np.array(
                     random_state.choice(
@@ -2519,16 +2523,27 @@ class QuantileTransformer(
                              "The number of quantiles must be at least one."
                              % self.n_quantiles)
 
-        if self.subsample <= 0:
+        # TODO(27.02): Remove "warn" and change the default to 10_000
+        self._subsample = self.subsample
+        if self._subsample == "warn":
+            warnings.warn(
+                "The default value of `subsample` will change from 100_000 to "
+                "10_000 in 27.02 to match scikit-learn. Set `subsample` "
+                "explicitly to silence this warning.",
+                FutureWarning,
+            )
+            self._subsample = 100_000
+
+        if self._subsample <= 0:
             raise ValueError("Invalid value for 'subsample': %d. "
                              "The number of subsamples must be at least one."
-                             % self.subsample)
+                             % self._subsample)
 
-        if self.n_quantiles > self.subsample:
+        if self.n_quantiles > self._subsample:
             raise ValueError("The number of quantiles cannot be greater than"
                              " the number of samples used. Got {} quantiles"
                              " and {} samples.".format(self.n_quantiles,
-                                                       self.subsample))
+                                                       self._subsample))
 
         X = self._check_inputs(X, in_fit=True, copy=False)
         n_samples = X.shape[0]

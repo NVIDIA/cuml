@@ -344,7 +344,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     MinMaxScaler(),
     Normalizer(),
     PowerTransformer(),
-    QuantileTransformer(n_quantiles=10),
+    QuantileTransformer(n_quantiles=10, subsample=10_000),
     RobustScaler(),
     StandardScaler(),
     OneHotEncoder(),
