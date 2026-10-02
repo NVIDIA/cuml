@@ -25,6 +25,7 @@ use.
    cuml.ensemble
    cuml.explainer
    cuml.feature_extraction
+   cuml.impute
    cuml.kernel_ridge
    cuml.linear_model
    cuml.manifold
@@ -163,15 +164,15 @@ Other preprocessing methods (Single-GPU)
    * - :obj:`~cuml.preprocessing.FunctionTransformer`
      - Construct a transformer from an arbitrary callable.
      - :mod:`cuml.preprocessing`
-   * - :obj:`~cuml.preprocessing.MissingIndicator`
+   * - :obj:`~cuml.impute.MissingIndicator`
      - Binary indicators for missing values.
-     - :mod:`cuml.preprocessing`
+     - :mod:`cuml.impute`
    * - :obj:`~cuml.preprocessing.PolynomialFeatures`
      - Generate polynomial and interaction features.
      - :mod:`cuml.preprocessing`
-   * - :obj:`~cuml.preprocessing.SimpleImputer`
+   * - :obj:`~cuml.impute.SimpleImputer`
      - Univariate imputer for completing missing values.
-     - :mod:`cuml.preprocessing`
+     - :mod:`cuml.impute`
 
 Feature Extraction (Single-GPU)
 -------------------------------

@@ -8,7 +8,7 @@ cuML includes tests to ensure full compatibility of these wrappers
 with CUDA-based data and cuML estimators, but all of the underlying code
 is due to the scikit-learn developers."""
 
-__all__ = ["Pipeline", "make_pipeline"]
+__all__ = ["Pipeline", "make_pipeline", "FeatureUnion", "make_union"]
 
 
 def __getattr__(name):
@@ -20,4 +20,12 @@ def __getattr__(name):
         from sklearn.pipeline import make_pipeline
 
         return make_pipeline
+    elif name == "FeatureUnion":
+        from sklearn.pipeline import FeatureUnion
+
+        return FeatureUnion
+    elif name == "make_union":
+        from sklearn.pipeline import make_union
+
+        return make_union
     raise AttributeError(f"module {__name__} has no attribute {name}")

@@ -16,6 +16,11 @@ from cuml.metrics.cluster.homogeneity_score import (
 from cuml.metrics.cluster.mutual_info_score import (
     cython_mutual_info_score as mutual_info_score,
 )
+from cuml.metrics import pairwise
+from cuml.metrics.cluster.silhouette_score import (
+    cython_silhouette_samples as silhouette_samples,
+    cython_silhouette_score as silhouette_score,
+)
 from cuml.metrics.cluster.v_measure import cython_v_measure as v_measure_score
 from cuml.metrics.confusion_matrix import confusion_matrix
 from cuml.metrics.hinge_loss import hinge_loss
@@ -62,4 +67,7 @@ __all__ = [
     "hinge_loss",
     "kl_divergence",
     "v_measure_score",
+    "silhouette_score",
+    "silhouette_samples",
+    "pairwise",
 ]

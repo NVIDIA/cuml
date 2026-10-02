@@ -14,7 +14,13 @@ from cuml.model_selection._split import (
     train_test_split,
 )
 
-__all__ = ["train_test_split", "KFold", "GridSearchCV", "StratifiedKFold"]
+__all__ = [
+    "train_test_split",
+    "KFold",
+    "GridSearchCV",
+    "RandomizedSearchCV",
+    "StratifiedKFold",
+]
 
 
 def __getattr__(name):
@@ -22,4 +28,8 @@ def __getattr__(name):
         from sklearn.model_selection import GridSearchCV
 
         return GridSearchCV
+    elif name == "RandomizedSearchCV":
+        from sklearn.model_selection import RandomizedSearchCV
+
+        return RandomizedSearchCV
     raise AttributeError(f"module {__name__} has no attribute {name}")

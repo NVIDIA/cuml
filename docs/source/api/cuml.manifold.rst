@@ -14,6 +14,7 @@ cuml.manifold
    TSNE
    SpectralEmbedding
    spectral_embedding
+   trustworthiness
    umap.fuzzy_simplicial_set
    umap.simplicial_set_embedding
    umap.find_ab_params

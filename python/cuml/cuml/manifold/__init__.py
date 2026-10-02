@@ -9,3 +9,12 @@ from cuml.manifold.spectral_embedding import (
 )
 from cuml.manifold.t_sne import TSNE
 from cuml.manifold.umap import UMAP
+from cuml.metrics.trustworthiness import trustworthiness
+
+__all__ = [
+    "SpectralEmbedding",
+    "spectral_embedding",
+    "TSNE",
+    "UMAP",
+    "trustworthiness",
+]
