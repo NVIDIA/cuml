@@ -738,6 +738,15 @@ class ColumnTransformer(
         if hasattr(X, 'columns'):
             self._df_columns = X.columns
 
+        if hasattr(X, "shape"):
+            self._n_features = X.shape[1]
+        elif hasattr(X, "__len__") and len(X) > 0 and hasattr(X[0], "__len__"):
+            self._n_features = len(X[0])
+        else:
+            raise TypeError(
+                "Input 'X' must be a 2D array, dataframe, or rectangular nested sequence."
+            )
+
         self._n_features = X.shape[1]
         cols = []
         for columns in self._columns:

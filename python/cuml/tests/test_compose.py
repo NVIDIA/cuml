@@ -383,3 +383,15 @@ def test_column_transform_properly_handles_sub_output_type():
         ]
     ).fit(df)
     transformer.transform(df)
+
+def test_make_column_transformer_list_input():
+    from cuml.compose import make_column_transformer
+    from cuml.preprocessing import StandardScaler
+    import numpy as np
+
+    a = [[1, 2], [3, 4], [5, 6]]
+    transformer = make_column_transformer((StandardScaler(), [0]))
+    res = transformer.fit_transform(a)
+
+    expected = np.array([[-1.22474487], [0.0], [1.22474487]])
+    np.testing.assert_allclose(res, expected, rtol=1e-5, atol=1e-5)
