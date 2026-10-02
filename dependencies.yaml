@@ -86,7 +86,6 @@ files:
   test_cpp:
     output: none
     includes:
-      - cuda
       - cuda_version
       - depends_on_libcuml
       - depends_on_libnvforest
