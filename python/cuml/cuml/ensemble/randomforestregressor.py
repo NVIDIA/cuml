@@ -202,8 +202,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         Perform Random Forest Regression on the input data
 
         """
-        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return self._fit(X, y, sample_weight=sample_weight)
 
     def _prepare_fit_inputs(self, X, y, sample_weight=None):
         return check_inputs(
@@ -214,6 +213,8 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             dtype=("float32", "float64"),
             order="A",
             sample_weight_dtype="float64",
+            sample_weight_allow_all_zero=hasattr(self, "_distributed_n_rows")
+            and self.bootstrap,
             reset=True,
         )
 
