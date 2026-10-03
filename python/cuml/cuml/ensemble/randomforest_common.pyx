@@ -424,6 +424,30 @@ class BaseRandomForestModel(InteropMixin, Base):
             handle=get_handle(),
         )
 
+    def _fit(self, X, y, sample_weight=None):
+        """Prepare inputs once and coordinate validation across Dask workers."""
+        validation_error = None
+        try:
+            X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
+            if (
+                hasattr(self, "_distributed_n_rows")
+                and not self.bootstrap
+                and sample_weight is not None
+                and sample_weight.sum().item() <= 0.0
+            ):
+                raise ValueError(
+                    "Rank-local sample weights must sum to a positive value"
+                )
+        except Exception as error:
+            validation_error = error
+
+        if self._allreduce_validation_status(validation_error is not None):
+            if validation_error is not None:
+                raise validation_error
+            raise RuntimeError("Input validation failed on another worker")
+
+        return self._fit_forest(X, y, sample_weight=sample_weight)
+
     def _fit_forest(self, X, y, sample_weight=None):
         cdef bool is_classifier = self._estimator_type == "classifier"
         cdef bool is_float32 = X.dtype == np.float32

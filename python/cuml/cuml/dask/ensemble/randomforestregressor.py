@@ -40,8 +40,8 @@ class RandomForestRegressor(
           sample with replacement.
         * If ``False``, the whole dataset is used to build each tree.
 
-        Weighted bootstrapping through ``sample_weight`` is not yet supported
-        for distributed random forests.
+        With weights, rows are sampled with probabilities proportional to
+        their weights across the complete distributed dataset.
     max_samples : float (default = 1.0)
         Ratio of dataset rows used while fitting each tree.
     max_depth : int or None (default = None)
@@ -157,24 +157,15 @@ class RandomForestRegressor(
         y : Dask cuDF DataFrame or CuPy backed Dask Array (n_rows, 1)
             Labels of training examples.
             **y must be partitioned the same way as X**
-        sample_weight : array-like, optional
-            Sample weights are not yet supported by distributed random
-            forests.
+        sample_weight : Dask cuDF Series or CuPy backed Dask Array, optional
+            Non-negative weights of training examples, partitioned the same
+            way as X and y. With ``bootstrap=True``, weights determine
+            sampling probabilities. Otherwise, weights are used in the
+            impurity calculation.
         broadcast_data : bool, optional
             Deprecated. This parameter no longer has effect and will
             be removed in release 26.12.
         """
-        if self.kwargs.get("bootstrap", True) and sample_weight is not None:
-            raise NotImplementedError(
-                "Weighted bootstrapping is not yet supported for distributed "
-                "random forests. Set bootstrap=False or do not provide "
-                "sample_weight."
-            )
-        if sample_weight is not None:
-            raise NotImplementedError(
-                "sample_weight is not yet supported for distributed random "
-                "forests"
-            )
         if broadcast_data is not None:
             warnings.warn(
                 (
@@ -187,7 +178,7 @@ class RandomForestRegressor(
         self.internal_model = None
         self._fit(
             model=self.rfs,
-            dataset=(X, y),
+            dataset=(X, y) if sample_weight is None else (X, y, sample_weight),
         )
         return self
 
