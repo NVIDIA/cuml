@@ -18,7 +18,6 @@ jobs:
       - clang-tidy
       - conda-cpp-build
       - conda-cpp-tests
-      - build-mg-cpp-tests
       - conda-cpp-checks
       - conda-python-build
       - conda-python-tests-singlegpu
@@ -348,23 +347,6 @@ jobs:
     with:
       build_type: pull-request
       script: ci/test_cpp.sh
-  build-mg-cpp-tests:
-    needs: [conda-cpp-build, changed-files]
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-      packages: read
-      pull-requests: read
-    secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@main
-    if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_cpp
-    with:
-      build_type: pull-request
-      node_type: cpu16
-      arch: amd64
-      container_image: "rapidsai/ci-conda:26.12-latest"
-      script: ci/build_mg_cpp_tests.sh
   conda-cpp-checks:
     needs: conda-cpp-build
     permissions:

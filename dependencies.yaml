@@ -91,17 +91,6 @@ files:
       - depends_on_libnvforest
       - test_libcuml
       - test_cpp
-  build_cpp_mg_tests:
-    output: none
-    includes:
-      - common_build
-      - cuda
-      - cuda_version
-      - depends_on_libcuvs
-      - depends_on_libnvforest
-      - depends_on_libraft_headers
-      - depends_on_librmm
-      - build_cpp_mg_tests
   test_integration_bertopic:
     output: none
     includes:
@@ -608,12 +597,6 @@ dependencies:
       - output_types: conda
         packages:
           - *cmake_ver
-  build_cpp_mg_tests:
-    common:
-      - output_types: conda
-        packages:
-          - openmpi
-          - ccache
   test_python:
     specific:
       - output_types: [conda, requirements, pyproject]
