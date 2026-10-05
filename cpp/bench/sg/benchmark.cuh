@@ -7,7 +7,6 @@
 
 #include "../common/ml_benchmark.hpp"
 #include "dataset.cuh"
-#include "dataset_ts.cuh"
 
 #include <cuml/common/logger.hpp>
 
@@ -151,27 +150,6 @@ class RegressionFixture : public Fixture {
   RegressionParams rParams;
   Dataset<D, D> data;
 };  // end class RegressionFixture
-
-/**
- * Fixture to be used for benchmarking time series algorithms when
- * the input suffices to be generated with a normal distribution.
- */
-template <typename D>
-class TsFixtureRandom : public Fixture {
- public:
-  TsFixtureRandom(const std::string& name, const TimeSeriesParams p) : Fixture(name), params(p) {}
-  TsFixtureRandom() = delete;
-
- protected:
-  void allocateData(const ::benchmark::State& state) override
-  {
-    data.allocate(*handle, params);
-    data.random(*handle, params);
-  }
-
-  TimeSeriesParams params;
-  TimeSeriesDataset<D> data;
-};  // end class TsFixtureRandom
 
 }  // end namespace Bench
 }  // end namespace ML

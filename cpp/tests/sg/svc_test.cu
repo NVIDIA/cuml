@@ -22,7 +22,6 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/resource_ref.hpp>
 
-#include <cub/cub.cuh>
 #include <cuda/std/tuple>
 #include <thrust/device_ptr.h>
 #include <thrust/execution_policy.h>

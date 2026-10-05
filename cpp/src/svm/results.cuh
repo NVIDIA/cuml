@@ -24,6 +24,7 @@
 #include <rmm/mr/per_device_resource.hpp>
 #include <rmm/resource_ref.hpp>
 
+#include <cub/device/device_reduce.cuh>
 #include <cub/device/device_select.cuh>
 
 #include <math.h>

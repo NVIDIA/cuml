@@ -37,7 +37,6 @@ use.
    cuml.random_projection
    cuml.solvers
    cuml.svm
-   cuml.tsa
 
 
 Module Configuration
@@ -449,27 +448,6 @@ Outlier Detection
    * - :obj:`~cuml.ensemble.IsolationForest`
      - Isolation Forest Algorithm.
      - :mod:`cuml.ensemble`
-
-
-Time Series
-===========
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 50 20
-
-   * - Object
-     - Description
-     - Module
-   * - :obj:`~cuml.tsa.ARIMA`
-     - Deprecated ARIMA time series model.
-     - :mod:`cuml.tsa`
-   * - :obj:`~cuml.tsa.auto_arima.AutoARIMA`
-     - Deprecated automatic ARIMA model selection.
-     - :mod:`cuml.tsa`
-   * - :obj:`~cuml.tsa.ExponentialSmoothing`
-     - Deprecated Holt-Winters Exponential Smoothing.
-     - :mod:`cuml.tsa`
 
 
 Model Explainability
