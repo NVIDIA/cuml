@@ -81,6 +81,7 @@ dependencies:
 - sphinx
 - sphinx-copybutton
 - sphinx-design
+- sphinx-llm>=1.1.0
 - sphinx-markdown-tables
 - statsmodels
 - sysroot_linux-64==2.28
