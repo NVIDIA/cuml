@@ -28,7 +28,7 @@ cache:
         export CXXFLAGS=$(echo $CXXFLAGS | sed -E 's@\-fdebug\-prefix\-map[^ ]*@@g')
         set +x
 
-        ./build.sh -n libcuml prims -v --allgpuarch --build-metrics --incl-cache-stats
+        ./build.sh -n libcuml prims cpp-mgtests -v --allgpuarch --build-metrics --incl-cache-stats
       secrets:
         - AWS_ACCESS_KEY_ID
         - AWS_SECRET_ACCESS_KEY
@@ -74,6 +74,7 @@ cache:
       - libcuvs =${{ minor_version }}
       - libraft-headers =${{ minor_version }}
       - librmm =${{ minor_version }}
+      - openmpi # Required for building cpp-mgtests (multi-GPU tests)
       - rapids-logger =0.3
       - treelite ${{ treelite_version }}
       - cuda-cudart-dev
@@ -160,6 +161,7 @@ outputs:
         - rapids-logger =0.3
         - ${{ pin_subpackage("libcuml", exact=True) }}
         - cuda-cudart-dev
+        - openmpi # Required for multi-GPU tests
       run:
         - ${{ pin_compatible("cuda-version", upper_bound="x", lower_bound="x") }}
         - ${{ pin_subpackage("libcuml", exact=True) }}
