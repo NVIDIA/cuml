@@ -387,14 +387,10 @@ if(BUILD_CUML_CPP_LIBRARY)
     target_sources(cuml_objs PRIVATE src/glm/glm.cu)
   endif()
 
-  if(all_algo OR genetic_algo)
-    target_sources(cuml_objs PRIVATE src/genetic/genetic.cu src/genetic/node.cu)
-  endif()
-
   if(all_algo OR hdbscan_algo)
     target_sources(
-      cuml_objs PRIVATE src/genetic/program.cu src/genetic/node.cu src/hdbscan/hdbscan.cu
-                        src/hdbscan/condensed_hierarchy.cu src/hdbscan/prediction_data.cu
+      cuml_objs PRIVATE src/hdbscan/hdbscan.cu src/hdbscan/condensed_hierarchy.cu
+                        src/hdbscan/prediction_data.cu
     )
 
     # When using GCC 13, some maybe-uninitialized warnings appear from CCCL and are treated as

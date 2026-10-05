@@ -21,7 +21,7 @@
 
 #include <rmm/device_uvector.hpp>
 
-#include <cub/cub.cuh>
+#include <cub/block/block_scan.cuh>
 
 #include <algorithm>
 #include <cstdint>

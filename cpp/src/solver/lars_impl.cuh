@@ -18,7 +18,6 @@
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 
-#include <cub/cub.cuh>
 #include <cuda/functional>
 
 #include <iostream>
