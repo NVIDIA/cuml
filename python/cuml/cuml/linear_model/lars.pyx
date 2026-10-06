@@ -214,13 +214,15 @@ class Lars(RegressorMixin, Base):
             ensure_min_samples=2,
             reset=True,
         )
-        gram = self._calc_gram(X)
-
         if self.fit_intercept:
+            X_mean = X.mean(axis=0)
             y_mean = y.mean()
+            X = X - X_mean
             y = y - y_mean
         else:
             y_mean = X.dtype.type(0.0)
+
+        gram = self._calc_gram(X)
 
         if gram is None and self.copy_X and X.data.ptr == orig_X_ptr:
             # Without gram matrix, the solver will permute columns of X
@@ -315,7 +317,7 @@ class Lars(RegressorMixin, Base):
         coef[active] = beta
 
         if self.fit_intercept:
-            intercept = y_mean
+            intercept = y_mean - cp.dot(X_mean, coef)
         else:
             intercept = X.dtype.type(0.0)
 

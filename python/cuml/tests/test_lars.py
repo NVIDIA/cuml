@@ -30,6 +30,25 @@ def normalize_data(X, y):
 
 
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
+@pytest.mark.parametrize("precompute", ["auto", True, False])
+def test_lars_fit_intercept_centers_features(datatype, precompute):
+    X = np.array([[1.0], [2.0], [3.0]], dtype=datatype)
+    y = np.array([1.0, 2.0, 3.0], dtype=datatype)
+
+    culars = cuLars(precompute=precompute).fit(X, y)
+    sklars = skLars(precompute=precompute).fit(X, y)
+
+    np.testing.assert_allclose(culars.coef_, sklars.coef_, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(
+        culars.intercept_, sklars.intercept_, rtol=1e-5, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        culars.predict(X), sklars.predict(X), rtol=1e-5, atol=1e-6
+    )
+    np.testing.assert_allclose(culars.score(X, y), 1.0, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.parametrize("datatype", [np.float32, np.float64])
 @pytest.mark.parametrize(
     "nrows", [unit_param(500), quality_param(5000), stress_param(90000)]
 )
