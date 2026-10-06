@@ -49,6 +49,27 @@ def test_lars_fit_intercept_centers_features(datatype, precompute):
 
 
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
+def test_lars_fit_intercept_centers_precomputed_gram(datatype):
+    X = np.array(
+        [[3.0, -1.0], [4.0, 2.0], [6.0, 1.0], [8.0, 5.0], [9.0, 3.0]],
+        dtype=datatype,
+    )
+    y = 1.5 * X[:, 0] - 0.75 * X[:, 1] + 2.0
+    gram = np.dot(X.T, X)
+
+    culars = cuLars(precompute=gram).fit(X, y)
+    sklars = skLars(precompute=False).fit(X, y)
+
+    np.testing.assert_allclose(culars.coef_, sklars.coef_, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(
+        culars.intercept_, sklars.intercept_, rtol=1e-5, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        culars.predict(X), sklars.predict(X), rtol=1e-5, atol=1e-6
+    )
+
+
+@pytest.mark.parametrize("datatype", [np.float32, np.float64])
 @pytest.mark.parametrize(
     "nrows", [unit_param(500), quality_param(5000), stress_param(90000)]
 )
