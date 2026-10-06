@@ -708,10 +708,6 @@
   - "sklearn.cluster.tests.test_k_means::test_float_precision[42-KMeans-dense]"
   - "sklearn.cluster.tests.test_k_means::test_kmeans_relocated_clusters[elkan-dense]"
   - "sklearn.cluster.tests.test_k_means::test_kmeans_relocated_clusters[lloyd-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float32-elkan-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float32-lloyd-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float64-elkan-dense]"
-  - "sklearn.cluster.tests.test_k_means::test_kmeans_results[float64-lloyd-dense]"
 - reason: Integer inputs are converted to float32 instead of float64 with cuml.accel
   marker: cuml_accel_kmeans_integer_dtype
   tests:
@@ -1040,6 +1036,14 @@
 - reason: Ridge doesn't implement n_iter yet
   tests:
   - "sklearn.linear_model.tests.test_ridge::test_n_iter"
+- reason: Ridge solver consistency has small numerical deviations on H100 (#8716)
+  condition: scikit-learn>=1.6,<1.8
+  strict: false
+  tests:
+  - "sklearn.linear_model.tests.test_ridge::test_solver_consistency[seed0-20-float32-0.1-cholesky-None]"
+  - "sklearn.linear_model.tests.test_ridge::test_solver_consistency[seed0-20-float32-0.1-sag-None]"
+  - "sklearn.linear_model.tests.test_ridge::test_solver_consistency[seed0-20-float32-0.1-saga-None]"
+  - "sklearn.linear_model.tests.test_ridge::test_solver_consistency[seed0-20-float32-0.1-sparse_cg-None]"
 - reason: Ridge tests too strict of tolerances due to solver differences
   condition: scikit-learn>=1.8
   strict: false
@@ -1068,6 +1072,11 @@
   strict: false
   tests:
   - "sklearn.neighbors.tests.test_neighbors_pipeline::test_spectral_embedding"
+- reason: Temperature scaling has a small numerical deviation on H100 (#8717)
+  condition: scikit-learn>=1.8,<1.9
+  strict: false
+  tests:
+  - "sklearn.tests.test_calibration::test_temperature_scaling[False-5]"
 - reason: Test fails due to slightly too strict tolerances
   strict: false
   tests:

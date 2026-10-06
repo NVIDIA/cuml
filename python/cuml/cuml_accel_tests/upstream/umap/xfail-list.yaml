@@ -57,3 +57,9 @@
   tests:
   - "umap.tests.test_umap_metrics::test_sokalmichener"
   - "umap.tests.test_umap_metrics::test_sparse_sokalmichener"
+- reason: UMAP transform trustworthiness differs on H100 (#8718)
+  condition: umap-learn==0.5.7
+  strict: false
+  tests:
+  - "umap.tests.test_umap_on_iris::test_umap_sparse_transform_on_iris"
+  - "umap.tests.test_umap_on_iris::test_umap_transform_on_iris_w_pynndescent"

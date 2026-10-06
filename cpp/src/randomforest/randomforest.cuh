@@ -330,10 +330,12 @@ class RandomForest {
     // Distributed tree builders issue collectives independently, so train them serially until
     // the forest-level scheduler can impose a global collective order across concurrent trees.
     if (distributed) { n_streams = 1; }
-    ASSERT(static_cast<std::size_t>(n_streams) <= handle.get_stream_pool_size(),
-           "effective RF n_streams (=%d) should be <= raft::handle_t.n_streams (=%lu)",
-           n_streams,
-           handle.get_stream_pool_size());
+    auto stream_pool_size = handle.get_stream_pool_size();
+    if (static_cast<std::size_t>(n_streams) > stream_pool_size) {
+      CUML_LOG_WARN("Resizing n_streams to fit the available stream pool size (%lu)",
+                    stream_pool_size);
+      n_streams = ML::narrow_cast<int>(stream_pool_size);
+    }
 
     auto quantile_result = DT::computeQuantiles(handle,
                                                 input,

@@ -1,10 +1,10 @@
 # cmake-format: off
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 # cmake-format: on
 #
 
-find_package(Doxygen 1.9.1)
+find_package(Doxygen 1.18.0)
 
 function(add_doxygen_target)
   if(Doxygen_FOUND)
