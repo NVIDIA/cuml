@@ -274,6 +274,36 @@ def test_column_transformer_named_transformers_(clf_dataset):  # noqa: F811
     assert cu_named_transformers.keys() == sk_named_transformers.keys()
 
 
+def test_normalizer_sklearn_clone_preserves_parameters():
+    normalizer = cuNormalizer(norm="l1", copy=False)
+
+    cloned = sk_clone(normalizer)
+
+    assert cloned.norm == "l1"
+    assert cloned.copy is False
+
+
+def test_column_transformer_preserves_normalizer_norm():
+    X = np.array([[0.0, 1.0, 2.0, 2.0], [1.0, 1.0, 0.0, 1.0]])
+
+    cu_transformer = cuColumnTransformer(
+        [
+            ("norm1", cuNormalizer(norm="l1"), [0, 1]),
+            ("norm2", cuNormalizer(norm="l1"), slice(2, 4)),
+        ]
+    )
+    sk_transformer = skColumnTransformer(
+        [
+            ("norm1", skNormalizer(norm="l1"), [0, 1]),
+            ("norm2", skNormalizer(norm="l1"), slice(2, 4)),
+        ]
+    )
+
+    assert_allclose(
+        cu_transformer.fit_transform(X), sk_transformer.fit_transform(X)
+    )
+
+
 def test_column_transformer_sklearn_clone_preserves_transformers():
     transformer = cuColumnTransformer(
         [("one_hot_encoder", skOneHotEncoder(), ["a", "b"])]

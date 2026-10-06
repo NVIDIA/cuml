@@ -44,7 +44,8 @@ nvidia-smi
 rapids-logger "Run gtests"
 export GTEST_OUTPUT=xml:${RAPIDS_TESTS_DIR}/
 # Run libcuml gtests from libcuml-tests package
-timeout -v 20m ./ci/run_ctests.sh -j9 && EXITCODE=$? || EXITCODE=$?;
+# Multi-GPU (MG_*) tests require MPI with multiple GPUs to run
+timeout -v 20m ./ci/run_ctests.sh -j9 --exclude-regex '^MG_' && EXITCODE=$? || EXITCODE=$?;
 
 rapids-logger "Test script exiting with value: $EXITCODE"
 exit "${EXITCODE}"
