@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <raft/util/cuda_utils.cuh>
+
 #include <cuComplex.h>
 
 namespace ML {
@@ -441,29 +443,63 @@ CUML_KERNEL void compute_Pij_x_Qij_kernel(value_t* __restrict__ attr_forces,
                                           const value_t dof)
 {
   const value_idx TID = threadIdx.x + blockIdx.x * blockDim.x;
-  if (TID >= num_nonzero) return;
-  const value_idx i = coo_rows[TID];
-  const value_idx j = coo_cols[TID];
+  // Lanes past the end stay in the warp (with a row index no real edge can
+  // match) so the warp-wide primitives below always see a full mask.
+  const bool active = TID < num_nonzero;
+  const value_idx i = active ? coo_rows[TID] : value_idx(-1);
 
-  value_t ix = points[i];
-  value_t iy = points[num_points + i];
-  value_t jx = points[j];
-  value_t jy = points[num_points + j];
+  value_t x_force = 0;
+  value_t y_force = 0;
+  if (active) {
+    const value_idx j = coo_cols[TID];
 
-  value_t dx = ix - jx;
-  value_t dy = iy - jy;
+    value_t ix = points[i];
+    value_t iy = points[num_points + i];
+    value_t jx = points[j];
+    value_t jy = points[num_points + j];
 
-  const value_t dist = (dx * dx) + (dy * dy);
+    value_t dx = ix - jx;
+    value_t dy = iy - jy;
 
-  const value_t P  = pij[TID];
-  const value_t Q  = compute_q(dist, dof);
-  const value_t PQ = P * Q;
+    const value_t dist = (dx * dx) + (dy * dy);
 
-  atomicAdd(attr_forces + i, PQ * dx);
-  atomicAdd(attr_forces + num_points + i, PQ * dy);
+    const value_t P  = pij[TID];
+    const value_t Q  = compute_q(dist, dof);
+    const value_t PQ = P * Q;
 
-  if (Qs) {  // when computing KL div
-    Qs[TID] = Q;
+    x_force = PQ * dx;
+    y_force = PQ * dy;
+
+    if (Qs) {  // when computing KL div
+      Qs[TID] = Q;
+    }
+  }
+
+  // The symmetrized COO is laid out row by row, so a warp normally covers one
+  // or two rows and the two atomicAdds below would serialize 32 deep on a
+  // single address.  Sum each run of equal rows inside the warp first and let
+  // the run's last lane issue one atomic per row.  The reduction is driven by
+  // lane position rather than by comparing row indices pairwise, so a row that
+  // appears in two separate runs is still counted once.
+  constexpr unsigned full_mask = 0xffffffffu;
+  const int lane               = threadIdx.x % raft::WarpSize;
+  const value_idx prev         = __shfl_up_sync(full_mask, i, 1);
+  const unsigned head_mask     = __ballot_sync(full_mask, lane == 0 || prev != i);
+  // Lowest lane of this run: the highest run head at or before this lane.
+  const int run_start = raft::WarpSize - 1 - __clz(head_mask & ((2u << lane) - 1));
+#pragma unroll
+  for (int offset = 1; offset < raft::WarpSize; offset <<= 1) {
+    const value_t other_x = __shfl_up_sync(full_mask, x_force, offset);
+    const value_t other_y = __shfl_up_sync(full_mask, y_force, offset);
+    if (lane - offset >= run_start) {
+      x_force += other_x;
+      y_force += other_y;
+    }
+  }
+  const bool run_end = lane == raft::WarpSize - 1 || ((head_mask >> (lane + 1)) & 1u);
+  if (active && run_end) {
+    atomicAdd(attr_forces + i, x_force);
+    atomicAdd(attr_forces + num_points + i, y_force);
   }
 }
 
