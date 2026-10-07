@@ -223,7 +223,12 @@ class Lars(RegressorMixin, Base):
             y_mean = X.dtype.type(0.0)
 
         gram = self._calc_gram(X)
-        if self.fit_intercept and not isinstance(self.precompute, (bool, str)):
+        if (
+            self.fit_intercept
+            and self.precompute is not True
+            and self.precompute is not False
+            and not isinstance(self.precompute, str)
+        ):
             gram = gram - X.shape[0] * cp.outer(X_mean, X_mean)
 
         if gram is None and self.copy_X and X.data.ptr == orig_X_ptr:

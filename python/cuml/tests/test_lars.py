@@ -38,7 +38,9 @@ def test_lars_fit_intercept_centers_features(datatype, precompute):
     culars = cuLars(precompute=precompute).fit(X, y)
     sklars = skLars(precompute=precompute).fit(X, y)
 
-    np.testing.assert_allclose(culars.coef_, sklars.coef_, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(
+        culars.coef_, sklars.coef_, rtol=1e-5, atol=1e-6
+    )
     np.testing.assert_allclose(
         culars.intercept_, sklars.intercept_, rtol=1e-5, atol=1e-6
     )
@@ -60,7 +62,9 @@ def test_lars_fit_intercept_centers_precomputed_gram(datatype):
     culars = cuLars(precompute=gram).fit(X, y)
     sklars = skLars(precompute=False).fit(X, y)
 
-    np.testing.assert_allclose(culars.coef_, sklars.coef_, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(
+        culars.coef_, sklars.coef_, rtol=1e-5, atol=1e-6
+    )
     np.testing.assert_allclose(
         culars.intercept_, sklars.intercept_, rtol=1e-5, atol=1e-6
     )
