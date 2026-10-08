@@ -810,3 +810,13 @@ def test_dask_cupy_inputs(client):
     rf = cuRFC_mg(n_estimators=100, max_depth=16, n_bins=32, random_state=42)
     # This should succeed
     rf.fit(X, y)
+
+
+@pytest.mark.parametrize("cls", [cuRFC_mg, cuRFR_mg])
+def test_n_streams_not_settable(client, cls):
+    with pytest.raises(TypeError, match="n_streams"):
+        rf = cls(n_streams=4)
+
+    rf = cls()
+    with pytest.raises(TypeError, match="n_streams"):
+        rf.set_params(n_streams=4)

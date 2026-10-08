@@ -2,8 +2,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-import warnings
-
 import cupy as cp
 import dask.array
 
@@ -94,17 +92,11 @@ class RandomForestClassifier(
          * If type ``float``, then ``min_samples_split`` represents a fraction
            and ``ceil(min_samples_split * n_rows)`` is the minimum number of
            samples for each split.
-    n_streams : int
-        Deprecated. Distributed training currently builds trees serially to
-        preserve collective order.
     workers : optional, list of strings
         Dask addresses of workers to use for computation.
         If None, all available Dask workers will be used.
     random_state : int (default = None)
         Seed for the random number generator. Unseeded by default.
-    ignore_empty_partitions: optional, boolean
-        Deprecated. This parameter no longer has any effect and
-        will be removed in release 26.12.
     """
 
     def __init__(
@@ -115,7 +107,6 @@ class RandomForestClassifier(
         verbose=False,
         n_estimators=100,
         random_state=None,
-        ignore_empty_partitions=None,
         **kwargs,
     ):
         super().__init__(client=client, verbose=verbose, **kwargs)
@@ -125,7 +116,6 @@ class RandomForestClassifier(
             workers=workers,
             n_estimators=n_estimators,
             base_seed=random_state,
-            ignore_empty_partitions=ignore_empty_partitions,
             **kwargs,
         )
 
@@ -135,7 +125,7 @@ class RandomForestClassifier(
             n_estimators=n_estimators, random_state=random_state, **kwargs
         )
 
-    def fit(self, X, y, broadcast_data=None, sample_weight=None):
+    def fit(self, X, y, sample_weight=None):
         """
         Fit the input data with a Random Forest classifier
 
@@ -178,9 +168,6 @@ class RandomForestClassifier(
         sample_weight : array-like, optional
             Sample weights are not yet supported by distributed random
             forests.
-        broadcast_data : bool, optional
-            Deprecated. This parameter no longer has effect and will
-            be removed in release 26.12.
         """
         if self.kwargs.get("bootstrap", True) and (
             sample_weight is not None
@@ -195,15 +182,6 @@ class RandomForestClassifier(
             raise NotImplementedError(
                 "sample_weight is not yet supported for distributed random "
                 "forests"
-            )
-        if broadcast_data is not None:
-            warnings.warn(
-                (
-                    "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
             )
         if isinstance(y, dask.array.Array):
             # Dask implements ``unique(return_counts=True)`` using structured
@@ -245,7 +223,6 @@ class RandomForestClassifier(
         default_chunk_size=None,
         align_bytes=None,
         delayed=True,
-        broadcast_data=None,
     ):
         """
         Predicts the labels for X.
@@ -272,24 +249,12 @@ class RandomForestClassifier(
         delayed : bool (default = True)
             Whether to do a lazy prediction (and return Delayed objects) or an
             eagerly executed one.
-        broadcast_data : bool, optional
-            Deprecated. This parameter no longer has effect and will
-            be removed in release 26.12.
 
         Returns
         -------
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             The predicted class labels.
         """
-        if broadcast_data is not None:
-            warnings.warn(
-                (
-                    "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
-            )
         return self._predict_using_nvforest(
             X,
             threshold=threshold,
