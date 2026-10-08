@@ -284,6 +284,31 @@ def infer_output_type(array, array_like="numpy"):
     return None
 
 
+def _is_object_dtype(res):
+    """Check for object or string dtype on an array/dataframe-like."""
+
+    def is_object_or_string(dtype):
+        try:
+            if np.dtype(dtype).kind == "O":
+                return True
+        except TypeError:
+            pass
+        return pd.api.types.is_string_dtype(dtype)
+
+    dtype = getattr(res, "dtype", None)
+    if dtype is not None:
+        return is_object_or_string(dtype)
+
+    dtypes = getattr(res, "dtypes", None)
+    if dtypes is not None:
+        try:
+            return any(is_object_or_string(dt) for dt in dtypes)
+        except TypeError:
+            return False
+
+    return False
+
+
 class ArrayIndexPair:
     """An array paired with an aligned index.
 
@@ -521,6 +546,40 @@ def convert_arrays(
                     return pd.Series(obj.flatten(), index=index)
                 return pd.DataFrame(obj, index=index)
             return pd.Series(obj, index=index)
+        elif _is_object_dtype(obj):
+            # NumPy object arrays have no device representation. Preserve
+            # host arrays for internal outputs, or wrap them in a
+            # dataframe-like type.
+            if output_type == "cuml":
+                return obj
+            elif output_type == "cupy":
+                raise TypeError(
+                    f"{output_type=!r} doesn't support outputs of dtype "
+                    f"object and shape {obj.shape}"
+                )
+
+            if hasattr(index, "to_pandas"):
+                index = index.to_pandas()
+
+            if obj.ndim == 2:
+                if one_col_2d_as_series and obj.shape[1] == 1:
+                    host_df = pd.Series(
+                        obj.flatten(), index=index
+                    ).infer_objects()
+                else:
+                    host_df = pd.DataFrame(obj, index=index).infer_objects()
+            else:
+                host_df = pd.Series(obj, index=index).infer_objects()
+
+            try:
+                return cudf.from_pandas(host_df)
+            except (TypeError, ValueError, NotImplementedError) as exc:
+                raise TypeError(
+                    "Cannot convert an object-dtype output with shape "
+                    f"{obj.shape} to output_type='cudf'. Use "
+                    "output_type='pandas' or output_type='numpy' for this "
+                    "object layout."
+                ) from exc
         else:
             # Other output types use device memory, coerce to cupy and take
             # cupy code path.
@@ -638,6 +697,16 @@ class ReflectedAttr:
 
     def __set_name__(self, owner, name):
         self.name = name
+
+    def get_raw(self, instance):
+        """Return the value so internal work can dispatch on its stored type."""
+        cache = instance.__dict__.get(self.name)
+        if cache is None:
+            raise AttributeError(
+                f"{type(instance).__name__!r} object has no attribute "
+                f"{self.name!r}"
+            )
+        return cache.value
 
     def __get__(self, instance, owner):
         if instance is None:

@@ -37,6 +37,7 @@ from sklearn.utils import Bunch
 import cuml
 from cuml.internals.global_settings import _global_settings_data
 from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
+from cuml.internals.outputs import _is_object_dtype
 from cuml.internals.validation import (
     check_is_fitted,
     check_features,
@@ -300,7 +301,8 @@ def _list_indexing(X, key, key_dtype):
 
 
 def _transform_one(transformer, X, y, weight, **fit_params):
-    with cuml.using_output_type("cupy"):
+    output_type = "numpy" if _is_object_dtype(X) else "cupy"
+    with cuml.using_output_type(output_type):
         res = transformer.transform(X)
 
     # if we have a weight for this transformer, multiply output
@@ -322,7 +324,8 @@ def _fit_transform_one(transformer,
     be multiplied by ``weight``.
     """
     with _print_elapsed_time(message_clsname, message):
-        with cuml.using_output_type("cupy"):
+        output_type = "numpy" if _is_object_dtype(X) else "cupy"
+        with cuml.using_output_type(output_type):
             transformer.accept_sparse = True
             if hasattr(transformer, 'fit_transform'):
                 res = transformer.fit_transform(X, y, **fit_params)
@@ -1018,6 +1021,12 @@ class ColumnTransformer(
             return cu_sparse.hstack(converted_Xs).tocsr()
         else:
             Xs = [f.toarray() if issparse(f) else f for f in Xs]
+            if any(_is_object_dtype(X) for X in Xs):
+                # Object dtype (e.g. string columns from a categorical
+                # SimpleImputer) has no device representation - cupy has no
+                # way to store it. Stack on host instead.
+                Xs = [X.get() if isinstance(X, np.ndarray) else X for X in Xs]
+                return cpu_np.hstack(Xs)
             return np.hstack(Xs)
 
 
