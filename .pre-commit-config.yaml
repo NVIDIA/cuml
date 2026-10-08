@@ -162,6 +162,10 @@ repos:
             docs/source/sphinxext/github_link[.]py$
           )
       - id: verify-alpha-spec
+        args:
+          - --fix
+          - --mode
+          - release
       - id: verify-codeowners
         args: [--fix, --org=NVIDIA, --project-prefix=cuml]
       - id: verify-pyproject-license
@@ -216,6 +220,5 @@ repos:
     rev: v1.24.1
     hooks:
       - id: zizmor
-
 default_language_version:
   python: python3
