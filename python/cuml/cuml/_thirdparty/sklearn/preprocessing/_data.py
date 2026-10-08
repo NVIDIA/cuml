@@ -37,11 +37,7 @@ from sklearn.base import OneToOneFeatureMixin, ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.sparse import csr_row_normalize_l1, csr_row_normalize_l2
 from cuml.internals.interop import InteropMixin
-from cuml.internals.mixins import (
-    AllowNaNTagMixin,
-    SparseInputTagMixin,
-    DeprecatedGetFeatureNamesMixin,
-)
+from cuml.internals.mixins import AllowNaNTagMixin, SparseInputTagMixin
 from cuml.internals.outputs import using_output_type, mlfunc, ReflectedAttr
 from cuml.internals.validation import (
     check_is_fitted,
@@ -1503,7 +1499,6 @@ def robust_scale(X, *, axis=0, with_centering=True, with_scaling=True,
 
 
 class PolynomialFeatures(
-    DeprecatedGetFeatureNamesMixin,
     TransformerMixin,
     BaseEstimator,
     AllowNaNTagMixin,

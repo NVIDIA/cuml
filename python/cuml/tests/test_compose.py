@@ -248,16 +248,6 @@ def test_column_transformer_get_feature_names_out(clf_dataset, remainder):
         np.testing.assert_array_equal(res, sol)
 
 
-def test_column_transformer_get_feature_names_deprecated():
-    X = np.array([[1.5, 2.5, 3.5], [1.6, 2.4, 3.7]])
-    model = cuColumnTransformer([("t1", cuPolynomialFeatures(), [0, 2])])
-    model.fit(X)
-    with pytest.warns(FutureWarning, match="get_feature_names"):
-        res = model.get_feature_names()
-
-    np.testing.assert_array_equal(res, model.get_feature_names_out())
-
-
 def test_column_transformer_named_transformers_(clf_dataset):  # noqa: F811
     X_np, X = clf_dataset
 
