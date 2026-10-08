@@ -5,6 +5,9 @@
 
 from cuml.metrics._classification import accuracy_score, log_loss
 from cuml.metrics._ranking import precision_recall_curve, roc_auc_score
+from cuml.metrics.cluster.adjusted_mutual_info_score import (
+    cython_adjusted_mutual_info_score as adjusted_mutual_info_score,
+)
 from cuml.metrics.cluster.adjusted_rand_index import adjusted_rand_score
 from cuml.metrics.cluster.completeness_score import (
     cython_completeness_score as completeness_score,
@@ -54,6 +57,7 @@ __all__ = [
     "homogeneity_score",
     "completeness_score",
     "mutual_info_score",
+    "adjusted_mutual_info_score",
     "confusion_matrix",
     "entropy",
     "nan_euclidean_distances",

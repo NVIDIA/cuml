@@ -32,6 +32,7 @@ from sklearn.metrics import (
     precision_recall_curve as sklearn_precision_recall_curve,
 )
 from sklearn.metrics import roc_auc_score as sklearn_roc_auc_score
+from sklearn.metrics.cluster import adjusted_mutual_info_score as sk_ami
 from sklearn.metrics.cluster import adjusted_rand_score as sk_ars
 from sklearn.metrics.cluster import completeness_score as sk_completeness_score
 from sklearn.metrics.cluster import homogeneity_score as sk_homogeneity_score
@@ -424,6 +425,41 @@ def score_mutual_info(ground_truth, predictions):
     a = cp.array(ground_truth, dtype=np.int32)
     b = cp.array(predictions, dtype=np.int32)
     return cuml.metrics.mutual_info_score(a, b)
+
+
+def score_ami(ground_truth, predictions):
+    a = cp.array(ground_truth, dtype=np.int32)
+    b = cp.array(predictions, dtype=np.int32)
+    return cuml.metrics.adjusted_mutual_info_score(a, b)
+
+
+@pytest.mark.parametrize(
+    "input_labels",
+    [
+        ([0, 0, 1, 1], [1, 1, 0, 0]),
+        ([0, 0, 1, 1], [0, 0, 1, 1]),
+        ([0, 0, 1, 1], [0, 0, 1, 2]),
+        ([0, 0, 1, 1], [0, 1, 2, 3]),
+        ([0, 0, 1, 1], [0, 1, 0, 1]),
+        ([0, 0, 1, 1], [0, 0, 0, 0]),
+        ([0, 0, 0, 0], [0, 1, 2, 3]),
+    ],
+)
+def test_adjusted_mutual_info_score(input_labels):
+    score = score_ami(*input_labels)
+    ref = sk_ami(*input_labels)
+    np.testing.assert_almost_equal(score, ref, decimal=4)
+
+
+@pytest.mark.parametrize("input_range", [[0, 19], [0, 2], [-5, 20]])
+@pytest.mark.parametrize("n_samples", [129, 258])
+def test_adjusted_mutual_info_score_random(input_range, n_samples):
+    a, b, _, _ = generate_random_labels(
+        lambda rd: rd.randint(*input_range, n_samples, dtype=np.int32)
+    )
+    score = score_ami(a, b)
+    ref = sk_ami(a, b)
+    np.testing.assert_almost_equal(score, ref, decimal=4)
 
 
 @pytest.mark.parametrize(
