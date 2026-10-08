@@ -7,6 +7,7 @@ import numpy as np
 import pandas
 import pytest
 
+from cuml.internals.interop import UnsupportedOnCPU
 from cuml.preprocessing._target_encoder import TargetEncoder
 from cuml.testing.utils import array_equal
 
@@ -337,3 +338,64 @@ def test_get_feature_names_out():
     res = model.get_feature_names_out(["a", "b"])
     sol = np.array(["a", "b"], dtype=object)
     np.testing.assert_array_equal(res, sol)
+
+
+def test_as_sklearn_combination_mode_single_feature():
+    # gh-8745: with a single feature, combination encoding matches sklearn's
+    # per-feature encoding, so the exported model must carry the encodings.
+    X = np.array([["a"], ["b"], ["a"], ["b"]], dtype=object)
+    y = np.array([1.5, 2.0, 3.0, 4.0])
+    X_new = np.array([["a"], ["b"]], dtype=object)
+
+    encoder = TargetEncoder(output_type="numpy")
+    encoder.fit(X, y)
+    cuml_encoded = encoder.transform(X_new)
+
+    sklearn_model = encoder.as_sklearn()
+    assert len(sklearn_model.encodings_) == 1
+    np.testing.assert_allclose(sklearn_model.encodings_[0], [2.25, 3.0], rtol=1e-6)
+    assert array_equal(sklearn_model.transform(X_new), cuml_encoded)
+
+
+def test_as_sklearn_median_stat_single_feature():
+    X = np.array([["a"], ["b"], ["a"], ["b"]], dtype=object)
+    y = np.array([1.5, 2.0, 3.0, 4.0])
+    X_new = np.array([["a"], ["b"]], dtype=object)
+
+    encoder = TargetEncoder(stat="median", output_type="numpy")
+    encoder.fit(X, y)
+    cuml_encoded = encoder.transform(X_new)
+
+    sklearn_model = encoder.as_sklearn()
+    assert len(sklearn_model.encodings_) == 1
+    np.testing.assert_allclose(sklearn_model.encodings_[0], [2.25, 3.0], rtol=1e-6)
+    assert array_equal(sklearn_model.transform(X_new), cuml_encoded)
+
+
+def test_as_sklearn_combination_mode_multiple_features_raises():
+    # gh-8745: combination encoding of several features has no sklearn
+    # equivalent, so the conversion must refuse instead of exporting an
+    # empty model.
+    X = np.array([["a", "x"], ["b", "y"], ["a", "y"], ["b", "x"]], dtype=object)
+    y = np.array([1.5, 2.0, 3.0, 4.0])
+
+    encoder = TargetEncoder().fit(X, y)
+    with pytest.raises(UnsupportedOnCPU):
+        encoder.as_sklearn()
+
+
+def test_as_sklearn_independent_mode():
+    # independent mode already exported correctly and must keep working
+    X = np.array([["a", "x"], ["b", "y"], ["a", "y"], ["b", "x"]], dtype=object)
+    y = np.array([1.5, 2.0, 3.0, 4.0])
+    X_new = np.array([["a", "y"], ["b", "x"]], dtype=object)
+
+    encoder = TargetEncoder(multi_feature_mode="independent", output_type="numpy")
+    encoder.fit(X, y)
+    cuml_encoded = encoder.transform(X_new)
+
+    sklearn_model = encoder.as_sklearn()
+    assert len(sklearn_model.encodings_) == 2
+    np.testing.assert_allclose(
+        sklearn_model.transform(X_new), cuml_encoded, rtol=1e-5
+    )

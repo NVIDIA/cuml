@@ -767,7 +767,7 @@ class TargetEncoder(InteropMixin, Base):
         n_features = len(self.categories_)
 
         # Use per-feature encodings if available (from independent mode or sklearn)
-        if hasattr(self, "_encodings_per_feature"):
+        if getattr(self, "_encodings_per_feature", None):
             encodings_list = []
             for enc in self._encodings_per_feature:
                 encodings_list.append(cp.asnumpy(enc))
