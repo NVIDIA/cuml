@@ -546,10 +546,6 @@ dependencies:
       - output_types: conda
         matrices:
           - matrix:
-              py: "3.11"
-            packages:
-              - python=3.11
-          - matrix:
               py: "3.12"
             packages:
               - python=3.12
@@ -563,7 +559,7 @@ dependencies:
               - python=3.14
           - matrix:
             packages:
-              - python>=3.11
+              - python>=3.12
   test_bertopic:
     common:
       - output_types: requirements
@@ -619,8 +615,8 @@ dependencies:
               - scikit-learn>=1.6.0a0
           - matrix:
             packages:
-      # ipython for "oldest" is split: conda uses 8.x (7.x has no Python 3.11+ packages),
-      # pip uses 7.34.0 from PyPI (which supports Python 3.11+)
+      # ipython for "oldest" is split: conda uses 8.x (7.x has no Python 3.12+ packages),
+      # pip uses 7.34.0 from PyPI (which supports Python 3.12+)
       - output_types: [conda]
         matrices:
           - matrix: {dependencies: "oldest"}
@@ -719,16 +715,10 @@ dependencies:
       - output_types: [conda]
         matrices:
           - matrix:
-              py: "3.11"
-            packages: []
-          - matrix:
             packages:
               - xgboost>=3.3.0
       - output_types: [requirements, pyproject]
         matrices:
-          - matrix:
-              py: "3.11"
-            packages: []
           - matrix:
               cuda: "12.*"
               cuda_suffixed: "true"
