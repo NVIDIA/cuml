@@ -1654,6 +1654,11 @@ class PolynomialFeatures(
         -------
         self : instance
         """
+        if self.degree == 0 and not self.include_bias:
+            raise ValueError(
+                "Setting degree to zero and include_bias to False would "
+                "result in an empty output array."
+            )
         X = check_inputs(self, X, accept_sparse=True, reset=True)
         n_samples, n_features = X.shape
         combinations = self._combinations(n_features, self.degree,
@@ -1757,36 +1762,37 @@ class PolynomialFeatures(
                 else:
                     current_col = 0
 
-                # d = 0
-                XP[:, current_col:current_col + n_features] = X
-                index = list(range(current_col,
-                                   current_col + n_features))
-                current_col += n_features
-                index.append(current_col)
+                if self.degree >= 1:
+                    # d = 0
+                    XP[:, current_col:current_col + n_features] = X
+                    index = list(range(current_col,
+                                       current_col + n_features))
+                    current_col += n_features
+                    index.append(current_col)
 
-                # d >= 1
-                for _ in range(1, self.degree):
-                    new_index = []
-                    end = index[-1]
-                    for feature_idx in range(n_features):
-                        start = index[feature_idx]
+                    # d >= 1
+                    for _ in range(1, self.degree):
+                        new_index = []
+                        end = index[-1]
+                        for feature_idx in range(n_features):
+                            start = index[feature_idx]
+                            new_index.append(current_col)
+                            if self.interaction_only:
+                                start += (index[feature_idx + 1] -
+                                          index[feature_idx])
+                            next_col = current_col + end - start
+                            if next_col <= current_col:
+                                break
+                            # XP[:, start:end] are terms of degree d - 1
+                            # that exclude feature #feature_idx.
+                            np.multiply(XP[:, start:end],
+                                        X[:, feature_idx:feature_idx + 1],
+                                        out=XP[:, current_col:next_col],
+                                        casting='no')
+                            current_col = next_col
+
                         new_index.append(current_col)
-                        if self.interaction_only:
-                            start += (index[feature_idx + 1] -
-                                      index[feature_idx])
-                        next_col = current_col + end - start
-                        if next_col <= current_col:
-                            break
-                        # XP[:, start:end] are terms of degree d - 1
-                        # that exclude feature #feature_idx.
-                        np.multiply(XP[:, start:end],
-                                    X[:, feature_idx:feature_idx + 1],
-                                    out=XP[:, current_col:next_col],
-                                    casting='no')
-                        current_col = next_col
-
-                    new_index.append(current_col)
-                    index = new_index
+                        index = new_index
 
         return XP  # TODO keep order
 
