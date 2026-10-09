@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 import sklearn
 from packaging.version import Version
+from scipy.optimize import linear_sum_assignment
 from sklearn import datasets
 from sklearn.datasets import make_blobs
 from sklearn.model_selection import train_test_split
@@ -143,23 +144,89 @@ def assert_condensed_trees(sk_agg, min_cluster_size):
     assert lev > 1
 
 
-def assert_membership_vectors(cu_vecs, sk_vecs):
+def assert_membership_vectors(
+    cu_vecs, sk_vecs, cu_labels=None, sk_labels=None
+):
     """
-    Assert the membership vectors by taking the adjusted rand score
-    of the argsorted membership vectors.
+    Compare membership rankings, optionally matching corresponding clusters.
+
+    Cluster labels and membership-vector columns are arbitrary identifiers.
+    Match columns using the overlap of the independently fitted training
+    partitions before comparing probability rankings. This also prevents
+    tied probabilities from being ordered according to unrelated column IDs.
     """
-    if sk_vecs.shape == cu_vecs.shape:
+    cu_vecs = np.asarray(cu_vecs)
+    sk_vecs = np.asarray(sk_vecs)
+    if cu_vecs.shape == sk_vecs.shape:
+        n_clusters = cu_vecs.shape[1]
+        if cu_labels is not None or sk_labels is not None:
+            assert cu_labels is not None and sk_labels is not None
+            if hasattr(cu_labels, "get"):
+                cu_labels = cu_labels.get()
+            if hasattr(sk_labels, "get"):
+                sk_labels = sk_labels.get()
+            cu_labels = np.asarray(cu_labels)
+            sk_labels = np.asarray(sk_labels)
+            assert cu_labels.shape == sk_labels.shape
+
+            overlap = np.zeros((n_clusters, n_clusters), dtype=np.int64)
+            valid = (
+                (cu_labels >= 0)
+                & (cu_labels < n_clusters)
+                & (sk_labels >= 0)
+                & (sk_labels < n_clusters)
+            )
+            np.add.at(overlap, (cu_labels[valid], sk_labels[valid]), 1)
+            cu_columns, sk_columns = linear_sum_assignment(
+                overlap, maximize=True
+            )
+            cu_order = np.empty(n_clusters, dtype=np.intp)
+            cu_order[sk_columns] = cu_columns
+            cu_vecs = cu_vecs[:, cu_order]
+
         cu_labels_sorted = np.argsort(cu_vecs)[::-1]
         sk_labels_sorted = np.argsort(sk_vecs)[::-1]
 
-        k = min(sk_vecs.shape[1], 10)
-        for i in range(k):
+        for rank in range(min(n_clusters, 10)):
             assert (
                 adjusted_rand_score(
-                    cu_labels_sorted[:, i], sk_labels_sorted[:, i]
+                    cu_labels_sorted[:, rank], sk_labels_sorted[:, rank]
                 )
                 >= 0.90
             )
+
+
+def test_assert_membership_vectors_matches_permuted_clusters():
+    sk_labels = np.repeat(np.arange(3), 100)
+    sk_vecs = np.full((sk_labels.size, 3), 0.1, dtype=np.float32)
+    sk_vecs[np.arange(sk_labels.size), sk_labels] = 0.8
+
+    # cu column i corresponds to sk column permutation[i].
+    permutation = np.array([2, 0, 1])
+    cu_vecs = sk_vecs[:, permutation]
+    inverse_permutation = np.argsort(permutation)
+    cu_labels = inverse_permutation[sk_labels]
+
+    assert_membership_vectors(cu_vecs, sk_vecs, cu_labels, sk_labels)
+
+
+def test_assert_membership_vectors_rejects_incorrect_predictions():
+    sk_labels = np.repeat(np.arange(3), 100)
+    sk_vecs = np.full((sk_labels.size, 3), 0.1, dtype=np.float32)
+    sk_vecs[np.arange(sk_labels.size), sk_labels] = 0.8
+
+    permutation = np.array([2, 0, 1])
+    cu_vecs = sk_vecs[:, permutation]
+    inverse_permutation = np.argsort(permutation)
+    cu_labels = inverse_permutation[sk_labels]
+
+    rng = np.random.default_rng(42)
+    bad_vecs = np.empty_like(cu_vecs)
+    for row in range(cu_vecs.shape[0]):
+        bad_vecs[row] = cu_vecs[row, rng.permutation(cu_vecs.shape[1])]
+
+    with pytest.raises(AssertionError):
+        assert_membership_vectors(bad_vecs, sk_vecs, cu_labels, sk_labels)
 
 
 @pytest.mark.parametrize("nrows", [500])
@@ -649,7 +716,12 @@ def test_all_points_membership_vectors_moons(
         sk_agg
     ).astype("float32")
 
-    assert_membership_vectors(cu_membership_vectors, sk_membership_vectors)
+    assert_membership_vectors(
+        cu_membership_vectors,
+        sk_membership_vectors,
+        cuml_agg.labels_,
+        sk_agg.labels_,
+    )
 
 
 @pytest.mark.parametrize("nrows", [1000])
@@ -704,7 +776,12 @@ def test_all_points_membership_vectors_circles(
         sk_agg
     ).astype("float32")
 
-    assert_membership_vectors(cu_membership_vectors, sk_membership_vectors)
+    assert_membership_vectors(
+        cu_membership_vectors,
+        sk_membership_vectors,
+        cuml_agg.labels_,
+        sk_agg.labels_,
+    )
 
 
 @pytest.mark.parametrize("nrows", [1000])
@@ -1032,7 +1109,12 @@ def test_membership_vector_moons(
         "float32"
     )
 
-    assert_membership_vectors(cu_membership_vectors, sk_membership_vectors)
+    assert_membership_vectors(
+        cu_membership_vectors,
+        sk_membership_vectors,
+        cuml_agg.labels_,
+        sk_agg.labels_,
+    )
 
 
 @pytest.mark.parametrize("nrows", [1000])
@@ -1095,7 +1177,12 @@ def test_membership_vector_circles(
         "float32"
     )
 
-    assert_membership_vectors(cu_membership_vectors, sk_membership_vectors)
+    assert_membership_vectors(
+        cu_membership_vectors,
+        sk_membership_vectors,
+        cuml_agg.labels_,
+        sk_agg.labels_,
+    )
 
 
 def test_all_points_membership_vectors_output_type():
