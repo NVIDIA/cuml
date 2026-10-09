@@ -11,7 +11,6 @@ from sklearn.base import OneToOneFeatureMixin
 
 from cuml.common.sparse import csr_row_normalize_l1, csr_row_normalize_l2
 from cuml.internals.base import Base
-from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.outputs import ReflectedAttr, mlfunc
 from cuml.internals.validation import (
     check_array,
@@ -618,7 +617,7 @@ class HashingVectorizer(_BaseVectorizer):
         return self.fit(X, y).transform(X)
 
 
-class CountVectorizer(DeprecatedGetFeatureNamesMixin, _BaseVectorizer):
+class CountVectorizer(_BaseVectorizer):
     """Convert a collection of text documents to a matrix of token counts.
 
     If you do not provide an a-priori dictionary then the number of features

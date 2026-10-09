@@ -12,7 +12,6 @@ from sklearn.base import OneToOneFeatureMixin
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
-from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import (
     check_array,
@@ -173,7 +172,7 @@ def _compute_categories(
     return out
 
 
-class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
+class OneHotEncoder(InteropMixin, Base):
     """
     Encode categorical features as a one-hot numeric array.
 

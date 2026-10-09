@@ -436,14 +436,3 @@ def test_onehot_encoder_get_feature_names_out(named, drop):
         res = cu_model.get_feature_names_out(["fruit", "size"])
         sol = sk_model.get_feature_names_out(["fruit", "size"])
         assert np.array_equal(res, sol)
-
-
-def test_onehot_encoder_get_feature_names_deprecated():
-    X = pd.DataFrame(
-        {"fruits": ["apple", "banana", "strawberry"], "sizes": [0, 1, 2]}
-    )
-    model = OneHotEncoder().fit(X)
-    with pytest.warns(FutureWarning, match="get_feature_names"):
-        res = model.get_feature_names()
-
-    np.testing.assert_array_equal(res, model.get_feature_names_out())

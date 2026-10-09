@@ -458,21 +458,6 @@ def test_tfidf_vectorizer_get_feature_names_out():
     assert_array_equal(vectorizer.get_feature_names_out(), output)
 
 
-@pytest.mark.parametrize("cls", [TfidfVectorizer, CountVectorizer])
-def test_vectorizer_get_feature_names_deprecated(cls):
-    X = [
-        "This is the first document.",
-        "This document is the second document.",
-        "And this is the third one.",
-        "Is this the first document?",
-    ]
-    model = cls().fit(X)
-    with pytest.warns(FutureWarning, match="get_feature_names"):
-        res = model.get_feature_names()
-
-    np.testing.assert_array_equal(res, model.get_feature_names_out())
-
-
 def test_tfidf_vectorizer_char_wb_ngrams():
     # Regression test for #8416: get_char_ngrams misaligned padded tokens
     # across documents once index alignment relied on the original
