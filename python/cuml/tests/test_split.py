@@ -38,17 +38,23 @@ def test_split_dataframe(n_samples, n_classes, n_splits, shuffle):
             assert ratio_tr == ratio_te
 
 
-def test_stratified_kfold_n_splits_invalid():
+def test_stratified_kfold_single_class():
     X, y = get_x_y(n_samples=1000, n_classes=1)
     kf = StratifiedKFold(n_splits=5)
 
-    with pytest.raises(
-        ValueError, match="number of unique classes cannot be less than 2"
-    ):
-        list(kf.split(X, y))
+    n_test = 0
+    for train_index, test_index in kf.split(X, y):
+        assert len(train_index) + len(test_index) == 1000
+        # No sample may appear on both sides of a fold.
+        assert not set(train_index.tolist()) & set(test_index.tolist())
+        n_test += len(test_index)
+    assert n_test == 1000
 
+
+def test_stratified_kfold_n_splits_invalid():
     y = cp.array([0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2])
     X = cp.zeros((len(y), 3))
+    kf = StratifiedKFold(n_splits=5)
     with pytest.raises(
         ValueError,
         match=(
