@@ -13,6 +13,7 @@ from packaging.version import Version
 from scipy.optimize import linear_sum_assignment
 from sklearn import datasets
 from sklearn.datasets import make_blobs
+from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
 
 import cuml
@@ -147,84 +148,46 @@ def assert_condensed_trees(sk_agg, min_cluster_size):
 def assert_membership_vectors(
     cu_vecs, sk_vecs, cu_labels=None, sk_labels=None
 ):
-    """
-    Compare membership rankings, optionally matching corresponding clusters.
-
-    Cluster labels and membership-vector columns are arbitrary identifiers.
-    Match columns using the overlap of the independently fitted training
-    partitions before comparing probability rankings. This also prevents
-    tied probabilities from being ordered according to unrelated column IDs.
-    """
-    cu_vecs = np.asarray(cu_vecs)
-    sk_vecs = np.asarray(sk_vecs)
+    """Compare membership rankings after optionally matching cluster columns."""
     if cu_vecs.shape == sk_vecs.shape:
         n_clusters = cu_vecs.shape[1]
-        if cu_labels is not None or sk_labels is not None:
-            assert cu_labels is not None and sk_labels is not None
+        if cu_labels is not None and n_clusters > 1:
             if hasattr(cu_labels, "get"):
                 cu_labels = cu_labels.get()
             if hasattr(sk_labels, "get"):
                 sk_labels = sk_labels.get()
-            cu_labels = np.asarray(cu_labels)
-            sk_labels = np.asarray(sk_labels)
-            assert cu_labels.shape == sk_labels.shape
-
-            overlap = np.zeros((n_clusters, n_clusters), dtype=np.int64)
-            valid = (
-                (cu_labels >= 0)
-                & (cu_labels < n_clusters)
-                & (sk_labels >= 0)
-                & (sk_labels < n_clusters)
+            overlap = confusion_matrix(
+                cu_labels, sk_labels, labels=np.arange(n_clusters)
             )
-            np.add.at(overlap, (cu_labels[valid], sk_labels[valid]), 1)
             cu_columns, sk_columns = linear_sum_assignment(
                 overlap, maximize=True
             )
-            cu_order = np.empty(n_clusters, dtype=np.intp)
-            cu_order[sk_columns] = cu_columns
-            cu_vecs = cu_vecs[:, cu_order]
+            cu_vecs = cu_vecs[:, cu_columns[np.argsort(sk_columns)]]
 
         cu_labels_sorted = np.argsort(cu_vecs)[::-1]
         sk_labels_sorted = np.argsort(sk_vecs)[::-1]
 
-        for rank in range(min(n_clusters, 10)):
+        for i in range(min(n_clusters, 10)):
             assert (
                 adjusted_rand_score(
-                    cu_labels_sorted[:, rank], sk_labels_sorted[:, rank]
+                    cu_labels_sorted[:, i], sk_labels_sorted[:, i]
                 )
                 >= 0.90
             )
 
 
-def test_assert_membership_vectors_matches_permuted_clusters():
+def test_assert_membership_vectors_matches_clusters_and_rejects_bad_values():
     sk_labels = np.repeat(np.arange(3), 100)
     sk_vecs = np.full((sk_labels.size, 3), 0.1, dtype=np.float32)
     sk_vecs[np.arange(sk_labels.size), sk_labels] = 0.8
 
-    # cu column i corresponds to sk column permutation[i].
     permutation = np.array([2, 0, 1])
     cu_vecs = sk_vecs[:, permutation]
-    inverse_permutation = np.argsort(permutation)
-    cu_labels = inverse_permutation[sk_labels]
+    cu_labels = np.argsort(permutation)[sk_labels]
 
     assert_membership_vectors(cu_vecs, sk_vecs, cu_labels, sk_labels)
 
-
-def test_assert_membership_vectors_rejects_incorrect_predictions():
-    sk_labels = np.repeat(np.arange(3), 100)
-    sk_vecs = np.full((sk_labels.size, 3), 0.1, dtype=np.float32)
-    sk_vecs[np.arange(sk_labels.size), sk_labels] = 0.8
-
-    permutation = np.array([2, 0, 1])
-    cu_vecs = sk_vecs[:, permutation]
-    inverse_permutation = np.argsort(permutation)
-    cu_labels = inverse_permutation[sk_labels]
-
-    rng = np.random.default_rng(42)
-    bad_vecs = np.empty_like(cu_vecs)
-    for row in range(cu_vecs.shape[0]):
-        bad_vecs[row] = cu_vecs[row, rng.permutation(cu_vecs.shape[1])]
-
+    bad_vecs = cu_vecs[np.random.default_rng(42).permutation(cu_vecs.shape[0])]
     with pytest.raises(AssertionError):
         assert_membership_vectors(bad_vecs, sk_vecs, cu_labels, sk_labels)
 
