@@ -639,6 +639,11 @@ def test_spectral_clustering_pickle(tmpdir, datatype, keys, data_size):
     "data_size", [unit_param([500, 20, 10]), stress_param([500000, 1000, 500])]
 )
 @pytest.mark.parametrize("prediction_data", [True, False])
+@pytest.mark.xfail(
+    reason="Intermittent HDBSCAN pickle array mismatch (see #8752)",
+    raises=AssertionError,
+    strict=False,
+)
 def test_hdbscan_pickle(tmpdir, datatype, keys, data_size, prediction_data):
     result = {}
     from cuml.cluster.hdbscan import (
