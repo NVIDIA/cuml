@@ -448,6 +448,9 @@ Outlier Detection
    * - :obj:`~cuml.ensemble.IsolationForest`
      - Isolation Forest Algorithm.
      - :mod:`cuml.ensemble`
+   * - :obj:`~cuml.neighbors.LocalOutlierFactor`
+     - Unsupervised outlier detection using the Local Outlier Factor.
+     - :mod:`cuml.neighbors`
 
 
 Model Explainability

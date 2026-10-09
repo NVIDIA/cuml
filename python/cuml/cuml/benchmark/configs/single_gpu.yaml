@@ -1038,6 +1038,18 @@ benchmarks:
           default: {rows: [20000]}
           nightly: {rows: [80000]}
 
+  - id: localoutlierfactor_fit
+    algorithm: LocalOutlierFactor
+    dataset: blobs
+    operation: fit
+    tags: [neighbors, outlier-detection]
+    variants:
+      base:
+        features: [16]
+        tiers:
+          default: {rows: [100000]}
+          nightly: {rows: [400000]}
+
   - id: bernoullinb_fit
     algorithm: BernoulliNB
     dataset: binary_classification

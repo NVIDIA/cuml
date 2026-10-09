@@ -700,6 +700,53 @@ def test_kneighbors_classifier(random_state, sparse, n_labels, weights):
     np.testing.assert_array_equal(cu_model.predict(X), cu_model2.predict(X))
 
 
+@pytest.mark.parametrize("sparse", [False, True])
+@pytest.mark.parametrize("novelty", [False, True])
+def test_local_outlier_factor(random_state, sparse, novelty):
+    X = np.random.default_rng(random_state).standard_normal(
+        (100, 20), dtype="float32"
+    )
+    if sparse:
+        X[X < -0.5] = 0
+        X = scipy.sparse.csr_matrix(X)
+
+    cu_model = cuml.LocalOutlierFactor(
+        metric="minkowski", n_neighbors=10, contamination=0.1, novelty=novelty
+    ).fit(X)
+    sk_model = sklearn.neighbors.LocalOutlierFactor(
+        n_neighbors=10, contamination=0.1, novelty=novelty
+    ).fit(X)
+
+    sk_model2 = cu_model.as_sklearn()
+    cu_model2 = cuml.LocalOutlierFactor.from_sklearn(sk_model)
+
+    # Ensure params/attrs roundtrip
+    assert_roundtrip_consistency(cu_model, cu_model2)
+
+    def assert_scores_close(m1, m2):
+        assert_allclose(
+            m1.negative_outlier_factor_, m2.negative_outlier_factor_, atol=1e-3
+        )
+        assert_allclose(m1.offset_, m2.offset_, atol=1e-3)
+        if novelty:
+            # Can infer on converted models
+            assert_allclose(
+                m1.score_samples(X), m2.score_samples(X), atol=1e-3
+            )
+            np.testing.assert_array_equal(m1.predict(X), m2.predict(X))
+
+    assert_scores_close(sk_model, sk_model2)
+    assert_scores_close(cu_model, cu_model2)
+
+    # Can refit on converted models
+    cu_model2.fit(X)
+    sk_model2.fit(X)
+
+    # Refit models have similar results
+    assert_scores_close(sk_model, sk_model2)
+    assert_scores_close(cu_model, cu_model2)
+
+
 def test_kneighbors_regressor_callable_weights_unsupported(random_state):
     """Test that callable weights raise an error during sklearn -> cuml conversion"""
     X, y = make_regression(100, 50, random_state=random_state)

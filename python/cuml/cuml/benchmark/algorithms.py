@@ -384,6 +384,7 @@ def all_algorithms():
         )
         cuml_NearestNeighbors = cuml.neighbors.NearestNeighbors
         cuml_KernelDensity = cuml.neighbors.KernelDensity
+        cuml_LocalOutlierFactor = cuml.neighbors.LocalOutlierFactor
         cuml_DBSCAN = cuml.DBSCAN
         cuml_HDBSCAN = cuml.cluster.HDBSCAN
         cuml_LinearRegression = cuml.linear_model.LinearRegression
@@ -433,6 +434,7 @@ def all_algorithms():
         )
         cuml_KNeighborsClassifier = cuml_KNeighborsRegressor = None
         cuml_KernelDensity = None
+        cuml_LocalOutlierFactor = None
         cuml_GaussianNB = cuml_MultinomialNB = None
         cuml_BernoulliNB = cuml_ComplementNB = cuml_CategoricalNB = None
         cuml_TargetEncoder = cuml_OneHotEncoder = cuml_OrdinalEncoder = None
@@ -543,6 +545,14 @@ def all_algorithms():
             name="KernelDensity",
             accepts_labels=False,
             bench_func=fit_score_samples,
+        ),
+        AlgorithmPair(
+            sklearn.neighbors.LocalOutlierFactor,
+            cuml_LocalOutlierFactor,
+            shared_args=dict(n_neighbors=20),
+            cpu_args=dict(n_jobs=-1),
+            name="LocalOutlierFactor",
+            accepts_labels=False,
         ),
         AlgorithmPair(
             sklearn.cluster.DBSCAN,
