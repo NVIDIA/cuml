@@ -7,7 +7,6 @@ import math
 
 import cupy as cp
 import numpy as np
-from numba import cuda
 
 import cuml.internals
 from cuml.common.kernel_utils import cuda_kernel_factory
@@ -170,6 +169,8 @@ _kernel_cache = {}
 
 
 def custom_kernel(X, Y, func, **kwds):
+    from numba import cuda
+
     kwds_tuple = _kwds_to_tuple_args(func, **kwds)
 
     def evaluate_pairwise_kernels(X, Y, K):

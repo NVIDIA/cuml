@@ -65,6 +65,10 @@ def test_pairwise_kernels_basic():
         X, metric="rbf", filter_params=True, wrong_parameter_name=1.0
     )
 
+
+def test_pairwise_kernels_custom():
+    X = np.zeros((4, 4))
+
     # incorrect function type
     def non_numba_kernel(x, y):
         return x.dot(y)
