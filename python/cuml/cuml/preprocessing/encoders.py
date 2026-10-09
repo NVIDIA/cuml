@@ -7,6 +7,7 @@ import cudf
 import cupy as cp
 import cupyx.scipy.sparse as cp_sp
 import numpy as np
+from cudf.api.types import is_string_dtype
 from sklearn.base import OneToOneFeatureMixin
 
 from cuml.common.doc_utils import generate_docstring
@@ -121,8 +122,8 @@ def _compute_categories(
             # This is cheaper than doing `nans_to_nulls` on the full input first.
             if Xi.dtype.kind == "f":
                 Xi = Xi.nans_to_nulls().drop_duplicates()
-            # cudf's object dtype uses None for NA, we want NaN everywhere
-            if Xi.dtype == "object":
+            # Some string dtypes use None or pd.NA for NA, we want NaN everywhere
+            if is_string_dtype(Xi.dtype):
                 Xi = Xi.astype(str)
             cats = Xi.sort_values().to_numpy()
         else:
