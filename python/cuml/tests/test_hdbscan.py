@@ -169,9 +169,7 @@ def assert_membership_vectors(
 
         for i in range(min(n_clusters, 10)):
             assert (
-                adjusted_rand_score(
-                    cu_labels_sorted[:, i], sk_labels_sorted[:, i]
-                )
+                np.mean(cu_labels_sorted[:, i] == sk_labels_sorted[:, i])
                 >= 0.90
             )
 
@@ -186,6 +184,9 @@ def test_assert_membership_vectors_matches_clusters_and_rejects_bad_values():
     cu_labels = np.argsort(permutation)[sk_labels]
 
     assert_membership_vectors(cu_vecs, sk_vecs, cu_labels, sk_labels)
+
+    with pytest.raises(AssertionError):
+        assert_membership_vectors(cu_vecs, sk_vecs, sk_labels, sk_labels)
 
     bad_vecs = cu_vecs[np.random.default_rng(42).permutation(cu_vecs.shape[0])]
     with pytest.raises(AssertionError):
