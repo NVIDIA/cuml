@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 import platform
-import random
 import warnings
 from itertools import chain, combinations_with_replacement, permutations
 
@@ -15,7 +14,6 @@ import pandas as pd
 import pytest
 import scipy.sparse
 import sklearn.metrics
-from numba import cuda
 from numpy.testing import assert_almost_equal
 from packaging.version import Version
 from scipy.spatial import distance as scipy_pairwise_distances
@@ -42,7 +40,6 @@ from sklearn.metrics.cluster import v_measure_score as sklearn_v_measure_score
 from sklearn.preprocessing import StandardScaler
 
 import cuml
-import cuml.internals.logger as logger
 from cuml import LogisticRegression as cu_log
 from cuml.common.sparse import csr_row_normalize_l1
 from cuml.metrics import (
@@ -68,7 +65,6 @@ from cuml.model_selection import train_test_split
 from cuml.testing.datasets import make_pattern
 from cuml.testing.utils import (
     array_equal,
-    generate_random_labels,
     quality_param,
     stress_param,
     unit_param,
@@ -77,12 +73,9 @@ from cuml.testing.utils import (
 IS_ARM = platform.processor() == "aarch64"
 
 
-@pytest.fixture(scope="module")
-def random_state():
-    random_state = random.randint(0, 10**6)
-    with logger.set_level(logger.level_enum.debug):
-        logger.debug("Random seed: {}".format(random_state))
-    return random_state
+@pytest.fixture
+def rng():
+    return np.random.RandomState(42)
 
 
 @pytest.fixture(
@@ -102,11 +95,11 @@ def random_state():
         },
     ),
 )
-def labeled_clusters(request, random_state):
+def labeled_clusters(request):
     data, labels = make_blobs(
         n_samples=1000,
         n_features=request.param["n_features"],
-        random_state=random_state,
+        random_state=42,
         centers=request.param["n_clusters"],
         center_box=(-1, 1),
         cluster_std=1.5,  # Allow some cluster overlap
@@ -180,6 +173,7 @@ def test_sklearn_search():
 )
 @pytest.mark.parametrize("normalize", [True, False])
 def test_accuracy_score(
+    rng,
     true_kind,
     pred_kind,
     true_dtype,
@@ -189,7 +183,6 @@ def test_accuracy_score(
     normalize,
 ):
     N = 30
-    rng = np.random.RandomState(42)
     np_true = rng.randint(0, 3, N)
     np_pred = (rng.randint(0, 2, N) + np_true) % 3
     np_weight = rng.random(N).astype(weight_dtype) if weight_kind else None
@@ -456,10 +449,9 @@ def test_homogeneity_non_homogeneous_labeling(data):
 
 
 @pytest.mark.parametrize("input_range", [[0, 1000], [-1000, 1000]])
-def test_homogeneity_score_big_array(input_range):
-    a, b, _, _ = generate_random_labels(
-        lambda rd: rd.randint(*input_range, int(10e4), dtype=np.int32)
-    )
+def test_homogeneity_score_big_array(rng, input_range):
+    a = rng.randint(*input_range, int(10e4), dtype=np.int32)
+    b = rng.randint(*input_range, int(10e4), dtype=np.int32)
     score = score_homogeneity(a, b)
     ref = sk_homogeneity_score(a, b)
     np.testing.assert_almost_equal(score, ref, decimal=4)
@@ -468,10 +460,9 @@ def test_homogeneity_score_big_array(input_range):
 @pytest.mark.parametrize(
     "input_range", [[0, 2], [-5, 20], [int(-10e2), int(10e2)]]
 )
-def test_homogeneity_completeness_symmetry(input_range):
-    a, b, _, _ = generate_random_labels(
-        lambda rd: rd.randint(*input_range, int(10e3), dtype=np.int32)
-    )
+def test_homogeneity_completeness_symmetry(rng, input_range):
+    a = rng.randint(*input_range, int(10e3), dtype=np.int32)
+    b = rng.randint(*input_range, int(10e3), dtype=np.int32)
     hom = score_homogeneity(a, b)
     com = score_completeness(b, a)
     np.testing.assert_almost_equal(hom, com, decimal=4)
@@ -495,21 +486,19 @@ def test_mutual_info_score(input_labels):
 
 
 @pytest.mark.parametrize("input_range", [[0, 1000], [-1000, 1000]])
-def test_mutual_info_score_big_array(input_range):
-    a, b, _, _ = generate_random_labels(
-        lambda rd: rd.randint(*input_range, int(10e4), dtype=np.int32)
-    )
+def test_mutual_info_score_big_array(rng, input_range):
+    a = rng.randint(*input_range, int(10e4), dtype=np.int32)
+    b = rng.randint(*input_range, int(10e4), dtype=np.int32)
     score = score_mutual_info(a, b)
     ref = sk_mutual_info_score(a, b)
     np.testing.assert_almost_equal(score, ref, decimal=4)
 
 
 @pytest.mark.parametrize("n", [14])
-def test_mutual_info_score_range_equal_samples(n):
+def test_mutual_info_score_range_equal_samples(rng, n):
     input_range = (-n, n)
-    a, b, _, _ = generate_random_labels(
-        lambda rd: rd.randint(*input_range, n, dtype=np.int32)
-    )
+    a = rng.randint(*input_range, n, dtype=np.int32)
+    b = rng.randint(*input_range, n, dtype=np.int32)
     score = score_mutual_info(a, b)
     ref = sk_mutual_info_score(a, b)
     np.testing.assert_almost_equal(score, ref, decimal=4)
@@ -517,10 +506,9 @@ def test_mutual_info_score_range_equal_samples(n):
 
 @pytest.mark.parametrize("input_range", [[0, 19], [0, 2], [-5, 20]])
 @pytest.mark.parametrize("n_samples", [129, 258])
-def test_mutual_info_score_many_blocks(input_range, n_samples):
-    a, b, _, _ = generate_random_labels(
-        lambda rd: rd.randint(*input_range, n_samples, dtype=np.int32)
-    )
+def test_mutual_info_score_many_blocks(rng, input_range, n_samples):
+    a = rng.randint(*input_range, n_samples, dtype=np.int32)
+    b = rng.randint(*input_range, n_samples, dtype=np.int32)
     score = score_mutual_info(a, b)
     ref = sk_mutual_info_score(a, b)
     np.testing.assert_almost_equal(score, ref, decimal=4)
@@ -556,10 +544,9 @@ def test_completeness_non_complete_labeling(data):
 
 
 @pytest.mark.parametrize("input_range", [[0, 1000], [-1000, 1000]])
-def test_completeness_score_big_array(input_range):
-    a, b, _, _ = generate_random_labels(
-        lambda rd: rd.randint(*input_range, int(10e4), dtype=np.int32)
-    )
+def test_completeness_score_big_array(rng, input_range):
+    a = rng.randint(*input_range, int(10e4), dtype=np.int32)
+    b = rng.randint(*input_range, int(10e4), dtype=np.int32)
     score = score_completeness(a, b)
     ref = sk_completeness_score(a, b)
     np.testing.assert_almost_equal(score, ref, decimal=4)
@@ -602,8 +589,7 @@ def test_cluster_metric_label_permutation_invariance(
         "mean_squared_log_error",
     ],
 )
-def test_regression_metrics(n_samples, y_dtype, pred_dtype, func):
-    rng = np.random.RandomState(42)
+def test_regression_metrics(rng, n_samples, y_dtype, pred_dtype, func):
     y_true = rng.randint(10, 1000, n_samples).astype(y_dtype)
     y_pred = (rng.randint(-5, 5, n_samples) + y_true).astype(pred_dtype)
 
@@ -905,10 +891,8 @@ def test_entropy():
 
 @pytest.mark.parametrize("n_samples", [50, stress_param(500000)])
 @pytest.mark.parametrize("base", [None, 2, 10, 50])
-def test_entropy_random(n_samples, base):
-    clustering, _, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 1000, n_samples)
-    )
+def test_entropy_random(rng, n_samples, base):
+    clustering = rng.randint(0, 1000, n_samples)
 
     # generate unormalized probabilities from clustering
     pk = np.bincount(clustering)
@@ -943,12 +927,11 @@ def test_confusion_matrix_binary():
 @pytest.mark.parametrize("n_samples", [50, 3000, stress_param(500000)])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64, np.float32])
 @pytest.mark.parametrize("problem_type", ["binary", "multiclass"])
-def test_confusion_matrix_random(n_samples, dtype, problem_type):
+def test_confusion_matrix_random(rng, n_samples, dtype, problem_type):
     upper_range = 2 if problem_type == "binary" else 1000
+    y_true = rng.randint(0, upper_range, n_samples).astype(dtype)
+    y_pred = rng.randint(0, upper_range, n_samples).astype(dtype)
 
-    y_true, y_pred, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, upper_range, n_samples).astype(dtype)
-    )
     cm = confusion_matrix(y_true, y_pred)
     ref = sk_confusion_matrix(y_true, y_pred)
     cp.testing.assert_array_almost_equal(ref, cm, decimal=4)
@@ -971,11 +954,9 @@ def test_confusion_matrix_normalize(normalize, expected_results):
 
 
 @pytest.mark.parametrize("labels", [(0, 1), (2, 1), (2, 1, 4, 7), (2, 20)])
-def test_confusion_matrix_multiclass_subset_labels(labels):
-    y_true, y_pred, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 3, 10).astype(np.int32)
-    )
-
+def test_confusion_matrix_multiclass_subset_labels(rng, labels):
+    y_true = rng.randint(0, 3, 10).astype(np.int32)
+    y_pred = rng.randint(0, 3, 10).astype(np.int32)
     ref = sk_confusion_matrix(y_true, y_pred, labels=labels)
     labels = cp.array(labels, dtype=np.int32)
     cm = confusion_matrix(y_true, y_pred, labels=labels)
@@ -985,15 +966,14 @@ def test_confusion_matrix_multiclass_subset_labels(labels):
 @pytest.mark.parametrize("n_samples", [50, 3000, stress_param(500000)])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64])
 @pytest.mark.parametrize("weights_dtype", ["int", "float"])
-def test_confusion_matrix_random_weights(n_samples, dtype, weights_dtype):
-    y_true, y_pred, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 10, n_samples).astype(dtype)
-    )
+def test_confusion_matrix_random_weights(rng, n_samples, dtype, weights_dtype):
+    y_true = rng.randint(0, 10, n_samples).astype(dtype)
+    y_pred = rng.randint(0, 10, n_samples).astype(dtype)
 
     if weights_dtype == "int":
-        sample_weight = np.random.RandomState(0).randint(0, 10, n_samples)
+        sample_weight = rng.randint(0, 10, n_samples)
     else:
-        sample_weight = np.random.RandomState(0).rand(n_samples)
+        sample_weight = rng.rand(n_samples)
 
     cm = confusion_matrix(y_true, y_pred, sample_weight=sample_weight)
     ref = sk_confusion_matrix(y_true, y_pred, sample_weight=sample_weight)
@@ -1064,15 +1044,9 @@ def test_roc_auc_score():
 
 @pytest.mark.parametrize("n_samples", [50, 500000])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64, np.float32, np.float64])
-def test_roc_auc_score_random(n_samples, dtype):
-    y_true, _, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 2, n_samples).astype(dtype)
-    )
-
-    y_pred, _, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 1000, n_samples).astype(dtype)
-    )
-
+def test_roc_auc_score_random(rng, n_samples, dtype):
+    y_true = rng.randint(0, 2, n_samples).astype(dtype)
+    y_pred = rng.randint(0, 1000, n_samples).astype(dtype)
     auc = roc_auc_score(y_true, y_pred)
     skl_auc = sklearn_roc_auc_score(y_true, y_pred)
     assert_almost_equal(auc, skl_auc)
@@ -1144,14 +1118,9 @@ def test_precision_recall_curve_at_limits():
 )
 @pytest.mark.parametrize("n_samples", [50, 500000])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64, np.float32, np.float64])
-def test_precision_recall_curve_random(n_samples, dtype):
-    y_true, _, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 2, n_samples).astype(dtype)
-    )
-
-    y_score, _, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 1000, n_samples).astype(dtype)
-    )
+def test_precision_recall_curve_random(rng, n_samples, dtype):
+    y_true = rng.randint(0, 2, n_samples).astype(dtype)
+    y_score = rng.randint(0, 1000, n_samples).astype(dtype)
 
     (
         precision_using_sk,
@@ -1182,17 +1151,12 @@ def test_log_loss():
 
 @pytest.mark.parametrize("n_samples", [500, 500000])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64, np.float32, np.float64])
-def test_log_loss_random(n_samples, dtype):
-    y_true, _, _, _ = generate_random_labels(
-        lambda rng: rng.randint(0, 10, n_samples).astype(dtype)
-    )
+def test_log_loss_random(rng, n_samples, dtype):
+    y_true = rng.randint(0, 10, n_samples).astype(dtype)
+    y_pred = rng.rand(n_samples, 10)
 
-    _, _, y_pred, _ = generate_random_labels(
-        lambda rng: rng.rand(n_samples, 10)
-    )
     # Make sure the probabilities sum to 1 per sample
     y_pred /= y_pred.sum(axis=1)[:, None]
-    y_pred = cuda.to_device(y_pred)
 
     assert_almost_equal(
         log_loss(y_true, y_pred), sklearn_log_loss(y_true, y_pred)
@@ -1259,10 +1223,8 @@ def prep_dense_array(array, metric, col_major=0):
     "matrix_size", [(5, 4), (1000, 3), (2, 10), (500, 400)]
 )
 @pytest.mark.parametrize("is_col_major", [True, False])
-def test_pairwise_distances(metric: str, matrix_size, is_col_major):
+def test_pairwise_distances(rng, metric: str, matrix_size, is_col_major):
     # Test the pairwise_distance helper function.
-    rng = np.random.RandomState(0)
-
     compare_precision = 2 if metric == "nan_euclidean" else 4
 
     # Compare to sklearn, single input
@@ -1338,10 +1300,8 @@ def test_pairwise_distances(metric: str, matrix_size, is_col_major):
         stress_param((10000, 10000)),
     ],
 )
-def test_pairwise_distances_sklearn_comparison(metric: str, matrix_size):
+def test_pairwise_distances_sklearn_comparison(rng, metric: str, matrix_size):
     # Test larger sizes to sklearn
-    rng = np.random.RandomState(1)
-
     element_count = matrix_size[0] * matrix_size[1]
 
     X = prep_dense_array(
@@ -1380,10 +1340,9 @@ def test_pairwise_distances_sklearn_comparison(metric: str, matrix_size):
     "ignore:Data was converted to boolean for metric russellrao:sklearn.exceptions.DataConversionWarning"
 )
 @pytest.mark.parametrize("metric", PAIRWISE_DISTANCE_METRICS.keys())
-def test_pairwise_distances_one_dimension_order(metric: str):
+def test_pairwise_distances_one_dimension_order(rng, metric: str):
     # Test the pairwise_distance helper function for 1 dimensional cases which
     # can break down when using a size of 1 for either dimension
-    rng = np.random.RandomState(2)
 
     Xc = prep_dense_array(
         rng.random_sample((1, 4)), metric=metric, col_major=0
@@ -1449,9 +1408,7 @@ def test_pairwise_distances_one_dimension_order(metric: str):
 
 
 @pytest.mark.parametrize("metric", ["haversine"])
-def test_pairwise_distances_unsuppored_metrics(metric):
-    rng = np.random.RandomState(3)
-
+def test_pairwise_distances_unsuppored_metrics(rng, metric):
     X = rng.random_sample((5, 4))
 
     with pytest.raises(ValueError):
@@ -1567,8 +1524,7 @@ def test_pairwise_distances_metric_kwds():
 
 @pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
 @pytest.mark.parametrize("position", ["X", "Y"])
-def test_pairwise_distances_rejects_non_finite(bad_value, position):
-    rng = np.random.RandomState(0)
+def test_pairwise_distances_rejects_non_finite(rng, bad_value, position):
     X = rng.random_sample((5, 4)).astype(np.float64)
     Y = rng.random_sample((6, 4)).astype(np.float64)
     if position == "X":
@@ -1579,8 +1535,7 @@ def test_pairwise_distances_rejects_non_finite(bad_value, position):
         pairwise_distances(X, Y, metric="euclidean")
 
 
-def test_nan_euclidean_distances_allows_nan():
-    rng = np.random.RandomState(0)
+def test_nan_euclidean_distances_allows_nan(rng):
     X = rng.random_sample((5, 4)).astype(np.float64)
     X[0, 0] = np.nan
     S = pairwise_distances(X, metric="nan_euclidean")
@@ -1588,8 +1543,7 @@ def test_nan_euclidean_distances_allows_nan():
     cp.testing.assert_array_almost_equal(cp.asnumpy(S), S_ref, decimal=4)
 
 
-def test_nan_euclidean_distances_y_none_diagonal_zero():
-    rng = np.random.RandomState(0)
+def test_nan_euclidean_distances_y_none_diagonal_zero(rng):
     X = rng.random_sample((6, 4)).astype(np.float64)
     X[0, 0] = np.nan
     S = cp.asnumpy(nan_euclidean_distances(X))
@@ -1648,11 +1602,10 @@ def test_nan_euclidean_distances_squared(squared):
     "x_order,y_order",
     [("C", "C"), ("C", "F"), ("F", "C"), ("F", "F")],
 )
-def test_pairwise_distances_degenerate_x_layout(x_order, y_order):
+def test_pairwise_distances_degenerate_x_layout(rng, x_order, y_order):
     # When X has a degenerate shape (1 sample), it is both C- and
     # F-contiguous, so the implementation lets Y choose the layout.
     # Verify all four input layout combinations match sklearn.
-    rng = np.random.RandomState(0)
     X = np.asarray(rng.random_sample((1, 4)), order=x_order, dtype=np.float64)
     Y = np.asarray(rng.random_sample((10, 4)), order=y_order, dtype=np.float64)
     S = cp.asnumpy(pairwise_distances(X, Y, metric="euclidean"))
@@ -1662,10 +1615,8 @@ def test_pairwise_distances_degenerate_x_layout(x_order, y_order):
 
 @pytest.mark.parametrize("input_type", ["cudf", "numpy", "cupy"])
 @pytest.mark.parametrize("output_type", ["input", "cudf", "numpy", "cupy"])
-def test_pairwise_distances_output_types(input_type, output_type):
+def test_pairwise_distances_output_types(rng, input_type, output_type):
     # Test larger sizes to sklearn
-    rng = np.random.RandomState(5)
-
     X = rng.random_sample((100, 100))
     Y = rng.random_sample((100, 100))
 
@@ -1969,8 +1920,7 @@ def test_hinge_loss_binary_labels_single_observed_negative_class():
 
 @pytest.mark.parametrize("with_labels", [True, False])
 @pytest.mark.parametrize("with_sample_weight", [True, False])
-def test_hinge_loss_multiclass(with_labels, with_sample_weight):
-    rng = np.random.RandomState(0)
+def test_hinge_loss_multiclass(rng, with_labels, with_sample_weight):
     y_true = np.array([0, 1, 2, 3, 1, 2])
     pred_decision = rng.randn(6, 4).astype(np.float64)
     labels = [0, 1, 2, 3] if with_labels else None
@@ -2000,8 +1950,7 @@ def test_hinge_loss_inconsistent_length():
         cuml_hinge(np.array([0, 1, 1]), np.array([0.5, -0.5]))
 
 
-def test_hinge_loss_multiclass_missing_labels():
-    rng = np.random.RandomState(0)
+def test_hinge_loss_multiclass_missing_labels(rng):
     # y_true has 3 classes but pred_decision only has 2 columns and labels
     # is not provided.
     with pytest.raises(ValueError, match="include all labels in y_true"):
@@ -2020,9 +1969,7 @@ def test_hinge_loss_multiclass_missing_labels():
 @pytest.mark.parametrize("input_type", ["cudf", "cupy"])
 @pytest.mark.parametrize("dtypeP", [cp.float32, cp.float64])
 @pytest.mark.parametrize("dtypeQ", [cp.float32, cp.float64])
-def test_kl_divergence(nfeatures, input_type, dtypeP, dtypeQ):
-    rng = np.random.RandomState(5)
-
+def test_kl_divergence(rng, nfeatures, input_type, dtypeP, dtypeQ):
     P = rng.random_sample((nfeatures))
     Q = rng.random_sample((nfeatures))
 

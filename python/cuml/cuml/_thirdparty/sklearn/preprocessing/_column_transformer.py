@@ -25,7 +25,6 @@ from itertools import chain, compress
 import cudf
 import cupy as np
 import numpy as cpu_np
-import numba
 import pandas as pd
 import scipy.sparse as sp_sparse
 from cupyx.scipy import sparse as cu_sparse
@@ -267,8 +266,6 @@ def _array_indexing(array, key, key_dtype, axis):
             key = np.asarray(key)
     if isinstance(key, tuple):
         key = list(key)
-    if numba.cuda.is_cuda_array(array):
-        array = np.asarray(array)
     return array[key] if axis == 0 else array[:, key]
 
 

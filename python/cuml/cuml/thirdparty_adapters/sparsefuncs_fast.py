@@ -1,14 +1,13 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-
-
-from math import ceil
+import math
 
 import cupy as cp
-import cupyx as cpx
-from numba import cuda
+import cupyx.scipy.sparse
+
+from cuml.common.kernel_utils import cuda_kernel_factory
 
 
 def csr_mean_variance_axis0(X):
@@ -82,114 +81,85 @@ def _csc_mean_variance_axis0(X):
     return means, variances, counts_nan
 
 
-@cuda.jit(device=True, inline=True)
-def _deg2_column(d, i, j, interaction_only):
-    """Compute the index of the column for a degree 2 expansion
+_PERFORM_EXPANSION_KERNEL = """
+({0} *indptr,
+ {0} *indices,
+ {1} *data,
+ {2} *expanded_indptr,
+ {2} *expanded_indices,
+ {1} *expanded_data,
+ long long n_rows,
+ long long n_cols,
+ int interaction_only,
+ int is_degree_2) {
+    {0} row_i = blockIdx.x * blockDim.x + threadIdx.x;
+    {0} inrow_idx = blockIdx.y * blockDim.y + threadIdx.y;
 
-    d is the dimensionality of the input data, i and j are the indices
-    for the columns involved in the expansion.
-    """
-    if interaction_only:
-        return int(d * i - (i**2 + 3 * i) / 2 - 1 + j)
-    else:
-        return int(d * i - (i**2 + i) / 2 + j)
+    if (row_i >= n_rows) return;
 
+    {2} expanded_index = expanded_indptr[row_i] + inrow_idx;
+    if (expanded_index >= expanded_indptr[row_i + 1]) return;
 
-@cuda.jit(device=True, inline=True)
-def _deg3_column(d, i, j, k, interaction_only):
-    """Compute the index of the column for a degree 3 expansion
+    {0} row_starts = indptr[row_i];
+    {0} row_ends = indptr[row_i + 1];
 
-    d is the dimensionality of the input data, i, j and k are the indices
-    for the columns involved in the expansion.
-    """
-    if interaction_only:
-        return int(
-            (3 * d**2 * i - 3 * d * i**2 + i**3 + 11 * i - 3 * j**2 - 9 * j)
-            / 6
-            + i**2
-            - 2 * d * i
-            + d * j
-            - d
-            + k
-        )
-    else:
-        return int(
-            (3 * d**2 * i - 3 * d * i**2 + i**3 - i - 3 * j**2 - 3 * j) / 6
-            + d * j
-            + k
-        )
+    {0} i_ptr = row_starts;
+    {0} j_ptr = -1;
+    {0} k_ptr = inrow_idx;
 
+    if (is_degree_2) {
+        j_ptr = inrow_idx;
+        for ({0} i = row_starts; i < row_ends; i++) {
+            {0} diff = row_ends - i - interaction_only;
+            if (j_ptr >= diff) {
+                j_ptr -= diff;
+            } else {
+                i_ptr = i;
+                break;
+            }
+        }
+        j_ptr += i_ptr + interaction_only;
+    } else {
+        for ({0} i = row_starts; i < row_ends; i++) {
+            for ({0} j = i + interaction_only; j < row_ends; j++) {
+                {0} diff = row_ends - j - interaction_only;
+                if (k_ptr >= diff) {
+                    k_ptr -= diff;
+                } else {
+                    j_ptr = j;
+                    i_ptr = i;
+                    break;
+                }
+            }
+            if (j_ptr != -1) break;
+        }
+        k_ptr += j_ptr + interaction_only;
+    }
 
-@cuda.jit
-def perform_expansion(
-    indptr,
-    indices,
-    data,
-    expanded_data,
-    expanded_indices,
-    d,
-    interaction_only,
-    degree,
-    expanded_indptr,
-):
-    """Kernel applying polynomial expansion on CSR matrix"""
-    row_i = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
-    inrow_idx = cuda.blockIdx.y * cuda.blockDim.y + cuda.threadIdx.y
+    // Always use long long here to avoid overflow
+    long long i = indices[i_ptr];
+    long long j = indices[j_ptr];
 
-    if row_i >= indptr.shape[0] - 1:
-        return
-
-    expanded_index = expanded_indptr[row_i] + inrow_idx
-    if expanded_index >= expanded_indptr[row_i + 1]:
-        return
-
-    row_starts = indptr[row_i]
-    row_ends = indptr[row_i + 1]
-
-    i_ptr = row_starts
-    j_ptr = -1
-    k_ptr = inrow_idx
-
-    if degree == 2:
-        j_ptr = inrow_idx
-        for i in range(row_starts, row_ends):
-            diff = row_ends - i - interaction_only
-            if j_ptr >= diff:
-                j_ptr -= diff
-            else:
-                i_ptr = i
-                break
-        j_ptr += i_ptr + interaction_only
-    else:
-        # degree == 3
-        diff = 0
-        for i in range(row_starts, row_ends):
-            for j in range(i + interaction_only, row_ends):
-                diff = row_ends - j - interaction_only
-                if k_ptr >= diff:
-                    k_ptr -= diff
-                else:
-                    j_ptr = j
-                    i_ptr = i
-                    break
-            if j_ptr != -1:
-                break
-
-        k_ptr += j_ptr + interaction_only
-
-    i = indices[i_ptr]
-    j = indices[j_ptr]
-
-    if degree == 2:
-        col = _deg2_column(d, i, j, interaction_only)
-        expanded_indices[expanded_index] = col
-        expanded_data[expanded_index] = data[i_ptr] * data[j_ptr]
-    else:
-        # degree == 3
-        k = indices[k_ptr]
-        col = _deg3_column(d, i, j, k, interaction_only)
-        expanded_indices[expanded_index] = col
-        expanded_data[expanded_index] = data[i_ptr] * data[j_ptr] * data[k_ptr]
+    if (is_degree_2) {
+        expanded_indices[expanded_index] = (
+            interaction_only
+            ? n_cols * i - (i*i + 3 * i) / 2 - 1 + j
+            : n_cols * i - (i*i + i) / 2 + j
+        );
+        expanded_data[expanded_index] = data[i_ptr] * data[j_ptr];
+    } else {
+        long long k = indices[k_ptr];
+        expanded_indices[expanded_index] = (
+            interaction_only
+            ? (3*i*n_cols*n_cols - 3*i*i*n_cols + i*i*i + 11*i - 3*j*j - 9*j)/6
+              + i*i - 2*i*n_cols + n_cols*j - n_cols + k
+            : (3*i*n_cols*n_cols - 3*i*i*n_cols + i*i*i - i - 3*j*j - 3*j)/6
+              + n_cols*j + k
+        );
+        expanded_data[expanded_index] = data[i_ptr] * data[j_ptr] * data[k_ptr];
+    }
+}
+"""
 
 
 def csr_polynomial_expansion(X, interaction_only, degree):
@@ -197,65 +167,77 @@ def csr_polynomial_expansion(X, interaction_only, degree):
 
     Parameters
     ----------
-    X : sparse CSR matrix
-        Input array
+    X : cupyx.scipy.sparse.csr_matrix
+        Input matrix.
+    interaction_only : bool
+        Whether to produce only interaction features.
+    degree : {2, 3}
+        The polynomial degree.
 
     Returns
     -------
-    New expansed matrix
+    X_t : cupy.scipy.sparse.csr_matrix or None
+        New polynomial-expanded matrix. If there are no columns in the expanded
+        matrix, returns None instead.
     """
     assert degree in (2, 3)
+    assert X.format == "csr"
+    assert X.indices.dtype == X.indptr.dtype
 
-    interaction_only = 1 if interaction_only else 0
+    n_cols = X.shape[1]
+    interaction_only = int(bool(interaction_only))
 
-    d = X.shape[1]
     if degree == 2:
-        expanded_dimensionality = int((d**2 + d) / 2 - interaction_only * d)
+        expanded_dimensionality = int(
+            (n_cols**2 + n_cols) / 2 - interaction_only * n_cols
+        )
     else:
         expanded_dimensionality = int(
-            (d**3 + 3 * d**2 + 2 * d) / 6 - interaction_only * d**2
+            (n_cols**3 + 3 * n_cols**2 + 2 * n_cols) / 6
+            - interaction_only * n_cols**2
         )
     if expanded_dimensionality == 0:
         return None
-    assert expanded_dimensionality > 0
 
     nnz = cp.diff(X.indptr)
     if degree == 2:
-        total_nnz = (nnz**2 + nnz) / 2 - interaction_only * nnz
+        nnz = (nnz**2 + nnz) / 2 - interaction_only * nnz
     else:
-        total_nnz = (
-            nnz**3 + 3 * nnz**2 + 2 * nnz
-        ) / 6 - interaction_only * nnz**2
-    del nnz
-    nnz_cumsum = total_nnz.cumsum(dtype=cp.int64)
-    total_nnz_max = int(total_nnz.max())
-    total_nnz = int(total_nnz.sum())
+        nnz = (nnz**3 + 3 * nnz**2 + 2 * nnz) / 6 - interaction_only * nnz**2
+    nnz_max = int(nnz.max())
+    nnz_sum = int(nnz.sum())
 
-    num_rows = X.indptr.shape[0] - 1
-
-    expanded_data = cp.empty(shape=total_nnz, dtype=X.data.dtype)
-    expanded_indices = cp.empty(shape=total_nnz, dtype=X.indices.dtype)
-    expanded_indptr = cp.empty(shape=num_rows + 1, dtype=X.indptr.dtype)
+    # Use int32 for output indices when possible, falling back to int64
+    out_ind_dtype = "int32" if nnz_sum <= cp.iinfo("int32").max else "int64"
+    expanded_data = cp.empty(shape=nnz_sum, dtype=X.data.dtype)
+    expanded_indices = cp.empty(shape=nnz_sum, dtype=out_ind_dtype)
+    expanded_indptr = cp.empty(shape=X.shape[0] + 1, dtype=out_ind_dtype)
     expanded_indptr[0] = X.indptr[0]
-    expanded_indptr[1:] = nnz_cumsum
+    nnz.cumsum(out=expanded_indptr[1:])
+    del nnz
 
-    tpb = (32, 32)
-    bpg_x = ceil(X.indptr.shape[0] / tpb[0])
-    bpg_y = ceil(total_nnz_max / tpb[1])
-    bpg = (bpg_x, bpg_y)
-    perform_expansion[bpg, tpb](
-        X.indptr,
-        X.indices,
-        X.data,
-        expanded_data,
-        expanded_indices,
-        d,
-        interaction_only,
-        degree,
-        expanded_indptr,
+    perform_expansion = cuda_kernel_factory(
+        _PERFORM_EXPANSION_KERNEL,
+        (X.indptr.dtype, X.data.dtype, expanded_indptr.dtype),
+        "perform_expansion",
     )
-
-    return cpx.scipy.sparse.csr_matrix(
+    perform_expansion(
+        (math.ceil(X.indptr.shape[0] / 32), math.ceil(nnz_max / 32)),
+        (32, 32),
+        (
+            X.indptr,
+            X.indices,
+            X.data,
+            expanded_indptr,
+            expanded_indices,
+            expanded_data,
+            X.shape[0],
+            X.shape[1],
+            interaction_only,
+            degree == 2,
+        ),
+    )
+    return cupyx.scipy.sparse.csr_matrix(
         (expanded_data, expanded_indices, expanded_indptr),
-        shape=(num_rows, expanded_dimensionality),
+        shape=(X.shape[0], expanded_dimensionality),
     )
