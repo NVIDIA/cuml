@@ -261,7 +261,7 @@ class SVC(ClassifierMixin, SVMBase):
     @mlfunc
     def support_(self):
         if hasattr(self, "_multiclass"):
-            estimators = self._multiclass.multiclass_estimator.estimators_
+            estimators = self._multiclass.estimators_
             return cp.concatenate(
                 [cp.asarray(cls._support_) for cls in estimators]
             )
@@ -276,7 +276,7 @@ class SVC(ClassifierMixin, SVMBase):
     @mlfunc
     def intercept_(self):
         if hasattr(self, "_multiclass"):
-            estimators = self._multiclass.multiclass_estimator.estimators_
+            estimators = self._multiclass.estimators_
             return cp.concatenate(
                 [cp.asarray(cls._intercept_) for cls in estimators]
             )
@@ -319,11 +319,9 @@ class SVC(ClassifierMixin, SVMBase):
                 for j in range(i + 1, n_classes):
                     cond = cp.logical_or(y == classes[i], y == classes[j])
                     ovo_support = cp.array(
-                        self._multiclass.multiclass_estimator.estimators_[
-                            estimator_index
-                        ].support_
+                        self._multiclass.estimators_[estimator_index].support_
                     )
-                    self._multiclass.multiclass_estimator.estimators_[
+                    self._multiclass.estimators_[
                         estimator_index
                     ].support_ = cp.nonzero(cond)[0][ovo_support]
                     estimator_index += 1
@@ -331,10 +329,7 @@ class SVC(ClassifierMixin, SVMBase):
         self.shape_fit_ = X.shape
         self.fit_status_ = 0
         self.n_iter_ = np.concatenate(
-            [
-                est.n_iter_
-                for est in self._multiclass.multiclass_estimator.estimators_
-            ]
+            [est.n_iter_ for est in self._multiclass.estimators_]
         )
         return self
 
@@ -412,7 +407,7 @@ class SVC(ClassifierMixin, SVMBase):
         check_is_fitted(self)
 
         if hasattr(self, "_multiclass"):
-            indices = self._multiclass.predict(X)
+            indices = self._multiclass._predict_indices(X)
         else:
             res = self.decision_function(X)
             indices = (res >= 0).view(cp.int8)
@@ -440,6 +435,6 @@ class SVC(ClassifierMixin, SVMBase):
         check_is_fitted(self)
 
         if hasattr(self, "_multiclass"):
-            return self._multiclass.decision_function(X)
+            return self._multiclass._decision_scores(X)
 
         return self._predict(X)
