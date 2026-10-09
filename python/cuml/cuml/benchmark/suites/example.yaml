@@ -1,0 +1,149 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# Small custom-path examples, not a built-in suite or performance baseline.
+
+version: 2
+name: example
+providers: [cuml, scikit-learn, cuml.accel]
+
+profiles:
+  standard:
+    warmups: 1
+    repetitions: 1
+    size_scale: 1.0
+
+cases:
+  - estimator: KMeans
+    dataset:
+      generator: blobs
+      shape:
+        rows: 128
+        features: 8
+      parameters:
+        centers: 8
+        cluster_std: 0.5
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_clusters: 8
+      random_state: 42
+
+  - estimator: LogisticRegression
+    dataset:
+      generator: classification
+      shape:
+        rows: 128
+        features: 8
+      parameters:
+        n_classes: 3
+        n_informative: 6
+        n_redundant: 0
+        n_clusters_per_class: 2
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      max_iter: 100
+
+  - estimator: PCA
+    dataset:
+      generator: matrix
+      shape:
+        rows: 128
+        features: 8
+      dtype: float32
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 3
+
+  - estimator: PCA
+    dataset:
+      generator: matrix
+      shape:
+        rows: 128
+        features: 8
+      dtype: float64
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 3
+
+  - estimator: LogisticRegression
+    dataset:
+      generator: classification
+      shape:
+        rows: 128
+        features: 8
+      parameters:
+        n_classes: 2
+        n_informative: 5
+        n_redundant: 0
+        n_clusters_per_class: 2
+        density: 0.25
+      dtype: float32
+      format: csr
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      max_iter: 100
+
+  - estimator: LogisticRegression
+    dataset:
+      generator: classification
+      shape:
+        rows: 128
+        features: 8
+      parameters:
+        n_classes: 2
+        n_informative: 5
+        n_redundant: 0
+        n_clusters_per_class: 2
+        density: 0.25
+      dtype: float64
+      format: csr
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      max_iter: 100
+
+  - estimator: LogisticRegression
+    dataset:
+      generator: classification
+      shape:
+        rows: 128
+        features: 8
+        train_rows: 128
+      parameters:
+        n_classes: 2
+        n_informative: 5
+        n_redundant: 0
+        n_clusters_per_class: 2
+        density: 0.25
+      dtype: float32
+      format: csr
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters:
+      max_iter: 100
+
+  - estimator: LogisticRegression
+    dataset:
+      generator: classification
+      shape:
+        rows: 128
+        features: 8
+        train_rows: 128
+      parameters:
+        n_classes: 2
+        n_informative: 5
+        n_redundant: 0
+        n_clusters_per_class: 2
+        density: 0.25
+      dtype: float64
+      format: csr
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters:
+      max_iter: 100

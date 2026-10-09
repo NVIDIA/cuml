@@ -160,6 +160,11 @@ def _exclude_from_acceleration(module: str) -> bool:
         # test suites with cuml.accel enabled
         return len(parts) < 2 or parts[-2] != "tests"
 
+    # The accel benchmark intentionally loads upstream estimators as proxies.
+    # Keep the exception narrow so other cuML internals get CPU classes.
+    if module == "cuml.benchmark.backends.accel":
+        return False
+
     # Exclude any module under these packages
     return name in ("cuml", "treelite")
 

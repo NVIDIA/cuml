@@ -663,6 +663,7 @@ dependencies:
           - hdbscan>=0.8.39
           - hypothesis>=6.0,<7
           - ipython>=7.32.0
+          - jsonschema
           - msgspec
           - nltk
           # 'nvidia-ml-py' provides the 'pynvml' module
