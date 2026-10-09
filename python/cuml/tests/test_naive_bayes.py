@@ -647,3 +647,166 @@ def test_categorical_parameters(
 
     assert_allclose(y_log_prob, y_log_prob_sk, rtol=1e-4, atol=1e-10)
     assert_array_equal(y_hat, y_hat_sk)
+
+
+@pytest.mark.parametrize("is_sparse", [False, True])
+@pytest.mark.parametrize("alpha_type", [np.array, list])
+def test_complement_array_alpha_matches_sklearn(is_sparse, alpha_type):
+    """Per-feature alpha (dense/sparse, array/list) matches scikit-learn."""
+    X, y = make_classification(
+        200,
+        5,
+        n_classes=3,
+        n_informative=4,
+        n_redundant=0,
+        random_state=0,
+        dtype=cp.float64,
+    )
+    X -= X.min(0)  # Make all inputs positive
+    if is_sparse:
+        X = cp_sp.csr_matrix(X)
+    alpha = alpha_type([0.5, 1.0, 2.0, 0.1, 3.0])
+
+    cuml_model = ComplementNB(alpha=alpha).fit(X, y)
+    X_np = X.get().toarray() if is_sparse else X.get()
+    sk_model = skComplementNB(alpha=alpha).fit(X_np, y.get())
+
+    assert_array_equal(cuml_model.predict(X).get(), sk_model.predict(X_np))
+    assert_allclose(
+        cuml_model.predict_log_proba(X).get(),
+        sk_model.predict_log_proba(X_np),
+        rtol=1e-4,
+        atol=1e-8,
+    )
+
+
+def test_complement_array_alpha_issue_8642():
+    """Exact reproducer from the linked issue."""
+    X = cp.array([[1, 2], [3, 4], [5, 6]], dtype=cp.float64)
+    y = cp.array([0, 1, 0])
+    alpha = np.array([1.0, 2.0])
+    X_test = cp.array([[1, 2]], dtype=cp.float64)
+
+    pred = ComplementNB(alpha=alpha).fit(X, y).predict(X_test)
+    sk_pred = (
+        skComplementNB(alpha=alpha).fit(X.get(), y.get()).predict(X_test.get())
+    )
+
+    assert cp.asnumpy(pred)[0] == sk_pred[0] == 1
+
+
+def test_complement_array_alpha_partial_fit():
+    X, y = make_classification(
+        200,
+        5,
+        n_classes=3,
+        n_informative=4,
+        n_redundant=0,
+        random_state=1,
+        dtype=cp.float64,
+    )
+    X -= X.min(0)
+    alpha = np.array([0.5, 1.0, 2.0, 0.1, 3.0])
+    classes = cp.unique(y)
+    half = len(y) // 2
+
+    model = ComplementNB(alpha=alpha)
+    model.partial_fit(X[:half], y[:half], classes=classes)
+    model.partial_fit(X[half:], y[half:])
+
+    sk_model = skComplementNB(alpha=alpha)
+    sk_model.partial_fit(X[:half].get(), y[:half].get(), classes=classes.get())
+    sk_model.partial_fit(X[half:].get(), y[half:].get())
+
+    assert_array_equal(model.predict(X).get(), sk_model.predict(X.get()))
+    assert_allclose(
+        model.predict_log_proba(X).get(),
+        sk_model.predict_log_proba(X.get()),
+        rtol=1e-4,
+        atol=1e-8,
+    )
+
+
+@pytest.mark.parametrize(
+    "alpha",
+    [
+        np.array([1.0, -1.0, 2.0, 0.1, 3.0]),  # negative entry
+        np.array([1.0, 2.0]),  # wrong shape
+        np.array([1.0, np.nan, 2.0, 0.1, 3.0]),  # NaN entry
+        np.array([1.0, np.inf, 2.0, 0.1, 3.0]),  # +inf entry
+        float("nan"),  # scalar
+        float("inf"),  # scalar
+        np.array(np.nan),  # 0-d
+        np.array(-1.0),  # 0-d
+    ],
+)
+def test_complement_array_alpha_rejects_invalid_values(alpha):
+    X, y = make_classification(
+        50, 5, n_classes=2, random_state=0, dtype=cp.float64
+    )
+    X -= X.min(0)
+
+    with pytest.raises(ValueError):
+        ComplementNB(alpha=alpha).fit(X, y)
+
+
+def test_complement_bad_alpha_never_mutates_state():
+    """A rejected `alpha` must never mutate `self`: a first `fit()`
+    shouldn't leave `classes_`/`n_features_`/counters set (looking
+    spuriously "fitted"), and a later `partial_fit()` shouldn't fold
+    its batch into the existing counters."""
+    X, y = make_classification(
+        100, 5, n_classes=2, random_state=0, dtype=cp.float64
+    )
+    X -= X.min(0)  # Make all inputs positive
+    bad_alpha = np.array([1.0, -1.0, 2.0, 0.1, 3.0])
+
+    fresh_model = ComplementNB(alpha=bad_alpha)
+    with pytest.raises(ValueError):
+        fresh_model.fit(X, y)
+    assert not hasattr(fresh_model, "classes_")
+    assert not hasattr(fresh_model, "n_features_")
+
+    classes = cp.unique(y)
+    half = len(y) // 2
+    model = ComplementNB(alpha=1.0)
+    model.partial_fit(X[:half], y[:half], classes=classes)
+    feature_count_before = model.feature_count_.copy()
+    class_count_before = model.class_count_.copy()
+
+    model.alpha = bad_alpha
+    with pytest.raises(ValueError):
+        model.partial_fit(X[half:], y[half:])
+    assert_array_equal(model.feature_count_.get(), feature_count_before.get())
+    assert_array_equal(model.class_count_.get(), class_count_before.get())
+
+
+@pytest.mark.parametrize(
+    "alpha,reference_alpha",
+    [
+        (
+            cp.asarray([0.5, 1.0, 2.0, 0.1, 3.0]),
+            np.array([0.5, 1.0, 2.0, 0.1, 3.0]),
+        ),
+        (np.array(1.5), 1.5),
+    ],
+)
+def test_complement_array_alpha_coercion_edge_cases(alpha, reference_alpha):
+    """A cupy-resident alpha and a 0-d numpy alpha (neither a
+    `numbers.Real` instance) must validate and predict identically to
+    their plain host/scalar equivalents."""
+    X, y = make_classification(
+        100,
+        5,
+        n_classes=3,
+        n_informative=3,
+        n_redundant=0,
+        random_state=0,
+        dtype=cp.float64,
+    )
+    X -= X.min(0)  # Make all inputs positive
+
+    cuml_model = ComplementNB(alpha=alpha).fit(X, y)
+    ref_model = ComplementNB(alpha=reference_alpha).fit(X, y)
+
+    assert_array_equal(cuml_model.predict(X).get(), ref_model.predict(X).get())
