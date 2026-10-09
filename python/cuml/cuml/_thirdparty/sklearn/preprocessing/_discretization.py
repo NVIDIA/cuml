@@ -275,7 +275,7 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator, SparseInputTagMixin):
             return np.full(n_features, orig_bins, dtype=int)
 
         n_bins = check_array(
-            orig_bins, dtype=np.int, copy=True, ensure_2d=False
+            orig_bins, dtype=int, copy=True, ensure_2d=False
         )
 
         if n_bins.ndim > 1 or n_bins.shape[0] != n_features:
@@ -283,7 +283,7 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator, SparseInputTagMixin):
                 "n_bins must be a scalar or array of shape (n_features,)."
             )
 
-        bad_nbins_value = (n_bins < 2) | (n_bins != orig_bins)
+        bad_nbins_value = (n_bins < 2) | (n_bins != np.asarray(orig_bins))
 
         violating_indices = np.where(bad_nbins_value)[0]
         if violating_indices.shape[0] > 0:
