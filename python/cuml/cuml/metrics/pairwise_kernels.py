@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 import inspect
+import math
 
 import cupy as cp
 import numpy as np
 from numba import cuda
 
 import cuml.internals
+from cuml.common.kernel_utils import cuda_kernel_factory
 from cuml.internals.validation import check_array
 from cuml.metrics import pairwise_distances
 
@@ -62,19 +64,47 @@ def cosine_similarity(X, Y):
     return cp.nan_to_num(K, copy=False)
 
 
-@cuda.jit(device=True)
-def additive_chi2_kernel_element(x, y):
-    res = 0.0
-    for i in range(len(x)):
-        denom = x[i] - y[i]
-        nom = x[i] + y[i]
-        if nom != 0.0:
-            res += denom * denom / nom
-    return -res
-
-
 def additive_chi2_kernel(X, Y):
-    return custom_kernel(X, Y, additive_chi2_kernel_element)
+    assert X.flags.c_contiguous
+    assert Y.flags.c_contiguous
+    assert X.shape[1] == Y.shape[1]
+
+    code = """
+    ({0} *X, {1} *Y, double *K, int X_n_rows, int Y_n_rows, int n_cols, int X_is_y) {
+        int x_row = threadIdx.x + blockIdx.x * blockDim.x;
+        int y_row = threadIdx.y + blockIdx.y * blockDim.y;
+
+        if (x_row >= X_n_rows) return;
+        if (y_row >= Y_n_rows) return;
+        if (X_is_y && x_row > y_row) return;
+
+        int x_start = x_row * n_cols;
+        int y_start = y_row * n_cols;
+        {0} res = 0.0;
+        for (int i = 0; i < n_cols; i++) {
+            {0} x = X[x_start + i];
+            {1} y = Y[y_start + i];
+            if (x != y) {
+                res += (x - y) * (x - y) / (x + y);
+            }
+        }
+        res = -res;
+
+        K[x_row * Y_n_rows + y_row] = res;
+        if (X_is_y) {
+            K[y_row * Y_n_rows + x_row] = res;
+        }
+    }
+    """
+
+    kernel = cuda_kernel_factory(code, (X.dtype, Y.dtype), "additive_chi2")
+    K = cp.empty((X.shape[0], Y.shape[0]), dtype=X.dtype, order="C")
+    kernel(
+        (math.ceil(X.shape[0] / 32), math.ceil(Y.shape[0] / 32)),
+        (32, 32),
+        (X, Y, K, X.shape[0], Y.shape[0], X.shape[1], X is Y),
+    )
+    return K
 
 
 def chi2_kernel(X, Y, gamma=1.0):
@@ -270,13 +300,31 @@ def pairwise_kernels(
             [5.04347663e-07, 2.03468369e-04],
             [4.24835426e-18, 2.54366565e-13]])
     """
-    ensure_non_negative = metric in ("additive_chi2", "chi2")
-    X = check_array(X, input_name="X", ensure_non_negative=ensure_non_negative)
+    if metric in ("additive_chi2", "chi2"):
+        ensure_non_negative = True
+        order = "C"
+    else:
+        ensure_non_negative = False
+        order = "A"
+
+    # Avoid duplicating host->device transfer if Y=X is explicitly provided
+    if Y is X:
+        Y = None
+
+    X = check_array(
+        X,
+        input_name="X",
+        ensure_non_negative=ensure_non_negative,
+        order=order,
+    )
     if Y is None:
         Y = X
     else:
         Y = check_array(
-            Y, input_name="Y", ensure_non_negative=ensure_non_negative
+            Y,
+            input_name="Y",
+            ensure_non_negative=ensure_non_negative,
+            order=order,
         )
     if X.shape[1] != Y.shape[1]:
         raise ValueError("X and Y have different dimensions.")

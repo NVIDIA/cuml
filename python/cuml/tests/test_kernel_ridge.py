@@ -292,6 +292,20 @@ def estimator_array_strategy(draw):
     degree=1,
     coef0=0.0,
 )
+@example(
+    kernel_arg=("additive_chi2", {}),
+    arrays=(
+        np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),  # X
+        np.array([[1.0, 2.0, 3.0]]).T,  # y
+        np.array([[2.0, 3.0], [4.0, 5.0]]),  # X_test
+        np.array([0.1]),  # alpha
+        0.5,  # sample_weight
+        np.float64,  # dtype
+    ),
+    gamma=1.0,
+    degree=1,
+    coef0=0.0,
+)
 @given(
     kernel_arg_strategy(),
     estimator_array_strategy(),
