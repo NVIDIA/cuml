@@ -1,18 +1,14 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+import cupy as cp
 
-# distutils: language = c++
-
-from numba.cuda.api import from_cuda_array_interface
+from libc.stdint cimport uintptr_t
 
 
 cdef extern from "Python.h":
     cdef cppclass PyObject
-
-
-from libc.stdint cimport uintptr_t
 
 
 cdef extern from "callbacks_implems.h" namespace "ML::Internals":
@@ -27,20 +23,18 @@ cdef extern from "callbacks_implems.h" namespace "ML::Internals":
         PyObject* pyCallbackClass
 
 cdef class PyCallback:
+    def get_cupy_array(self, ptr, n_rows, n_cols, typestr):
+        dtype = cp.dtype(typestr)
+        mem = cp.cuda.UnownedMemory(
+            ptr=ptr, size=n_rows * n_cols * dtype.itemsize, owner=None
+        )
+        return cp.ndarray(
+            memptr=cp.cuda.memory.MemoryPointer(mem, 0),
+            shape=(n_rows, n_cols),
+            dtype=dtype,
+            order="C",
+        )
 
-    def get_numba_matrix(self, embeddings, shape, typestr):
-
-        sizeofType = 4 if typestr == "float32" else 8
-        desc = {
-            'shape': shape,
-            'strides': (shape[1]*sizeofType, sizeofType),
-            'typestr': typestr,
-            'data': [embeddings],
-            'order': 'C',
-            'version': 1
-        }
-
-        return from_cuda_array_interface(desc)
 
 cdef class GraphBasedDimRedCallback(PyCallback):
     """
@@ -49,13 +43,13 @@ cdef class GraphBasedDimRedCallback(PyCallback):
 
     class CustomCallback(GraphBasedDimRedCallback):
         def on_preprocess_end(self, embeddings):
-            print(embeddings.copy_to_host())
+            print(embeddings)
 
         def on_epoch_end(self, embeddings):
-            print(embeddings.copy_to_host())
+            print(embeddings)
 
         def on_train_end(self, embeddings):
-            print(embeddings.copy_to_host())
+            print(embeddings)
 
     reducer = UMAP(n_components=2, callback=CustomCallback())
     """
