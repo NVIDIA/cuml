@@ -390,6 +390,7 @@ def all_algorithms():
         cuml_ElasticNet = cuml.linear_model.ElasticNet
         cuml_Lasso = cuml.linear_model.Lasso
         cuml_Ridge = cuml.linear_model.Ridge
+        cuml_RidgeCV = cuml.linear_model.RidgeCV
         cuml_KernelRidge = cuml.kernel_ridge.KernelRidge
         cuml_LogisticRegression = cuml.linear_model.LogisticRegression
         cuml_RandomForestClassifier = cuml.ensemble.RandomForestClassifier
@@ -425,6 +426,7 @@ def all_algorithms():
         cuml_LinearRegression = cuml_ElasticNet = cuml_Lasso = cuml_Ridge = (
             None
         )
+        cuml_RidgeCV = None
         cuml_KernelRidge = None
         cuml_LogisticRegression = None
         cuml_RandomForestClassifier = cuml_RandomForestRegressor = None
@@ -581,6 +583,14 @@ def all_algorithms():
             cuml_Ridge,
             shared_args={},
             name="Ridge",
+            accepts_labels=True,
+            accuracy_function=metrics.r2_score,
+        ),
+        AlgorithmPair(
+            sklearn.linear_model.RidgeCV,
+            cuml_RidgeCV,
+            shared_args={"alphas": np.logspace(-3, 3, 50)},
+            name="RidgeCV",
             accepts_labels=True,
             accuracy_function=metrics.r2_score,
         ),
