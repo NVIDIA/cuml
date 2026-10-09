@@ -627,7 +627,9 @@ def test_all_points_membership_vectors_blobs(
         sk_agg
     ).astype("float32")
     sk_membership_vectors.sort(axis=1)
-    assert_membership_vectors(cu_membership_vectors, sk_membership_vectors)
+    np.testing.assert_allclose(
+        cu_membership_vectors, sk_membership_vectors, rtol=0.0, atol=0.02
+    )
 
 
 @pytest.mark.parametrize("nrows", [1000])
@@ -1013,7 +1015,9 @@ def test_membership_vector_blobs(
         points_to_predict,
     ).astype("float32")
     sk_membership_vectors.sort(axis=1)
-    assert_membership_vectors(cu_membership_vectors, sk_membership_vectors)
+    np.testing.assert_allclose(
+        cu_membership_vectors, sk_membership_vectors, rtol=0.0, atol=0.02
+    )
 
 
 @pytest.mark.parametrize("nrows", [1000])
