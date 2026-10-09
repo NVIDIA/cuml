@@ -1,0 +1,17 @@
+# SkillEvaluator run policy for the cuml skill. CLI flags override these values.
+# See docs/source/developer_guide/agent_skill.md.
+schema_version: 1
+
+harbor:
+  task_source: evals_json
+  custom_dockerfile_mode: rebase
+  n_attempts: 1
+  pass_threshold: 0.50
+  n_concurrent: 1  # trials share one GPU
+  timeout_multiplier: 3
+  resources:
+    cpus: 4
+    memory_mb: 16384
+
+grading:
+  mode: default

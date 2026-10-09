@@ -1,0 +1,583 @@
+{
+  "skill_name": "cuml",
+  "evals": [
+    {
+      "id": "b01",
+      "name": "sklearn-script-with-unsupported-params",
+      "source": "brian",
+      "track": "end-user",
+      "prompt": "I have this training script that takes forever on our 12M row fraud dataset. We just got an H100 box \u2014 how do I run it on the GPU with cuML? I'd rather not rewrite everything.\n\n```python\nimport pandas as pd\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.ensemble import RandomForestClassifier\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.svm import SVC\nfrom sklearn.metrics import roc_auc_score\n\ndf = pd.read_parquet('transactions.parquet')\nX = df.drop(columns=['is_fraud']).values\ny = df['is_fraud'].values\nw = df['sample_weight'].values\nX_tr, X_te, y_tr, y_te, w_tr, w_te = train_test_split(X, y, w, test_size=0.2)\n\nrf = RandomForestClassifier(n_estimators=500, criterion='log_loss', class_weight='balanced', n_jobs=-1)\nrf.fit(X_tr, y_tr, sample_weight=w_tr)\n\nlr = LogisticRegression(C=0.1, warm_start=True, max_iter=2000)\nlr.fit(X_tr, y_tr)\n\nsvc = SVC(kernel='rbf', probability=True)\nsvc.fit(X_tr[:500_000], y_tr[:500_000])\n\nfor m in [rf, lr, svc]:\n    print(type(m).__name__, roc_auc_score(y_te, m.predict_proba(X_te)[:, 1]))\n```",
+      "expected_output": "Recommends running unchanged under cuml.accel (python -m cuml.accel train.py). Then audits the script and points out which calls will silently fall back to CPU: RF criterion='log_loss' (class_weight='balanced' and sample_weight run on GPU in current cuML, despite older docs); LogisticRegression warm_start=True; SVC probability=True. Suggests GPU-friendly substitutions (e.g. criterion='gini'/'entropy', drop warm_start) and, for SVC, a range of options: other GPU-accelerated classifiers that provide predict_proba (LogisticRegression, RandomForestClassifier, KNeighborsClassifier), or SVC without probability=True if only labels/decision scores are needed and explains how to verify what ran on GPU (-v / CUML_ACCEL_LOG_LEVEL=info or --profile). Does not invent cuML parameters.",
+      "assertions": [
+        "Recommends cuml.accel (CLI `python -m cuml.accel`, `%load_ext cuml.accel`, or `cuml.accel.install()`) as the primary approach",
+        "Identifies that RandomForestClassifier with criterion='log_loss' falls back to CPU",
+        "Does not claim that RandomForestClassifier class_weight='balanced' or sample_weight cause CPU fallback (both run on GPU in current cuML; only class_weight='balanced_subsample' falls back)",
+        "Identifies that LogisticRegression warm_start=True falls back to CPU",
+        "Identifies that SVC(probability=True) falls back to CPU and offers more than one GPU-friendly way forward (e.g. GPU-accelerated classifiers with predict_proba such as LogisticRegression, RandomForestClassifier, or KNeighborsClassifier; SVC without probability=True if only labels/decision scores are needed) rather than prescribing a single replacement",
+        "Explains how to verify GPU vs CPU execution (verbose logging, CUML_ACCEL_LOG_LEVEL, or --profile)"
+      ]
+    },
+    {
+      "id": "b02",
+      "name": "embeddings-umap-hdbscan-multi-gpu",
+      "source": "brian",
+      "track": "end-user",
+      "prompt": "We have ~20M document embeddings (1024-dim, float32, stored as a bunch of .npy shards, about 80GB total) from our retrieval pipeline. I want to cluster them to find topic groups and also make a 2D map for an internal dashboard. Right now I'm doing umap-learn -> hdbscan on a 500k sample on CPU and it already takes hours. We have a single node with 4x H100 80GB and 1TB of RAM. How should I do this with cuML on the full dataset? Embeddings are meant to be compared with cosine similarity.",
+      "expected_output": "Proposes a GPU pipeline using the direct cuML API: load shards as float32; handle cosine similarity in the UMAP step (metric='cosine', or L2-normalize so euclidean is equivalent), since GPU HDBSCAN only supports euclidean and should run on the UMAP output; reduce with cuml.UMAP to a modest dimensionality (e.g. 5-50 dims) for clustering and separately to 2D for the map; cluster the reduced embeddings with cuml.cluster.HDBSCAN. Uses the batched kNN graph build (build_algo='nn_descent', build_kwds={'knn_n_clusters': N>1, 'knn_overlap_factor': ...}) to handle ~80GB of data, and device_ids='all' (or [0,1,2,3]), which only takes effect with build_algo='nn_descent' and knn_n_clusters > 1, to spread that graph build across the 4 GPUs. Is accurate that only the kNN graph construction is multi-GPU (the rest of UMAP/HDBSCAN runs on one GPU) and that device_ids is not available under cuml.accel, so this requires the direct cuml API. Mentions reasonable HDBSCAN params (min_cluster_size, min_samples) and that GPU results differ numerically from CPU (compare with trustworthiness / ARI).",
+      "assertions": [
+        "Uses cuML UMAP (cuml.UMAP / cuml.manifold.UMAP) for dimensionality reduction",
+        "Uses cuML HDBSCAN (cuml.cluster.HDBSCAN) for clustering",
+        "Reduces dimensionality before HDBSCAN rather than clustering the raw 1024-dim embeddings",
+        "Handles cosine similarity correctly: applies it in UMAP (metric='cosine', or L2-normalizing first) and does not pass metric='cosine' to GPU HDBSCAN, which only supports euclidean",
+        "Uses the batched kNN graph build with build_algo='nn_descent' and build_kwds={'knn_n_clusters': N} with N > 1 (nn_descent is required for the multi-GPU path, so brute_force_knn is not appropriate here)",
+        "Uses device_ids (e.g. 'all' or [0, 1, 2, 3]) together with build_algo='nn_descent' and knn_n_clusters > 1 to use the multiple GPUs",
+        "Uses the direct cuml API for the multi-GPU path (does not suggest device_ids works under cuml.accel)",
+        "Does not overstate multi-GPU support: indicates device_ids applies to the batched kNN graph build, not the whole algorithm",
+        "Keeps data as float32 (does not upcast to float64)",
+        "All cuML arguments in the recommended code exist in current cuML (e.g. no fit_transform(data_on_host=...), build_kwds uses knn_n_clusters not nnd_n_clusters, no unsupported UMAP metric)"
+      ]
+    },
+    {
+      "id": "b03",
+      "name": "embeddings-umap-hdbscan-single-gpu",
+      "source": "brian",
+      "track": "end-user",
+      "prompt": "I've got ~5M CLIP image embeddings (768-dim float32, ~15GB as a .npy) and I want to cluster them into visual themes plus get a 2D projection for exploration. My current code is basically:\n\n```python\nimport numpy as np, umap, hdbscan\nX = np.load('clip_embs.npy')\nreducer = umap.UMAP(n_neighbors=30, n_components=10, metric='cosine')\nlow = reducer.fit_transform(X)\nlabels = hdbscan.HDBSCAN(min_cluster_size=500, metric='euclidean').fit_predict(low)\nviz = umap.UMAP(n_neighbors=30, n_components=2, metric='cosine').fit_transform(X)\n```\n\nIt takes most of a day on CPU. I have one A100 80GB. How do I get this running on the GPU with cuML?",
+      "expected_output": "The data (~15GB) fits comfortably on the 80GB GPU, so keep it simple: run the existing script unchanged under cuml.accel (python -m cuml.accel script.py, or %load_ext cuml.accel before imports). umap.UMAP with metric='cosine' and hdbscan.HDBSCAN with metric='euclidean' are both GPU-accelerated as written. Optionally mentions the direct cuML API (cuml.UMAP, cuml.cluster.HDBSCAN) as an equivalent alternative. Recommends verifying GPU execution (-v / CUML_ACCEL_LOG_LEVEL=info or --profile), keeps float32, and notes results differ numerically from CPU (compare quality, e.g. trustworthiness, rather than exact embeddings).",
+      "assertions": [
+        "Recommends running the existing umap/hdbscan code unchanged under cuml.accel (CLI, %load_ext, or cuml.accel.install())",
+        "Confirms the existing parameters (UMAP metric='cosine', HDBSCAN metric='euclidean' on the UMAP output) run on GPU without changes",
+        "Does not pass metric='cosine' to GPU HDBSCAN",
+        "Recommends a way to verify GPU execution (verbose logging, CUML_ACCEL_LOG_LEVEL, or --profile)",
+        "Any cuML-specific code uses only valid current arguments (e.g. no fit_transform(data_on_host=...), no nnd_n_clusters build_kwds key)"
+      ]
+    },
+    {
+      "id": "b04",
+      "name": "direct-cuml-api-sklearn-param-mismatch",
+      "source": "brian",
+      "track": "end-user",
+      "prompt": "I swapped my sklearn imports for cuml ones and now I'm getting `TypeError: __init__() got an unexpected keyword argument` errors. Can you fix this so it runs on cuml?\n\n```python\nfrom cuml.ensemble import RandomForestClassifier\nfrom cuml.linear_model import LogisticRegression\nfrom cuml.cluster import DBSCAN\n\nrf = RandomForestClassifier(n_estimators=300, criterion='entropy', max_depth=16,\n                            min_weight_fraction_leaf=0.01, n_jobs=-1, random_state=0)\nlr = LogisticRegression(penalty='l1', solver='saga', C=0.5, n_jobs=8)\ndb = DBSCAN(eps=0.3, min_samples=10, algorithm='ball_tree', leaf_size=40, n_jobs=-1)\n```",
+      "expected_output": "Fixes each constructor against the actual cuML signatures: RandomForestClassifier uses split_criterion (not criterion) and has no n_jobs or min_weight_fraction_leaf; cuML LogisticRegression has no n_jobs and its solver is 'qn' (L1 supported via qn/OWL-QN, so drop solver='saga'); cuML DBSCAN's algorithm accepts only 'brute' or 'rbc' (not 'ball_tree') and it has no leaf_size or n_jobs. Explains briefly that cuML estimators are not signature-identical to sklearn, and mentions that cuml.accel with plain sklearn imports would accept the sklearn signatures (falling back to CPU where unsupported) as an alternative.",
+      "assertions": [
+        "Replaces criterion='entropy' with split_criterion='entropy' for cuML RandomForestClassifier",
+        "Removes n_jobs from all three cuML constructors",
+        "Removes min_weight_fraction_leaf from the cuML RandomForestClassifier",
+        "Removes or replaces solver='saga' on cuML LogisticRegression (cuML uses solver='qn')",
+        "Removes leaf_size from cuML DBSCAN and replaces algorithm='ball_tree' with a supported value ('brute' or 'rbc') or removes it",
+        "Does not introduce any other parameter that does not exist in the cuML signature",
+        "Mentions cuml.accel with unmodified sklearn imports as an alternative",
+        "Does not claim that LogisticRegression solver='saga' causes CPU fallback under cuml.accel (cuml.accel maps any sklearn solver to cuML's qn solver)",
+        "The corrected code is runnable as written (no placeholders, every kwarg exists in the cuML signature)"
+      ]
+    },
+    {
+      "id": "b05",
+      "name": "notebook-pandas-pipeline-speedup",
+      "source": "brian",
+      "track": "end-user",
+      "prompt": "I've got a jupyter notebook that builds a pricing model. It loads ~8M rows with pandas, does a ColumnTransformer (OneHotEncoder on ~10 categorical cols, StandardScaler on the numeric ones), and then a GridSearchCV over Ridge and RandomForestRegressor with 5-fold CV. The grid search alone takes about 3 hours. Someone told me our team's A100 workstation could make this way faster. What would I need to change? I'd like to keep the notebook mostly as-is so my teammates can still read it.",
+      "expected_output": "Recommends loading %load_ext cudf.pandas and %load_ext cuml.accel as the first cell before any pandas/sklearn imports, leaving the rest of the notebook unchanged. Notes that the preprocessing (OneHotEncoder, StandardScaler) is accelerated (StandardScaler needs scikit-learn>=1.8), that Ridge and RandomForestRegressor are accelerated, and that ColumnTransformer/Pipeline/GridSearchCV work with accelerated estimators. Recommends verifying with %%cuml.accel.profile or logging, using float32 where possible, warming up before timing, and comparing model quality via metrics rather than coefficients.",
+      "assertions": [
+        "Recommends %load_ext cuml.accel in the notebook",
+        "Recommends %load_ext cudf.pandas for the pandas portion",
+        "States that the extensions must be loaded before importing pandas/sklearn",
+        "Keeps the existing sklearn code (ColumnTransformer, GridSearchCV, Ridge, RandomForestRegressor) rather than rewriting it with cuml imports",
+        "Recommends a way to check what ran on GPU (cuml.accel profile cell magic or logging)",
+        "Does not claim OneHotEncoder or StandardScaler are unaccelerated (both run on GPU under cuml.accel; StandardScaler needs scikit-learn>=1.8)",
+        "Does not recommend OneHotEncoder settings that cause CPU fallback (min_frequency, max_categories, handle_unknown='infrequent_if_exist')"
+      ]
+    },
+    {
+      "id": "b06",
+      "name": "small-data-gpu-not-worth-it",
+      "source": "brian",
+      "track": "end-user",
+      "prompt": "I have a churn dataset with about 4,000 customers and 25 features. I'm doing 10-fold cross validation over a small grid of LogisticRegression and RandomForestClassifier params with sklearn and the whole thing takes around 45 seconds on my laptop. My company just gave me access to a GPU server \u2014 should I port this to cuML to make it faster? What would I need to change?",
+      "expected_output": "Gives an honest answer: at ~4k rows x 25 features, each fit is tiny and GPU initialization, host-device transfer, and kernel compilation overhead will likely dominate, so cuML is unlikely to help and may be slower. Suggests CPU-side improvements first (n_jobs=-1 on GridSearchCV/RandomForest, fewer folds/params, HalvingGridSearchCV). If they want to try anyway, the zero-effort test is running unchanged under cuml.accel and comparing end-to-end wall time (after warmup, excluding import time). Explains when GPU starts to pay off (much larger datasets or heavier algorithms).",
+      "assertions": [
+        "States that the GPU is unlikely to speed this up (or may be slower) at this data size",
+        "Explains the reason: fixed overheads such as initialization, data transfer, or kernel compilation dominate on small inputs",
+        "Suggests CPU-side optimizations (e.g. n_jobs, reducing the grid/folds, successive halving)",
+        "Does not recommend rewriting the code with direct cuml imports",
+        "If suggesting a GPU try, recommends cuml.accel with an end-to-end timing comparison against CPU"
+      ]
+    },
+    {
+      "id": "b07",
+      "name": "profiling-disappointing-speedup",
+      "source": "brian",
+      "track": "end-user",
+      "prompt": "I ran my training script with `python -m cuml.accel train.py` on an A100 and it's barely faster than CPU (maybe 1.3x, 52 min vs 68 min). The data is ~6M rows x 120 features, so I expected a lot more. What's going on and how do I figure out where the time is going?\n\n```python\nimport pandas as pd\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.impute import SimpleImputer\nfrom sklearn.preprocessing import OneHotEncoder, StandardScaler\nfrom sklearn.ensemble import RandomForestClassifier\nfrom sklearn.model_selection import RandomizedSearchCV\n\ndf = pd.read_parquet('events.parquet')\nX, y = df.drop(columns='converted'), df['converted']\ncat = [c for c in X.columns if X[c].dtype == 'object']\nnum = [c for c in X.columns if c not in cat]\n\npre = ColumnTransformer([\n    ('cat', OneHotEncoder(handle_unknown='infrequent_if_exist', min_frequency=50), cat),\n    ('num', Pipeline([('imp', SimpleImputer()), ('sc', StandardScaler())]), num),\n])\npipe = Pipeline([('pre', pre), ('rf', RandomForestClassifier(class_weight='balanced_subsample'))])\nsearch = RandomizedSearchCV(pipe, {'rf__n_estimators': [200, 400], 'rf__max_depth': [12, 16, 20]},\n                            n_iter=6, cv=3, n_jobs=-1)\nsearch.fit(X, y)\n```",
+      "expected_output": "Leads with measurement: run `python -m cuml.accel --profile train.py` (function profiler: GPU vs CPU calls/time and the reason for each fallback) and/or `--line-profile` (per-line time and GPU %), or -v / CUML_ACCEL_LOG_LEVEL=info. Notes that the profilers do not track work in subprocesses, so set n_jobs=1 on RandomizedSearchCV while profiling. Then predicts what the profile will likely show: RandomForestClassifier(class_weight='balanced_subsample') falls back to CPU (the dominant cost; switching to 'balanced' keeps it on GPU); OneHotEncoder with handle_unknown='infrequent_if_exist' / min_frequency falls back; StandardScaler requires scikit-learn>=1.8; SimpleImputer isn't accelerated; n_jobs=-1 spawns many processes contending for one GPU. Suggests fixes (class_weight='balanced', simpler OneHotEncoder settings, n_jobs=1, cudf.pandas for the pandas part) and re-profiling to confirm. Mentions excluding import time/warmup from timing.",
+      "assertions": [
+        "Recommends the cuml.accel function profiler (`--profile`, `%%cuml.accel.profile`, or `cuml.accel.profile()`)",
+        "Mentions the line profiler (`--line-profile` or `%%cuml.accel.line_profile`) or verbose logging as an additional diagnostic",
+        "Notes that the profiler does not capture work in subprocesses and recommends n_jobs=1 while profiling",
+        "Identifies RandomForestClassifier class_weight='balanced_subsample' as causing CPU fallback (and that 'balanced' would run on GPU)",
+        "Identifies the OneHotEncoder settings (handle_unknown='infrequent_if_exist' and/or min_frequency) as causing CPU fallback",
+        "Recommends re-running the profiler after changes to confirm the fallbacks are gone"
+      ]
+    },
+    {
+      "id": "b08",
+      "name": "library-optional-gpu-backend-umap-hdbscan",
+      "source": "brian",
+      "track": "library-integration",
+      "prompt": "I maintain an open-source Python library (pip-installable, ~5k users). Internally it uses umap-learn for dimensionality reduction and hdbscan for clustering. A lot of our users have NVIDIA GPUs and keep asking for GPU support. I want to add cuML acceleration when a GPU is available, but cuML must NOT become a hard dependency and CPU-only users shouldn't notice any change. What's the right way to design this?",
+      "expected_output": "Lays out the integration options with tradeoffs: (1) zero-code path: document that users can run under cuml.accel / CUML_ACCEL_ENABLED=1 and make sure the library works under it; (2) let users pass in their own estimator instances (e.g. umap_model=, hdbscan_model=) so they can supply cuml.UMAP / cuml.cluster.HDBSCAN; (3) an explicit opt-in backend (e.g. device='gpu' or an optional extra like pip install lib[gpu]) with lazy imports of cuml inside a try/except. Advises against calling cuml.accel.install() implicitly at library import (it is a global, process-wide side effect). Covers output types (set output_type='numpy' or convert cupy arrays back to numpy before downstream code), parameter differences between cuML and umap-learn/hdbscan, testing under `pytest -p cuml.accel` on a GPU CI runner, and that CPU-only CI must not import cuml.",
+      "assertions": [
+        "Keeps cuML optional: lazy/guarded import of cuml and/or an optional install extra",
+        "Mentions the zero-code-change cuml.accel path (CLI, %load_ext, or CUML_ACCEL_ENABLED) as an option for the library's users",
+        "Recommends allowing users to inject their own estimator objects (e.g. passing a cuml.UMAP instance) or an explicit opt-in flag, rather than silently auto-switching backends",
+        "Advises against calling cuml.accel.install() automatically at library import time, or explains its process-wide side effects",
+        "Addresses output types: ensures cuML results are converted to / returned as NumPy (e.g. output_type='numpy')",
+        "Recommends testing the library under cuml.accel with `pytest -p cuml.accel` (or equivalent) on a GPU runner",
+        "GPU-path code filters or translates CPU-only kwargs (e.g. umap-learn densmap/low_memory, hdbscan memory/core_dist_n_jobs) instead of passing them to cuML constructors"
+      ]
+    },
+    {
+      "id": "b09",
+      "name": "library-ci-compat-under-cuml-accel",
+      "source": "brian",
+      "track": "library-integration",
+      "prompt": "We maintain a library of sklearn-compatible estimators (meta-estimators and wrappers that call sklearn internally \u2014 think calibration, conformal prediction, etc). Some users have started running our stuff under cuml.accel and a couple bug reports came in. I want to add a GPU CI job that runs our existing test suite with cuml.accel turned on. How do I set that up, and what kinds of things in our code or tests are likely to break?",
+      "expected_output": "Shows how to run the existing suite under the accelerator with `pytest -p cuml.accel` (and optionally --xfail-list with a YAML of known failures), plus enabling logging (CUML_ACCEL_LOG_LEVEL=info) to see GPU vs fallback. Lists likely breakages: tests asserting exact numerical equality of fitted attributes (coef_, labels_, components_) \u2014 switch to quality metrics/tolerances; fitted attributes that cuml.accel doesn't compute (e.g. rank_, singular_, dual_gap_); exact-type checks (type(est) is X) vs isinstance; error/warning message text differences; non-determinism with random_state for some algorithms; cupy vs numpy arrays leaking. Mentions cuml.accel.is_proxy for detecting accelerated estimators when needed. Notes the job needs an NVIDIA GPU runner.",
+      "assertions": [
+        "Gives the `pytest -p cuml.accel` invocation (or equivalent `python -m cuml.accel -m pytest`) to run the suite under the accelerator",
+        "Uses cuml.accel's --xfail-list YAML option to track known failures",
+        "Warns that tests comparing fitted attributes (e.g. coef_, labels_) for exact equality will break and suggests comparing quality metrics or using tolerances",
+        "Mentions that some fitted attributes are not computed under cuml.accel",
+        "Mentions error/warning message differences or exact-type checks as a source of test failures",
+        "Mentions cuml.accel.is_proxy for detecting accelerated estimators",
+        "Does not claim that joblib/loky worker subprocesses run without cuml.accel (install() sets CUML_ACCEL_ENABLED so workers are accelerated too)"
+      ]
+    },
+    {
+      "id": "b10",
+      "name": "library-explicit-device-dispatch",
+      "source": "brian",
+      "track": "library-integration",
+      "prompt": "I'm adding a `device=\"auto\" | \"cpu\" | \"gpu\"` parameter to the estimators in our anomaly detection package. For the GPU path I want to dispatch internally to cuML equivalents (we use sklearn's IsolationForest, NearestNeighbors, PCA and KMeans under the hood). Inputs from users can be numpy, pandas, or sometimes cupy arrays. Can you sketch the dispatch layer and tell me what I need to watch out for?",
+      "expected_output": "Sketches a small dispatch layer: lazy import of cuml inside the GPU branch; 'auto' resolves to GPU only if cuml imports and a CUDA device is present; a per-estimator param translation table since cuML signatures differ from sklearn (e.g. no n_jobs, NearestNeighbors 'algorithm' semantics differ, unsupported metrics); explicit output_type (e.g. output_type='numpy' or 'input', or cuml.using_output_type) so return types match what users passed in. Maps each estimator to its real cuML counterpart (cuml.ensemble.IsolationForest, cuml.neighbors.NearestNeighbors, cuml.decomposition.PCA, cuml.cluster.KMeans) and notes their narrower signatures (e.g. cuML IsolationForest has no n_jobs/warm_start; NearestNeighbors does not accept every sklearn metric); float32 vs float64; numerical differences from CPU. Mentions cuml.accel as an alternative that avoids maintaining the translation layer.",
+      "assertions": [
+        "Imports cuml lazily inside the GPU code path, not at module import time",
+        "Handles 'auto' by checking cuml availability and/or GPU presence with a CPU fallback",
+        "Translates or filters sklearn parameters that cuML estimators do not accept (e.g. n_jobs) instead of passing them through blindly",
+        "Sets output_type (per-estimator or via cuml.using_output_type / set_global_output_type) so outputs match the input/array type users expect",
+        "Does not invent a cuML estimator or module path that does not exist",
+        "Mentions cuml.accel as an alternative or complement to hand-written dispatch",
+        "Maps IsolationForest to cuml.ensemble.IsolationForest (does not claim cuML lacks it)",
+        "Handles PCA svd_solver values cuML rejects ('randomized', 'arpack') by translating them or falling back to CPU",
+        "Converts CuPy inputs to host (NumPy) before the sklearn CPU path"
+      ]
+    },
+    {
+      "id": "p01",
+      "name": "install-pip-cuda13",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I'm on Ubuntu 24.04 with an RTX 4090, NVIDIA driver 580 (nvidia-smi says CUDA 13.0). What's the exact pip command to install the latest cuML into my existing Python 3.12 venv? I don't use conda.",
+      "expected_output": "Gives `pip install cuml-cu13` (CUDA 13 wheels on pypi.org match driver 580), with no extra index URL required, and a quick import check. Does not suggest `pip install cuml` (an unrelated placeholder package) or claim that CUDA 13 wheels do not exist.",
+      "assertions": [
+        "Recommends installing the `cuml-cu13` package with pip",
+        "Does not recommend `pip install cuml` without a CUDA suffix",
+        "Does not claim that CUDA 13 wheels are unavailable or that cuml-cu12 is required for this driver"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p02",
+      "name": "colab",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "How do I use cuML on Google Colab? Give me the exact cells I need to run to get from a fresh notebook to fitting a cuML model, and how to make my existing sklearn code use the GPU there.",
+      "expected_output": "Explains that Colab GPU runtimes ship cuML preinstalled (as cuml-cu13 since September 2026), so the first step is selecting a GPU runtime and checking `import cuml; cuml.__version__` or `pip list`, not reinstalling. Shows fitting a cuML estimator, and `%load_ext cuml.accel` as the first cell (before importing sklearn) for existing sklearn code. If it suggests installing or upgrading, it matches the runtime's CUDA major version rather than assuming CUDA 12.",
+      "assertions": [
+        "Says cuML is preinstalled on Colab GPU runtimes (or checks for it before installing)",
+        "Recommends `%load_ext cuml.accel` before importing sklearn for existing sklearn code",
+        "Does not instruct installing `cuml-cu12` on Colab without checking the runtime's CUDA version (Colab now ships CUDA 13 / cuml-cu13)",
+        "Does not suggest `cuml-cu11` or `pip install cuml`"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "P",
+        "opus": "P"
+      }
+    },
+    {
+      "id": "p03",
+      "name": "docker",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I need a Dockerfile for a small FastAPI service that loads a model and runs cuML inference (latest stable cuML). Which base image should I use and what does the Dockerfile look like? Also what do I need on the host to run it?",
+      "expected_output": "Recommends the official `rapidsai/base` image with a CUDA-major tag such as `rapidsai/base:26.08-cuda12-py3.12` (or `-cuda13-`), or a slim Python image plus `pip install cuml-cu12`/`cuml-cu13`. Host needs an NVIDIA driver matching the CUDA major and the NVIDIA Container Toolkit, and the container must be run with `--gpus all`. Does not use tags with a CUDA minor version (e.g. `cuda12.9`), which do not exist for recent releases.",
+      "assertions": [
+        "Uses a valid base image approach: rapidsai/base with a CUDA-major tag (cudaNN, e.g. cuda12 or cuda13), or a Python image with pip install cuml-cu12/cuml-cu13",
+        "Does not use a rapidsai/base tag with a CUDA minor version such as `cuda12.9` or `cuda12.8`",
+        "States the host needs the NVIDIA driver and the NVIDIA Container Toolkit, and runs the container with `--gpus`",
+        "Does not pin a nonexistent cuML version (e.g. `cuml==24.12` from PyPI)"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "P",
+        "opus": "P"
+      }
+    },
+    {
+      "id": "p04",
+      "name": "kmeans-diff",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I ported my clustering from sklearn to cuml.cluster.KMeans with the same n_clusters=8 and random_state=0, but the inertia and the labels are different from sklearn's. Is cuML broken? What exactly differs between the two implementations and how do I make the results comparable?",
+      "expected_output": "Explains this is expected, not a bug: cuML KMeans uses `init='scalable-k-means++'` and different random number streams, `n_init` defaults differ, and cluster labels are arbitrary permutations, so inertia and labels need not match for the same seed. To compare, use adjusted_rand_score / adjusted_mutual_info_score on labels and compare inertia within a tolerance, or initialise both with the same explicit centroids.",
+      "assertions": [
+        "Says differences are expected and cuML is not broken",
+        "Mentions label permutation and/or different initialisation (scalable-k-means++) or random streams",
+        "Recommends comparing with a permutation-invariant metric such as adjusted_rand_score, or using identical explicit initial centroids"
+      ],
+      "probe_verdicts": {
+        "haiku": "C",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p05",
+      "name": "umap-oom",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "cuML UMAP on 10M x 384 float32 sentence embeddings crashes with `MemoryError: std::bad_alloc: out_of_memory: CUDA error ... out of memory` on my 24GB RTX 4090. My code is just:\n\n```python\nfrom cuml.manifold import UMAP\nemb = UMAP(n_neighbors=15, n_components=2).fit_transform(X)  # X is a numpy array\n```\n\nHow do I make this fit on my GPU? I want to keep the full dataset if possible.",
+      "expected_output": "Keeps the full dataset by batching the kNN graph build: `UMAP(build_algo='nn_descent', build_kwds={'knn_n_clusters': 4 or more, 'knn_overlap_factor': 2})`, increasing knn_n_clusters to lower memory, and/or enabling managed memory with `rmm.reinitialize(managed_memory=True)`. Does not use the removed `data_on_host` argument or the old `nnd_n_clusters`/`nnd_do_batch` keys (which are silently ignored). Notes that the default build_algo='auto' already uses NN-Descent at this size.",
+      "assertions": [
+        "Uses build_kwds with `knn_n_clusters` greater than 1 (and optionally `knn_overlap_factor`) to batch the kNN graph build",
+        "Does not pass `data_on_host` to fit or fit_transform",
+        "Does not use the build_kwds keys `nnd_n_clusters` or `nnd_do_batch`",
+        "Does not claim that the default kNN build for 10M rows is brute force",
+        "Every UMAP argument and build_kwds key used exists in the installed cuML"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "W",
+        "opus": "W"
+      }
+    },
+    {
+      "id": "p06",
+      "name": "hdbscan-soft",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I'm clustering with cuML's HDBSCAN. How do I (1) get soft cluster membership probabilities for every point (like hdbscan's all_points_membership_vectors), and (2) assign new incoming points to the existing clusters without refitting? Please show working code.",
+      "expected_output": "Fits `cuml.cluster.hdbscan.HDBSCAN(prediction_data=True)` (or calls `generate_prediction_data()`), then uses `cuml.cluster.hdbscan.all_points_membership_vectors(clusterer)` for soft memberships and `cuml.cluster.hdbscan.approximate_predict(clusterer, new_points)` (and `membership_vector`) for new points. These functions live directly in `cuml.cluster.hdbscan`; there is no `HDBSCAN.predict` and no `cuml.cluster.hdbscan.prediction` module.",
+      "assertions": [
+        "Sets `prediction_data=True` (or calls generate_prediction_data) before using the prediction functions",
+        "Uses all_points_membership_vectors for soft memberships",
+        "Uses approximate_predict for new points",
+        "Imports these functions from `cuml.cluster.hdbscan`, not from a `.prediction` submodule, and does not call `HDBSCAN.predict`"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "P",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p07",
+      "name": "rf-fil",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "Two related things:\n1. I trained a RandomForestClassifier in sklearn (500 trees, depth 20) and want fast GPU inference in production with cuML's FIL. How do I load the sklearn model into FIL and predict?\n2. Separately, I'd like to train a forest with cuML's RandomForestClassifier on the GPU and then serve it on a CPU-only machine that doesn't have cuML installed. What's the right way to export it?\nShow code for both.",
+      "expected_output": "Part 1: load the sklearn forest with nvForest, `nvforest.load_from_sklearn(skl_model)` (or convert via Treelite and `nvforest.load_model`), then predict on GPU. `cuml.fil` is deprecated in 26.08 and removed in 26.10, so it should not be the recommended path. Part 2: train cuml.ensemble.RandomForestClassifier, export with `as_sklearn()` and pickle/joblib the sklearn object (or `as_treelite()` for Treelite-based serving); the CPU box then needs only sklearn.",
+      "assertions": [
+        "Does not recommend `cuml.fil` / `ForestInference` as the current way to load the model (deprecated 26.08, removed 26.10), or clearly flags it as deprecated in favour of nvForest",
+        "Uses nvForest (e.g. nvforest.load_from_sklearn or nvforest.load_model) for GPU inference of the sklearn model",
+        "Exports the cuML forest with `as_sklearn()` (or `as_treelite()`) for the CPU-only machine",
+        "Does not use `convert_to_treelite_model` or a nonexistent `to_sklearn` method"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "W",
+        "opus": "P"
+      }
+    },
+    {
+      "id": "p08",
+      "name": "polars",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "My data lives in a polars DataFrame (30M rows, 40 numeric feature columns plus a label column). Can I pass it directly to cuML estimators? What's the most efficient way to get the polars data into cuml's LogisticRegression, and to get predictions back as a polars Series?",
+      "expected_output": "cuML accepts array-like input, so a polars DataFrame can be passed directly (it is converted via NumPy). The efficient route is to select numeric columns, cast to Float32 in polars, convert once to a CuPy array (or to cuDF via `cudf.DataFrame.from_arrow`/`cudf.from_pandas`), fit `cuml.linear_model.LogisticRegression`, request CuPy/NumPy output, and wrap predictions with `pl.Series`. Handle nulls first.",
+      "assertions": [
+        "Converts the data to float32 (or explains the memory benefit of float32)",
+        "Shows a single host-to-device conversion (CuPy or cuDF) before fitting, or explains that direct polars input is converted via NumPy",
+        "Returns predictions as a polars Series (e.g. pl.Series(cupy.asnumpy(preds)))",
+        "Does not use nonexistent APIs such as `cudf.from_arrow` (the method is `cudf.DataFrame.from_arrow`)"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p09",
+      "name": "cudfpandas-accel",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I have a script that does a lot of pandas feature engineering and then trains sklearn models. Can I use cudf.pandas and cuml.accel together in the same script so both parts run on the GPU? How exactly do I enable both (script and Jupyter), and does the order matter?",
+      "expected_output": "Yes. Script: `python -m cudf.pandas -m cuml.accel script.py`. Jupyter: `%load_ext cudf.pandas` and `%load_ext cuml.accel` in the first cell, before importing pandas or sklearn (or `cudf.pandas.install()` then `cuml.accel.install()` at the top of the script). Order that matters: both must be enabled before pandas/sklearn are imported. The old `python -m cuml.accel --cudf-pandas` flag was removed in 25.10.",
+      "assertions": [
+        "Gives `python -m cudf.pandas -m cuml.accel script.py` (or install() calls at the top of the script) for scripts",
+        "Does not recommend `python -m cuml.accel --cudf-pandas`",
+        "Gives `%load_ext cudf.pandas` and `%load_ext cuml.accel` for Jupyter",
+        "States both must be enabled before pandas/sklearn are imported"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "P"
+      }
+    },
+    {
+      "id": "p10",
+      "name": "dask-kmeans",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "Show me how to do multi-GPU KMeans with cuML and Dask on a single machine with 4 GPUs. The data is a directory of parquet files, about 500M rows x 32 float columns total. I need the cluster centers and a label for each row written back to parquet.",
+      "expected_output": "Uses `dask_cuda.LocalCUDACluster` (one worker per GPU) and a `dask.distributed.Client`, reads the parquet files with `dask_cudf.read_parquet` (float32), fits `cuml.dask.cluster.KMeans`, gets labels with `predict`, and writes results with `to_parquet`. Notes that `cuml.dask` needs the dask extra (`pip install \"cuml-cu13[dask]\"`) and that with dask_cudf input `cluster_centers_` is a cuDF object (convert with `.to_pandas()` before pandas code). Uses an `if __name__ == '__main__':` guard.",
+      "assertions": [
+        "Uses LocalCUDACluster with a Client and cuml.dask.cluster.KMeans",
+        "Reads the parquet directory with dask_cudf (not pandas-backed dask)",
+        "Handles cluster_centers_ correctly as a cuDF object (e.g. .to_pandas()) or writes it without converting via NumPy implicitly",
+        "Writes labels back to parquet"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "P",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p11",
+      "name": "optuna",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I want to tune a cuML RandomForestClassifier with Optuna on a single GPU (24GB). The data is 2M rows x 50 features in a pandas DataFrame. Can you write me the script? Should I set n_jobs > 1 in study.optimize to speed it up?",
+      "expected_output": "Writes an Optuna script that moves data to the GPU once (float32 features, int32 labels), builds cuml.ensemble.RandomForestClassifier with valid parameters, and evaluates on a holdout. Recommends `n_jobs=1` (or very small) in study.optimize on a single GPU because concurrent trials contend for the same GPU and memory. Does not pass `n_jobs` to the cuML forest. Does not claim `n_streams=1` is needed for reproducibility (not required since 25.10).",
+      "assertions": [
+        "Recommends n_jobs=1 (or a small value) for study.optimize on one GPU and explains GPU contention",
+        "Does not pass `n_jobs` to cuML RandomForestClassifier",
+        "All cuML RandomForestClassifier parameters used exist in the installed cuML",
+        "Does not state that `n_streams=1` is required for reproducible results"
+      ],
+      "probe_verdicts": {
+        "haiku": "P",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p12",
+      "name": "torch",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I have a PyTorch tensor on the GPU (embeddings, shape [2_000_000, 512], float32). How do I run cuML's NearestNeighbors (k=10, cosine) on it without copying it back to the CPU, and get the distances/indices back as torch tensors?",
+      "expected_output": "cuML accepts CUDA tensors through `__cuda_array_interface__`/DLPack without a host copy. Fit `cuml.neighbors.NearestNeighbors(n_neighbors=10, metric='cosine')` on the tensor (or a CuPy view via `cupy.from_dlpack`), call `kneighbors`, get CuPy output, and convert back with `torch.from_dlpack`/`torch.as_tensor` (zero-copy).",
+      "assertions": [
+        "Passes the CUDA tensor (or a zero-copy CuPy view) to cuML NearestNeighbors without copying to the CPU",
+        "Uses metric='cosine' with k=10",
+        "Converts the CuPy results back to torch tensors zero-copy (DLPack or as_tensor)"
+      ],
+      "probe_verdicts": {
+        "haiku": "C",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p13",
+      "name": "output-type",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "When I pass a numpy array to cuML's PCA.fit_transform I get a numpy array back, but when I pass a cudf DataFrame I get a cudf DataFrame back. I want cupy arrays out always, regardless of input. How do I control that globally, and also for just one block of code?",
+      "expected_output": "Globally: `cuml.set_global_output_type('cupy')`. For a block: `with cuml.using_output_type('cupy'):`. Per estimator: `PCA(output_type='cupy')`. Global/context settings take precedence over the estimator's setting. Valid values are 'input', 'numpy', 'cupy', 'cudf', 'pandas'.",
+      "assertions": [
+        "Uses cuml.set_global_output_type('cupy') for the global setting",
+        "Uses the cuml.using_output_type('cupy') context manager for a block",
+        "Does not use nonexistent APIs such as cuml.config.set_config, or removed output types such as 'array' or 'numba'"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p14",
+      "name": "accel-coverage",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "Which scikit-learn (and other library) estimators does cuml.accel actually accelerate in the latest cuML release? And how can I tell whether a particular fit/predict call actually ran on the GPU or silently fell back to CPU?",
+      "expected_output": "Lists the main accelerated estimators (KMeans, DBSCAN, PCA, TruncatedSVD, RandomForest, LogisticRegression, LinearRegression, Ridge, Lasso, ElasticNet, SVC/SVR, LinearSVC/LinearSVR, KNeighbors*, NearestNeighbors, TSNE, KernelRidge, preprocessing such as StandardScaler/OneHotEncoder/TargetEncoder, plus umap-learn UMAP and hdbscan HDBSCAN), or points to the compatibility docs. To check where a call ran: `python -m cuml.accel -v` logging, `--profile` or `%%cuml.accel.profile` or `cuml.accel.profile()`.",
+      "assertions": [
+        "Names umap-learn UMAP and hdbscan HDBSCAN as accelerated in addition to scikit-learn estimators",
+        "Does not claim that preprocessing (e.g. StandardScaler, OneHotEncoder) is never accelerated",
+        "Recommends the cuml.accel profiler (--profile, %%cuml.accel.profile or cuml.accel.profile()) or verbose logging (-v / log level) to see GPU vs CPU execution",
+        "Does not present a nonexistent CLI flag such as `--log-level` or an environment variable other than CUML_ACCEL_ENABLED / CUML_ACCEL_LOG_LEVEL"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "P",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p15",
+      "name": "accel-jupyter-order",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "In my Jupyter notebook I imported sklearn and trained a RandomForestClassifier, then later added a cell with `%load_ext cuml.accel` and re-ran the training cell. It's not any faster. What am I doing wrong?",
+      "expected_output": "cuml.accel must be loaded before sklearn is imported; loading it later does not affect already-imported classes. Restart the kernel, put `%load_ext cuml.accel` in the first cell, then re-run. RandomForestClassifier is accelerated. Verify with `%%cuml.accel.profile` or logging.",
+      "assertions": [
+        "Explains that the extension must be loaded before importing sklearn",
+        "Recommends restarting the kernel and loading cuml.accel in the first cell",
+        "Does not claim that cuml.accel does not accelerate RandomForestClassifier"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p16",
+      "name": "windows",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "Can I install cuML on Windows 11 with my RTX 3080? I'd like to just pip install it into my normal Windows Python. If not, what's the simplest way to get it working on this machine?",
+      "expected_output": "Native Windows is not supported; use WSL2 (Ubuntu) with the Windows NVIDIA driver, then `pip install cuml-cu12` or `cuml-cu13` inside WSL2 (or conda/Docker). The RTX 3080 (compute capability 8.6) is supported.",
+      "assertions": [
+        "States that native Windows pip install is not supported",
+        "Recommends WSL2 as the way to run cuML on Windows 11",
+        "Gives a valid install inside WSL2 (cuml-cu12/cuml-cu13 via pip, conda, or the RAPIDS container)"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p17",
+      "name": "tsne3d",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I want a 3D t-SNE embedding of 1M points (128 dims) with cuML so I can rotate it in plotly. `cuml.manifold.TSNE(n_components=3)` gives me an error. What are my options on the GPU?",
+      "expected_output": "cuML TSNE only supports n_components=2. On the GPU, use `cuml.manifold.UMAP(n_components=3)` for a 3D embedding of 1M points; alternatives are CPU t-SNE (slow at 1M) or a 2D t-SNE.",
+      "assertions": [
+        "States that cuML TSNE supports only 2 components",
+        "Recommends cuML UMAP with n_components=3 as the GPU option"
+      ],
+      "probe_verdicts": {
+        "haiku": "C",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p18",
+      "name": "svc-proba",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "Using cuML's SVC directly (not cuml.accel): I need predict_proba and class_weight='balanced' on a 3-class problem with about 1M rows x 30 features. Show me how, and what should I watch out for (speed, memory, multiclass behaviour)?",
+      "expected_output": "cuML SVC (and LinearSVC) no longer has a `probability` argument (deprecated 26.06, removed 26.08). For probabilities, wrap the cuML SVC in `sklearn.calibration.CalibratedClassifierCV` (e.g. `CalibratedClassifierCV(SVC(class_weight='balanced'), ensemble=False)`). Discusses kernel SVM cost at 1M rows (subsample/tune on subsets, consider LinearSVC or other classifiers), multiclass one-vs-one by default, kernel cache memory, float32 input.",
+      "assertions": [
+        "Does not pass `probability=True` to cuML SVC or LinearSVC",
+        "Uses sklearn's CalibratedClassifierCV around the cuML SVC (or another explicit calibration step) to obtain probabilities",
+        "Uses class_weight='balanced' on the cuML SVC",
+        "Warns about kernel SVM training cost at 1M rows and suggests a mitigation (subsampling, LinearSVC, or another model)"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "W",
+        "opus": "W"
+      }
+    },
+    {
+      "id": "p19",
+      "name": "rf-determinism",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "My cuML RandomForestClassifier gives slightly different accuracy every run even though I set random_state=42. sklearn's RF is reproducible with the same seed. How do I make the cuML one reproducible?",
+      "expected_output": "In current cuML (25.10 and later) RandomForestClassifier is reproducible with `random_state` alone, at the default `n_streams`. If results vary, check the cuML version (older releases needed `n_streams=1`) and other sources of randomness (unseeded train/test split, data order, random_state not passed). Does not prescribe `n_streams=1` as required on current versions.",
+      "assertions": [
+        "States that current cuML RandomForest is reproducible with random_state (or checks the installed version before advising)",
+        "Does not claim that `n_streams=1` is required for reproducibility in current cuML",
+        "Suggests checking other sources of randomness such as the data split"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "P",
+        "opus": "P"
+      }
+    },
+    {
+      "id": "p20",
+      "name": "accel-pickle",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "I train a scikit-learn pipeline on a GPU box using `python -m cuml.accel train.py` and save it with joblib.dump. Can I joblib.load that model on our CPU-only inference servers, which have scikit-learn but no cuML or GPU? Anything I need to do differently?",
+      "expected_output": "Yes: estimators trained under cuml.accel are pickled as plain scikit-learn objects and load without cuML or a GPU. Keep the same scikit-learn version on both sides, and test by loading in a CPU-only environment. The pickle bytes may still contain the string 'cuml' (a reconstructor), so grepping the file for 'cuml' is not a valid check.",
+      "assertions": [
+        "States that the model loads as a plain scikit-learn object without cuML",
+        "Recommends matching scikit-learn versions between training and inference",
+        "Does not recommend checking that the bytes 'cuml' are absent from the pickle as proof it is cuML-free"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "P"
+      }
+    },
+    {
+      "id": "p21",
+      "name": "float64",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "My features are float64 numpy arrays. Should I keep float64 when using cuML for accuracy reasons, or convert to float32? Which cuML estimators actually support float64 (I'm using KMeans, UMAP, RandomForestClassifier and LogisticRegression), and what happens if I pass float64 to one that doesn't?",
+      "expected_output": "float32 is usually the right choice (half the memory, much faster on most GPUs) unless a measured accuracy difference exists. KMeans and LogisticRegression run in float64; UMAP computes in float32 and returns float32; RandomForestClassifier accepts float64. Input of an unsupported dtype is converted (with a copy), not rejected. `convert_dtype` was removed in 26.10, so cast explicitly.",
+      "assertions": [
+        "Recommends float32 for most cases and explains the memory/speed reason",
+        "States that UMAP works in float32 (float64 input is converted)",
+        "Does not recommend passing `convert_dtype` to fit/predict"
+      ],
+      "probe_verdicts": {
+        "haiku": "P",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    },
+    {
+      "id": "p22",
+      "name": "accel-multigpu",
+      "source": "probe",
+      "track": "end-user",
+      "prompt": "Our server has 8x A100. If I run my sklearn script with `python -m cuml.accel train.py`, will it use all 8 GPUs? If not, how do I use more than one GPU for a GridSearchCV over a RandomForestClassifier?",
+      "expected_output": "No: cuml.accel uses a single GPU (device 0). To use 8 GPUs for a grid search, split the parameter grid into shards and run one process per GPU with `CUDA_VISIBLE_DEVICES`, then combine the results; alternatively use multi-GPU cuML via Dask (cuml.dask) or a Dask/Ray-based search with one GPU per worker.",
+      "assertions": [
+        "States that cuml.accel uses a single GPU",
+        "Proposes a concrete multi-GPU strategy such as one process per GPU with CUDA_VISIBLE_DEVICES over shards of the grid, or Dask with one GPU per worker",
+        "Does not claim GridSearchCV under cuml.accel automatically distributes across GPUs"
+      ],
+      "probe_verdicts": {
+        "haiku": "W",
+        "sonnet": "C",
+        "opus": "C"
+      }
+    }
+  ]
+}
