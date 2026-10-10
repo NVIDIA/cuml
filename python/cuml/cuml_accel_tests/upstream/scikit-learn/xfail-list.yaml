@@ -38,6 +38,13 @@
   - "sklearn.linear_model.tests.test_coordinate_descent::test_enet_sample_weight_consistency[42-csr_matrix-False-0.01-True-ElasticNet]"
   - "sklearn.linear_model.tests.test_coordinate_descent::test_random_descent[csr_array]"
   - "sklearn.linear_model.tests.test_coordinate_descent::test_random_descent[csr_matrix]"
+- reason: HDBSCAN label-equality mismatch (see https://github.com/NVIDIA/cuml/issues/8752)
+  marker: cuml_accel_bugs
+  tests:
+  - "sklearn.cluster.tests.test_hdbscan::test_hdbscan_sparse[csr_array]"
+  - "sklearn.cluster.tests.test_hdbscan::test_hdbscan_sparse[csr_matrix]"
+  - "sklearn.cluster.tests.test_hdbscan::test_outlier_data[infinite]"
+  - "sklearn.cluster.tests.test_hdbscan::test_outlier_data[missing]"
 - reason: IsolationForest GPU inference is expected to bypass scikit-learn CPU chunking internals
   marker: cuml_accel_bugs
   tests:

@@ -248,16 +248,6 @@ def test_column_transformer_get_feature_names_out(clf_dataset, remainder):
         np.testing.assert_array_equal(res, sol)
 
 
-def test_column_transformer_get_feature_names_deprecated():
-    X = np.array([[1.5, 2.5, 3.5], [1.6, 2.4, 3.7]])
-    model = cuColumnTransformer([("t1", cuPolynomialFeatures(), [0, 2])])
-    model.fit(X)
-    with pytest.warns(FutureWarning, match="get_feature_names"):
-        res = model.get_feature_names()
-
-    np.testing.assert_array_equal(res, model.get_feature_names_out())
-
-
 def test_column_transformer_named_transformers_(clf_dataset):  # noqa: F811
     X_np, X = clf_dataset
 
@@ -272,6 +262,36 @@ def test_column_transformer_named_transformers_(clf_dataset):  # noqa: F811
     sk_named_transformers = transformer.named_transformers_
 
     assert cu_named_transformers.keys() == sk_named_transformers.keys()
+
+
+def test_normalizer_sklearn_clone_preserves_parameters():
+    normalizer = cuNormalizer(norm="l1", copy=False)
+
+    cloned = sk_clone(normalizer)
+
+    assert cloned.norm == "l1"
+    assert cloned.copy is False
+
+
+def test_column_transformer_preserves_normalizer_norm():
+    X = np.array([[0.0, 1.0, 2.0, 2.0], [1.0, 1.0, 0.0, 1.0]])
+
+    cu_transformer = cuColumnTransformer(
+        [
+            ("norm1", cuNormalizer(norm="l1"), [0, 1]),
+            ("norm2", cuNormalizer(norm="l1"), slice(2, 4)),
+        ]
+    )
+    sk_transformer = skColumnTransformer(
+        [
+            ("norm1", skNormalizer(norm="l1"), [0, 1]),
+            ("norm2", skNormalizer(norm="l1"), slice(2, 4)),
+        ]
+    )
+
+    assert_allclose(
+        cu_transformer.fit_transform(X), sk_transformer.fit_transform(X)
+    )
 
 
 def test_column_transformer_sklearn_clone_preserves_transformers():

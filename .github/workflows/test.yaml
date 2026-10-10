@@ -55,24 +55,6 @@ jobs:
       date: ${{ inputs.date }}
       script: ci/test_cpp.sh
       sha: ${{ inputs.sha }}
-  build-mg-cpp-tests:
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-      packages: read
-      pull-requests: read
-    secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@main
-    with:
-      build_type: ${{ inputs.build_type }}
-      branch: ${{ inputs.branch }}
-      date: ${{ inputs.date }}
-      sha: ${{ inputs.sha }}
-      node_type: cpu16
-      arch: amd64
-      container_image: "rapidsai/ci-conda:26.12-latest"
-      script: ci/build_mg_cpp_tests.sh
   conda-python-tests-singlegpu:
     permissions:
       actions: read

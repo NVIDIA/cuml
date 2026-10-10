@@ -36,7 +36,6 @@ from sklearn.utils import Bunch
 
 import cuml
 from cuml.internals.global_settings import _global_settings_data
-from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.validation import (
     check_is_fitted,
     check_features,
@@ -428,12 +427,7 @@ def _message_with_time(source, message, time):
     return "%s%s%s" % (start_message, dots_len * '.', end_message)
 
 
-class ColumnTransformer(
-    DeprecatedGetFeatureNamesMixin,
-    TransformerMixin,
-    BaseComposition,
-    BaseEstimator,
-):
+class ColumnTransformer(TransformerMixin, BaseComposition, BaseEstimator):
     """Applies transformers to columns of an array or dataframe.
 
     This estimator allows different columns or column subsets of the input

@@ -34,7 +34,9 @@ from sklearn.preprocessing import power_transform as sk_power_transform
 from sklearn.preprocessing import quantile_transform as sk_quantile_transform
 from sklearn.preprocessing import robust_scale as sk_robust_scale
 from sklearn.preprocessing import scale as sk_scale
+from sklearn.utils import resample
 
+import cuml
 from cuml.metrics import pairwise_kernels
 from cuml.preprocessing import Binarizer as cuBinarizer
 from cuml.preprocessing import FunctionTransformer as cuFunctionTransformer
@@ -75,6 +77,13 @@ from cuml.testing.test_preproc_utils import (  # noqa: F401
 )
 
 SKLEARN_VERSION = Version(sklearn.__version__)
+
+# QuantileTransformer matches scikit-learn >= 1.10, which changed how quantiles
+# are estimated and how data is subsampled (scikit-learn PR #32761)
+requires_sklearn_110_quantiles = pytest.mark.skipif(
+    SKLEARN_VERSION < Version("1.10.0.dev0"),
+    reason="QuantileTransformer matches scikit-learn >= 1.10",
+)
 
 
 @pytest.mark.parametrize("feature_range", [(0, 1), (0.1, 0.8)])
@@ -490,15 +499,6 @@ def test_poly_features(
 
     assert_allclose(t_X, sk_t_X, rtol=0.1, atol=0.1)
     np.testing.assert_array_equal(cu_feature_names, sk_feature_names)
-
-
-def test_poly_features_get_feature_names_deprecated():
-    X = np.array([[1.5, 2.5, 3.5], [1.6, 2.4, 3.7]])
-    model = cuPolynomialFeatures().fit(X)
-    with pytest.warns(FutureWarning, match="get_feature_names"):
-        res = model.get_feature_names()
-
-    np.testing.assert_array_equal(res, model.get_feature_names_out())
 
 
 @pytest.mark.parametrize("degree", [2, 3])
@@ -1035,25 +1035,25 @@ def test_quantile_transformer(
     r_X = transformer.inverse_transform(t_X)
     assert type(r_X) is type(t_X)
 
-    quantiles_ = transformer.quantiles_
-    references_ = transformer.references_
-
-    transformer = skQuantileTransformer(
+    sk_transformer = skQuantileTransformer(
         n_quantiles=n_quantiles,
         output_distribution=output_distribution,
         ignore_implicit_zeros=ignore_implicit_zeros,
         subsample=subsample,
         random_state=42,
         copy=True,
-    )
-    sk_t_X = transformer.fit_transform(X_np)
-    sk_r_X = transformer.inverse_transform(sk_t_X)
+    ).fit(X_np)
 
-    sk_quantiles_ = transformer.quantiles_
-    sk_references_ = transformer.references_
+    assert transformer.n_quantiles_ == sk_transformer.n_quantiles_
+    assert_allclose(transformer.references_, sk_transformer.references_)
 
-    assert_allclose(quantiles_, sk_quantiles_)
-    assert_allclose(references_, sk_references_)
+    # How fit estimates the quantiles depends on the scikit-learn version, but
+    # transform only reads `quantiles_` and `references_` and is the same in
+    # all versions. Share the fitted quantiles to compare transform on its own.
+    with cuml.using_output_type("numpy"):
+        sk_transformer.quantiles_ = transformer.quantiles_
+    sk_t_X = sk_transformer.transform(X_np)
+    sk_r_X = sk_transformer.inverse_transform(sk_t_X)
 
     assert_allclose(t_X, sk_t_X)
     assert_allclose(r_X, sk_r_X)
@@ -1061,23 +1061,7 @@ def test_quantile_transformer(
 
 @pytest.mark.parametrize("n_quantiles", [30, 100])
 @pytest.mark.parametrize("output_distribution", ["uniform", "normal"])
-@pytest.mark.parametrize(
-    "ignore_implicit_zeros",
-    [
-        False,
-        pytest.param(
-            True,
-            marks=pytest.mark.xfail(
-                SKLEARN_VERSION < Version("1.9.1"),
-                reason=(
-                    "sklearn bug in sparse quantiles with ignore_implicit_zeros "
-                    "in sklearn <= 1.9.0"
-                ),
-                strict=True,
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("ignore_implicit_zeros", [False, True])
 @pytest.mark.parametrize("subsample", [100])
 def test_quantile_transformer_sparse(
     failure_logger,
@@ -1108,25 +1092,25 @@ def test_quantile_transformer_sparse(
     if scipy.sparse.issparse(X):
         assert scipy.sparse.issparse(t_X)
 
-    quantiles_ = transformer.quantiles_
-    references_ = transformer.references_
-
-    transformer = skQuantileTransformer(
+    sk_transformer = skQuantileTransformer(
         n_quantiles=n_quantiles,
         output_distribution=output_distribution,
         ignore_implicit_zeros=ignore_implicit_zeros,
         subsample=subsample,
         random_state=42,
         copy=True,
-    )
-    sk_t_X = transformer.fit_transform(X_np)
-    sk_r_X = transformer.inverse_transform(sk_t_X)
+    ).fit(X_np)
 
-    sk_quantiles_ = transformer.quantiles_
-    sk_references_ = transformer.references_
+    assert transformer.n_quantiles_ == sk_transformer.n_quantiles_
+    assert_allclose(transformer.references_, sk_transformer.references_)
 
-    assert_allclose(quantiles_, sk_quantiles_)
-    assert_allclose(references_, sk_references_)
+    # How fit estimates the quantiles depends on the scikit-learn version, but
+    # transform only reads `quantiles_` and `references_` and is the same in
+    # all versions. Share the fitted quantiles to compare transform on its own.
+    with cuml.using_output_type("numpy"):
+        sk_transformer.quantiles_ = transformer.quantiles_
+    sk_t_X = sk_transformer.transform(X_np)
+    sk_r_X = sk_transformer.inverse_transform(sk_t_X)
 
     assert_allclose(t_X, sk_t_X)
     assert_allclose(r_X, sk_r_X)
@@ -1162,11 +1146,91 @@ def test_quantile_transformer_sparse_subsampling_ignore_implicit_zeros():
     assert cp.isclose(quantiles, 0).mean() > 0.9
 
 
+@pytest.mark.parametrize("n_quantiles", [30, 100])
+@pytest.mark.parametrize("subsample", [None, 1000, 100])
+def test_quantile_transformer_quantiles(
+    failure_logger,
+    nan_filled_positive,  # noqa: F811
+    n_quantiles,
+    subsample,
+):
+    # Independent of the installed scikit-learn version
+    X_np, X = nan_filled_positive
+    X_ref = np.asarray(X_np)
+
+    transformer = cuQuantileTransformer(
+        n_quantiles=n_quantiles, subsample=subsample, random_state=42
+    )
+    transformer.fit(X)
+
+    if subsample is not None and subsample < X_ref.shape[0]:
+        X_ref = resample(
+            X_ref, replace=True, n_samples=subsample, random_state=42
+        )
+    expected = np.nanpercentile(
+        X_ref,
+        np.linspace(0, 1, n_quantiles) * 100,
+        axis=0,
+        method="averaged_inverted_cdf",
+    )
+    assert_allclose(transformer.quantiles_, expected)
+
+
+@pytest.mark.parametrize("ignore_implicit_zeros", [False, True])
+def test_quantile_transformer_sparse_quantiles(
+    failure_logger,
+    sparse_nan_filled_positive,  # noqa: F811
+    ignore_implicit_zeros,
+):
+    # Independent of the installed scikit-learn version
+    X_np, X = sparse_nan_filled_positive
+    X = X.tocsr().tocsc()
+
+    transformer = cuQuantileTransformer(
+        n_quantiles=100,
+        ignore_implicit_zeros=ignore_implicit_zeros,
+        subsample=None,
+    )
+    transformer.fit(X)
+
+    X_ref = X_np.toarray()
+    if ignore_implicit_zeros:
+        # All stored values are >= 0.1 or NaN, so every zero is implicit
+        X_ref[X_ref == 0] = np.nan
+    expected = np.nanpercentile(
+        X_ref,
+        np.linspace(0, 1, 100) * 100,
+        axis=0,
+        method="averaged_inverted_cdf",
+    )
+    assert_allclose(transformer.quantiles_, expected)
+
+
+@pytest.mark.parametrize("n_quantiles", [5, 30, 100])
+def test_quantile_transformer_averaged_inverted_cdf(n_quantiles):
+    # Independent of the installed scikit-learn version
+    rng = np.random.RandomState(0)
+    # Fewer samples than quantiles for n_quantiles=100
+    X = rng.randint(0, 10, size=(50, 3)).astype(np.float64)
+    X[rng.uniform(size=X.shape) < 0.1] = np.nan
+
+    transformer = cuQuantileTransformer(
+        n_quantiles=n_quantiles, subsample=None
+    )
+    transformer.fit(X)
+
+    assert transformer.n_quantiles_ == n_quantiles
+    expected = np.nanpercentile(
+        X,
+        cp.asnumpy(transformer.references_) * 100,
+        axis=0,
+        method="averaged_inverted_cdf",
+    )
+    assert_allclose(transformer.quantiles_, expected)
+
+
 @pytest.mark.filterwarnings(
     "ignore:'ignore_implicit_zeros' takes effect only with sparse matrix.*:UserWarning"
-)
-@pytest.mark.filterwarnings(
-    "ignore:n_quantiles .* is greater than the total number of samples.*:UserWarning"
 )
 @pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("n_quantiles", [30, 100])
@@ -1183,10 +1247,7 @@ def test_quantile_transform(
     subsample,
 ):
     X_np, X = nan_filled_positive
-
-    t_X = cu_quantile_transform(
-        X,
-        axis=axis,
+    kwargs = dict(
         n_quantiles=n_quantiles,
         output_distribution=output_distribution,
         ignore_implicit_zeros=ignore_implicit_zeros,
@@ -1194,17 +1255,97 @@ def test_quantile_transform(
         random_state=42,
         copy=True,
     )
+
+    t_X = cu_quantile_transform(X, axis=axis, **kwargs)
     assert type(t_X) is type(X)
 
-    sk_t_X = sk_quantile_transform(
-        X_np,
-        axis=axis,
-        n_quantiles=n_quantiles,
-        output_distribution=output_distribution,
+    X_ref = np.asarray(X_np)
+    transformer = cuQuantileTransformer(**kwargs)
+    if axis == 0:
+        expected = transformer.fit_transform(X_ref)
+    else:
+        expected = transformer.fit_transform(X_ref.T).T
+
+    assert_allclose(t_X, expected)
+
+
+@pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names:UserWarning"
+)
+@pytest.mark.parametrize("n_quantiles", [30, 100])
+@pytest.mark.parametrize("subsample", [100, None])
+@requires_sklearn_110_quantiles
+def test_quantile_transformer_matches_sklearn(
+    failure_logger,
+    nan_filled_positive,  # noqa: F811
+    n_quantiles,
+    subsample,
+):
+    X_np, X = nan_filled_positive
+
+    transformer = cuQuantileTransformer(
+        n_quantiles=n_quantiles, subsample=subsample, random_state=42
+    )
+    t_X = transformer.fit_transform(X)
+
+    sk_transformer = skQuantileTransformer(
+        n_quantiles=n_quantiles, subsample=subsample, random_state=42
+    )
+    sk_t_X = sk_transformer.fit_transform(X_np)
+
+    assert_allclose(transformer.quantiles_, sk_transformer.quantiles_)
+    assert_allclose(transformer.references_, sk_transformer.references_)
+    assert_allclose(t_X, sk_t_X)
+
+
+@pytest.mark.parametrize("ignore_implicit_zeros", [False, True])
+@pytest.mark.parametrize("subsample", [100, None])
+@requires_sklearn_110_quantiles
+def test_quantile_transformer_sparse_matches_sklearn(
+    failure_logger,
+    sparse_nan_filled_positive,  # noqa: F811
+    ignore_implicit_zeros,
+    subsample,
+):
+    X_np, X = sparse_nan_filled_positive
+    X_np = X_np.tocsc()
+    X = X.tocsr().tocsc()
+
+    transformer = cuQuantileTransformer(
+        n_quantiles=100,
         ignore_implicit_zeros=ignore_implicit_zeros,
         subsample=subsample,
         random_state=42,
-        copy=True,
+    )
+    t_X = transformer.fit_transform(X).tocsc()
+
+    sk_transformer = skQuantileTransformer(
+        n_quantiles=100,
+        ignore_implicit_zeros=ignore_implicit_zeros,
+        subsample=subsample,
+        random_state=42,
+    )
+    sk_t_X = sk_transformer.fit_transform(X_np)
+
+    assert_allclose(transformer.quantiles_, sk_transformer.quantiles_)
+    assert_allclose(transformer.references_, sk_transformer.references_)
+    assert_allclose(t_X, sk_t_X)
+
+
+@pytest.mark.parametrize("axis", [0, 1])
+@requires_sklearn_110_quantiles
+def test_quantile_transform_matches_sklearn(
+    failure_logger,
+    nan_filled_positive,  # noqa: F811
+    axis,
+):
+    X_np, X = nan_filled_positive
+
+    t_X = cu_quantile_transform(
+        X, axis=axis, n_quantiles=30, subsample=100, random_state=42
+    )
+    sk_t_X = sk_quantile_transform(
+        X_np, axis=axis, n_quantiles=30, subsample=100, random_state=42
     )
 
     assert_allclose(t_X, sk_t_X)

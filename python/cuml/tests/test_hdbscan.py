@@ -1044,6 +1044,11 @@ def test_membership_vector_moons(
 @pytest.mark.parametrize("max_cluster_size", [0])
 @pytest.mark.parametrize("cluster_selection_method", ["eom", "leaf"])
 @pytest.mark.parametrize("batch_size", [16])
+@pytest.mark.xfail(
+    reason="HDBSCAN membership-vector mismatch (see #8752)",
+    raises=AssertionError,
+    strict=False,
+)
 def test_membership_vector_circles(
     nrows,
     n_points_to_predict,

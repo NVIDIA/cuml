@@ -59,7 +59,12 @@ extensions = [
     "sphinx_markdown_tables",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_llm.txt",
 ]
+
+# configuration for 'sphinx-llm'
+llms_txt_summary_enabled = False
+llms_txt_suppress_unknown_node_warnings = True
 
 breathe_projects = {
     "cuml": os.path.abspath(

@@ -1,8 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-import warnings
-
 from dask.distributed import get_worker
 from raft_dask.common.comms import Comms, get_raft_comm_state
 
@@ -28,7 +26,6 @@ class BaseRandomForestModel(object):
         workers,
         n_estimators,
         base_seed,
-        ignore_empty_partitions,
         **kwargs,
     ):
         self.client = get_client(client)
@@ -43,22 +40,9 @@ class BaseRandomForestModel(object):
         self.n_estimators = n_estimators
 
         if "n_streams" in kwargs:
-            warnings.warn(
-                (
-                    "n_streams has no effect on distributed training and "
-                    "will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
-            )
-        if ignore_empty_partitions is not None:
-            warnings.warn(
-                (
-                    "ignore_empty_partitions parameter is no longer valid "
-                    "and will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
+            raise TypeError(
+                f"{type(self).__name__}.__init__() got an unexpected keyword "
+                "argument 'n_streams'"
             )
 
         self.rfs = {
@@ -140,13 +124,9 @@ class BaseRandomForestModel(object):
 
     def _set_params(self, **params):
         if "n_streams" in params:
-            warnings.warn(
-                (
-                    "n_streams has no effect on distributed training and "
-                    "will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
+            raise TypeError(
+                f"{type(self).__name__}.set_params() got an unexpected keyword "
+                "argument 'n_streams'"
             )
         model_params = list()
         for worker in self.workers:
