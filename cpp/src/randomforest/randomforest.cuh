@@ -688,10 +688,11 @@ class RandomForest {
   }
 };
 
-// class specializations
-template class RandomForest<float, int>;
-template class RandomForest<float, float>;
-template class RandomForest<double, int>;
-template class RandomForest<double, double>;
+// Instantiated in randomforest.cu. Keep consumers of this implementation header from
+// instantiating the full forest implementation and its decision-tree kernel dependencies.
+extern template class RandomForest<float, int>;
+extern template class RandomForest<float, float>;
+extern template class RandomForest<double, int>;
+extern template class RandomForest<double, double>;
 
 }  // End namespace ML
