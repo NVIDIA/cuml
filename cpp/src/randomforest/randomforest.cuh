@@ -220,6 +220,15 @@ class RowSampler {
                     tree_mask);
   }
 
+  // Determine sample counts for all ranks by drawing from the multinomial distribution
+  // Multinomial(M; p_1, ..., p_P), where the parameters are:
+  //   M = n_sampled_rows_ (total sample count),
+  //   p_i = S_i / S,
+  //   S_i = sum of sample weights in rank i,
+  //   S = sum of sample weights in all ranks.
+  // Rank 0 will draw from the multinomial distribution (comm_size_) times, and then
+  // broadcast the sample count to all ranks. The function will then return the rank-local
+  // sample count.
   std::int64_t distributed_sample_count(int tree_id, int stream_id, cudaStream_t stream)
   {
     auto& device_counts = rank_sample_count_scratch_[stream_id];
@@ -292,6 +301,9 @@ class RowSampler {
     }
   }
 
+  // Compute the sum of sample weights per rank and gather these per-rank sums into
+  // rank_sample_weight_sums_. Also compute sample_weight_sum_, the sum of sample weights over all
+  // ranks.
   void compute_global_sample_weights(const raft::handle_t& handle)
   {
     if (n_rows_ > 0) {
