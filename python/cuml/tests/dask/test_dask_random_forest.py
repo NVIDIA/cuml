@@ -451,94 +451,162 @@ def test_rf_classification_balanced_class_weight(client):
     )
 
 
-def test_rf_classification_zero_class_weight_on_one_worker(client):
+@pytest.mark.parametrize("bootstrap", [False, True])
+@pytest.mark.parametrize("weight_type", ["sample", "class"])
+def test_rf_zero_weight_on_one_worker(client, bootstrap, weight_type):
     workers = list(client.scheduler_info(n_workers=-1)["workers"])[:2]
     if len(workers) < 2:
         pytest.skip("This test requires at least two workers")
 
     X_futures = []
     y_futures = []
+    weight_futures = []
     for label, worker in enumerate(workers):
         X_part = cudf.DataFrame(np.zeros((20, 1), dtype=np.float32))
         y_part = cudf.Series(np.full(20, label, dtype=np.int32))
         X_futures.append(client.scatter(X_part, workers=[worker], hash=False))
         y_futures.append(client.scatter(y_part, workers=[worker], hash=False))
+        weight_part = cudf.Series(np.full(20, label, dtype=np.float64))
+        weight_futures.append(
+            client.scatter(weight_part, workers=[worker], hash=False)
+        )
 
     X = dask_cudf.from_delayed(X_futures, meta=X_part.iloc[:0])
     y = dask_cudf.from_delayed(y_futures, meta=y_part.iloc[:0])
 
+    weights = dask_cudf.from_delayed(weight_futures, meta=weight_part.iloc[:0])
+    kwargs = (
+        {"class_weight": {0: 0.0, 1: 1.0}} if weight_type == "class" else {}
+    )
+    fit_kwargs = {"sample_weight": weights} if weight_type == "sample" else {}
     model = cuRFC_mg(
         workers=workers,
         n_estimators=1,
-        bootstrap=False,
+        bootstrap=bootstrap,
         max_depth=1,
         n_bins=2,
         random_state=42,
-        class_weight={0: 0.0, 1: 1.0},
+        **kwargs,
     )
+
+    if bootstrap:
+        with dask.annotate(workers=workers):
+            model.fit(X, y, **fit_kwargs)
+        combined = model.get_combined_model()
+        combined.output_type = "cupy"
+        prediction = combined.predict(cp.zeros((1, 1), dtype=cp.float32))
+        cp.testing.assert_array_equal(prediction, [1])
+        return
 
     with pytest.raises(
         RuntimeError, match="2 of 2 worker jobs failed"
     ) as exc_info:
         with dask.annotate(workers=workers):
-            model.fit(X, y)
+            model.fit(X, y, **fit_kwargs)
 
-    assert "Rank-local sample weights must sum to a positive value" in str(
-        exc_info.value
+    message = (
+        "Rank-local sample weights must sum to a positive value"
+        if weight_type == "class"
+        else "Sample weights must contain at least one non-zero number"
     )
+    assert message in str(exc_info.value)
 
 
+@pytest.mark.parametrize("bootstrap", [False, True])
+@pytest.mark.parametrize("input_type", ["dataframe", "array"])
 @pytest.mark.parametrize(
-    "model_cls,model_kwargs,fit_kwargs",
+    "model_cls,class_weight,use_sample_weight,expected",
     [
-        pytest.param(
-            cuRFC_mg,
-            {"class_weight": "balanced"},
-            {},
-            id="classifier-class-weight",
-        ),
-        pytest.param(
-            cuRFC_mg,
-            {},
-            {"sample_weight": np.ones(4, dtype=np.float64)},
-            id="classifier-sample-weight",
-        ),
-        pytest.param(
-            cuRFR_mg,
-            {},
-            {"sample_weight": np.ones(4, dtype=np.float64)},
-            id="regressor-sample-weight",
-        ),
-        pytest.param(
-            cuRFC_mg,
-            {"class_weight": "balanced"},
-            {"sample_weight": np.ones(4, dtype=np.float64)},
-            id="classifier-sample-and-class-weight",
-        ),
+        pytest.param(cuRFC_mg, "balanced", False, 0.5, id="balanced"),
+        pytest.param(cuRFC_mg, {0: 9, 1: 1}, False, 0.25, id="class"),
+        pytest.param(cuRFC_mg, None, True, 0.9, id="sample-classifier"),
+        pytest.param(cuRFR_mg, None, True, 0.9, id="sample-regressor"),
+        pytest.param(cuRFC_mg, {0: 9, 1: 1}, True, 0.5, id="combined"),
+        pytest.param(cuRFC_mg, "balanced", True, 0.75, id="balanced-combined"),
     ],
 )
-def test_rf_weighted_bootstrap_raises(
-    client, model_cls, model_kwargs, fit_kwargs
+def test_rf_weights(
+    client,
+    bootstrap,
+    input_type,
+    model_cls,
+    class_weight,
+    use_sample_weight,
+    expected,
 ):
-    X = dask_cudf.from_cudf(
-        cudf.DataFrame(np.arange(8, dtype=np.float32).reshape(4, 2)),
-        npartitions=1,
-    )
+    # Constant features make leaf values equal to the weighted label mean.
+    # The imbalanced labels distinguish global balancing from local balancing.
+    n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
+    n_rows = 400 * n_workers
+    X = np.zeros((n_rows, 1), dtype=np.float32)
     y_dtype = np.int32 if model_cls is cuRFC_mg else np.float32
-    y = dask_cudf.from_cudf(
-        cudf.Series(np.arange(4, dtype=y_dtype) % 2), npartitions=1
-    )
+    y = np.repeat([0, 1], [n_rows // 4, 3 * n_rows // 4]).astype(y_dtype)
+    weights = np.where(y == 0, 1.0, 3.0)
+    if input_type == "dataframe":
+        data = [
+            dask_cudf.from_cudf(cudf.DataFrame(X), npartitions=n_workers * 2),
+            dask_cudf.from_cudf(cudf.Series(y), npartitions=n_workers * 2),
+            dask_cudf.from_cudf(
+                cudf.Series(weights), npartitions=n_workers * 2
+            ),
+        ]
+    else:
+        data = [from_array(cp.asarray(a), chunks=200) for a in (X, y, weights)]
+    X, y, weights = dask_utils.persist_across_workers(client, data)
+    kwargs = {} if class_weight is None else {"class_weight": class_weight}
     model = model_cls(
-        n_estimators=1,
-        bootstrap=True,
+        n_estimators=16,
+        bootstrap=bootstrap,
         max_depth=1,
         n_bins=2,
-        **model_kwargs,
+        random_state=42,
+        **kwargs,
+    )
+    initial_models = model.rfs.copy()
+    model.fit(X, y, sample_weight=weights if use_sample_weight else None)
+
+    combined = model.get_combined_model()
+    combined.output_type = "cupy"
+    X_test = cp.zeros((1, 1), dtype=cp.float32)
+    if model_cls is cuRFC_mg:
+        prediction = combined.predict_proba(X_test)[0, 1]
+    else:
+        prediction = combined.predict(X_test)[0]
+    assert float(prediction) == pytest.approx(
+        expected, abs=0.03 if bootstrap else 1e-6
     )
 
+    # All participating ranks must build the same forest. Workers without
+    # training rows keep their initial, unfitted model.
+    worker_model_bytes = client.gather(
+        [
+            client.submit(_get_treelite_bytes, model.rfs[w], workers=[w])
+            for w in model.rfs
+            if model.rfs[w] is not initial_models[w]
+        ]
+    )
+    assert all(data == worker_model_bytes[0] for data in worker_model_bytes)
+
+
+@pytest.mark.parametrize("weight_type", ["sample", "class"])
+def test_rf_weighted_bootstrap_all_zero_weights(client, weight_type):
+    n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
+    X, y = _prep_training_data(
+        client,
+        np.zeros((n_workers * 20, 1), dtype=np.float32),
+        np.arange(n_workers * 20, dtype=np.int32) % 2,
+        partitions_per_worker=1,
+    )
+    kwargs = (
+        {"class_weight": {0: 0.0, 1: 0.0}} if weight_type == "class" else {}
+    )
+    fit_kwargs = {"sample_weight": y * 0.0} if weight_type == "sample" else {}
+    model = cuRFC_mg(
+        n_estimators=1, bootstrap=True, max_depth=1, n_bins=2, **kwargs
+    )
     with pytest.raises(
-        NotImplementedError,
-        match="Weighted bootstrapping is not yet supported",
+        RuntimeError,
+        match="sample_weight values must contain at least one positive value",
     ):
         model.fit(X, y, **fit_kwargs)
 

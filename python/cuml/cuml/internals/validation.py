@@ -1366,6 +1366,7 @@ def check_y(
 def check_sample_weight(
     sample_weight,
     *,
+    allow_all_zero=False,
     dtype=None,
     mem_type="device",
     order="A",
@@ -1395,6 +1396,10 @@ def check_sample_weight(
     ensure_non_negative : bool, default=False
         If True, an error will be raised if negative values are found in the
         input. By default ``check_non_negative`` is skipped.
+
+    allow_all_zero : bool, default=False
+        Allow arrays containing only zero weights, for distributed estimators
+        that validate the global weight sum separately.
 
     Returns
     -------
@@ -1435,7 +1440,11 @@ def check_sample_weight(
             f"{sample_weight.ndim}D array."
         )
 
-    if sample_weight.size and (sample_weight == 0).all():
+    if (
+        not allow_all_zero
+        and sample_weight.size
+        and (sample_weight == 0).all()
+    ):
         raise ValueError(all_zero_msg)
     return sample_weight
 
@@ -1451,6 +1460,7 @@ def check_inputs(
     dtype=None,
     y_dtype=...,
     sample_weight_dtype=...,
+    sample_weight_allow_all_zero=False,
     mem_type="device",
     order="A",
     copy=False,
@@ -1509,6 +1519,9 @@ def check_inputs(
     sample_weight_dtype : None, dtype, list[dtype], default=...
         The dtype(s) to support for sample_weight. If not specified, defaults
         to the output dtype of ``X``.
+    sample_weight_allow_all_zero : bool, default=False
+        Allow arrays containing only zero weights. The estimator must validate
+        the global weight sum separately when enabling this option.
     mem_type : {'device', 'host'} or None, default='device'
         The memory type use for the output. If 'device', the output will be a
         ``cupy.ndarray`` if dense, or a ``cupyx.scipy.sparse.spmatrix`` if
@@ -1623,6 +1636,7 @@ def check_inputs(
         sample_weight = check_sample_weight(
             sample_weight,
             dtype=sample_weight_dtype,
+            allow_all_zero=sample_weight_allow_all_zero,
             mem_type=mem_type,
             order=order,
         )
