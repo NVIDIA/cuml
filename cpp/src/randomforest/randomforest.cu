@@ -958,4 +958,11 @@ template CUML_EXPORT void fit_treelite<double, double>(const raft::handle_t& use
                                                        rapids_logger::level_enum verbosity,
                                                        const double* sample_weight,
                                                        bool input_row_major);
+
+// Explicit instantiations for the implementation declared in randomforest.cuh.
+template class RandomForest<float, int>;
+template class RandomForest<float, float>;
+template class RandomForest<double, int>;
+template class RandomForest<double, double>;
+
 }  // End namespace ML

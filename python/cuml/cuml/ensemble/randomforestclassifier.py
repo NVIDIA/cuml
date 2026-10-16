@@ -259,8 +259,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         """
         Perform Random Forest Classification on the input data
         """
-        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return self._fit(X, y, sample_weight=sample_weight)
 
     def _prepare_fit_inputs(self, X, y, sample_weight=None):
         classes = getattr(self, "_distributed_classes", True)
@@ -273,6 +272,8 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
             order="A",
             y_dtype="int32",
             sample_weight_dtype="float64",
+            sample_weight_allow_all_zero=hasattr(self, "_distributed_n_rows")
+            and self.bootstrap,
             return_classes=classes,
             reset=True,
         )
