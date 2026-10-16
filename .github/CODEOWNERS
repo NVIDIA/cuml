@@ -5,6 +5,7 @@
 cpp/               @NVIDIA/cuml-cpp-codeowners
 
 # docs
+/BUILD.md                            @NVIDIA/cuml-cpp-codeowners
 /CONTRIBUTING.md                     @NVIDIA/cuml-python-codeowners
 /README.md                           @NVIDIA/cuml-python-codeowners
 /docs/                               @NVIDIA/cuml-python-codeowners

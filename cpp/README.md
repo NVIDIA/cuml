@@ -14,10 +14,10 @@ Multi-GPU communication is provided through RAFT communicator APIs; cuML does no
 ## Setup
 ### Dependencies
 
-1. cmake (>= 3.26.4)
+1. cmake (>= 4.0)
 2. CUDA (>= 12.2)
 3. gcc (>=13.0)
-4. clang-format (= 20.1.8) - enforces uniform C++ coding style; required to build cuML from source. The packages `clang=20` and `clang-tools=20` from the conda-forge channel should be sufficient, if you are on conda. If not using conda, install the right version using your OS package manager.
+4. clang-format (= 20.1.8) - enforces uniform C++ coding style; required for pre-commit/CI formatting checks, not to build cuML. The packages `clang=20` and `clang-tools=20` from the conda-forge channel should be sufficient, if you are on conda. If not using conda, install the right version using your OS package manager.
 
 ### Building cuML:
 
@@ -63,7 +63,7 @@ $ cmake --build . -j --target  cuml         # Build libcuml
 To build the MultiGPU tests (CMake option `BUILD_CUML_MG_TESTS`), the following dependencies are required:
 
 - MPI (OpenMPI recommended)
-- RAFT distributed dependencies, including NCCL and UCXX/UCX. See RAFT's build documentation for the current requirements.
+- RAFT distributed dependencies, including NCCL (2.19+) and UCXX/UCX. See RAFT's build documentation for the current requirements.
 
 ### Third Party Modules
 

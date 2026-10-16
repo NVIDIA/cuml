@@ -51,12 +51,12 @@ For detailed version requirements of runtime dependencies (numpy, scikit-learn, 
 
 cuML has limited support for multi-GPU and multi-node operations. The following dependencies enable these features:
 
-- **NCCL** - required by RAFT and cuVS multi-GPU communication paths.
+- **NCCL** (>= 2.19) - required by RAFT and cuVS multi-GPU communication paths, and by the cuML C++ multi-GPU tests.
 - **UCXX/UCX** - required by RAFT/Dask distributed communication paths and is configured through RAFT/Dask packages rather than a cuML CMake option.
 - **MPI** - required only for cuML C++ multi-GPU tests when `BUILD_CUML_MG_TESTS=ON`.
 
 **For development only:**
-- clang-format (= 20.1.8) - enforces uniform C++ coding style; required for pre-commit hooks and CI checks. The packages `clang=20` and `clang-tools=20` from the conda-forge channel should be sufficient, if you are using conda. If not using conda, install the right version using your OS package manager.
+- clang-format (= 20.1.8) - enforces uniform C++ coding style; required for pre-commit hooks and CI checks (not required to build). The packages `clang=20` and `clang-tools=20` from the conda-forge channel should be sufficient, if you are using conda. If not using conda, install the right version using your OS package manager.
 
 ### Recommended Conda Setup
 
