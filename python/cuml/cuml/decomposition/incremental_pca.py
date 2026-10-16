@@ -126,7 +126,7 @@ class IncrementalPCA(PCA):
     .. [2] `A. Levy and M. Lindenbaum, Sequential Karhunen-Loeve Basis
         Extraction and its Application to Images, IEEE Transactions on Image
         Processing, Volume 9, Number 8, pp. 1371-1374, August 2000.
-        <https://www.cs.technion.ac.il/~mic/doc/skl-ip.pdf>`_
+        <https://ieeexplore.ieee.org/document/723422>`_
 
     .. [3] G. Golub and C. Van Loan. Matrix Computations, Third Edition,
         Chapter 5, Section 5.4.4, pp. 252-253.
