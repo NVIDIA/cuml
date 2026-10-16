@@ -282,8 +282,6 @@ class StratifiedKFold(_KFoldBase):
 
     def _split(self, X, y, indices):
         y = check_cudf(y, ensure_ndim=1)
-        if y.nunique() < 2:
-            raise ValueError("number of unique classes cannot be less than 2")
 
         df = cudf.DataFrame({"y": y[indices], "ids": indices})
         gb = df.groupby(["y"])
