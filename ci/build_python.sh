@@ -21,6 +21,7 @@ RAPIDS_PACKAGE_VERSION=$(head -1 ./VERSION)
 export RAPIDS_PACKAGE_VERSION
 
 # populates `RATTLER_CHANNELS` array and `RATTLER_ARGS` array
+source ./ci/use_conda_packages_from_prs.sh
 source rapids-rattler-channel-string
 
 rapids-logger "Prepending channel ${CPP_CHANNEL} to RATTLER_CHANNELS"

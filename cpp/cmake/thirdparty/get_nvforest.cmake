@@ -28,6 +28,7 @@ function(find_and_configure_nvforest)
               EXCLUDE_FROM_ALL       ${PKG_EXCLUDE_FROM_ALL}
               OPTIONS
                 "BUILD_NVFOREST_TESTS OFF"
+                "NVFOREST_USE_TREELITE_STATIC ${CUML_USE_TREELITE_STATIC}"
     )
 
     if(nvforest_ADDED)
@@ -42,8 +43,8 @@ endfunction()
 # To use a different nvForest locally, set the CMake variable
 # CPM_nvforest_SOURCE=/path/to/local/nvforest
 find_and_configure_nvforest(VERSION          ${CUML_MIN_VERSION_nvforest}
-        FORK             rapidsai
-        PINNED_TAG       ${rapids-cmake-checkout-tag}
+        FORK             chyunsu3
+        PINNED_TAG       ab01ff5f72b3195f382b2a1a3350e9c210132d33
         EXCLUDE_FROM_ALL ${CUML_EXCLUDE_NVFOREST_FROM_ALL}
         # When PINNED_TAG above doesn't match cuml,
         # force local nvforest clone in build directory
