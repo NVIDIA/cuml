@@ -49,8 +49,8 @@ struct DecisionTreeParams {
    */
   CRITERION split_criterion;
   /**
-   * Minimum impurity decrease required for splitting a node. If the impurity decrease is below this
-   * value, node is leafed out. Default is 0.0
+   * A node is split if its weighted impurity decrease exceeds this value.
+   * Default is 0.0.
    */
   float min_impurity_decrease = 0.0f;
 
@@ -71,8 +71,8 @@ struct DecisionTreeParams {
  * @param[in] cfg_min_samples_leaf: min. rows in each leaf node; default 1
  * @param[in] cfg_min_samples_split: min. rows needed to split an internal node;
  *            default 2
- * @param[in] cfg_min_impurity_decrease: split a node only if its reduction in
- *                                       impurity is more than this value
+ * @param[in] cfg_min_impurity_decrease: split a node only if its weighted impurity
+ *                                       decrease exceeds this value
  * @param[in] cfg_split_criterion: split criterion; default CRITERION_END,
  *            i.e., GINI for classification or MSE for regression
  * @param[in] cfg_max_batch_size: Maximum number of nodes that can be processed

@@ -14,8 +14,7 @@ from cuml.internals.validation import check_inputs
 
 
 class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
-    """
-    Implements a Random Forest classifier model which fits multiple decision
+    """Implements a Random Forest classifier model which fits multiple decision
     tree classifiers in an ensemble.
 
     .. note:: Note that the underlying algorithm for tree node splits differs
@@ -108,8 +107,16 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
            and ``max(2, ceil(min_samples_split * n_rows))`` is the minimum
            number of samples for each split.
     min_impurity_decrease : float (default = 0.0)
-        Minimum decrease in impurity required for
-        node to be split.
+        A node will be split if this split induces a decrease of the weighted impurity
+        greater than this value.
+
+        .. versionchanged:: 26.12
+
+            Impurity decrease is now weighted by the node's fraction of the
+            tree's total training weight. Positive thresholds may produce
+            smaller trees and different predictions. The default ``0.0``
+            needs no adjustment.
+
     max_batch_size : int (default = 4096)
         Maximum number of nodes that can be processed in a given batch.
     random_state : int (default = None)
@@ -158,6 +165,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
     When converting to sklearn using `as_sklearn()`, the `feature_importances_` attribute will return
     NaN values. If you need feature importances, save them before conversion:
     `importances = cuml_model.feature_importances_`
+
     """
 
     oob_decision_function_ = ReflectedAttr()

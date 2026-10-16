@@ -45,10 +45,8 @@
 
 #include <cstdint>
 #include <deque>
-#include <map>
 
 namespace ML {
-
 namespace detail {
 template <typename T>
 struct InvalidSampleWeight {

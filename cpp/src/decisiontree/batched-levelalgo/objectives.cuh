@@ -30,6 +30,7 @@ class ClassificationObjectiveFunction {
   std::int64_t min_samples_leaf;
   CRITERION criterion;
   DataT min_impurity_decrease;
+  double root_weight;
 
   HDI double WeightAt(BinT const* hist, std::int64_t i, std::int64_t n_bins) const
   {
@@ -146,11 +147,13 @@ class ClassificationObjectiveFunction {
   HDI ClassificationObjectiveFunction(std::int64_t nclasses,
                                       std::int64_t min_samples_leaf,
                                       CRITERION criterion,
+                                      double root_weight,
                                       DataT min_impurity_decrease = DataT{0})
     : nclasses(nclasses),
       min_samples_leaf(min_samples_leaf),
       criterion(criterion),
-      min_impurity_decrease(min_impurity_decrease)
+      min_impurity_decrease(min_impurity_decrease),
+      root_weight(root_weight)
   {
   }
 
@@ -178,13 +181,17 @@ class ClassificationObjectiveFunction {
                        std::int64_t n_bins) const
   {
     Split<DataT> sp;
+    auto weight_fraction = WeightAt(shist, n_bins - 1, n_bins) / root_weight;
     for (std::int64_t i = threadIdx.x; i < n_bins; i += blockDim.x) {
       auto nLeft  = detail::CountLeft(shist, i, n_bins, nclasses);
       auto nRight = len - nLeft;
       if (nLeft >= static_cast<std::int64_t>(min_samples_leaf) &&
           nRight >= static_cast<std::int64_t>(min_samples_leaf)) {
         auto gain = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
-        if (gain > min_impurity_decrease) { sp.update(squantiles[i], col, gain, nLeft, i); }
+        // Use weighted gain for the threshold; store local gain.
+        if (gain * weight_fraction > min_impurity_decrease) {
+          sp.update(squantiles[i], col, gain, nLeft, i);
+        }
       }
     }
     return sp;
@@ -221,6 +228,7 @@ class RegressionObjectiveFunction {
   std::int64_t min_samples_leaf;
   CRITERION criterion;
   DataT min_impurity_decrease;
+  double root_weight;
   static constexpr auto eps_ = 10 * std::numeric_limits<DataT>::epsilon();
 
   HDI DataT MSEGain(BinT const* hist,
@@ -370,10 +378,12 @@ class RegressionObjectiveFunction {
   HDI RegressionObjectiveFunction(std::int64_t,
                                   std::int64_t min_samples_leaf,
                                   CRITERION criterion,
+                                  double root_weight,
                                   DataT min_impurity_decrease = DataT{0})
     : min_samples_leaf(min_samples_leaf),
       criterion(criterion),
-      min_impurity_decrease(min_impurity_decrease)
+      min_impurity_decrease(min_impurity_decrease),
+      root_weight(root_weight)
   {
   }
 
@@ -401,13 +411,17 @@ class RegressionObjectiveFunction {
                        std::int64_t n_bins) const
   {
     Split<DataT> sp;
+    auto weight_fraction = shist[n_bins - 1].Weight() / root_weight;
     for (std::int64_t i = threadIdx.x; i < n_bins; i += blockDim.x) {
       auto nLeft  = detail::CountLeft(shist, i, n_bins, std::int64_t{1});
       auto nRight = len - nLeft;
       if (nLeft >= static_cast<std::int64_t>(min_samples_leaf) &&
           nRight >= static_cast<std::int64_t>(min_samples_leaf)) {
         auto gain = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
-        if (gain > min_impurity_decrease) { sp.update(squantiles[i], col, gain, nLeft, i); }
+        // Use weighted gain for the threshold; store local gain.
+        if (gain * weight_fraction > min_impurity_decrease) {
+          sp.update(squantiles[i], col, gain, nLeft, i);
+        }
       }
     }
     return sp;
