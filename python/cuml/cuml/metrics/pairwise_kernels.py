@@ -5,7 +5,6 @@
 import inspect
 import math
 import warnings
-import weakref
 
 import cupy as cp
 import numpy as np
@@ -148,9 +147,6 @@ _KERNEL_PARAMS = {
 }
 
 
-_KERNEL_CACHE = weakref.WeakKeyDictionary()
-
-
 def _custom_kernel(X, Y, metric, filter_params=False, **kwds):
     """Implement a custom pairwise_kernels metric.
 
@@ -195,7 +191,7 @@ def _custom_kernel(X, Y, metric, filter_params=False, **kwds):
         )
     optional.update(kwds)
 
-    if (kernel := _KERNEL_CACHE.get(metric)) is None:
+    if (kernel := getattr(metric, "__cuml_cached_kernel__", None)) is None:
         code = (
             "@cuda.jit\n"
             "def kernel(X, Y, K, symmetric, {args}):\n"
@@ -212,7 +208,14 @@ def _custom_kernel(X, Y, metric, filter_params=False, **kwds):
         ).format(args=", ".join(f"_{k}_" for k in optional))
         ns = {"cuda": cuda, "metric": metric}
         exec(code, ns)
-        kernel = _KERNEL_CACHE[metric] = ns["kernel"]
+        kernel = ns["kernel"]
+        # Cache the kernel on the metric function. This cannot fail, since the
+        # numba compilers will only jit python functions, and those always have
+        # a mutable `__dict__`. We do this instead of using an external cache
+        # so that the lifetime of the kernel is tied to the lifetime of the
+        # metric function. Using a WeakKeyDictionary wouldn't work since
+        # kernel.py_func==metric, which would keep the key alive.
+        metric.__cuml_cached_kernel__ = kernel
 
     # float64 always used for the output to avoid numeric precision issues
     K = cp.zeros((X.shape[0], Y.shape[0]), dtype="float64")
