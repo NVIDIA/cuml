@@ -104,8 +104,8 @@ files:
       - depends_on_cupy
       - depends_on_libcuml
       - depends_on_nvforest
-      - dependes_on_numba_cuda
-      - dependes_on_numba_cuda_mlir
+      - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
       - py_version
       - test_python
       - test_python_xgboost
