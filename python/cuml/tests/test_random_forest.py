@@ -13,12 +13,14 @@ import cupy as cp
 import numpy as np
 import pytest
 import treelite
+import treelite.sklearn
 from cudf.pandas import LOADED as cudf_pandas_active
 from sklearn.datasets import (
     fetch_california_housing,
     load_breast_cancer,
     load_iris,
     make_classification,
+    make_hastie_10_2,
     make_regression,
 )
 from sklearn.ensemble import RandomForestClassifier as skrfc
@@ -411,6 +413,28 @@ def test_rf_regressor_sample_weight_min_samples_leaf_matches_sklearn(datatype):
     np.testing.assert_allclose(
         _cuml_preds(cuml_model, X), sk_model.predict(X), rtol=1e-6, atol=1e-6
     )
+
+
+def test_rf_classifier_bootstrap_min_samples_leaf_counts_distinct_rows():
+    X, y = make_hastie_10_2(n_samples=20, random_state=1)
+    X = X.astype(np.float32)
+    min_samples_leaf = 5
+
+    model = curfc(
+        min_samples_leaf=min_samples_leaf,
+        n_estimators=1,
+        n_bins=X.shape[0],
+        random_state=1,
+        bootstrap=True,
+        n_streams=1,
+    ).fit(X, y)
+
+    sklearn_model = treelite.sklearn.export_model(model.as_treelite())
+    leaf_ids = sklearn_model.estimators_[0].tree_.apply(X)
+    leaf_counts = np.bincount(leaf_ids)
+    leaf_counts = leaf_counts[leaf_counts != 0]
+
+    assert np.min(leaf_counts) >= min_samples_leaf
 
 
 @pytest.mark.parametrize(
