@@ -13,7 +13,6 @@ import cupy as cp
 import numpy as np
 import pytest
 import treelite
-import treelite.sklearn
 from cudf.pandas import LOADED as cudf_pandas_active
 from sklearn.datasets import (
     fetch_california_housing,
@@ -415,7 +414,11 @@ def test_rf_regressor_sample_weight_min_samples_leaf_matches_sklearn(datatype):
     )
 
 
-def test_rf_classifier_bootstrap_min_samples_leaf_counts_distinct_rows():
+def test_rf_classifier_min_samples_leaf_with_bootstrap():
+    """
+    Ensure that min_samples_leaf constraint is properly enforced
+    when bootstrapping is enabled.
+    """
     X, y = make_hastie_10_2(n_samples=20, random_state=1)
     X = X.astype(np.float32)
     min_samples_leaf = 5
@@ -429,8 +432,8 @@ def test_rf_classifier_bootstrap_min_samples_leaf_counts_distinct_rows():
         n_streams=1,
     ).fit(X, y)
 
-    sklearn_model = treelite.sklearn.export_model(model.as_treelite())
-    leaf_ids = sklearn_model.estimators_[0].tree_.apply(X)
+    forest = model.as_nvforest()
+    leaf_ids = forest.apply(X)[:, 0].astype(np.int32)
     leaf_counts = np.bincount(leaf_ids)
     leaf_counts = leaf_counts[leaf_counts != 0]
 
