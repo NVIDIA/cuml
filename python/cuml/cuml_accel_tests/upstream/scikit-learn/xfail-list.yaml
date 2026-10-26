@@ -275,8 +275,6 @@
   - "sklearn.ensemble.tests.test_forest::test_min_impurity_decrease"
   - "sklearn.ensemble.tests.test_forest::test_min_samples_leaf[RandomForestClassifier]"
   - "sklearn.ensemble.tests.test_forest::test_min_samples_leaf[RandomForestRegressor]"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestClassifier]"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_oob_not_computed_twice[RandomForestClassifier]"
   - "sklearn.ensemble.tests.test_forest::test_oob_not_computed_twice[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_poisson_y_positive_check"
@@ -1099,6 +1097,11 @@
 - reason: The sklearn test has the error message accidentally flipped, our message is correct
   tests:
   - "sklearn.linear_model.tests.test_ridge::test_ridge_individual_penalties"
+- reason: Treelite before 4.8 does not export node sample counts
+  condition: treelite<4.8.0
+  tests:
+  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestClassifier]"
+  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestRegressor]"
 - reason: Upstream sklearn pandas string dtype expectations differ with pandas 3
   condition: pandas>=3 and scikit-learn<1.7.2
   tests:
