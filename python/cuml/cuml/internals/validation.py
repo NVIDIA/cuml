@@ -586,9 +586,6 @@ def _host_to_device(array, dtype=None, order=None, copy=None):
         if (order == "F" and c_in and not f_in) or (
             order == "C" and f_in and not c_in
         ):
-            out = cp.empty(
-                array.shape, dtype=dtype or array.dtype, order=order
-            )
             # Slice along the axis that is contiguous in the input's own
             # layout (first for C, last for F) so each block is one
             # contiguous host region; assigning it into the differently
@@ -597,11 +594,18 @@ def _host_to_device(array, dtype=None, order=None, copy=None):
             n = array.shape[axis]
             per_slice = max(1, array.nbytes // max(1, n))
             step = max(1, _H2D_BLOCK_BYTES // per_slice)
+            out = None
             for start in range(0, n, step):
                 idx = [slice(None)] * array.ndim
                 idx[axis] = slice(start, start + step)
                 idx = tuple(idx)
-                out[idx] = cp.array(array[idx], dtype=dtype, copy=None)
+                block = cp.array(array[idx], dtype=dtype, copy=None)
+                if out is None:
+                    # Take the dtype `cp.array` chose (e.g. native byte
+                    # order for big-endian input); `cp.empty` rejects
+                    # non-native byte orders.
+                    out = cp.empty(array.shape, dtype=block.dtype, order=order)
+                out[idx] = block
             return out
     # XXX: using cp.array for compat with cupy < 14
     return cp.array(array, dtype=dtype, order=order, copy=copy)
