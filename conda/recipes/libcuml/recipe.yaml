@@ -79,7 +79,7 @@ outputs:
         - librmm =${{ minor_version }}
         - openmpi # Required for building cpp-mgtests (multi-GPU tests)
         - rapids-logger =0.3
-        - treelite ${{ treelite_version }}
+        - treelite ${{ treelite_version_exact }}
         - cuda-cudart-dev
         - libcublas-dev
         - libcufft-dev
@@ -113,7 +113,7 @@ outputs:
         - libcuvs =${{ minor_version }}
         - libnvforest =${{ minor_version }}
         - librmm =${{ minor_version }}
-        - treelite ${{ treelite_version }}
+        - treelite ${{ treelite_version_exact }}
         - cuda-cudart-dev
         - libcublas
         - libcufft
