@@ -249,6 +249,19 @@ class IncrementalPCA(PCA):
 
         return self
 
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
+    def fit_transform(self, X, y=None):
+        """
+        Fit the model with X, using minibatches of size batch_size, and apply
+        the dimensionality reduction on X.
+
+        """
+        return self.fit(X, y).transform(X)
+
     @mlfunc(convert_output=False)
     def partial_fit(self, X, y=None, *, check_input=True) -> "IncrementalPCA":
         """

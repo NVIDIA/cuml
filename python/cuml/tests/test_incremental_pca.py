@@ -197,6 +197,27 @@ def test_partial_fit_then_sparse_transform(batch_size):
     assert result.shape == (200, 4)
 
 
+def test_fit_transform_fits_in_batches():
+    """fit_transform must go through IncrementalPCA.fit, not PCA's, so the
+    batch state is kept and a later partial_fit continues from it."""
+    X, _ = make_blobs(
+        n_samples=200, n_features=10, random_state=0, dtype="float64"
+    )
+    X = cp.asarray(X)
+
+    ipca = cuIPCA(n_components=4, batch_size=50)
+    Xt = ipca.fit_transform(X)
+    assert ipca.batch_size_ == 50
+    assert int(ipca.n_samples_seen_) == 200
+
+    ref = cuIPCA(n_components=4, batch_size=50).fit(X)
+    cp.testing.assert_allclose(Xt, ref.transform(X), rtol=1e-6, atol=1e-6)
+    cp.testing.assert_allclose(ipca.var_, ref.var_)
+
+    ipca.partial_fit(X[:50])
+    assert int(ipca.n_samples_seen_) == 250
+
+
 def test_svd_flip():
     x = cp.array(range(-10, 80)).reshape((9, 10))
     u, s, v = cp.linalg.svd(x, full_matrices=False)
