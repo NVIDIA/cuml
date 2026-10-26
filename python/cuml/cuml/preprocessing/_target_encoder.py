@@ -486,7 +486,11 @@ class TargetEncoder(InteropMixin, Base):
                 merged = True
             else:
                 encode_all_i, encoded = self._encode_single_feature(df, col)
-                df[out_col_i] = encoded
+                # A category with no non-null targets encodes as NaN when
+                # smooth=0; impute it as the merge path does
+                df[out_col_i] = cp.where(
+                    cp.isnan(encoded), self.y_stat_val, encoded
+                )
 
             self.encode_all.append(encode_all_i)
 
