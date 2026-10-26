@@ -282,7 +282,11 @@ def install(
                 rmm.mr.set_current_device_resource(
                     rmm.mr.PrefetchResourceAdaptor(mr)
                 )
-                logger.debug("Enabled pooled managed memory.")
+                logger.debug(
+                    "Enabled managed memory."
+                    if mr is managed
+                    else "Enabled pooled managed memory."
+                )
         else:
             logger.debug("Could not enable managed memory on this platform.")
 

@@ -1,8 +1,11 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import importlib
 import importlib.metadata
 import multiprocessing
+import os
+import subprocess
+import sys
 from inspect import Parameter, signature
 
 import pytest
@@ -65,6 +68,48 @@ def test_enabled_in_loky_executor():
         assert enabled
         remote = executor.submit(LogisticRegression().fit, X, y).result()
         assert cuml.accel.is_proxy(remote)
+
+
+_INSTALL_SCRIPT = """
+import rmm
+import cuml.accel.core as core
+
+core._is_concurrent_managed_access_supported = lambda: True
+if {fail_pool}:
+    def fail(*args, **kwargs):
+        raise MemoryError("no room")
+    rmm.mr.PoolMemoryResource = fail
+core.install(log_level="debug")
+mr = rmm.mr.get_current_device_resource()
+assert isinstance(mr, rmm.mr.PrefetchResourceAdaptor)
+print("UPSTREAM", type(mr.upstream_mr).__name__)
+"""
+
+
+@pytest.mark.parametrize(
+    "fail_pool, upstream, message",
+    [
+        (False, "PoolMemoryResource", "Enabled pooled managed memory."),
+        (True, "ManagedMemoryResource", "Enabled managed memory."),
+    ],
+)
+def test_install_managed_memory_resource(fail_pool, upstream, message):
+    """install() pools managed memory, and falls back to (and reports)
+    unpooled managed memory if the initial pool block cannot be allocated."""
+    env = {
+        k: v for k, v in os.environ.items() if not k.startswith("CUML_ACCEL")
+    }
+    proc = subprocess.run(
+        [sys.executable, "-c", _INSTALL_SCRIPT.format(fail_pool=fail_pool)],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    output = proc.stdout + proc.stderr
+    assert proc.returncode == 0, output
+    assert f"UPSTREAM {upstream}" in output
+    assert message in output
+    assert ("Enabled pooled managed memory." in output) is not fail_pool
 
 
 def get_level():
