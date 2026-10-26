@@ -275,8 +275,6 @@
   - "sklearn.ensemble.tests.test_forest::test_min_impurity_decrease"
   - "sklearn.ensemble.tests.test_forest::test_min_samples_leaf[RandomForestClassifier]"
   - "sklearn.ensemble.tests.test_forest::test_min_samples_leaf[RandomForestRegressor]"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestClassifier]"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_oob_not_computed_twice[RandomForestClassifier]"
   - "sklearn.ensemble.tests.test_forest::test_oob_not_computed_twice[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_poisson_y_positive_check"
