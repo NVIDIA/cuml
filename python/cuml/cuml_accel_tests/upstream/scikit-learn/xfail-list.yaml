@@ -268,8 +268,6 @@
   - "sklearn.ensemble.tests.test_forest::test_importances[RandomForestClassifier-gini-float64]"
   - "sklearn.ensemble.tests.test_forest::test_importances[RandomForestRegressor-squared_error-float32]"
   - "sklearn.ensemble.tests.test_forest::test_importances[RandomForestRegressor-squared_error-float64]"
-  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestClassifier]"
-  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_max_samples_bootstrap[RandomForestClassifier]"
   - "sklearn.ensemble.tests.test_forest::test_max_samples_bootstrap[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_min_impurity_decrease"
@@ -888,6 +886,12 @@
   - "sklearn.preprocessing.tests.test_encoders::test_ordinal_encoder_specified_categories_missing_passthrough[object-None-missing-value]"
   - "sklearn.preprocessing.tests.test_encoders::test_ordinal_encoder_specified_categories_missing_passthrough[object-nan-missing_value]"
   - "sklearn.preprocessing.tests.test_encoders::test_ordinal_encoder_unknown_missing_interaction_both_nan[X_train0-X_test_trans_expected0-X_roundtrip_expected0]"
+- reason: Tests fail with `treelite<4.8.1`
+  marker: treelite_depth_bug
+  condition: treelite<4.8.1
+  tests:
+  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestClassifier]"
+  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestRegressor]"
 - reason: Calibration temperature scaling differs with cuml.accel in sklearn 1.8
   condition: scikit-learn>=1.8
   tests:
