@@ -210,6 +210,8 @@ files:
     includes:
       - test_python
       - test_python_xgboost
+      - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
   py_dask_cuml:
     output: pyproject
     pyproject_dir: python/cuml
@@ -1025,11 +1027,11 @@ dependencies:
               - *librmm_unsuffixed
   depends_on_numba_cuda:
     common:
-      - output_types: [conda]
+      - output_types: [conda, constraints]
         packages:
           - &numba_cuda numba-cuda>=0.22.2
     specific:
-      - output_types: [requirements, constraints, pyproject]
+      - output_types: [requirements, pyproject]
         matrices:
           - matrix:
               cuda: "12.*"
@@ -1047,7 +1049,7 @@ dependencies:
               - *numba_cuda
   depends_on_numba_cuda_mlir:
     common:
-      - output_types: [conda]
+      - output_types: [conda, constraints]
         packages:
           - &numba_cuda_mlir numba-cuda-mlir>=0.3.0
     specific:
