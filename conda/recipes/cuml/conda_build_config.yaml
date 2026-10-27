@@ -16,5 +16,8 @@ c_stdlib:
 c_stdlib_version:
   - "=2.28"
 
-treelite_version:
+treelite_version_run:
   - ">=4.7.2,<5.0.0"
+
+treelite_version_build:
+  - "==4.7.2"

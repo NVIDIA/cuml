@@ -28,13 +28,6 @@ cdef extern from "cuml/metrics/metrics.hpp" namespace "ML::Metrics" nogil:
         except +
 
 
-def _get_array_ptr(obj):
-    """
-    Get ctype pointer of a numba style device array
-    """
-    return obj.device_ctypes_pointer.value
-
-
 def trustworthiness(
     X,
     X_embedded,

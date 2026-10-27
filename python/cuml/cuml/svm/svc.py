@@ -8,7 +8,6 @@ from cuml.common.classification import process_class_weight
 from cuml.common.doc_utils import generate_docstring
 from cuml.common.sparse import is_sparse
 from cuml.internals.interop import UnsupportedOnCPU, UnsupportedOnGPU
-from cuml.internals.logger import warn
 from cuml.internals.mixins import ClassifierMixin
 from cuml.internals.outputs import ClassLabels, mlfunc
 from cuml.internals.validation import check_inputs, check_is_fitted
@@ -262,7 +261,7 @@ class SVC(ClassifierMixin, SVMBase):
     @mlfunc
     def support_(self):
         if hasattr(self, "_multiclass"):
-            estimators = self._multiclass.multiclass_estimator.estimators_
+            estimators = self._multiclass.estimators_
             return cp.concatenate(
                 [cp.asarray(cls._support_) for cls in estimators]
             )
@@ -277,7 +276,7 @@ class SVC(ClassifierMixin, SVMBase):
     @mlfunc
     def intercept_(self):
         if hasattr(self, "_multiclass"):
-            estimators = self._multiclass.multiclass_estimator.estimators_
+            estimators = self._multiclass.estimators_
             return cp.concatenate(
                 [cp.asarray(cls._intercept_) for cls in estimators]
             )
@@ -289,13 +288,13 @@ class SVC(ClassifierMixin, SVMBase):
         self._intercept_ = value
 
     def _fit_multiclass(self, X, y, sample_weight):
-        if sample_weight is not None:
-            warn(
-                "Sample weights are currently ignored for multi class classification"
-            )
-
         params = self.get_params()
         decision_function_shape = params.pop("decision_function_shape")
+        # ``y`` is label encoded before reaching the multiclass wrapper.
+        # Passing the original class-weight mapping to the binary estimators
+        # would incorrectly apply it to their temporary labels 0/1. The
+        # weights have already been incorporated into ``sample_weight``.
+        params["class_weight"] = None
         wrappers = {"ovo": OneVsOneClassifier, "ovr": OneVsRestClassifier}
         if (multiclass_cls := wrappers.get(decision_function_shape)) is None:
             raise ValueError(
@@ -307,7 +306,7 @@ class SVC(ClassifierMixin, SVMBase):
             verbose=self.verbose,
             output_type=self.output_type,
         )
-        self._multiclass.fit(X, y)
+        self._multiclass.fit(X, y, sample_weight=sample_weight)
 
         # if using one-vs-one we align support_ indices to those of
         # full dataset
@@ -320,11 +319,9 @@ class SVC(ClassifierMixin, SVMBase):
                 for j in range(i + 1, n_classes):
                     cond = cp.logical_or(y == classes[i], y == classes[j])
                     ovo_support = cp.array(
-                        self._multiclass.multiclass_estimator.estimators_[
-                            estimator_index
-                        ].support_
+                        self._multiclass.estimators_[estimator_index].support_
                     )
-                    self._multiclass.multiclass_estimator.estimators_[
+                    self._multiclass.estimators_[
                         estimator_index
                     ].support_ = cp.nonzero(cond)[0][ovo_support]
                     estimator_index += 1
@@ -332,10 +329,7 @@ class SVC(ClassifierMixin, SVMBase):
         self.shape_fit_ = X.shape
         self.fit_status_ = 0
         self.n_iter_ = np.concatenate(
-            [
-                est.n_iter_
-                for est in self._multiclass.multiclass_estimator.estimators_
-            ]
+            [est.n_iter_ for est in self._multiclass.estimators_]
         )
         return self
 
@@ -413,7 +407,7 @@ class SVC(ClassifierMixin, SVMBase):
         check_is_fitted(self)
 
         if hasattr(self, "_multiclass"):
-            indices = self._multiclass.predict(X)
+            indices = self._multiclass._predict_indices(X)
         else:
             res = self.decision_function(X)
             indices = (res >= 0).view(cp.int8)
@@ -441,6 +435,6 @@ class SVC(ClassifierMixin, SVMBase):
         check_is_fitted(self)
 
         if hasattr(self, "_multiclass"):
-            return self._multiclass.decision_function(X)
+            return self._multiclass._decision_scores(X)
 
         return self._predict(X)

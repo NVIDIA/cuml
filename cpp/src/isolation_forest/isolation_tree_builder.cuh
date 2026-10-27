@@ -134,6 +134,7 @@ __device__ void build_tree_iterative_global(const T* __restrict__ local_data,
                                             int* n_nodes_out,
                                             int* max_depth_out,
                                             int* work_indices,
+                                            int* feature_perm,
                                             StackEntry* stack)
 {
   int tid = threadIdx.x;
@@ -166,17 +167,23 @@ __device__ void build_tree_iterative_global(const T* __restrict__ local_data,
         continue;
       }
 
-      // Try every feature, starting from a random offset, before concluding
-      // that this node cannot be split. This avoids prematurely stopping on
-      // sparse or one-hot data when the first random feature is constant.
+      // Draw features without replacement (partial Fisher-Yates shuffle of
+      // feature_perm) until one is non-constant in this node.
+      // This picks uniformly among the non-constant features, and only
+      // concludes the node cannot be split after trying every feature.
+      // feature_perm needs no reset between nodes: the shuffle produces a
+      // uniformly random order from any starting permutation.
       int local_feature = -1;
       T min_val         = T(0);
       T max_val         = T(0);
-      int feature_start = static_cast<int>(sample_bounded(rng_state, static_cast<size_t>(n_cols)));
       for (int attempt = 0; attempt < n_cols; ++attempt) {
-        int candidate   = (feature_start + attempt) % n_cols;
-        T candidate_min = local_data[work_indices[start] * n_cols + candidate];
-        T candidate_max = candidate_min;
+        int j = attempt +
+                static_cast<int>(sample_bounded(rng_state, static_cast<size_t>(n_cols - attempt)));
+        int candidate         = feature_perm[j];
+        feature_perm[j]       = feature_perm[attempt];
+        feature_perm[attempt] = candidate;
+        T candidate_min       = local_data[work_indices[start] * n_cols + candidate];
+        T candidate_max       = candidate_min;
         for (int i = start + 1; i < end; ++i) {
           T val = local_data[work_indices[i] * n_cols + candidate];
           if (val < candidate_min) candidate_min = val;
@@ -266,6 +273,7 @@ CUML_KERNEL void build_isolation_trees_global_kernel(const T* __restrict__ data,
                                                      T* __restrict__ subsample_buffer,
                                                      size_t* __restrict__ sample_indices,
                                                      int* __restrict__ work_indices,
+                                                     int* __restrict__ feature_perm,
                                                      StackEntry* __restrict__ stack)
 {
   int tree_id = blockIdx.x;
@@ -283,6 +291,7 @@ CUML_KERNEL void build_isolation_trees_global_kernel(const T* __restrict__ data,
                                   ? nullptr
                                   : feature_indices + static_cast<size_t>(tree_id) * max_features;
   int* tree_work_indices      = work_indices + static_cast<size_t>(tree_id) * max_samples;
+  int* tree_feature_perm      = feature_perm + static_cast<size_t>(tree_id) * max_features;
   StackEntry* tree_stack      = stack + static_cast<size_t>(tree_id) * max_nodes_per_tree;
   IFNode<T>* tree_nodes       = nodes + tree_offset;
 
@@ -316,6 +325,9 @@ CUML_KERNEL void build_isolation_trees_global_kernel(const T* __restrict__ data,
   __syncthreads();
 
   int tid = threadIdx.x;
+  for (int f = tid; f < max_features; f += blockDim.x) {
+    tree_feature_perm[f] = f;
+  }
   for (int s = 0; s < max_samples; s++) {
     size_t src_row = tree_sample_indices[s];
     for (int f = tid; f < max_features; f += blockDim.x) {
@@ -336,6 +348,7 @@ CUML_KERNEL void build_isolation_trees_global_kernel(const T* __restrict__ data,
                               tree_n_nodes + tree_id,
                               tree_max_depth + tree_id,
                               tree_work_indices,
+                              tree_feature_perm,
                               tree_stack);
 }
 
@@ -400,6 +413,7 @@ void build_isolation_forest_global(const raft::handle_t& handle,
   rmm::device_uvector<T> subsample_buffer(subsample_buffer_size, stream);
   rmm::device_uvector<size_t> sample_indices(static_cast<size_t>(n_trees) * max_samples, stream);
   rmm::device_uvector<int> work_indices(static_cast<size_t>(n_trees) * max_samples, stream);
+  rmm::device_uvector<int> feature_perm(static_cast<size_t>(n_trees) * max_features, stream);
   rmm::device_uvector<StackEntry> stack(static_cast<size_t>(n_trees) * max_nodes_per_tree, stream);
 
   build_isolation_trees_global_kernel<T><<<n_trees, 128, 0, stream>>>(data,
@@ -420,6 +434,7 @@ void build_isolation_forest_global(const raft::handle_t& handle,
                                                                       subsample_buffer.data(),
                                                                       sample_indices.data(),
                                                                       work_indices.data(),
+                                                                      feature_perm.data(),
                                                                       stack.data());
 
   RAFT_CUDA_TRY(cudaGetLastError());

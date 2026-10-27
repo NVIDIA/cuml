@@ -353,6 +353,52 @@ def test_score(nrows, ncols, nclusters, n_parts, input_type, client):
 
 
 @pytest.mark.mg
+def test_weighted_inertia_and_score(client):
+    X = da.from_array(
+        cp.asarray(
+            [
+                [0.0, 0.0],
+                [1.0, 1.0],
+                [2.0, 2.0],
+                [10.0, 10.0],
+                [11.0, 11.0],
+                [12.0, 12.0],
+            ],
+            dtype=cp.float32,
+        ),
+        chunks=(3, 2),
+    )
+    sample_weight = da.from_array(
+        cp.asarray([1.0, 1.0, 1.0, 2.0, 2.0, 2.0], dtype=cp.float32),
+        chunks=(3,),
+    )
+
+    model = KMeans(
+        n_clusters=2,
+        init=np.array([[1.0, 1.0], [11.0, 11.0]], dtype=np.float32),
+        n_init=1,
+        random_state=0,
+    ).fit(X, sample_weight=sample_weight)
+
+    np.testing.assert_allclose(model.inertia_, 12.0)
+
+    score_X = da.from_array(
+        cp.asarray([[0.0, 0.0], [10.0, 10.0]], dtype=cp.float32),
+        chunks=(1, 2),
+    )
+    score_weight = da.from_array(
+        cp.asarray([2.0, 2.0], dtype=cp.float32),
+        chunks=(1,),
+    )
+    np.testing.assert_allclose(
+        model.score(score_X, sample_weight=score_weight),
+        -8.0,
+    )
+    with pytest.raises(ValueError, match="same row chunks as X"):
+        model.score(score_X, sample_weight=score_weight.rechunk((2,)))
+
+
+@pytest.mark.mg
 def test_nclusters_exceeds_n_samples(client):
     """Test that n_clusters > n_samples raises a clear ValueError."""
     from cuml.dask.cluster import KMeans
@@ -508,6 +554,7 @@ def test_out_of_core_host_fit(
     labels = model.fit_predict(X, **fit_kwargs).compute()
     labels = cp.asnumpy(cp.asarray(labels)).reshape(-1)
 
+    assert model.labels_.chunks[0] == X.chunks[0]
     assert labels.shape[0] == n_rows
     assert model.cluster_centers_.shape == (n_clusters, n_cols)
     assert sk_adjusted_rand_score(y_np, labels) >= 0.99

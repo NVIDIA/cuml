@@ -527,6 +527,24 @@ sklearn.preprocessing
      scikit-learn's encoder treats these as different categories.
 
 
+.. dropdown:: ``OrdinalEncoder``
+   :name: ordinalencoder
+
+   ``OrdinalEncoder`` will fall back to CPU in the following cases:
+
+   - If any columns in ``X`` have ``bytes`` values (``str`` values work fine).
+   - If ``handle_unknown`` is ``"use_encoded_value"`` and ``unknown_value`` is
+     not ``float("nan")``.
+   - If ``encoded_missing_value`` is not ``float("nan")``.
+   - If ``min_frequency`` is not ``None``.
+   - If ``max_categories`` is not ``None``.
+
+   Additional notes:
+
+   - cuML's encoder treats ``None`` and ``NaN`` values as identical, while
+     scikit-learn's encoder treats these as different categories.
+
+
 .. dropdown:: ``TargetEncoder``
    :name: targetencoder
 

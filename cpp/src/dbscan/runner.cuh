@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -34,6 +34,7 @@
 #include <cuvs/neighbors/ball_cover.hpp>
 
 #include <cstddef>
+#include <memory>
 
 namespace ML {
 namespace Dbscan {
@@ -220,14 +221,15 @@ std::size_t run(const raft::handle_t& handle,
   rmm::device_uvector<Index_> adj_graph(0, stream);
 
   // build index for rbc
+  std::unique_ptr<cuvs::neighbors::ball_cover::index<int64_t, float>> rbc_index;
   void* rbc_index_ptr = nullptr;
   if (sparse_rbc_mode) {
     if constexpr (std::is_same_v<Type_f, float> && std::is_same_v<Index_, int64_t>) {
       auto x_view = raft::make_device_matrix_view<const float, int64_t, raft::row_major>(x, N, D);
-      auto rbc_index = new cuvs::neighbors::ball_cover::index<Index_, Type_f>(
+      rbc_index   = std::make_unique<cuvs::neighbors::ball_cover::index<int64_t, float>>(
         handle, x_view, static_cast<cuvs::distance::DistanceType>(metric));
       cuvs::neighbors::ball_cover::build(handle, *rbc_index);
-      rbc_index_ptr = rbc_index;
+      rbc_index_ptr = rbc_index.get();
     }
   }
 

@@ -810,10 +810,12 @@ class KMeans(
             labels, inertia = _kmeans_predict_host_chunked(
                 handle_[0], params, X, sample_weight, centers,
                 device_buffer_samples,
+                normalize_weights=False,
             )
         else:
             labels, inertia = _kmeans_predict(
                 handle_[0], params, X, sample_weight, centers,
+                normalize_weights=False,
             )
         handle.sync()
 
@@ -1053,7 +1055,8 @@ class KMeans(
             params,
             X,
             sample_weight,
-            self.cluster_centers_
+            self.cluster_centers_,
+            normalize_weights=False,
         )
         handle.sync()
         return labels, inertia

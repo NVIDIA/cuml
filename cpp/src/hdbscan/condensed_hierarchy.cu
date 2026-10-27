@@ -14,7 +14,6 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
 
-#include <cub/cub.cuh>
 #include <cuda/functional>
 #include <cuda/std/tuple>
 #include <thrust/copy.h>
@@ -43,7 +42,7 @@ struct TupleComp {
     if (cuda::std::get<1>(t1) < cuda::std::get<1>(t2)) return true;
     if (cuda::std::get<1>(t1) > cuda::std::get<1>(t2)) return false;
 
-    // then sort by value in descending order
+    // then sort by value in ascending order
     return cuda::std::get<2>(t1) < cuda::std::get<2>(t2);
   }
 };

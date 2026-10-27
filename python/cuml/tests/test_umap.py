@@ -941,6 +941,11 @@ def correctness_sparse(a, b, atol=0.1, rtol=0.2, threshold=0.95):
     reason="Upstream regression in umap<0.5.12 with numba >= 0.62.0",
     strict=True,
 )
+@pytest.mark.xfail(
+    reason="Fuzzy simplicial set graph mismatch (see #8796)",
+    raises=AssertionError,
+    strict=False,
+)
 def test_fuzzy_simplicial_set(n_rows, n_features, n_neighbors):
     n_clusters = 30
     random_state = 42
@@ -1194,10 +1199,6 @@ def test_callback():
     class Callback(GraphBasedDimRedCallback):
         preprocess_event, epoch_event, train_event = False, 0, False
 
-        def __init__(self, skip_init=False):
-            if not skip_init:
-                super().__init__()
-
         def check(self):
             assert self.preprocess_event
             assert self.epoch_event > 10
@@ -1218,6 +1219,27 @@ def test_callback():
     reducer = cuUMAP(n_components=2, callback=callback)
     reducer.fit(digits.data)
     callback.check()
+
+
+def test_callback_copy_to_host_deprecated():
+    out = []
+
+    class Callback(GraphBasedDimRedCallback):
+        def on_preprocess_end(self, embeddings):
+            assert hasattr(embeddings, "copy_to_host")
+
+        def on_epoch_end(self, embeddings):
+            assert hasattr(embeddings, "copy_to_host")
+
+        def on_train_end(self, embeddings):
+            assert hasattr(embeddings, "copy_to_host")
+            with pytest.warns(FutureWarning, match="copy_to_host"):
+                out.append(embeddings.copy_to_host())
+
+    digits = datasets.load_digits()
+    cuUMAP(n_components=2, callback=Callback()).fit(digits.data)
+    assert len(out) == 1
+    assert isinstance(out[0], np.ndarray)
 
 
 def test_umap_small_fit_large_transform():

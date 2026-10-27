@@ -311,7 +311,7 @@ def test_vectorizer_inverse_transform():
 
 @pytest.mark.skip(
     reason="scikit-learn replaced get_feature_names with "
-    "get_feature_names_out"
+    "get_feature_names_out "
     "https://github.com/NVIDIA/cuml/issues/5159"
 )
 @pytest.mark.parametrize("ngram_range", NGRAM_RANGES, ids=NGRAM_IDS)
@@ -368,7 +368,7 @@ def test_only_delimiters():
 
 @pytest.mark.skip(
     reason="scikit-learn replaced get_feature_names with "
-    "get_feature_names_out"
+    "get_feature_names_out "
     "https://github.com/NVIDIA/cuml/issues/5159"
 )
 @pytest.mark.parametrize("analyzer", ["char", "char_wb"])
@@ -456,21 +456,6 @@ def test_tfidf_vectorizer_get_feature_names_out():
         "this",
     ]
     assert_array_equal(vectorizer.get_feature_names_out(), output)
-
-
-@pytest.mark.parametrize("cls", [TfidfVectorizer, CountVectorizer])
-def test_vectorizer_get_feature_names_deprecated(cls):
-    X = [
-        "This is the first document.",
-        "This document is the second document.",
-        "And this is the third one.",
-        "Is this the first document?",
-    ]
-    model = cls().fit(X)
-    with pytest.warns(FutureWarning, match="get_feature_names"):
-        res = model.get_feature_names()
-
-    np.testing.assert_array_equal(res, model.get_feature_names_out())
 
 
 def test_tfidf_vectorizer_char_wb_ngrams():

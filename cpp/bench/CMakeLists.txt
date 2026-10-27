@@ -11,9 +11,8 @@
 if(BUILD_CUML_BENCH)
   # (please keep the filenames in alphabetical order)
   add_executable(
-    ${CUML_CPP_BENCH_TARGET}
-    sg/arima_loglikelihood.cu sg/dbscan.cu sg/kmeans.cu sg/linkage.cu sg/main.cpp
-    sg/rf_classifier.cu sg/rf_regressor.cu sg/svc.cu sg/svr.cu sg/umap.cu
+    ${CUML_CPP_BENCH_TARGET} sg/dbscan.cu sg/kmeans.cu sg/linkage.cu sg/main.cpp
+                             sg/rf_classifier.cu sg/rf_regressor.cu sg/svc.cu sg/svr.cu sg/umap.cu
   )
   if(CUML_ENABLE_GPU)
     target_compile_definitions(${CUML_CPP_BENCH_TARGET} PUBLIC CUML_ENABLE_GPU)

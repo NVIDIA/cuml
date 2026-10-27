@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -79,7 +79,7 @@ DI void lds(double (&x)[2], double* addr)
 /**
  * @defgroup GlobalLoads Global cached load operations
  * @{
- * @brief Load from global memory with caching at L1 level
+ * @brief Load from global memory with caching at L2 level (bypassing L1)
  * @param[out] x    data to be loaded from global memory
  * @param[in]  addr address in global memory from where to load
  */

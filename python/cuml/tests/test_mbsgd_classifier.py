@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import cupy as cp
 import numpy as np
@@ -154,6 +154,6 @@ def test_mbsgd_multiclass_errors():
     model = cuml.MBSGDClassifier()
     with pytest.raises(
         ValueError,
-        match="binary classification is currently supported, got 4 classes",
+        match="binary classification is supported, got 4 classes",
     ):
         model.fit(X, y)

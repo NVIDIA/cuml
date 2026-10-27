@@ -18,22 +18,22 @@ Note that while a GPU is not required to build or develop cuML itself, it is nec
 2. gcc (>= 13.0)
 3. cmake (>= 4.0)
 4. ninja - build system used by default
-5. Python (>= 3.11 and <= 3.14)
+5. Python (>= 3.12 and <= 3.14)
 6. Cython (>= 3.2.2)
 
-**RAPIDS Ecosystem Libraries:**
+**CUDA-X Dependencies:**
 
-These RAPIDS libraries must match the cuML version (e.g., all version 25.10 if building cuML 25.10):
+These libraries must match the cuML version (e.g., all version 25.10 if building cuML 25.10):
 
 *C++ Libraries:*
-- [librmm](https://github.com/rapidsai/rmm) - RAPIDS Memory Manager (C++ library)
-- [libraft](https://github.com/NVIDIA/raft) - RAPIDS CUDA accelerated algorithms (C++ library)
+- [librmm](https://github.com/rapidsai/rmm) - CUDA Memory Manager (C++ library)
+- [libraft](https://github.com/NVIDIA/raft) - CUDA accelerated algorithms (C++ library)
 - [libcuvs](https://github.com/NVIDIA/cuvs) - CUDA Vector Search library
 
 *Python Packages:*
-- [rmm](https://github.com/rapidsai/rmm) - RAPIDS Memory Manager (Python package)
-- [pylibraft](https://github.com/NVIDIA/raft) - RAPIDS CUDA accelerated algorithms (Python package)
-- [cuDF](https://github.com/NVIDIA/cudf) - GPU DataFrame library (Python package)
+- [rmm](https://github.com/rapidsai/rmm) - CUDA Memory Manager (Python package)
+- [pylibraft](https://github.com/NVIDIA/raft) - CUDA accelerated algorithms (Python package)
+- [cuDF](https://github.com/NVIDIA/cudf) - CUDA DataFrame library (Python package)
 
 **Python Build Dependencies:**
 - scikit-build-core
@@ -51,12 +51,12 @@ For detailed version requirements of runtime dependencies (numpy, scikit-learn, 
 
 cuML has limited support for multi-GPU and multi-node operations. The following dependencies enable these features:
 
-- **NCCL** - required by RAFT and cuVS multi-GPU communication paths.
+- **NCCL** (>= 2.19) - required by RAFT and cuVS multi-GPU communication paths, and by the cuML C++ multi-GPU tests.
 - **UCXX/UCX** - required by RAFT/Dask distributed communication paths and is configured through RAFT/Dask packages rather than a cuML CMake option.
 - **MPI** - required only for cuML C++ multi-GPU tests when `BUILD_CUML_MG_TESTS=ON`.
 
 **For development only:**
-- clang-format (= 20.1.8) - enforces uniform C++ coding style; required for pre-commit hooks and CI checks. The packages `clang=20` and `clang-tools=20` from the conda-forge channel should be sufficient, if you are using conda. If not using conda, install the right version using your OS package manager.
+- clang-format (= 20.1.8) - enforces uniform C++ coding style; required for pre-commit hooks and CI checks (not required to build). The packages `clang=20` and `clang-tools=20` from the conda-forge channel should be sufficient, if you are using conda. If not using conda, install the right version using your OS package manager.
 
 ### Recommended Conda Setup
 
@@ -272,7 +272,7 @@ cuML's cmake has the following configurable flags available:
 | CMAKE_CXX11_ABI | [ON, OFF]  | ON  | Enable/disable the GLIBCXX11 ABI  |
 | DETECT_CONDA_ENV | [ON, OFF] | ON | Use detection of conda environment for dependencies. If set to ON, and no value for CMAKE_INSTALL_PREFIX is passed, then it will assign it to $CONDA_PREFIX (to install in the active environment).  |
 | DISABLE_OPENMP | [ON, OFF]  | OFF  | Set to `ON` to disable OpenMP  |
-| CMAKE_CUDA_ARCHITECTURES |  List of GPU architectures, semicolon-separated | Empty  | List the GPU architectures to compile the GPU targets for. Set to "NATIVE" to auto detect GPU architecture of the system, set to "ALL" to compile for all RAPIDS supported archs.  |
+| CMAKE_CUDA_ARCHITECTURES |  List of GPU architectures, semicolon-separated | Empty  | List the GPU architectures to compile the GPU targets for. Set to "NATIVE" to auto detect GPU architecture of the system, set to "ALL" to compile for all supported archs.  |
 | KERNEL_INFO | [ON, OFF]  | OFF  | Enable/disable kernel resource usage info in nvcc. |
 | LINE_INFO | [ON, OFF]  | OFF  | Enable/disable lineinfo in nvcc.  |
 | NVTX | [ON, OFF]  | OFF  | Enable/disable nvtx markers in libcuml.  |

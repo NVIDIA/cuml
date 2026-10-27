@@ -18,6 +18,7 @@ import cupy as cp
 import numpy as np
 import nvforest
 import treelite
+from cuda.core import Stream
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
@@ -30,7 +31,7 @@ from cuml.internals.validation import (
     check_random_seed,
 )
 
-from libc.stddef cimport size_t
+from cuda.bindings.cyruntime cimport cudaStream_t
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
@@ -251,6 +252,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         The number of isolation trees in the ensemble.
     max_samples : int, float or "auto", default="auto"
         The number of samples to draw from X to train each isolation tree.
+
         - If int, then draw `max_samples` samples.
         - If float, then draw `max_samples * n_samples` samples.
         - If "auto", then `max_samples=min(256, n_samples)`.
@@ -258,8 +260,9 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         Maximum depth of each isolation tree. If None, depth is set to
         `ceil(log2(max_samples))`, which is the theoretical maximum depth
         needed to isolate any sample.
-    max_features : float, default=1.0
+    max_features : float or int, default=1.0
         The number of features to draw from X to train each isolation tree.
+
         - If int, draw exactly ``max_features`` features.
         - If float, draw ``max_features * n_features`` features.
     bootstrap : bool, default=False
@@ -272,6 +275,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     contamination : float or "auto", default="auto"
         The proportion of outliers in the data set, used to define the offset
         for ``decision_function`` and ``predict``.
+
         - If ``"auto"``, the offset is set to -0.5.
         - If float, must be in the range (0, 0.5] and the offset is set to
           the corresponding training-score quantile.
@@ -304,6 +308,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     The anomaly score is computed as: s(x) = 2^(-E[h(x)] / c(n))
 
     where:
+
     - h(x) is the path length of sample x in an isolation tree
     - E[h(x)] is the average path length over all trees
     - c(n) is the average path length in an unsuccessful search in a BST
@@ -722,13 +727,17 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         """
         check_is_fitted(self)
 
+        handle = get_handle()
+        cdef handle_t* handle_ = <handle_t*> <uintptr_t> handle.getHandle()
+        cdef cudaStream_t stream = handle_.get_stream().get()
+
         return nvforest.load_from_treelite_model(
             tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
             device="gpu",
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,
-            handle=get_handle(),
+            stream=Stream.from_handle(<uintptr_t>stream),
         )
 
     def _get_inference_nvforest_model(self):

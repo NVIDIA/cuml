@@ -51,7 +51,7 @@ class BruteForceKNNTest : public ::testing::TestWithParam<KNNParams> {
     raft::comms::initialize_mpi_comms(&handle, MPI_COMM_WORLD);
     const auto& comm = handle.get_comms();
 
-    cudaStream_t stream = handle.get_stream();
+    auto stream = handle.get_stream();
 
     int my_rank = comm.get_rank();
     int size    = comm.get_size();
@@ -124,7 +124,7 @@ class BruteForceKNNTest : public ::testing::TestWithParam<KNNParams> {
       out_d_parts.push_back(out_d);
       out_i_parts.push_back(out_i);
 
-      generate_partition(query_d, params.min_rows, params.n_cols, 5, stream);
+      generate_partition(query_d, params.min_rows, params.n_cols, 5, stream.get());
     }
 
     std::vector<Matrix::floatData_t*> index_parts;
@@ -140,7 +140,7 @@ class BruteForceKNNTest : public ::testing::TestWithParam<KNNParams> {
 
       index_parts.push_back(i_d);
 
-      generate_partition(i_d, params.min_rows, params.n_cols, 5, stream);
+      generate_partition(i_d, params.min_rows, params.n_cols, 5, stream.get());
     }
 
     Matrix::PartDescriptor idx_desc(
@@ -169,8 +169,8 @@ class BruteForceKNNTest : public ::testing::TestWithParam<KNNParams> {
 
     handle.sync_stream(stream);
 
-    std::cout << raft::arr2Str(out_i_parts[0]->ptr, 10, "final_out_I", stream) << std::endl;
-    std::cout << raft::arr2Str(out_d_parts[0]->ptr, 10, "final_out_D", stream) << std::endl;
+    std::cout << raft::arr2Str(out_i_parts[0]->ptr, 10, "final_out_I", stream.get()) << std::endl;
+    std::cout << raft::arr2Str(out_d_parts[0]->ptr, 10, "final_out_D", stream.get()) << std::endl;
 
     /**
      * Verify expected results

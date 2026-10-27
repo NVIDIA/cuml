@@ -104,6 +104,7 @@ ESTIMATORS = [
     MultinomialNB(),
     UMAP(n_neighbors=5),
     TSNE(),
+    SpectralEmbedding(),
     TruncatedSVD(),
     IncrementalPCA(),
     PCA(),
@@ -122,6 +123,8 @@ ESTIMATORS = [
     ElasticNet(),
     Lasso(),
     LinearRegression(),
+    MBSGDClassifier(),
+    MBSGDRegressor(),
     IsolationForest(),
     RandomForestClassifier(),
     RandomForestRegressor(),
@@ -135,6 +138,9 @@ ESTIMATORS = [
     HashingVectorizer(),
     TfidfVectorizer(),
     TfidfTransformer(),
+    LabelEncoder(),
+    LabelBinarizer(),
+    TargetEncoder(multi_feature_mode="independent"),
 ]
 
 
@@ -142,7 +148,6 @@ _MODULE_TO_IGNORE = {
     "dask",
     "accel",
     "solvers",
-    "tsa",
     "explainer",
     "fil",
     "experimental",
@@ -165,18 +170,9 @@ def _all_cuml_estimators():
 
 
 EXCLUDED = {
-    # Linear model
-    MBSGDClassifier: "Not yet tested for sklearn compat",
-    MBSGDRegressor: "Not yet tested for sklearn compat",
     # Meta-estimators
     OneVsRestClassifier: "Meta-estimator, requires an inner estimator",
     OneVsOneClassifier: "Meta-estimator, requires an inner estimator",
-    # Manifold
-    SpectralEmbedding: "Not yet tested for sklearn compat",
-    # Preprocessing (cuml-native)
-    LabelEncoder: "Not yet tested for sklearn compat",
-    TargetEncoder: "Not yet tested for sklearn compat",
-    LabelBinarizer: "Not yet tested for sklearn compat",
     # Preprocessing (vendored sklearn)
     MinMaxScaler: "Vendored sklearn preprocessing, not yet tested",
     MaxAbsScaler: "Vendored sklearn preprocessing, not yet tested",
@@ -259,6 +255,9 @@ XFAILS = {
         "check_no_attributes_set_in_init": "Vendored __init__ sets copy/with_mean/with_std as attributes",
         "check_do_not_raise_errors_in_init_or_set_params": "StandardScaler(**params) raises an exception",
     },
+    TargetEncoder: {
+        "check_dont_overwrite_parameters": "Fitted attributes without a leading/trailing `_` used",
+    },
 }
 
 
@@ -290,14 +289,25 @@ if missing := set(XFAILS).difference((type(est) for est in ESTIMATORS)):
 @pytest.mark.filterwarnings("ignore:The number of bins.*:UserWarning")
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 def test_sklearn_compatible_estimator(estimator, check):
+    check_name = estimator_checks._get_check_estimator_ids(check)
+
     if isinstance(estimator, RandomForestRegressor) and (
-        estimator_checks._get_check_estimator_ids(check)
-        == "check_regressor_data_not_an_array"
+        check_name == "check_regressor_data_not_an_array"
     ):
         pytest.skip(
             "Predictions from repeated fits are nondeterministic; see "
             "https://github.com/NVIDIA/cuml/issues/8457"
         )
+
+    if (
+        isinstance(estimator, SpectralEmbedding)
+        and check_name == "check_f_contiguous_array_estimator"
+    ):
+        pytest.skip(
+            "SpectralEmbedding may fail on the input used in this test; "
+            "see https://github.com/NVIDIA/cuml/issues/8782"
+        )
+
     check(estimator)
 
 
@@ -345,7 +355,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     MinMaxScaler(),
     Normalizer(),
     PowerTransformer(),
-    QuantileTransformer(n_quantiles=10),
+    QuantileTransformer(n_quantiles=10, subsample=10_000),
     RobustScaler(),
     StandardScaler(),
     OneHotEncoder(),

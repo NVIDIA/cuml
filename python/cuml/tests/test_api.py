@@ -172,16 +172,11 @@ def test_mro(model):
 @pytest.mark.parametrize("model_name", list(models.keys()))
 # ignore random forest float64 warnings
 @pytest.mark.filterwarnings("ignore:To use pickling or GPU-based")
-@pytest.mark.filterwarnings(
-    "ignore:`cuml.tsa.*`, along with the entire `cuml.tsa` module, was "
-    "deprecated:FutureWarning"
-)
 def test_fit_function(dataset, model_name):
     # This test ensures that our estimators return self after a call to fit
     if model_name in [
         "TSNE",
         "TruncatedSVD",
-        "AutoARIMA",
         "MultinomialNB",
         "LabelEncoder",
     ]:
@@ -191,8 +186,6 @@ def test_fit_function(dataset, model_name):
 
     if model_name in ["SparseRandomProjection", "GaussianRandomProjection"]:
         model = models[model_name](n_components=2)
-    elif model_name in ["ARIMA", "AutoARIMA", "ExponentialSmoothing"]:
-        model = models[model_name](np.random.normal(0.0, 1.0, (10,)))
     elif model_name in ["RandomForestClassifier", "RandomForestRegressor"]:
         model = models[model_name](n_bins=32)
     elif model_name == "KMeans":
@@ -210,7 +203,6 @@ def test_fit_function(dataset, model_name):
         # and the inspect module doesn't work with Cython. Therefore we need
         # to register the number of arguments manually if `fit` is decorated
         pos_args_spec = {
-            "ARIMA": 1,
             "ElasticNet": 3,
             "Lasso": 3,
             "LinearRegression": 3,

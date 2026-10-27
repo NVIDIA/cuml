@@ -1,3 +1,134 @@
+# cuml 26.10.00 (7 Oct 2026)
+
+### 🚨 Breaking Changes
+* Deprecate `get_feature_names` in favor of `get_feature_names_out` by @jcrist in https://github.com/NVIDIA/cuml/pull/8480
+* FIX Remove spurious `IsolationForest` arguments by @betatim in https://github.com/NVIDIA/cuml/pull/8486
+* Rewrite `OneHotEncoder` and `OrdinalEncoder` by @jcrist in https://github.com/NVIDIA/cuml/pull/8490
+* Only coerce 1 column 2D outputs to Series for `predict*`/`fit_predict` methods by @jcrist in https://github.com/NVIDIA/cuml/pull/8512
+* Raise `NotFittedError` from unfitted `IsolationForest` methods by @betatim in https://github.com/NVIDIA/cuml/pull/8546
+* Migrate stream APIs from rmm::cuda_stream_view to cuda::stream_ref by @bdice in https://github.com/NVIDIA/cuml/pull/8529
+### 🐛 Bug Fixes
+* Update container image in build GHA workflow by @viclafargue in https://github.com/NVIDIA/cuml/pull/8396
+* Temporarily exclude GB300 from testing by @KyleFromNVIDIA in https://github.com/NVIDIA/cuml/pull/8431
+* Preserve dtype for NumPy array-protocol inputs by @viclafargue in https://github.com/NVIDIA/cuml/pull/8432
+* Re-enable testing on GB300 by @KyleFromNVIDIA in https://github.com/NVIDIA/cuml/pull/8452
+* Fix sporadic `KBinsDiscretizer` mismatches with scikit-learn by @viclafargue in https://github.com/NVIDIA/cuml/pull/8467
+* Fix devcontainer cache version updates by @bdice in https://github.com/NVIDIA/cuml/pull/8485
+* Fix support for pytorch inputs by @jcrist in https://github.com/NVIDIA/cuml/pull/8491
+* Add cuTile build dependencies to CUDA 13.3 pip devcontainers by @csadorf in https://github.com/NVIDIA/cuml/pull/8560
+* Fix index misalignment in char_wb ngram padding by @adityaanikam in https://github.com/NVIDIA/cuml/pull/8429
+* Return Euclidean distances from KMeans transform by @Hashim1999164 in https://github.com/NVIDIA/cuml/pull/8539
+* Fix IsolationForest export for scikit-learn 1.10 by @csadorf in https://github.com/NVIDIA/cuml/pull/8589
+* Validate HDBSCAN min_cluster_size by @csadorf in https://github.com/NVIDIA/cuml/pull/8588
+* Harden ARIMA backing-buffer size arithmetic by @csadorf in https://github.com/NVIDIA/cuml/pull/8586
+* Exclude libkvikio from libcuml wheel repair by @csadorf in https://github.com/NVIDIA/cuml/pull/8611
+* Fix KNN neighbor buffer layout bugs by @csadorf in https://github.com/NVIDIA/cuml/pull/8619
+* Fix sparse t-SNE neighbor count clamping by @csadorf in https://github.com/NVIDIA/cuml/pull/8621
+* Check `kwargs` for sparse input as well in `ProxyBase` by @jcrist in https://github.com/NVIDIA/cuml/pull/8622
+* Fix KMeans weighted inertia/score and Dask label ordering by @viclafargue in https://github.com/NVIDIA/cuml/pull/8618
+* Handle zero-update numerical stagnation in the SVM solver by @viclafargue in https://github.com/NVIDIA/cuml/pull/8609
+* Implement multiclass SVC with non-uniform class weights by @viclafargue in https://github.com/NVIDIA/cuml/pull/8592
+### 📖 Documentation
+* Update README for NVIDIA cuML branding by @csadorf in https://github.com/NVIDIA/cuml/pull/8464
+* DOCS Replace references to the old GitHub org by @betatim in https://github.com/NVIDIA/cuml/pull/8471
+* Align documentation with NVIDIA cuML branding by @csadorf in https://github.com/NVIDIA/cuml/pull/8476
+* Enable public docs features in CI by @bdice in https://github.com/NVIDIA/cuml/pull/8533
+* Include inherited methods in class API docs by @jcrist in https://github.com/NVIDIA/cuml/pull/8553
+* Use latest intersphinx inventories on main by @csadorf in https://github.com/NVIDIA/cuml/pull/8558
+* Update cuml.accel benchmark results and presentation by @csadorf in https://github.com/NVIDIA/cuml/pull/8517
+* Clarify HDBSCAN min_samples semantics by @viclafargue in https://github.com/NVIDIA/cuml/pull/8567
+* Make intersphinx references release-aware by @bdice in https://github.com/NVIDIA/cuml/pull/8549
+* Consolidate developer documentation in Sphinx by @csadorf in https://github.com/NVIDIA/cuml/pull/8608
+* Consolidate package README and use latest documentation links by @csadorf in https://github.com/NVIDIA/cuml/pull/8680
+### 🚀 New Features
+* More `get_feature_names_out` support by @jcrist in https://github.com/NVIDIA/cuml/pull/8511
+### 🛠️ Improvements
+* Update RAPIDS.cmake to log source of rapids-cmake by @arhag23 in https://github.com/NVIDIA/cuml/pull/8338
+* Forward merge `release/26.08` into `main` by @jcrist in https://github.com/NVIDIA/cuml/pull/8404
+* Clean up stale cuML multi-GPU build options by @viclafargue in https://github.com/NVIDIA/cuml/pull/8137
+* Simplify RF lower-bound and index types by @RAMitchell in https://github.com/NVIDIA/cuml/pull/8383
+* enforce 'yamllint' checks by @jameslamb in https://github.com/NVIDIA/cuml/pull/8405
+* Register EmpiricalCovariance benchmark algorithm by @csadorf in https://github.com/NVIDIA/cuml/pull/8120
+* Refactor UMAP's `optimize_batch_kernel` by @jinsolp in https://github.com/NVIDIA/cuml/pull/8415
+* Remove deprecations for 26.10 dev cycle by @jcrist in https://github.com/NVIDIA/cuml/pull/8435
+* Detect and error when the cmake cached and current conda env differ by @betatim in https://github.com/NVIDIA/cuml/pull/8035
+* X-ORG-8423: Publish API docs to docs.nvidia.com by @josephine-wolf-oberholtzer in https://github.com/NVIDIA/cuml/pull/8424
+* Remove deprecated `cuml.fil` by @jcrist in https://github.com/NVIDIA/cuml/pull/8437
+* Remove the deprecated `convert_dtype` kwarg by @jcrist in https://github.com/NVIDIA/cuml/pull/8436
+* Simplify dask serializers by @jcrist in https://github.com/NVIDIA/cuml/pull/8443
+* Fix callback handling in cuml.accel by @betatim in https://github.com/NVIDIA/cuml/pull/8433
+* Remove deprecated legacy output types by @jcrist in https://github.com/NVIDIA/cuml/pull/8439
+* Replace `rapids-xgboost` with `xgboost` in the CI. by @trivialfis in https://github.com/NVIDIA/cuml/pull/8440
+* Remove `cuml.experimental` by @jcrist in https://github.com/NVIDIA/cuml/pull/8444
+* Reject negative inputs in chi-squared kernels by @fallintoplace in https://github.com/NVIDIA/cuml/pull/8438
+* Remove ForestInference notebook by @jcrist in https://github.com/NVIDIA/cuml/pull/8445
+* Restore linalg error mode after KernelRidge fallback by @fallintoplace in https://github.com/NVIDIA/cuml/pull/8442
+* X-ORG-8423: Enable docs version picker by @josephine-wolf-oberholtzer in https://github.com/NVIDIA/cuml/pull/8449
+* Filter out FutureWarning from rapids-xgboost by @chyunsu3 in https://github.com/NVIDIA/cuml/pull/8453
+* Skip flaky RandomForestRegressor compatibility check by @csadorf in https://github.com/NVIDIA/cuml/pull/8458
+* Support `float64` `y` natively in `KNeighborsRegressor` by @jcrist in https://github.com/NVIDIA/cuml/pull/8456
+* ensure nightly builds always produce new packages, expand 'changed-files' lists by @jameslamb in https://github.com/NVIDIA/cuml/pull/8448
+* Document metric-specific **kwds parameters in pairwise_distances by @mmustafasenoglu in https://github.com/NVIDIA/cuml/pull/8459
+* Update CODEOWNERS team names for rapidsai->NVIDIA migration by @josephine-wolf-oberholtzer in https://github.com/NVIDIA/cuml/pull/8463
+* Distributed RF: add gtests, handle empty partitions, fix bug in leaf output by @RAMitchell in https://github.com/NVIDIA/cuml/pull/8394
+* Update to rapids-logger 0.3 by @bdice in https://github.com/NVIDIA/cuml/pull/8447
+* Update onnxruntime tests by @jcrist in https://github.com/NVIDIA/cuml/pull/8462
+* Update PR issue status automation post-migration by @josephine-wolf-oberholtzer in https://github.com/NVIDIA/cuml/pull/8473
+* Support dataframe-like inputs in reflection machinery by @jcrist in https://github.com/NVIDIA/cuml/pull/8478
+* Remove stale single-GPU test xfails by @csadorf in https://github.com/NVIDIA/cuml/pull/8450
+* enforce 'rstcheck' checks by @jameslamb in https://github.com/NVIDIA/cuml/pull/8408
+* wheels: enforce 'abi3audit' checks by @jameslamb in https://github.com/NVIDIA/cuml/pull/8474
+* Use CUML_KERNEL for remaining kernels by @ahmedtaha100 in https://github.com/NVIDIA/cuml/pull/8465
+* Support fitted IsolationForest conversion to scikit-learn by @JulienAu in https://github.com/NVIDIA/cuml/pull/8483
+* Add `sklearn.cluster.HDBSCAN` acceleration to `cuml.accel` by @viclafargue in https://github.com/NVIDIA/cuml/pull/8472
+* ci: avoid triggered-by-schedule and triggered-by-merge builds cancelling each other by @jameslamb in https://github.com/NVIDIA/cuml/pull/8489
+* Expand `get_feature_names_out` support by @jcrist in https://github.com/NVIDIA/cuml/pull/8500
+* X-ORG-8423: publish-api-docs version-map uses vars by @josephine-wolf-oberholtzer in https://github.com/NVIDIA/cuml/pull/8494
+* Fix incorrect async initialisations by @betatim in https://github.com/NVIDIA/cuml/pull/8518
+* Remove all decorator usage of `dask.delayed` by @jcrist in https://github.com/NVIDIA/cuml/pull/8516
+* CI Use the CUDA sticky errors plugin for cuml.accel tests by @betatim in https://github.com/NVIDIA/cuml/pull/8519
+* CI Mark scikit-learn example as xfail due to upstream bug by @betatim in https://github.com/NVIDIA/cuml/pull/8523
+* enh: rename HDBSCAN CUDA headers by @Rajkaran-122 in https://github.com/NVIDIA/cuml/pull/8503
+* pre-commit: update 'cython-lint' to 0.21.1 by @jameslamb in https://github.com/NVIDIA/cuml/pull/8526
+* Remove native model from Isolation Forest estimators by @betatim in https://github.com/NVIDIA/cuml/pull/8493
+* Add support for `joblib 1.6.0` by @jcrist in https://github.com/NVIDIA/cuml/pull/8535
+* Add `OneHotEncoder` to `cuml.accel` by @jcrist in https://github.com/NVIDIA/cuml/pull/8528
+* test: isolate library wheel smoke test by @bdice in https://github.com/NVIDIA/cuml/pull/8406
+* Propagate feature names in `transform`/`fit_transform`/`inverse_transform` by @jcrist in https://github.com/NVIDIA/cuml/pull/8542
+* Make `cupy.ndarray` pickle patch version conditional by @jcrist in https://github.com/NVIDIA/cuml/pull/8550
+* Update link references for `rapidsai` -> `nvidia` by @jcrist in https://github.com/NVIDIA/cuml/pull/8552
+* Update Treelite to 4.7.2 by @chyunsu3 in https://github.com/NVIDIA/cuml/pull/8522
+* `OneHotEncoder` fallback to CPU on bytes inputs by @jcrist in https://github.com/NVIDIA/cuml/pull/8551
+* Adopt CUDA stream compatibility accessors by @bdice in https://github.com/NVIDIA/cuml/pull/8564
+* fix(deps): remove `rapidsai` from channel resolution to avoid `rapids-xgboost` by @gforsyth in https://github.com/NVIDIA/cuml/pull/8596
+* make 'numpydoc' dependency conda-only by @jameslamb in https://github.com/NVIDIA/cuml/pull/8556
+* A few fixes for sklearn 1.9.1 by @jcrist in https://github.com/NVIDIA/cuml/pull/8613
+* Rewrite `cuml.feature_extraction` by @jcrist in https://github.com/NVIDIA/cuml/pull/8575
+* wheels: use system 'tileiras', search site-packages for CMake targets by @jameslamb in https://github.com/NVIDIA/cuml/pull/8573
+* Add cuml.accel support for sklearn.ensemble.IsolationForest by @adityaanikam in https://github.com/NVIDIA/cuml/pull/8477
+* Some fixes for recent stream changes by @jcrist in https://github.com/NVIDIA/cuml/pull/8645
+* Fix scikit-learn examples on sklearn 1.9.1 by @jcrist in https://github.com/NVIDIA/cuml/pull/8647
+* Update several rapids docs links to the nvidia docs equivalent. by @ncclementi in https://github.com/NVIDIA/cuml/pull/8640
+* Fix `test_spectral_clustering_pickle` by @jcrist in https://github.com/NVIDIA/cuml/pull/8651
+* Add IsolationForest to the API documentation by @betatim in https://github.com/NVIDIA/cuml/pull/8653
+* Restore rapidsai channel for 26.10 by @bdice in https://github.com/NVIDIA/cuml/pull/8658
+* Update Dask RF to use the new distributed algo by @chyunsu3 in https://github.com/NVIDIA/cuml/pull/8466
+* CI Make dataset fetching more robust by @betatim in https://github.com/NVIDIA/cuml/pull/8667
+* Remove "rapids" verbage by @jcrist in https://github.com/NVIDIA/cuml/pull/8672
+* CI Pin breathe to v4 as the new release contains a bug by @betatim in https://github.com/NVIDIA/cuml/pull/8699
+* X-ORG-410: Integrate archived docs into version switcher by @josephine-wolf-oberholtzer in https://github.com/NVIDIA/cuml/pull/8726
+
+## New Contributors
+* @arhag23 made their first contribution in https://github.com/NVIDIA/cuml/pull/8338
+* @mmustafasenoglu made their first contribution in https://github.com/NVIDIA/cuml/pull/8459
+* @ahmedtaha100 made their first contribution in https://github.com/NVIDIA/cuml/pull/8465
+* @JulienAu made their first contribution in https://github.com/NVIDIA/cuml/pull/8483
+* @Rajkaran-122 made their first contribution in https://github.com/NVIDIA/cuml/pull/8503
+* @adityaanikam made their first contribution in https://github.com/NVIDIA/cuml/pull/8429
+* @Hashim1999164 made their first contribution in https://github.com/NVIDIA/cuml/pull/8539
+
+**Full Changelog**: https://github.com/NVIDIA/cuml/compare/v26.10.00a...release/26.10
+
 # cuml 26.08.00 (5 Aug 2026)
 
 ### 🚨 Breaking Changes

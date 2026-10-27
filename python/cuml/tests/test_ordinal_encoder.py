@@ -226,6 +226,24 @@ def test_ordinal_encoder_transform_missing():
     np.testing.assert_array_equal(res.to_numpy(), sol)
 
 
+def test_ordinal_encoder_nullable_string_missing():
+    """Missing values in a nullable string column (`pd.NA`) are a `NaN`
+    category, the same as for the default string dtype."""
+    values = ["b", None, "a", None]
+    X = pd.DataFrame({"x": pd.array(values, dtype="string")})
+    X_str = pd.DataFrame({"x": values})
+
+    enc = OrdinalEncoder().fit(X)
+    enc_str = OrdinalEncoder().fit(X_str)
+
+    categories = enc.categories_[0]
+    assert categories[:-1].tolist() == ["a", "b"]
+    assert isinstance(categories[-1], float) and np.isnan(categories[-1])
+    np.testing.assert_array_equal(
+        enc.transform(X).to_numpy(), enc_str.transform(X_str).to_numpy()
+    )
+
+
 def test_ordinal_encoder_transform_missing_unknown():
     """Check error raised if unknown category is NaN"""
     X1 = pd.DataFrame({"x": ["a", "b", "a"], "y": [1, 2, 1]})

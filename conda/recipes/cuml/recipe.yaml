@@ -49,6 +49,7 @@ build:
       RAPIDS_ARTIFACTS_DIR: ${{ env.get("RAPIDS_ARTIFACTS_DIR", default="") }}
       RAPIDS_PY_VERSION: ${{ py_abi_min }}
       SCCACHE_BUCKET: ${{ env.get("SCCACHE_BUCKET", default="") }}
+      SCCACHE_CONF: ${{ env.get("SCCACHE_CONF", default="") }}
       SCCACHE_DIST_AUTH_TYPE: ${{ env.get("SCCACHE_DIST_AUTH_TYPE", default="token") }}
       SCCACHE_DIST_FALLBACK_TO_LOCAL_COMPILE: ${{ env.get("SCCACHE_DIST_FALLBACK_TO_LOCAL_COMPILE", default="false") }}
       SCCACHE_DIST_MAX_RETRIES: ${{ env.get("SCCACHE_DIST_MAX_RETRIES", default="inf") }}
@@ -89,7 +90,7 @@ requirements:
     - rapids-build-backend >=0.4.0,<0.5.0
     - rapids-logger =0.3
     - scikit-build-core>=0.11.0
-    - treelite ${{ treelite_version }}
+    - treelite ${{ treelite_version_build }}
     - cuda-cudart-dev
     - if: cuda_major == "12"
       then: cuda-bindings >=12.9.3,<13.0
@@ -100,6 +101,7 @@ requirements:
     - cupy >=14.0.1,!=14.1.0
     - joblib >=0.11
     - libcuml =${{ version }}
+    - librmm =${{ minor_version }}
     - numba >=0.60.0,<0.65.0
     - numba-cuda >=0.22.2
     - numpy >=2.0,<3.0
@@ -111,7 +113,7 @@ requirements:
     - python
     - rapids-logger =0.3
     - rich
-    - treelite ${{ treelite_version }}
+    - treelite ${{ treelite_version_run }}
     - if: cuda_major == "12"
       then: cuda-bindings >=12.9.3,<13.0
       else: cuda-bindings >=13.0.2,<14.0

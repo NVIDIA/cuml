@@ -65,6 +65,10 @@ def test_pairwise_kernels_basic():
         X, metric="rbf", filter_params=True, wrong_parameter_name=1.0
     )
 
+
+def test_pairwise_kernels_custom():
+    X = np.zeros((4, 4))
+
     # incorrect function type
     def non_numba_kernel(x, y):
         return x.dot(y)
@@ -126,6 +130,23 @@ def test_pairwise_kernels_rejects_negative_y_for_chi2(metric):
         ValueError, match="Negative values in data passed to Y"
     ):
         pairwise_kernels(X, Y, metric=metric)
+
+
+@pytest.mark.parametrize(
+    "dtype", ["int8", "uint8", "int16", "float16", "bfloat16"]
+)
+def test_additive_chi2_dtypes(dtype):
+    if dtype == "bfloat16":
+        try:
+            cp.array([1.0], dtype="bfloat16")
+        except (ValueError, TypeError):
+            pytest.skip(reason="bfloat16 not supported")
+    X = np.array([[1], [2], [3]], dtype="float64")
+    cu_X = cp.asarray(X, dtype=dtype)
+
+    sol = skl_pairwise_kernels(X, metric="additive_chi2")
+    res = pairwise_kernels(cu_X, metric="additive_chi2")
+    cp.testing.assert_allclose(res, sol)
 
 
 @cuda.jit(device=True)
@@ -280,6 +301,20 @@ def estimator_array_strategy(draw):
 )
 @example(
     kernel_arg=("linear", {}),
+    arrays=(
+        np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),  # X
+        np.array([[1.0, 2.0, 3.0]]).T,  # y
+        np.array([[2.0, 3.0], [4.0, 5.0]]),  # X_test
+        np.array([0.1]),  # alpha
+        0.5,  # sample_weight
+        np.float64,  # dtype
+    ),
+    gamma=1.0,
+    degree=1,
+    coef0=0.0,
+)
+@example(
+    kernel_arg=("additive_chi2", {}),
     arrays=(
         np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),  # X
         np.array([[1.0, 2.0, 3.0]]).T,  # y

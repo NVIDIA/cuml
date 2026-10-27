@@ -285,6 +285,29 @@ def test_max_features_parameter(blobs_data, max_features, expected_features):
     assert predictions.shape[0] == blobs_data.shape[0]
 
 
+def test_split_feature_selection_ignores_column_order():
+    """Splits should pick uniformly among the non-constant features.
+
+    The two informative columns are separated by a run of constant columns,
+    so a selection that depends on column order favours one of them.
+    """
+    rng = np.random.RandomState(0)
+    X = np.zeros((256, 10), dtype=np.float32)
+    X[:, 0] = rng.randn(256)
+    X[:, 9] = rng.randn(256)
+    clf = cuIsolationForest(n_estimators=1000, random_state=42).fit(X)
+    tl_model = clf.as_treelite()
+    roots = np.array(
+        [
+            tl_model.get_tree_accessor(tree_id).get_field("split_index")[0]
+            for tree_id in range(tl_model.num_tree)
+        ]
+    )
+    assert set(roots.tolist()) == {0, 9}
+    # Uniform selection gives 0.5
+    assert 0.4 < np.mean(roots == 0) < 0.6
+
+
 @pytest.mark.parametrize("max_features", [0, -1, 1.1, "invalid", True])
 def test_invalid_max_features_raises(blobs_data, max_features):
     """Invalid max_features values should raise during fit."""

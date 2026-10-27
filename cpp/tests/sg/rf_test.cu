@@ -255,19 +255,21 @@ std::shared_ptr<thrust::device_vector<LabelT>> nvForestPredict(
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest, params.n_cols);
 
-  auto nvforest_model =
-    nvforest::import_from_treelite_handle(model,
-                                          nvforest::tree_layout::breadth_first,
-                                          128,
-                                          std::is_same_v<DataT, double>,
-                                          nvforest::device_type::gpu,
-                                          handle.get_device(),
-                                          handle.get_next_usable_stream().get());
+  auto device = handle.get_device();
+  auto stream = handle.get_next_usable_stream().get();
+
+  auto nvforest_model = nvforest::import_from_treelite_handle(model,
+                                                              nvforest::tree_layout::breadth_first,
+                                                              128,
+                                                              std::is_same_v<DataT, double>,
+                                                              nvforest::device_type::gpu,
+                                                              device,
+                                                              stream);
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
 
-  nvforest_model.predict(handle,
+  nvforest_model.predict(stream,
                          workspace->data().get(),
                          X_transpose,
                          params.n_rows,
@@ -327,19 +329,21 @@ auto nvForestPredictProba(const raft::handle_t& handle,
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest, params.n_cols);
 
-  auto nvforest_model =
-    nvforest::import_from_treelite_handle(model,
-                                          nvforest::tree_layout::breadth_first,
-                                          128,
-                                          std::is_same_v<DataT, double>,
-                                          nvforest::device_type::gpu,
-                                          handle.get_device(),
-                                          handle.get_next_usable_stream().get());
+  auto device = handle.get_device();
+  auto stream = handle.get_next_usable_stream().get();
+
+  auto nvforest_model = nvforest::import_from_treelite_handle(model,
+                                                              nvforest::tree_layout::breadth_first,
+                                                              128,
+                                                              std::is_same_v<DataT, double>,
+                                                              nvforest::device_type::gpu,
+                                                              device,
+                                                              stream);
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
 
-  nvforest_model.predict(handle,
+  nvforest_model.predict(stream,
                          pred->data().get(),
                          X_transpose,
                          params.n_rows,
@@ -578,9 +582,15 @@ class RfSpecialisedTest {
 
   void TestMinImpurity()
   {
+    const bool counts_are_weights = !params.sample_weight || params.bootstrap;
     for (int i = 0u; i < forest->rf_params.n_trees; i++) {
-      for (auto n : forest->trees[i]->sparsetree) {
-        if (!n.IsLeaf()) { EXPECT_GT(n.BestMetric(), params.min_impurity_decrease); }
+      const auto& tree = forest->trees[i]->sparsetree;
+      for (const auto& n : tree) {
+        if (n.IsLeaf()) { continue; }
+
+        auto gain = double(n.BestMetric());
+        if (counts_are_weights) { gain *= double(n.InstanceCount()) / tree[0].InstanceCount(); }
+        EXPECT_GT(gain, params.min_impurity_decrease);
       }
     }
   }
@@ -932,19 +942,21 @@ TEST(RfTests, IntegerOverflow)
   TreeliteModelHandle model;
   build_treelite_forest(&model, forest_ptr, n);
 
-  auto nvforest_model =
-    nvforest::import_from_treelite_handle(model,
-                                          nvforest::tree_layout::breadth_first,
-                                          128,
-                                          false,
-                                          nvforest::device_type::gpu,
-                                          handle.get_device(),
-                                          handle.get_next_usable_stream().get());
+  auto device = handle.get_device();
+  auto stream = handle.get_next_usable_stream().get();
+
+  auto nvforest_model = nvforest::import_from_treelite_handle(model,
+                                                              nvforest::tree_layout::breadth_first,
+                                                              128,
+                                                              false,
+                                                              nvforest::device_type::gpu,
+                                                              device,
+                                                              stream);
   handle.sync_stream();
   handle.sync_stream_pool();
   delete static_cast<treelite::Model*>(model);
 
-  nvforest_model.predict(handle,
+  nvforest_model.predict(stream,
                          pred.data().get(),
                          X.data().get(),
                          m,
@@ -1390,7 +1402,7 @@ TEST(RFEquivalentSplitRangeTest, ClassificationChoosesUpperMiddleBin)
   thrust::device_vector<DT::Split<DataT>> split(1);
   thrust::device_vector<int> mutex(1);
 
-  DT::ClassificationObjectiveFunction<DataT, int> objective(2, 1, CRITERION::GINI);
+  DT::ClassificationObjectiveFunction<DataT, int> objective(2, 1, CRITERION::GINI, len);
   objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
                                                                quantiles.data().get(),
                                                                split.data().get(),
@@ -1440,7 +1452,8 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
   thrust::device_vector<DT::Split<DataT>> split(1);
   thrust::device_vector<int> mutex(1);
 
-  DT::RegressionObjectiveFunction<DataT, DataT> objective(1, 1, CRITERION::MSE);
+  // Four zeros and four twos have variance 1. The best split must exceed 0.75;
+  DT::RegressionObjectiveFunction<DataT, DataT> objective{1, 1, CRITERION::MSE, len, DataT{0.75}};
   objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
                                                                quantiles.data().get(),
                                                                split.data().get(),
@@ -1464,6 +1477,7 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
   EXPECT_EQ(h_split.quesval, DataT{3});
   EXPECT_EQ(h_split.split_start, 3);
   EXPECT_EQ(h_split.split_end, 3);
+  EXPECT_EQ(h_split.best_metric_val, DataT{1});
 }
 
 template <typename T>
@@ -1635,7 +1649,7 @@ Tree #0
   EXPECT_EQ(get_rf_json(forest_ptr), expected_json);
 }
 
-TEST(RfTest, EquivalentSplitRangePersistsThroughBuilder)
+TEST(RfTest, EquivalentSplitRangeUsesMiddleThreshold)
 {
   RF_params rf_params = set_rf_params(2, 4, 1.0, 6, 1, 2, 0.0, false, 1, 1.0, 0, GINI, 1, 128);
   auto forest         = std::make_shared<RandomForestMetaData<float, int>>();
@@ -1665,6 +1679,7 @@ TEST(RfTest, EquivalentSplitRangePersistsThroughBuilder)
   const auto& left_child = tree[root.LeftChildId()];
   ASSERT_FALSE(left_child.IsLeaf());
   EXPECT_EQ(left_child.ColumnId(), 1);
+  // cuML chooses the mid point as split value
   EXPECT_EQ(left_child.QueryValue(), 2.0f);
   EXPECT_EQ(left_child.InstanceCount(), 4);
 
@@ -1672,6 +1687,45 @@ TEST(RfTest, EquivalentSplitRangePersistsThroughBuilder)
   EXPECT_EQ(tree[left_child.RightChildId()].InstanceCount(), 2);
   EXPECT_TRUE(tree[root.RightChildId()].IsLeaf());
   EXPECT_EQ(tree[root.RightChildId()].InstanceCount(), 6);
+}
+
+TEST(RfWeightedTest, ImpurityIsWeighted)
+{
+  thrust::device_vector<float> X        = std::vector<float>{0, 1, 2};
+  thrust::device_vector<int> y          = std::vector<int>{0, 1, 0};
+  thrust::device_vector<double> weights = std::vector<double>{1, 3, 12};
+  RF_params rf_params = set_rf_params(2, 4, 1.0, 3, 1, 2, 0.125f, false, 1, 1.0, 0, GINI, 1, 128);
+  auto stream_pool    = std::make_shared<rmm::cuda_stream_pool>(1);
+  raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
+
+  auto train = [&](int n_rows) {
+    RandomForestMetaData<float, int> forest;
+    fit(handle,
+        &forest,
+        X.data().get(),
+        n_rows,
+        1,
+        y.data().get(),
+        2,
+        rf_params,
+        rapids_logger::level_enum::info,
+        nullptr,
+        weights.data().get());
+    return forest;
+  };
+
+  // The first two rows can split when they constitute the whole tree.
+  auto small_forest = train(2);
+  ASSERT_FALSE(small_forest.trees[0]->sparsetree[0].IsLeaf());
+
+  // Adding a high-weight third row makes the same pair a low-weight child.
+  // Its local gain is unchanged, but its contribution to the whole tree is smaller.
+  auto full_forest = train(3);
+  const auto& tree = full_forest.trees[0]->sparsetree;
+  ASSERT_FALSE(tree[0].IsLeaf());
+  ASSERT_EQ(tree[0].QueryValue(), 1.0f);
+  EXPECT_EQ(tree[tree[0].LeftChildId()].InstanceCount(), 2);
+  EXPECT_TRUE(tree[tree[0].LeftChildId()].IsLeaf());
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------
@@ -2030,9 +2084,9 @@ class ObjectiveTest : public ::testing::TestWithParam<ObjectiveTestParameters> {
     return std::max(1, non_empty_n_bins - 1);
   }
 
-  auto MSE(std::vector<DataT> const& data,
-           std::vector<double> const&
-             sample_weights)  //  1/w * 1/2 * sum(w_i * (y - y_pred) * (y - y_pred))
+  auto MSE(
+    std::vector<DataT> const& data,
+    std::vector<double> const& sample_weights)  //  1/w * sum(w_i * (y - y_pred) * (y - y_pred))
   {
     DataT weight_sum = std::accumulate(sample_weights.begin(), sample_weights.end(), DataT(0));
     DataT sum{0};
@@ -2047,7 +2101,7 @@ class ObjectiveTest : public ::testing::TestWithParam<ObjectiveTestParameters> {
       mse += sample_weights[i] * (d - mean) * (d - mean);  // unit deviance
     }
 
-    mse /= 2 * weight_sum;
+    mse /= weight_sum;
     return std::make_tuple(mse, sum, DataT(data.size()), weight_sum);
   }
 
@@ -2070,7 +2124,7 @@ class ObjectiveTest : public ::testing::TestWithParam<ObjectiveTestParameters> {
 
     auto gain = parent_mse -
                 ((weight_sum_left / weight_sum) * left_mse +    // the minimizing objective function
-                                                                // is half deviance
+                                                                // is weighted variance
                  (weight_sum_right / weight_sum) * right_mse);  // gain in long form without proxy
 
     // edge cases
@@ -2367,10 +2421,12 @@ class ObjectiveTest : public ::testing::TestWithParam<ObjectiveTestParameters> {
   {
     params = ::testing::TestWithParam<ObjectiveTestParameters>::GetParam();
     rng.seed(params.seed);
-    ObjectiveT objective(params.n_classes, params.min_samples_leaf, ObjectiveConfig::splitCriteria);
-
-    auto data                 = GenRandomData();
-    auto sample_weights       = GenSampleWeights();
+    auto data           = GenRandomData();
+    auto sample_weights = GenSampleWeights();
+    ObjectiveT objective(params.n_classes,
+                         params.min_samples_leaf,
+                         ObjectiveConfig::splitCriteria,
+                         std::accumulate(sample_weights.begin(), sample_weights.end(), 0.0));
     auto [cdf_hist, pdf_hist] = GenHist(data, sample_weights);
     auto split_bin_index      = RandUnder(SplitBinIndexUpperBound());
     auto ground_truth_gain    = GroundTruthGain(data, sample_weights, split_bin_index);
@@ -2395,7 +2451,7 @@ TEST(WeightedObjectiveEdgeCases, ClassificationRejectsZeroWeightChild)
   CRITERION criteria[] = {CRITERION::GINI, CRITERION::ENTROPY};
 
   for (auto criterion : criteria) {
-    ObjectiveT objective(2, 1, criterion);
+    ObjectiveT objective(2, 1, criterion, 1.0);
     auto gain = objective.GainPerSplit(hist, 0, 2, 2, 1, 1);
     EXPECT_EQ(gain, -std::numeric_limits<double>::max());
   }
@@ -2409,7 +2465,7 @@ TEST(WeightedObjectiveEdgeCases, RegressionRejectsZeroWeightChild)
     CRITERION::MSE, CRITERION::POISSON, CRITERION::GAMMA, CRITERION::INVERSE_GAUSSIAN};
 
   for (auto criterion : criteria) {
-    ObjectiveT objective(1, 1, criterion);
+    ObjectiveT objective(1, 1, criterion, 1.0);
     auto gain = objective.GainPerSplit(hist, 0, 2, 2, 1, 1);
     EXPECT_EQ(gain, -std::numeric_limits<double>::max());
   }
@@ -2699,13 +2755,13 @@ class FeatureSamplingBiasTest : public ::testing::TestWithParam<FeatureSamplingB
                     std::int64_t{0},  // sample_offset
                     params.n_features,
                     params.k,
-                    stream);
-    RAFT_CUDA_TRY(cudaStreamSynchronize(stream));
+                    stream.get());
+    stream.sync();
 
     // Copy colids back to host for duplicate checking and bias counting
     std::vector<std::int64_t> h_colids(sampled_col_count);
     raft::update_host(h_colids.data(), d_colids.data(), sampled_col_count, stream);
-    RAFT_CUDA_TRY(cudaStreamSynchronize(stream));
+    stream.sync();
 
     std::vector<unsigned long long> h_counts(feature_count, 0);
 

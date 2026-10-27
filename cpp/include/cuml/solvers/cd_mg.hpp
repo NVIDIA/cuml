@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,7 +15,7 @@ namespace CD {
 namespace opg {
 
 /**
- * @brief performs MNMG fit operation for the ridge regression
+ * @brief performs MNMG coordinate descent fit (elastic net / lasso)
  * @param[in] handle: the internal cuml handle object
  * @param[in] input_data: vector holding all partitions for that rank
  * @param[in] input_desc: PartDescriptor object for the input
@@ -24,7 +24,7 @@ namespace opg {
  * @param[out] intercept: intercept value
  * @param[in] fit_intercept: fit intercept or not
  * @param[in] epochs: number of epochs
- * @param[in] alpha: ridge parameter
+ * @param[in] alpha: regularization strength
  * @param[in] l1_ratio: l1 ratio
  * @param[in] shuffle: whether to shuffle the data
  * @param[in] tol: tolerance for early stopping during fitting
@@ -60,14 +60,14 @@ int fit(raft::handle_t& handle,
         bool verbose);
 
 /**
- * @brief performs MNMG prediction for OLS
+ * @brief performs MNMG prediction for coordinate descent models
  * @param[in] handle: the internal cuml handle object
  * @param[in] rank_sizes: includes all the partition size information for the rank
  * @param[in] n_parts: number of partitions
  * @param[in] input: input data
  * @param[in] n_rows: number of rows of input data
  * @param[in] n_cols: number of cols of input data
- * @param[in] coef: OLS coefficients
+ * @param[in] coef: learned regression coefficients
  * @param[in] intercept: the fit intercept
  * @param[out] preds: predictions
  * @param[in] verbose

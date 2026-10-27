@@ -176,12 +176,12 @@ void fit_impl(raft::handle_t& handle,
   }
 
   if (algo == 0 || input_desc.N == 1) {
-    ASSERT(false, "olsFit: no algorithm with this id has been implemented");
+    ASSERT(false, "ridgeFit: no algorithm with this id has been implemented");
   } else if (algo == 1) {
     ridgeEig(
       handle, input_data, input_desc, labels, alpha, n_alpha, coef, streams, n_streams, verbose);
   } else {
-    ASSERT(false, "olsFit: no algorithm with this id has been implemented");
+    ASSERT(false, "ridgeFit: no algorithm with this id has been implemented");
   }
 
   if (fit_intercept) {

@@ -6,8 +6,6 @@
 #pragma once
 
 #include "batched-levelalgo/builder.cuh"
-#include "batched-levelalgo/quantiles.cuh"
-#include "treelite_util.h"
 
 #include <cuml/common/logger.hpp>
 #include <cuml/tree/flatnode.h>
@@ -24,9 +22,6 @@
 #include <cstdint>
 #include <iomanip>
 #include <locale>
-#include <map>
-#include <numeric>
-#include <random>
 #include <vector>
 
 /** check for treelite runtime API errors and assert accordingly */

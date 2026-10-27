@@ -63,6 +63,9 @@ docs/_html/
 .ccls-cache
 .ccls
 
+## benchmark results
+.benchmarks/
+
 ## profiling
 *.qdrep
 *.qdrep.cache
@@ -74,6 +77,7 @@ doxygen_check/
 
 ## Doxygen
 cpp/html
+cpp/xml
 cpp/Doxyfile
 
 # clang tooling
@@ -83,7 +87,6 @@ compile_commands.json
 # generally prefer 'pyproject.toml' to 'pytest.ini' for pytest options
 # ref: https://github.com/NVIDIA/cuml/pull/6201
 pytest.ini
-!python/cuml/cuml/benchmark/automated/pytest.ini
 !python/cuml/cuml_accel_tests/upstream/pytest.ini
 
 # testing

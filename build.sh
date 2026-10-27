@@ -64,6 +64,12 @@ CUML_BUILD_DIR=${REPODIR}/python/cuml/build
 PYTHON_DEPS_CLONE=${REPODIR}/python/external_repositories
 BUILD_DIRS="${LIBCUML_BUILD_DIR} ${CUML_BUILD_DIR} ${PYTHON_DEPS_CLONE}"
 
+CUDA_VERSION="${RAPIDS_CUDA_VERSION:-$(nvcc --version | sed -E -n 's/^.*release ([0-9]+\.[0-9]+).*$/\1/p')}"
+if [[ -z "$CUDA_VERSION" ]]; then
+    echo "Could not determine CUDA version. Please set RAPIDS_CUDA_VERSION or make sure your \$PATH contains a valid nvcc."
+    exit 1
+fi
+
 # Set defaults for vars modified by flags to this script
 BUILD_TYPE=Release
 INSTALL_TARGET=install
@@ -89,6 +95,8 @@ PYTHON_ARGS_FOR_INSTALL=(
     --no-deps
     --config-settings
     "rapidsai.disable-cuda=true"
+    --config-settings
+    "rapidsai.matrix-entry=cuda=${CUDA_VERSION};cuda_suffixed=false;use_cuda_wheels=false"
 )
 
 # Default to Ninja if generator is not specified
@@ -259,7 +267,7 @@ fi
 
 ################################################################################
 # Configure for building all C++ targets
-if completeBuild || hasArg libcuml || hasArg prims || hasArg bench || hasArg prims-bench || hasArg cppdocs || hasArg cpp-mgtests; then
+if completeBuild || hasArg libcuml || hasArg prims || hasArg bench || hasArg prims-bench || hasArg cppdocs || hasArg pydocs || hasArg cpp-mgtests; then
     if (( BUILD_ALL_GPU_ARCH == 0 )); then
         CUML_CMAKE_CUDA_ARCHITECTURES="NATIVE"
         echo "Building for the architecture of the GPU in the system..."
@@ -343,7 +351,9 @@ if (! hasArg --configure-only) && (completeBuild || hasArg libcuml || hasArg pri
       fi
 fi
 
-if (! hasArg --configure-only) && hasArg cppdocs; then
+if (! hasArg --configure-only) && (hasArg cppdocs || hasArg pydocs); then
+    # Sphinx consumes the Doxygen XML through Breathe, so pydocs also needs the
+    # docs_cuml prerequisite when it is invoked on its own.
     cmake --build "${LIBCUML_BUILD_DIR}" --target docs_cuml
 fi
 

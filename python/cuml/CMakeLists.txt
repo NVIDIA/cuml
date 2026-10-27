@@ -109,7 +109,6 @@ add_subdirectory(cuml/metrics/cluster)
 add_subdirectory(cuml/neighbors)
 add_subdirectory(cuml/solvers)
 add_subdirectory(cuml/svm)
-add_subdirectory(cuml/tsa)
 
 # Include the pth file in the built wheel
 install(FILES "_zz_cuml_accel.pth" DESTINATION ".")

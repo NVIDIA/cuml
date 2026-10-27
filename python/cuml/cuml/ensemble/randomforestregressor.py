@@ -9,8 +9,7 @@ from cuml.internals.validation import check_inputs
 
 
 class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
-    """
-    Implements a Random Forest regressor model which fits multiple decision
+    """Implements a Random Forest regressor model which fits multiple decision
     trees in an ensemble.
 
     .. note:: Note that the underlying algorithm for tree node splits differs
@@ -20,7 +19,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
 
     .. note:: You can export cuML Random Forest models and run predictions
       with them on machines without an NVIDIA GPUs. See
-      https://docs.rapids.ai/api/cuml/nightly/pickling_cuml_models.html
+      https://docs.nvidia.com/cuml/latest/pickling_cuml_models/
       for more details.
 
     Examples
@@ -103,7 +102,16 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
            and ``max(2, ceil(min_samples_split * n_rows))`` is the minimum
            number of samples for each split.
     min_impurity_decrease : float (default = 0.0)
-        The minimum decrease in impurity required for node to be split
+        A node will be split if this split induces a decrease of the weighted impurity
+        greater than this value.
+
+        .. versionchanged:: 26.12
+
+            MSE split gains now use full variance instead of half variance to match
+            scikit-learn. For all criteria, impurity decrease is now weighted by the
+            node's fraction of the tree's total training weight. Existing positive
+            thresholds may need retuning. The default ``0.0`` needs no adjustment.
+
     max_batch_size : int (default = 4096)
         Maximum number of nodes that can be processed in a given batch.
     random_state : int (default = None)
@@ -144,6 +152,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
     When converting to sklearn using `as_sklearn()`, the `feature_importances_` attribute will return
     NaN values. If you need feature importances, save them before conversion:
     `importances = cuml_model.feature_importances_`
+
     """
 
     _cpu_class_path = "sklearn.ensemble.RandomForestRegressor"
@@ -192,7 +201,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         )
 
     @nvtx.annotate(
-        message="fit RF-Regressor @randomforestregressor.pyx",
+        message="fit RF-Regressor @randomforestregressor.py",
         domain="cuml_python",
     )
     @generate_docstring()
@@ -202,7 +211,11 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         Perform Random Forest Regression on the input data
 
         """
-        X, y, sample_weight = check_inputs(
+        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
+        return self._fit_forest(X, y, sample_weight=sample_weight)
+
+    def _prepare_fit_inputs(self, X, y, sample_weight=None):
+        return check_inputs(
             self,
             X,
             y,
@@ -212,10 +225,9 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             sample_weight_dtype="float64",
             reset=True,
         )
-        return self._fit_forest(X, y, sample_weight=sample_weight)
 
     @nvtx.annotate(
-        message="predict RF-Regressor @randomforestclassifier.pyx",
+        message="predict RF-Regressor @randomforestregressor.py",
         domain="cuml_python",
     )
     @insert_into_docstring(
@@ -275,7 +287,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         return preds
 
     @nvtx.annotate(
-        message="score RF-Regressor @randomforestclassifier.pyx",
+        message="score RF-Regressor @randomforestregressor.py",
         domain="cuml_python",
     )
     @insert_into_docstring(

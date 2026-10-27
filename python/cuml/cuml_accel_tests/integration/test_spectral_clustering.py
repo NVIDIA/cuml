@@ -1,10 +1,12 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import numpy as np
 import pytest
+import sklearn
+from packaging.version import Version
 from sklearn.cluster import SpectralClustering
 from sklearn.datasets import make_blobs
 from sklearn.metrics import adjusted_rand_score
@@ -26,7 +28,22 @@ def test_spectral_clustering_default(clustering_data):
     assert sc.labels_.shape == y.shape
 
 
-@pytest.mark.parametrize("n_clusters", [2, 3, 4, 5])
+@pytest.mark.parametrize(
+    "n_clusters",
+    [
+        2,
+        3,
+        pytest.param(
+            4,
+            marks=pytest.mark.xfail(
+                condition=Version(sklearn.__version__) < Version("1.8"),
+                reason="Spectral clustering score differs on H100 (#8719)",
+                strict=False,
+            ),
+        ),
+        5,
+    ],
+)
 def test_spectral_clustering_n_clusters(n_clusters):
     X, y_true = make_blobs(
         n_samples=300,
