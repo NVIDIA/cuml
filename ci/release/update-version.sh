@@ -131,8 +131,6 @@ sed_runner "s/:[0-9]*\\.[0-9]*-/:${NEXT_SHORT_TAG}-/g" ./CONTRIBUTING.md
 # branch references in docs
 sed_runner "s|/release/[^/]*/|/${RAPIDS_BRANCH_NAME}/|g" README.md
 sed_runner "s|/main/|/${RAPIDS_BRANCH_NAME}/|g" README.md
-sed_runner "s|/release/[^/]*/|/${RAPIDS_BRANCH_NAME}/|g" python/cuml/README.md
-sed_runner "s|/main/|/${RAPIDS_BRANCH_NAME}/|g" python/cuml/README.md
 
 # CI files
 for FILE in .github/workflows/*.yaml .github/workflows/*.yml; do
