@@ -37,7 +37,7 @@ The following dependencies are optional and provide additional functionality:
 * **hdbscan**: >=0.8.39,<0.8.40 (for hierarchical density-based clustering)
 * **umap-learn**: >=0.5.7,<0.5.13 (for dimensionality reduction)
 * **pynndescent**: (for approximate nearest neighbor search)
-* **numba_cuda_mlir** >=0.3.0 (for user defined metrics)
+* **numba-cuda-mlir** >=0.3.0 (for user defined metrics)
 
 CUDA-X Dependencies
 -------------------
