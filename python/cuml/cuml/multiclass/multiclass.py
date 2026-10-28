@@ -4,9 +4,9 @@
 import warnings
 
 import cupy as cp
-import cupyx.scipy.sparse as cp_sp
 from sklearn.base import BaseEstimator, clone, is_classifier, is_regressor
 from sklearn.utils import get_tags
+from sklearn.utils.metaestimators import available_if
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
@@ -54,6 +54,19 @@ def _ovr_decision_function(pred, score, n_cls):
     return votes + conf
 
 
+def _estimators_has(attr):
+    """Returns a check for if `estimators_[0]` or `estimator` defines `attr`."""
+
+    def check(self):
+        if hasattr(self, "estimators_"):
+            getattr(self.estimators_[0], attr)
+        else:
+            getattr(self.estimator, attr)
+        return True
+
+    return check
+
+
 class _BaseMulticlassClassifier(ClassifierMixin, Base):
     """Shared constructor and fitted-state contract for multiclass classifiers."""
 
@@ -61,14 +74,16 @@ class _BaseMulticlassClassifier(ClassifierMixin, Base):
         super().__init__(verbose=verbose, output_type=output_type)
         self.estimator = estimator
 
+    def __sklearn_tags__(self):
+        """Indicate if wrapped estimator is using a precomputed Gram matrix"""
+        tags = super().__sklearn_tags__()
+        tags.input_tags.pairwise = get_tags(self.estimator).input_tags.pairwise
+        tags.input_tags.sparse = get_tags(self.estimator).input_tags.sparse
+        return tags
+
     @classmethod
     def _get_param_names(cls):
         return [*super()._get_param_names(), "estimator"]
-
-    @property
-    def classes_(self):
-        check_is_fitted(self)
-        return self._classes
 
 
 class OneVsRestClassifier(_BaseMulticlassClassifier):
@@ -113,30 +128,27 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
     array([1, 1, 0, 1, 1, 1, 2, 2, 1, 2])
     """
 
-    strategy = "ovr"
-
     @generate_docstring(y="dense_anydtype")
     @mlfunc(set_input_type=True)
     def fit(self, X, y, sample_weight=None) -> "OneVsRestClassifier":
         """Fit one binary estimator per class on device."""
-        X, y, sample_weight, self._classes = check_inputs(
+        X, y, sample_weight, self.classes_ = check_inputs(
             self,
             X,
             y,
             sample_weight,
             dtype=("float32", "float64"),
             y_dtype=None,
-            accept_sparse=True,
+            accept_sparse=self.__sklearn_tags__().input_tags.sparse,
             reset=True,
             mem_type="device",
             return_classes=True,
         )
 
-        n_cls = len(self._classes)
+        n_cls = len(self.classes_)
         if n_cls == 1:
             warnings.warn(
-                f"Label not {self._classes[0]} is present in all "
-                "training examples.",
+                f"Label {self.classes_[0]} is present in all training examples.",
                 stacklevel=2,
             )
             self.estimators_ = [_ConstantPredictor()]
@@ -167,7 +179,7 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
     @mlfunc(preserve_index=True)
     def predict(self, X):
         """Predict class labels from binary estimator scores."""
-        return ClassLabels(self._predict_indices(X), self._classes)
+        return ClassLabels(self._predict_indices(X), self.classes_)
 
     def _predict_indices(self, X):
         check_is_fitted(self)
@@ -175,7 +187,7 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
             self,
             X,
             dtype=("float32", "float64"),
-            accept_sparse=True,
+            accept_sparse=self.__sklearn_tags__().input_tags.sparse,
             mem_type="device",
         )
         if len(self.estimators_) == 1:
@@ -190,6 +202,7 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
             idx = cp.argmax(scores, axis=1)
         return idx
 
+    @available_if(_estimators_has("decision_function"))
     @generate_docstring(
         return_values={
             "name": "results",
@@ -200,7 +213,10 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
     )
     @mlfunc(preserve_index=True)
     def decision_function(self, X):
-        """Return binary estimator decision scores."""
+        """Return binary estimator decision scores.
+
+        Only available if `estimator` implements `decision_function`.
+        """
         return self._decision_scores(X)
 
     def _decision_scores(self, X):
@@ -209,7 +225,7 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
             self,
             X,
             dtype=("float32", "float64"),
-            accept_sparse=True,
+            accept_sparse=self.__sklearn_tags__().input_tags.sparse,
             mem_type="device",
         )
         if len(self.estimators_) == 1:
@@ -264,35 +280,32 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
     array([1, 1, 0, 1, 1, 1, 2, 2, 1, 2])
     """
 
-    strategy = "ovo"
-
     @generate_docstring(y="dense_anydtype")
     @mlfunc(set_input_type=True)
     def fit(self, X, y, sample_weight=None) -> "OneVsOneClassifier":
         """Fit one binary estimator per class pair on device."""
-        X, y, sample_weight, self._classes = check_inputs(
+        tags = self.__sklearn_tags__()
+        pairwise = tags.input_tags.pairwise
+
+        X, y, sample_weight, self.classes_ = check_inputs(
             self,
             X,
             y,
             sample_weight,
             dtype=("float32", "float64"),
             y_dtype=None,
-            accept_sparse=True,
+            accept_sparse="csr" if tags.input_tags.sparse else False,
             reset=True,
             mem_type="device",
             return_classes=True,
         )
 
-        n_cls = len(self._classes)
+        n_cls = len(self.classes_)
         if n_cls == 1:
             raise ValueError(
                 "OneVsOneClassifier can not be fit when only one class is "
                 "present."
             )
-
-        pairwise = get_tags(self.estimator).input_tags.pairwise
-        if cp_sp.issparse(X):
-            X = X.tocsr()
 
         self.estimators_ = []
         self.pairwise_indices_ = [] if pairwise else None
@@ -325,18 +338,19 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
     @mlfunc(preserve_index=True)
     def predict(self, X):
         """Predict labels from pairwise votes and confidence."""
-        return ClassLabels(self._predict_indices(X), self._classes)
+        return ClassLabels(self._predict_indices(X), self.classes_)
 
     def _predict_indices(self, X):
         check_is_fitted(self)
         scores = self._decision_scores(X)
-        if len(self._classes) == 2:
+        if len(self.classes_) == 2:
             cut = _binary_threshold(self.estimators_[0])
             idx = (scores > cut).astype(cp.intp)
         else:
             idx = cp.argmax(scores, axis=1)
         return idx
 
+    @available_if(_estimators_has("decision_function"))
     @generate_docstring(
         return_values={
             "name": "results",
@@ -347,7 +361,10 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
     )
     @mlfunc(preserve_index=True)
     def decision_function(self, X):
-        """Combine pairwise votes with normalized confidence."""
+        """Combine pairwise votes with normalized confidence.
+
+        Only available if `estimator` implements `decision_function`.
+        """
         return self._decision_scores(X)
 
     def _decision_scores(self, X):
@@ -356,7 +373,7 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
             self,
             X,
             dtype=("float32", "float64"),
-            accept_sparse=True,
+            accept_sparse=self.__sklearn_tags__().input_tags.sparse,
             mem_type="device",
         )
         indices = self.pairwise_indices_
@@ -377,6 +394,6 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
         scores = _ovr_decision_function(
             cp.column_stack(predictions),
             cp.column_stack(confidences),
-            len(self._classes),
+            len(self.classes_),
         )
-        return scores[:, 1] if len(self._classes) == 2 else scores
+        return scores[:, 1] if len(self.classes_) == 2 else scores
