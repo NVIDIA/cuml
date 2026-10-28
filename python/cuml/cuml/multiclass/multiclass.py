@@ -213,7 +213,10 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
     )
     @mlfunc(preserve_index=True)
     def decision_function(self, X):
-        """Return binary estimator decision scores."""
+        """Return binary estimator decision scores.
+
+        Only available if `estimator` implements `decision_function`.
+        """
         return self._decision_scores(X)
 
     def _decision_scores(self, X):
@@ -358,7 +361,10 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
     )
     @mlfunc(preserve_index=True)
     def decision_function(self, X):
-        """Combine pairwise votes with normalized confidence."""
+        """Combine pairwise votes with normalized confidence.
+
+        Only available if `estimator` implements `decision_function`.
+        """
         return self._decision_scores(X)
 
     def _decision_scores(self, X):
