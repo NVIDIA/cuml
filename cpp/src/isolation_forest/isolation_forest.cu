@@ -84,7 +84,9 @@ tl::Tree<T, T> build_treelite_if_tree(const CompactIFForest<T>& compact, int tre
       stack.push_back(if_node.left_child);
     }
 
-    tl_tree.SetDataCount(tl_node_id, 0);
+    ASSERT(if_node.n_node_samples > 0, "Isolation tree node has no training samples.");
+    tl_tree.SetDataCount(tl_node_id, static_cast<std::uint64_t>(if_node.n_node_samples));
+    tl_tree.SetSumHess(tl_node_id, static_cast<double>(if_node.n_node_samples));
   }
 
   return tl_tree;
@@ -109,8 +111,9 @@ void build_treelite_isolation_forest(TreeliteModelHandle* model_handle,
   auto model                          = tl::Model::Create<T, T>();
   tl::ModelPreset<T, T>& model_preset = std::get<tl::ModelPreset<T, T>>(model->variant_);
 
-  model->task_type           = tl::TaskType::kRegressor;
-  model->postprocessor       = "identity";
+  model->task_type           = tl::TaskType::kIsolationForest;
+  model->postprocessor       = "exponential_standard_ratio";
+  model->ratio_c             = forest->c_normalization;
   model->num_target          = 1;
   model->num_class           = std::vector<std::int32_t>{1};
   model->leaf_vector_shape   = std::vector<std::int32_t>{1, 1};
@@ -119,6 +122,7 @@ void build_treelite_isolation_forest(TreeliteModelHandle* model_handle,
   model->num_feature         = forest->n_features;
   model->average_tree_output = true;
   model->base_scores         = std::vector<double>{0.0};
+  model->attributes          = "{}";
   model->SetTreeLimit(forest->params.n_estimators);
 
 #pragma omp parallel for
