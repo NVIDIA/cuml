@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../bins.cuh"
+#include "../dataset.h"  // for Dataset
 #include "../objectives.cuh"
 #include "../quantiles.h"
 #include "../random_utils.cuh"
