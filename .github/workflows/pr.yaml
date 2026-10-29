@@ -317,6 +317,7 @@ jobs:
       build-datetime: ${{ needs.build-details.outputs.build-datetime }}
       node_type: cpu16
       script: ci/build_cpp.sh
+      matrix_type: cuda-13-4-pr
   conda-cpp-tests:
     needs: [conda-cpp-build, changed-files]
     permissions:
@@ -331,6 +332,7 @@ jobs:
     with:
       build_type: pull-request
       script: ci/test_cpp.sh
+      matrix_type: cuda-13-4-pr,pull-request
   conda-cpp-checks:
     needs: conda-cpp-build
     permissions:
@@ -360,6 +362,7 @@ jobs:
       script: ci/build_python.sh
       # Build a conda package for each CUDA x ARCH x minimum supported Python version
       matrix_filter: group_by({CUDA_VER, ARCH}) | map(min_by(.PY_VER | split(".") | map(tonumber)))
+      matrix_type: cuda-13-4-pr
   conda-python-tests-singlegpu:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -374,6 +377,7 @@ jobs:
     with:
       build_type: pull-request
       script: "ci/test_python_singlegpu.sh"
+      matrix_type: cuda-13-4-pr,pull-request
   conda-python-tests-cudf-pandas-integration:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -390,6 +394,7 @@ jobs:
       matrix_filter: map(select(.ARCH=="amd64")) | [max_by([.CUDA_VER,.PY_VER]|map(split(".")|map(tonumber)))]
       build_type: pull-request
       script: "ci/test_python_integration.sh"
+      matrix_type: cuda-13-4-pr,pull-request
   conda-python-tests-dask:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -404,6 +409,7 @@ jobs:
     with:
       build_type: pull-request
       script: "ci/test_python_dask.sh"
+      matrix_type: cuda-13-4-pr,pull-request
   conda-python-scikit-learn-accel-tests:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -431,6 +437,7 @@ jobs:
           | sort_by(.PY_VER)
           | map(.DEPENDENCIES = "intermediate")
         )
+      matrix_type: cuda-13-4-pr,pull-request
   conda-python-cuml-accel-upstream-tests:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -447,6 +454,7 @@ jobs:
       script: "ci/test_python_cuml_accel_upstream.sh"
       # One run for each dependencies config on amd64, breaking ties by highest Python version
       matrix_filter: map(select(.ARCH == "amd64")) | sort_by(.PY_VER) | unique_by(.DEPENDENCIES)
+      matrix_type: cuda-13-4-pr,pull-request
   conda-notebook-tests:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -471,6 +479,7 @@ jobs:
     with:
       build_type: pull-request
       matrix_name: docs-build
+      matrix_type: cuda-13-4-pr
   docs-build:
     needs: [docs-build-matrix, conda-python-build, changed-files]
     permissions:
@@ -533,6 +542,7 @@ jobs:
       matrix_filter: 'group_by([.ARCH, (.CUDA_VER|split(".")|map(tonumber)|.[0])]) | map(max_by(.PY_VER|split(".")|map(tonumber)))'
       package-name: libcuml
       package-type: cpp
+      matrix_type: cuda-13-4-pr
   wheel-build-cuml:
     needs: [build-details, checks, wheel-build-libcuml]
     permissions:
@@ -552,6 +562,7 @@ jobs:
       package-type: python
       # Build a wheel for each CUDA x ARCH x minimum supported Python version
       matrix_filter: group_by({CUDA_VER, ARCH}) | map(min_by(.PY_VER | split(".") | map(tonumber)))
+      matrix_type: cuda-13-4-pr
   wheel-tests-cuml:
     needs: [wheel-build-cuml, changed-files]
     permissions:
@@ -566,6 +577,7 @@ jobs:
     with:
       build_type: pull-request
       script: ci/test_wheel.sh
+      matrix_type: cuda-13-4-pr,pull-request
   wheel-tests-cuml-dask:
     needs: [wheel-build-cuml, changed-files]
     permissions:
@@ -580,6 +592,7 @@ jobs:
     with:
       build_type: pull-request
       script: ci/test_wheel_dask.sh
+      matrix_type: cuda-13-4-pr,pull-request
   devcontainer:
     permissions:
       actions: read
@@ -591,7 +604,7 @@ jobs:
     uses: rapidsai/shared-workflows/.github/workflows/build-in-devcontainer.yaml@main
     with:
       arch: '["amd64", "arm64"]'
-      cuda: '["13.3"]'
+      cuda: '["13.4"]'
       node_type: "cpu8"
       env: |
         SCCACHE_DIST_MAX_RETRIES=inf

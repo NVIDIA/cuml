@@ -83,7 +83,7 @@ on Linux x86_64 with CUDA 13.3:
 
 ```bash
 conda env create -n cuml-clang-tidy \
-    -f conda/environments/clang_tidy_cuda-133_arch-x86_64.yaml
+    -f conda/environments/clang_tidy_cuda-134_arch-x86_64.yaml
 conda activate cuml-clang-tidy
 ./build.sh --configure-only libcuml
 python cpp/scripts/run-clang-tidy.py --config pyproject.toml
