@@ -343,7 +343,7 @@ dependencies:
         packages:
           # skipping Cython 3.2.7 because of https://github.com/cython/cython/issues/7781
           - &cython cython>=3.2.2,!=3.2.7
-          - treelite==4.7.2
+          - treelite==4.8.1
   py_run_cuml:
     common:
       - output_types: [conda, requirements, constraints, pyproject]
@@ -354,7 +354,7 @@ dependencies:
           - packaging
           - rich
           - &scikit_learn scikit-learn>=1.6
-          - treelite==4.*,>=4.7.2
+          - treelite==4.*,>=4.8.1
   # 'cuda_version' intentionally does not contain fallback entries... we want
   # a loud error if an unsupported 'cuda' value is passed
   cuda_version:

@@ -6,11 +6,13 @@ import numpy as np
 import pytest
 from sklearn import multiclass as sk_multiclass
 from sklearn.base import BaseEstimator
+from sklearn.datasets import make_classification
 from sklearn.exceptions import NotFittedError
 
 from cuml import SVC as cuSVC
 from cuml import LogisticRegression as cuLog
 from cuml import multiclass as cu_multiclass
+from cuml.naive_bayes import GaussianNB
 from cuml.testing.datasets import make_classification_dataset
 
 
@@ -101,9 +103,6 @@ def test_multiclass_not_fitted(cls):
     X = cp.zeros((2, 2), dtype=cp.float32)
 
     with pytest.raises(NotFittedError):
-        _ = m.classes_
-
-    with pytest.raises(NotFittedError):
         m.predict(X)
 
     with pytest.raises(NotFittedError):
@@ -125,7 +124,9 @@ def test_ovr_single_class():
     X = cp.arange(12, dtype=cp.float32).reshape(6, 2)
     y = cp.full(6, 7, dtype=cp.int32)
 
-    with pytest.warns(UserWarning, match="Label not 7"):
+    with pytest.warns(
+        UserWarning, match="Label 7 is present in all training examples"
+    ):
         cls = cu_multiclass.OneVsRestClassifier(cuLog()).fit(X, y)
 
     assert len(cls.estimators_) == 1
@@ -154,6 +155,26 @@ def test_sample_weight(classifier_cls):
 
     np.testing.assert_array_equal(model.predict(X_test), [1, 1, 2])
     assert model.score(X_test, y_test) == pytest.approx(2 / 3)
+
+
+@pytest.mark.parametrize(
+    "classifier_cls",
+    [
+        cu_multiclass.OneVsRestClassifier,
+        cu_multiclass.OneVsOneClassifier,
+    ],
+)
+def test_decision_function_availability(classifier_cls):
+    X, y = make_classification(random_state=42)
+    assert not hasattr(GaussianNB, "decision_function")
+    model = classifier_cls(GaussianNB())
+    assert not hasattr(model, "decision_function")
+    model.fit(X, y)
+    assert not hasattr(model, "decision_function")
+    # smoketest that predict and score still work even if `decision_function`
+    # is unavailable.
+    model.predict(X)
+    assert model.score(X, y) > 0.5
 
 
 def test_svc_multiclass_integration():

@@ -141,6 +141,8 @@ ESTIMATORS = [
     LabelEncoder(),
     LabelBinarizer(),
     TargetEncoder(multi_feature_mode="independent"),
+    OneVsRestClassifier(GaussianNB()),
+    OneVsOneClassifier(GaussianNB()),
 ]
 
 
@@ -170,9 +172,6 @@ def _all_cuml_estimators():
 
 
 EXCLUDED = {
-    # Meta-estimators
-    OneVsRestClassifier: "Meta-estimator, requires an inner estimator",
-    OneVsOneClassifier: "Meta-estimator, requires an inner estimator",
     # Preprocessing (vendored sklearn)
     MinMaxScaler: "Vendored sklearn preprocessing, not yet tested",
     MaxAbsScaler: "Vendored sklearn preprocessing, not yet tested",
