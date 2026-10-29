@@ -307,12 +307,15 @@ class ClassEnumerator:
 def get_all_base_subclasses() -> dict[str, type]:
     """
     Returns all currently defined subclasses of `cuml.Base`,
-    excluding any with a leading `_` in their name.
+    excluding any with a leading `_` in their name and the multi-GPU `*MG`
+    classes.
     """
     out = {}
 
     def _collect(cls):
-        if not cls.__name__.startswith("_"):
+        if not cls.__name__.startswith("_") and not cls.__name__.endswith(
+            "MG"
+        ):
             out[cls.__name__] = cls
         for c in cls.__subclasses__():
             _collect(c)

@@ -132,13 +132,24 @@ At a high level, all cuML Estimators must:
          ]
    ```
 
-7. Override estimator tags only when the defaults are wrong. Prefer existing
+7. Declare the valid values of each hyperparameter in `_parameter_constraints`.
+   They are checked automatically at the start of `fit`. See [Validating
+   Hyperparameters](#validating-hyperparameters).
+
+   ```python
+      _parameter_constraints = {
+         "eps": [Float(gt=0)],
+         "min_samples": [Int(ge=1)],
+      }
+   ```
+
+8. Override estimator tags only when the defaults are wrong. Prefer existing
    [mixins](https://github.com/NVIDIA/cuml/blob/main/python/cuml/cuml/internals/mixins.py) for common capabilities
    such as preferred input order, sparse support, string input, or NaN support.
    See [Estimator Tags and cuML-Specific
    Tags](#estimator-tags-and-cuml-specific-tags) for custom tag overrides.
 
-8. Support pickle round trips both before and after fitting. Add the applicable
+9. Support pickle round trips both before and after fitting. Add the applicable
    coverage to `python/cuml/tests/test_pickle.py`.
 
 For most estimators, the checklist and skeleton below are enough. The later
@@ -152,11 +163,16 @@ pattern:
 ```python
 from cuml.internals import mlfunc, ReflectedAttr
 from cuml.internals.base import Base
+from cuml.internals.param_validation import Bool
 from cuml.internals.validation import check_inputs, check_is_fitted
 
 
 class MyEstimator(Base):
     result_ = ReflectedAttr()
+
+    # Only this class's own parameters; inherited ones (`verbose`,
+    # `output_type`) are declared by `Base`
+    _parameter_constraints = {"extra_arg": [Bool]}
 
     def __init__(self, *, extra_arg=True, verbose=False, output_type=None):
         super().__init__(verbose=verbose, output_type=output_type)
@@ -363,6 +379,79 @@ def _get_param_names(cls):
 
 Do not omit `super()._get_param_names()`; it includes base estimator parameters
 such as `verbose` and `output_type`.
+
+### Validating Hyperparameters
+
+Declare which values each hyperparameter accepts in a `_parameter_constraints`
+class attribute, using the constraints in `cuml.internals.param_validation`.
+Each parameter maps to a list of constraints; a value is valid if any of them
+accepts it.
+
+```python
+from cuml.internals.param_validation import ArrayLike, Bool, Float, Int, Options
+
+
+class Ridge(Base):
+    _parameter_constraints = {
+        "alpha": [Float(ge=0), ArrayLike],
+        "fit_intercept": [Bool],
+        "solver": [Options("auto", "eig", "svd", "lsmr")],
+        "max_iter": [Int(ge=1), None],
+    }
+```
+
+The available constraints are:
+
+- `Int(ge=, gt=, le=, lt=)`: an integer, including numpy integers but not
+  bools, optionally bounded.
+- `Float(ge=, gt=, le=, lt=)`: a real number, including ints and numpy floats
+  but not bools or NaN, optionally bounded.
+- `Options(*values)`: one of a fixed set of values, usually strings.
+- `Bool`: `bool` or `numpy.bool_`.
+- `None`, `ArrayLike`, `RandomState` (the values `check_random_seed` accepts)
+  and `Callable`.
+- Any class, such as `dict`: an `isinstance` check.
+
+`bool`, `int` and `float` are rejected, because `isinstance` gives surprising
+results for them (`True` is an `int`, `np.float32(1.0)` is not a `float`). Use
+`Bool`, `Int()` and `Float()` instead. `Bool` also avoids `bool`, which in
+Cython files often refers to the C++ type.
+
+Constraints are inherited: only declare the parameters a class adds. A
+subclass can narrow an inherited constraint by declaring it again, for
+example `RidgeMG` only supports a scalar `alpha` and a subset of solvers.
+`Base` declares `verbose` and `output_type`, so you do not have to declare
+them again when inheriting.
+
+Validation runs at the start of every fit-like method (`fit`, `fit_transform`,
+`fit_predict`, `partial_fit`) decorated with `@mlfunc`, and raises an
+`InvalidParameterError` (a subclass of both `ValueError` and `TypeError`) with
+the same message format as scikit-learn. It is skipped for calls made from
+within another `@mlfunc` method, since cuML code is responsible for passing
+valid values to estimators it creates. Two consequences:
+
+- A meta-estimator that calls a user-provided estimator must do so inside
+  `exit_internal_context()`, so that the user's estimator is validated. Also
+  pin the output type with `using_output_type`; otherwise the sub-estimator's
+  own `output_type` decides what the meta-estimator gets back:
+
+  ```python
+  with exit_internal_context(), cuml.using_output_type("numpy"):
+      self.estimator_.fit(X, y)
+  ```
+- A code path that doesn't go through `@mlfunc` (for example
+  `KMeansMG.fit` with partitioned input) must call `validate_params(self)`
+  itself.
+
+Constraints only describe the valid values of each parameter on its own.
+Checks that relate parameters to each other or to the input data (for example
+"`solver='eig'` doesn't support sparse X") stay in `fit`, after input
+validation.
+
+`python/cuml/tests/test_param_validation.py` checks that every parameter of
+every estimator has a constraint, and that invalid values raise from every
+fit-like method. Estimators that haven't been converted yet are listed in
+`NOT_YET_CONVERTED`; remove an estimator from that list when converting it.
 
 ### Estimator Tags and cuML-Specific Tags
 

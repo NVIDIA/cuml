@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import cupy as cp
@@ -13,6 +13,7 @@ from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
 
 import cuml
+from cuml.internals.param_validation import InvalidParameterError
 
 
 def reg_example(**kwargs):
@@ -258,7 +259,10 @@ def test_ridge_invalid_alpha():
         model.fit(X, y)
 
     model = cuml.Ridge(alpha=-0.5)
-    with pytest.raises(ValueError, match="alpha must be non-negative"):
+    with pytest.raises(
+        InvalidParameterError,
+        match=r"The 'alpha' parameter of Ridge must be a float in the range \[0.0, inf\)",
+    ):
         model.fit(X, y)
 
     model = cuml.Ridge(alpha=np.array([0.1, 10.0, -2.0]))

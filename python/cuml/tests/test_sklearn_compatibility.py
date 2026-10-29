@@ -163,7 +163,7 @@ def _all_cuml_estimators():
     return {
         cls
         for cls in get_all_base_subclasses().values()
-        if not (cls.__name__.endswith("MG") or "Base" in cls.__name__)
+        if "Base" not in cls.__name__
         and not getattr(cls, "__abstractmethods__", None)
         and not any(
             part in _MODULE_TO_IGNORE for part in cls.__module__.split(".")

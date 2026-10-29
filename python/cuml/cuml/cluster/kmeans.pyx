@@ -1,8 +1,6 @@
 #
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-from numbers import Integral
-
 import cupy as cp
 import numpy as np
 from sklearn.base import ClassNamePrefixFeaturesOutMixin
@@ -12,6 +10,13 @@ from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
 from cuml.internals.mixins import ClusterMixin, CMajorInputTagMixin
 from cuml.internals.outputs import ReflectedAttr, mlfunc
+from cuml.internals.param_validation import (
+    ArrayLike,
+    Float,
+    Int,
+    Options,
+    RandomState,
+)
 from cuml.internals.validation import (
     check_array,
     check_inputs,
@@ -50,9 +55,9 @@ cdef _kmeans_init_params(kmeans, lib.KMeansParams& params):
     params.tol = kmeans.tol
     params.verbosity = kmeans._verbose_level
     params.metric = DistanceType.L2Expanded
-    params.batch_samples = int(kmeans.max_samples_per_batch)
-    params.init_size = int(kmeans.init_size)
-    params.device_buffer_samples = int(kmeans.device_buffer_samples)
+    params.batch_samples = kmeans.max_samples_per_batch
+    params.init_size = kmeans.init_size
+    params.device_buffer_samples = kmeans.device_buffer_samples
     params.oversampling_factor = kmeans.oversampling_factor
 
     # Ensure random_state is set when running on multi-gpu
@@ -607,6 +612,22 @@ class KMeans(
 
     _cpu_class_path = "sklearn.cluster.KMeans"
 
+    _parameter_constraints = {
+        "n_clusters": [Int(ge=1)],
+        "max_iter": [Int(ge=1)],
+        "tol": [Float(ge=0)],
+        "random_state": [RandomState],
+        "init": [
+            Options("scalable-k-means++", "k-means||", "k-means++", "random"),
+            ArrayLike,
+        ],
+        "n_init": [Options("auto"), Int(ge=1)],
+        "oversampling_factor": [Float(ge=0)],
+        "max_samples_per_batch": [Int(ge=1)],
+        "device_buffer_samples": [Int(ge=0)],
+        "init_size": [Int(ge=0)],
+    }
+
     @classmethod
     def _get_param_names(cls):
         return [
@@ -734,15 +755,7 @@ class KMeans(
         Compute k-means clustering with X.
 
         """
-        device_buffer_samples = int(self.device_buffer_samples)
-        if device_buffer_samples > 0 and self._multi_gpu:
-            raise ValueError(
-                f"device_buffer_samples={device_buffer_samples} is not "
-                f"supported for the multi-GPU KMeans fit path; set "
-                f"device_buffer_samples=0."
-            )
-
-        self._validate_fit_params()
+        device_buffer_samples = self.device_buffer_samples
 
         # Process input arrays
         X, sample_weight = check_inputs(
@@ -843,8 +856,6 @@ class KMeans(
                 "KMeansMG requires at least one local data partition."
             )
 
-        self._validate_fit_params()
-
         has_weights = sample_weight_parts is not None
 
         # All partitions on a rank (and their sample weights) must share a
@@ -931,7 +942,7 @@ class KMeans(
                     f"match the number of features of the data {n_cols}."
                 )
 
-        cdef int64_t batch = int(self.device_buffer_samples)
+        cdef int64_t batch = self.device_buffer_samples
 
         handle = self.handle
         cdef handle_t* handle_ = <handle_t *><size_t>handle.getHandle()
@@ -981,17 +992,6 @@ class KMeans(
         self.n_iter_ = n_iter
 
         return self
-
-    def _validate_fit_params(self):
-        if not isinstance(self.n_clusters, Integral) or self.n_clusters <= 0:
-            raise ValueError(
-                f"n_clusters={self.n_clusters} should be a positive integer."
-            )
-        if int(self.device_buffer_samples) < 0:
-            raise ValueError(
-                f"device_buffer_samples must be >= 0, got "
-                f"{int(self.device_buffer_samples)}."
-            )
 
     def _validate_fit_row_constraints(self, n_rows):
         if not self._multi_gpu and n_rows < self.n_clusters:
