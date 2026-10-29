@@ -801,6 +801,7 @@ def test_rf_data_count(client, max_depth, n_estimators):
     )
     X = X.astype(np.float32)
     dask_model = cuRFC_mg(
+        bootstrap=False,
         max_features=1.0,
         max_samples=1.0,
         n_bins=16,

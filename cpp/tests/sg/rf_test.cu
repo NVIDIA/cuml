@@ -1043,17 +1043,20 @@ TEST(RfTests, WeightedBootstrapSamplesOnlyPositiveWeightRows)
     h_bootstrap_masks.data(), bootstrap_masks.data(), bootstrap_masks.size(), handle.get_stream());
   handle.sync_stream();
 
+  std::array<int, n_trees> distinct_in_bag_counts{};
   for (int tree_id = 0; tree_id < n_trees; ++tree_id) {
-    for (int row_id = 0; row_id < n_zero_weight_rows; ++row_id) {
-      EXPECT_FALSE(h_bootstrap_masks[tree_id * n_rows + row_id]);
+    for (int row_id = 0; row_id < n_rows; ++row_id) {
+      auto in_bag = h_bootstrap_masks[tree_id * n_rows + row_id];
+      if (row_id < n_zero_weight_rows) { EXPECT_FALSE(in_bag); }
+      distinct_in_bag_counts[tree_id] += in_bag ? 1 : 0;
     }
   }
 
-  for (auto const& tree_ptr : forest->trees) {
-    const auto& tree = *tree_ptr;
+  for (int tree_id = 0; tree_id < n_trees; ++tree_id) {
+    const auto& tree = *forest->trees[tree_id];
     ASSERT_EQ(tree.sparsetree.size(), 1);
     EXPECT_TRUE(tree.sparsetree[0].IsLeaf());
-    EXPECT_EQ(tree.sparsetree[0].InstanceCount(), n_rows);
+    EXPECT_EQ(tree.sparsetree[0].InstanceCount(), distinct_in_bag_counts[tree_id]);
     ASSERT_EQ(tree.vector_leaf.size(), 2);
     EXPECT_NEAR(tree.vector_leaf[0], 0.0f, 1e-6f);
     EXPECT_NEAR(tree.vector_leaf[1], 1.0f, 1e-6f);
@@ -1831,7 +1834,7 @@ TEST(RfWeightedTest, BootstrapDuplicatesContributePerOccurrence)
     const auto& tree = *forest->trees[0];
     ASSERT_EQ(tree.sparsetree.size(), 1);
     EXPECT_TRUE(tree.sparsetree[0].IsLeaf());
-    EXPECT_EQ(tree.sparsetree[0].InstanceCount(), n_rows);
+    EXPECT_EQ(tree.sparsetree[0].InstanceCount(), included_count);
     ASSERT_EQ(tree.vector_leaf.size(), 1);
 
     auto mean_with_counts = [&](int count_a, int count_b) {

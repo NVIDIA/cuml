@@ -19,6 +19,7 @@ from sklearn.datasets import (
     load_breast_cancer,
     load_iris,
     make_classification,
+    make_hastie_10_2,
     make_regression,
 )
 from sklearn.ensemble import RandomForestClassifier as skrfc
@@ -411,6 +412,32 @@ def test_rf_regressor_sample_weight_min_samples_leaf_matches_sklearn(datatype):
     np.testing.assert_allclose(
         _cuml_preds(cuml_model, X), sk_model.predict(X), rtol=1e-6, atol=1e-6
     )
+
+
+def test_rf_classifier_min_samples_leaf_with_bootstrap():
+    """
+    Ensure that min_samples_leaf constraint is properly enforced
+    when bootstrapping is enabled.
+    """
+    X, y = make_hastie_10_2(n_samples=20, random_state=1)
+    X = X.astype(np.float32)
+    min_samples_leaf = 5
+
+    model = curfc(
+        min_samples_leaf=min_samples_leaf,
+        n_estimators=1,
+        n_bins=X.shape[0],
+        random_state=1,
+        bootstrap=True,
+        n_streams=1,
+    ).fit(X, y)
+
+    forest = model.as_nvforest()
+    leaf_ids = forest.apply(X)[:, 0].astype(np.int32)
+    leaf_counts = np.bincount(leaf_ids)
+    leaf_counts = leaf_counts[leaf_counts != 0]
+
+    assert np.min(leaf_counts) >= min_samples_leaf
 
 
 @pytest.mark.parametrize(

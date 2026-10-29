@@ -10,6 +10,7 @@
 
 #include <cuml/tree/algo_helper.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
@@ -164,12 +165,11 @@ class ClassificationObjectiveFunction {
                              int bin,
                              LabelT label,
                              const DatasetT& dataset,
-                             std::int64_t row) const
+                             std::int64_t row,
+                             std::size_t row_position) const
   {
     double weight = 1.0;
-    if constexpr (weighted) {
-      weight = dataset.sample_weight == nullptr ? 1.0 : double(dataset.sample_weight[row]);
-    }
+    if constexpr (weighted) { weight = dataset.weight(row_position, row); }
     BinT::IncrementHistogram(histogram, n_bins, bin, label, weight);
   }
 
@@ -394,12 +394,11 @@ class RegressionObjectiveFunction {
                              int bin,
                              LabelT label,
                              const DatasetT& dataset,
-                             std::int64_t row) const
+                             std::int64_t row,
+                             std::size_t row_position) const
   {
     double weight = 1.0;
-    if constexpr (weighted) {
-      weight = dataset.sample_weight == nullptr ? 1.0 : double(dataset.sample_weight[row]);
-    }
+    if constexpr (weighted) { weight = dataset.weight(row_position, row); }
     BinT::IncrementHistogram(histogram, n_bins, bin, label, weight);
   }
 

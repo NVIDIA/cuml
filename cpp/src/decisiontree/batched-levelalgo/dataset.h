@@ -7,6 +7,7 @@
 
 #include <raft/util/cuda_utils.cuh>
 
+#include <cstddef>
 #include <cstdint>
 
 namespace ML {
@@ -20,6 +21,8 @@ struct Dataset {
   const LabelT* labels;
   /** optional input sample weights */
   const double* sample_weight;
+  /** optional bootstrap multiplicities, aligned with row_ids */
+  std::uint32_t* bootstrap_count;
   /** total rows in dataset */
   std::int64_t n_rows;
   /** total cols in dataset */
@@ -40,6 +43,12 @@ struct Dataset {
   HDI DataT value(std::int64_t row, std::int64_t col) const
   {
     return data[row * row_stride + col * col_stride];
+  }
+
+  HDI double weight(std::size_t row_position, std::int64_t row) const
+  {
+    if (bootstrap_count != nullptr) { return static_cast<double>(bootstrap_count[row_position]); }
+    return sample_weight == nullptr ? 1.0 : sample_weight[row];
   }
 };
 
