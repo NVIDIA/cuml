@@ -24,6 +24,7 @@ files:
       - depends_on_libraft
       - depends_on_librmm
       - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
       - depends_on_nvforest
       - depends_on_pylibraft
       - depends_on_raft_dask
@@ -103,6 +104,8 @@ files:
       - depends_on_cupy
       - depends_on_libcuml
       - depends_on_nvforest
+      - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
       - py_version
       - test_python
       - test_python_xgboost
@@ -142,7 +145,6 @@ files:
       - depends_on_rapids_dask_dependency
       - depends_on_dask_cuda
       - depends_on_dask_cudf
-      - depends_on_numba_cuda
       - depends_on_nvforest
       - depends_on_pylibraft
       - depends_on_raft_dask
@@ -192,7 +194,6 @@ files:
       - depends_on_cudf
       - depends_on_cupy
       - depends_on_libcuml
-      - depends_on_numba_cuda
       - depends_on_nvforest
       - depends_on_pylibraft
       - depends_on_rmm
@@ -209,6 +210,8 @@ files:
     includes:
       - test_python
       - test_python_xgboost
+      - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
   py_dask_cuml:
     output: pyproject
     pyproject_dir: python/cuml
@@ -340,19 +343,18 @@ dependencies:
         packages:
           # skipping Cython 3.2.7 because of https://github.com/cython/cython/issues/7781
           - &cython cython>=3.2.2,!=3.2.7
-          - &treelite treelite>=4.7.2,<5.0.0
+          - treelite==4.8.1
   py_run_cuml:
     common:
       - output_types: [conda, requirements, constraints, pyproject]
         packages:
           - joblib>=0.11
-          - numba>=0.60.0,<0.65.0
           - &numpy numpy>=2.0,<3.0
           - scipy>=1.14.0
           - packaging
           - rich
           - &scikit_learn scikit-learn>=1.6
-          - *treelite
+          - treelite==4.*,>=4.8.1
   # 'cuda_version' intentionally does not contain fallback entries... we want
   # a loud error if an unsupported 'cuda' value is passed
   cuda_version:
@@ -1025,11 +1027,11 @@ dependencies:
               - *librmm_unsuffixed
   depends_on_numba_cuda:
     common:
-      - output_types: [conda]
+      - output_types: [conda, constraints]
         packages:
           - &numba_cuda numba-cuda>=0.22.2
     specific:
-      - output_types: [requirements, constraints, pyproject]
+      - output_types: [requirements, pyproject]
         matrices:
           - matrix:
               cuda: "12.*"
@@ -1045,6 +1047,30 @@ dependencies:
           - matrix:
             packages:
               - *numba_cuda
+  depends_on_numba_cuda_mlir:
+    common:
+      - output_types: [conda, constraints]
+        packages:
+          - &numba_cuda_mlir numba-cuda-mlir>=0.3.0
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
+            packages:
+              - numba-cuda-mlir[cu12]>=0.3.0
+          - matrix:
+              cuda: "13.*"
+              cuda_suffixed: "true"
+            packages:
+              - numba-cuda-mlir[cu13]>=0.3.0
+          # fallback to numba-cuda-mlir with no extra CUDA packages if
+          # 'cuda_suffixed' isn't true
+          - matrix:
+              cuda_suffixed: "false"
+            packages:
+              - *numba_cuda_mlir
   depends_on_nvforest:
     common:
       - output_types: conda

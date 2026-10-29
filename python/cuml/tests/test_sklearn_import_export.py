@@ -1370,3 +1370,32 @@ def test_ordinal_encoder_cuda_array_like_params():
     cu_out2 = cu_model2.transform(X)
     np.testing.assert_array_equal(cu_out1, sk_out)
     np.testing.assert_array_equal(cu_out2, sk_out)
+
+
+@pytest.mark.parametrize("name", ["OneHotEncoder", "OrdinalEncoder"])
+def test_one_hot_encoder_ordinal_encoder_none_categories(name):
+    sk_cls = getattr(sklearn.preprocessing, name)
+    cu_cls = getattr(cuml.preprocessing, name)
+
+    X = np.array([["a"], [None], ["b"]], dtype="object")
+    sk_model = sk_cls().fit(X)
+    with pytest.raises(
+        UnsupportedOnGPU, match="`None` is not supported as a category value"
+    ):
+        cu_cls.from_sklearn(sk_model)
+
+    X = np.array([["a"], [None], [np.nan], ["b"]], dtype="object")
+    sk_model = sk_cls().fit(X)
+    with pytest.raises(
+        UnsupportedOnGPU, match="`None` is not supported as a category value"
+    ):
+        cu_cls.from_sklearn(sk_model)
+
+    X = np.array([["a"], [np.nan], ["b"]], dtype="object")
+    sk_model = sk_cls().fit(X)
+    if hasattr(sk_model, "sparse_output"):
+        sk_model.sparse_output = False
+    cu_model = cu_cls.from_sklearn(sk_model)
+    sk_out = sk_model.transform(X)
+    cu_out = cu_model.transform(X)
+    np.testing.assert_array_equal(cu_out, sk_out)

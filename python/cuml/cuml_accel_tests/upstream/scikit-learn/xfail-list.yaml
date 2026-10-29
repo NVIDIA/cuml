@@ -268,15 +268,9 @@
   - "sklearn.ensemble.tests.test_forest::test_importances[RandomForestClassifier-gini-float64]"
   - "sklearn.ensemble.tests.test_forest::test_importances[RandomForestRegressor-squared_error-float32]"
   - "sklearn.ensemble.tests.test_forest::test_importances[RandomForestRegressor-squared_error-float64]"
-  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestClassifier]"
-  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_max_samples_bootstrap[RandomForestClassifier]"
   - "sklearn.ensemble.tests.test_forest::test_max_samples_bootstrap[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_min_impurity_decrease"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_leaf[RandomForestClassifier]"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_leaf[RandomForestRegressor]"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestClassifier]"
-  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_oob_not_computed_twice[RandomForestClassifier]"
   - "sklearn.ensemble.tests.test_forest::test_oob_not_computed_twice[RandomForestRegressor]"
   - "sklearn.ensemble.tests.test_forest::test_poisson_y_positive_check"
@@ -452,7 +446,6 @@
   - "sklearn.tests.test_common::test_estimators[Pipeline(steps=[('scaler',StandardScaler()),('final_estimator',LogisticRegression())])-check_estimators_overwrite_params]"
   - "sklearn.tests.test_common::test_estimators[Pipeline(steps=[('scaler',StandardScaler()),('final_estimator',Ridge())])-check_dont_overwrite_parameters]"
   - "sklearn.tests.test_common::test_estimators[Pipeline(steps=[('scaler',StandardScaler()),('final_estimator',Ridge())])-check_estimators_overwrite_params]"
-  - "sklearn.tests.test_multioutput::test_multi_output_classification_sample_weights"
   - "sklearn.tests.test_multioutput::test_multi_target_sparse_regression[bsr_array]"
   - "sklearn.tests.test_multioutput::test_multi_target_sparse_regression[bsr_matrix]"
   - "sklearn.tests.test_multioutput::test_multi_target_sparse_regression[coo_array]"
@@ -893,6 +886,12 @@
   - "sklearn.preprocessing.tests.test_encoders::test_ordinal_encoder_specified_categories_missing_passthrough[object-None-missing-value]"
   - "sklearn.preprocessing.tests.test_encoders::test_ordinal_encoder_specified_categories_missing_passthrough[object-nan-missing_value]"
   - "sklearn.preprocessing.tests.test_encoders::test_ordinal_encoder_unknown_missing_interaction_both_nan[X_train0-X_test_trans_expected0-X_roundtrip_expected0]"
+- reason: Tests fail with `treelite<4.8.1`
+  marker: treelite_depth_bug
+  condition: treelite<4.8.1
+  tests:
+  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestClassifier]"
+  - "sklearn.ensemble.tests.test_forest::test_max_leaf_nodes_max_depth[RandomForestRegressor]"
 - reason: Calibration temperature scaling differs with cuml.accel in sklearn 1.8
   condition: scikit-learn>=1.8
   tests:
@@ -1099,6 +1098,11 @@
 - reason: The sklearn test has the error message accidentally flipped, our message is correct
   tests:
   - "sklearn.linear_model.tests.test_ridge::test_ridge_individual_penalties"
+- reason: Treelite before 4.8 does not export node sample counts
+  condition: treelite<4.8.0
+  tests:
+  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestClassifier]"
+  - "sklearn.ensemble.tests.test_forest::test_min_samples_split[RandomForestRegressor]"
 - reason: Upstream sklearn pandas string dtype expectations differ with pandas 3
   condition: pandas>=3 and scikit-learn<1.7.2
   tests:

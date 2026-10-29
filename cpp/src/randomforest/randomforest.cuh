@@ -43,8 +43,12 @@
 #define omp_get_max_threads() 1
 #endif
 
+#include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <numeric>
+#include <random>
+#include <vector>
 
 namespace ML {
 namespace detail {
@@ -69,18 +73,22 @@ class RowSampler {
              int n_streams,
              bool* bootstrap_masks,
              const double* sample_weight)
-    : bootstrap_(rf_params.bootstrap),
+    : handle_(handle),
+      bootstrap_(rf_params.bootstrap),
       seed_(rf_params.seed),
       n_rows_(n_rows),
       n_sampled_rows_(n_sampled_rows),
       bootstrap_masks_(bootstrap_masks),
       sample_weight_(sample_weight),
+      distributed_(raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1),
+      rank_(distributed_ ? handle.get_comms().get_rank() : 0),
+      comm_size_(distributed_ ? handle.get_comms().get_size() : 1),
       sample_weight_sum_(0.0),
       sample_weight_cdf_(0, handle.get_stream())
   {
     ASSERT(bootstrap_masks_ == nullptr || DT::is_dev_ptr(bootstrap_masks_),
            "bootstrap_masks must be a GPU pointer");
-    validate_sample_weight(handle, sample_weight_, n_rows_);
+    validate_sample_weight(handle);
     if (use_weighted_bootstrap()) {
       sample_weight_cdf_.resize(ML::narrow_cast<std::size_t>(n_rows_), handle.get_stream());
       thrust::inclusive_scan(rmm::exec_policy(handle.get_stream()),
@@ -89,21 +97,17 @@ class RowSampler {
                              sample_weight_cdf_.begin());
     }
 
-    // Empty distributed partitions still pass a non-null pointer so every rank selects the same
-    // weighted objective type, but they have no local weight sum to validate.
-    if (sample_weight_ != nullptr && n_rows_ > 0) {
-      sample_weight_sum_ = compute_sample_weight_sum(handle);
+    if (sample_weight_ != nullptr) {
+      compute_global_sample_weights(handle);
       ASSERT(sample_weight_sum_ > 0.0,
              "sample_weight values must contain at least one positive value");
     }
     // Use a deque instead of vector because device_uvector has a deleted copy constructor.
-    auto const n_sampled_rows_size = ML::narrow_cast<std::size_t>(n_sampled_rows_);
+    // Place empty buffers for now; we will resize them later.
     for (int i = 0; i < n_streams; i++) {
       auto stream = handle.get_stream_from_stream_pool(i);
-      selected_rows_.emplace_back(n_sampled_rows_size, stream);
-      if (use_weighted_bootstrap()) {
-        weighted_draw_scratch_.emplace_back(n_sampled_rows_size, stream);
-      }
+      selected_rows_.emplace_back(0, stream);
+      if (use_weighted_bootstrap()) { weighted_draw_scratch_.emplace_back(0, stream); }
     }
   }
 
@@ -114,16 +118,36 @@ class RowSampler {
   {
     raft::common::nvtx::range fun_scope("bootstrapping row IDs @randomforest.cuh");
 
-    auto& selected_rows = selected_rows_[stream_id];
-    if (n_rows_ == 0) { return selected_rows; }
+    auto& selected_rows            = selected_rows_[stream_id];
+    std::int64_t tree_sample_count = n_sampled_rows_;
+    if (use_weighted_bootstrap()) {
+      tree_sample_count           = compute_rank_sample_counts(tree_id, stream);
+      auto tree_sample_count_size = ML::narrow_cast<std::size_t>(tree_sample_count);
+      selected_rows.resize(tree_sample_count_size, stream);
+      weighted_draw_scratch_[stream_id].resize(tree_sample_count_size, stream);
+    } else {
+      auto tree_sample_count_size = ML::narrow_cast<std::size_t>(tree_sample_count);
+      selected_rows.resize(tree_sample_count_size, stream);
+    }
+
+    if (n_rows_ == 0 || tree_sample_count == 0) {
+      selected_rows.resize(0, stream);
+      store_bootstrap_mask(tree_id, selected_rows, stream);
+      return selected_rows;
+    }
 
     raft::resources stream_resources;
     raft::resource::set_cuda_stream(stream_resources, stream);
 
     // Hash these together so per-tree row samples are uncorrelated.
-    auto rs = DT::fnv1a32_basis;
-    rs      = DT::fnv1a32(rs, seed_);
-    rs      = DT::fnv1a32(rs, tree_id);
+    std::uint32_t rs;
+    if (distributed_ && use_weighted_bootstrap()) {
+      // Rank-local draws must use independent random streams. The multinomial allocation already
+      // determines how many draws each rank owns.
+      rs = DT::fnv1a32_hash(seed_, tree_id, rank_, kLocalSamplingRngTag);
+    } else {
+      rs = DT::fnv1a32_hash(seed_, tree_id);
+    }
     raft::random::RngState rng_state(rs, raft::random::GenPhilox);
 
     if (use_weighted_bootstrap()) {
@@ -134,7 +158,7 @@ class RowSampler {
                                     weighted_draw_scratch.data(),
                                     weighted_draw_scratch.size(),
                                     0.0,
-                                    sample_weight_sum_);
+                                    rank_sample_weight_sums_[rank_]);
       thrust::upper_bound(rmm::exec_policy(stream),
                           sample_weight_cdf_.data(),
                           sample_weight_cdf_.data() + n_rows_,
@@ -156,7 +180,8 @@ class RowSampler {
                                                selected_rows.begin(),
                                                NonzeroSampleWeight<double>{});
       auto n_selected        = selected_rows_end - selected_rows.begin();
-      ASSERT(n_selected > 0, "sample_weight values must contain at least one positive value");
+      ASSERT(distributed_ || n_selected > 0,
+             "sample_weight values must contain at least one positive value");
       selected_rows.resize(n_selected, stream);
     } else {
       selected_rows.resize(ML::narrow_cast<std::size_t>(n_sampled_rows_), stream);
@@ -171,6 +196,9 @@ class RowSampler {
   const double* tree_sample_weight() const { return bootstrap_ ? nullptr : sample_weight_; }
 
  private:
+  static constexpr std::uint32_t kLocalSamplingRngTag  = 0x4c4f4341;
+  static constexpr std::uint32_t kRankAllocationRngTag = 0x414c4c4f;
+
   void store_bootstrap_mask(int tree_id,
                             rmm::device_uvector<std::int64_t>& selected_rows,
                             cudaStream_t stream)
@@ -186,44 +214,176 @@ class RowSampler {
                     tree_mask);
   }
 
-  double compute_sample_weight_sum(const raft::handle_t& handle) const
+  // Determine sample counts for all ranks by drawing from the multinomial distribution
+  // Multinomial(M; p_1, ..., p_P), where the parameters are:
+  //   M = n_sampled_rows_ (total sample count),
+  //   p_i = S_i / S,
+  //   S_i = sum of sample weights in rank i,
+  //   S = sum of sample weights in all ranks.
+  // Rank 0 will draw from the multinomial distribution (comm_size_) times, and then
+  // broadcast the sample count to all ranks. The function will then return the rank-local
+  // sample count.
+  std::int64_t compute_rank_sample_counts(int tree_id, cudaStream_t stream)
   {
-    if (use_weighted_bootstrap()) {
-      double weight_sum = 0.0;
-      raft::update_host(
-        &weight_sum, sample_weight_cdf_.data() + n_rows_ - 1, 1, handle.get_stream());
-      handle.sync_stream();
-      return weight_sum;
+    if (!distributed_) { return n_sampled_rows_; }
+
+    rmm::device_uvector<std::int64_t> device_counts(ML::narrow_cast<std::size_t>(comm_size_),
+                                                    stream);
+    if (rank_ == 0) {
+      std::vector<std::int64_t> host_counts(comm_size_, 0);
+      auto rs = DT::fnv1a32_hash(seed_, tree_id, kRankAllocationRngTag);
+      std::mt19937_64 generator(rs);
+
+      int last_positive_rank = comm_size_ - 1;
+      while (rank_sample_weight_sums_[last_positive_rank] == 0.0) {
+        --last_positive_rank;
+      }
+
+      auto remaining_count  = n_sampled_rows_;
+      auto remaining_weight = sample_weight_sum_;
+      for (int current_rank = 0; current_rank < last_positive_rank; ++current_rank) {
+        auto rank_weight      = rank_sample_weight_sums_[current_rank];
+        auto following_weight = std::max(0.0, remaining_weight - rank_weight);
+        if (remaining_count > 0 && rank_weight > 0.0) {
+          if (following_weight == 0.0) {
+            host_counts[current_rank] = remaining_count;
+          } else {
+            auto probability = std::clamp(rank_weight / remaining_weight, 0.0, 1.0);
+            std::binomial_distribution<std::int64_t> distribution(remaining_count, probability);
+            host_counts[current_rank] = distribution(generator);
+          }
+        }
+        remaining_count -= host_counts[current_rank];
+        remaining_weight = following_weight;
+      }
+      host_counts[last_positive_rank] = remaining_count;
+      raft::update_device(device_counts.data(), host_counts.data(), host_counts.size(), stream);
     }
 
-    return thrust::reduce(
-      rmm::exec_policy(handle.get_stream()), sample_weight_, sample_weight_ + n_rows_, 0.0);
+    handle_.get_comms().bcast(device_counts.data(), device_counts.size(), 0, stream);
+    ASSERT(handle_.get_comms().sync_stream(stream) == raft::comms::status_t::SUCCESS,
+           "An error occurred in the distributed RF sample-count broadcast.");
+
+    std::int64_t local_count = 0;
+    raft::update_host(&local_count, device_counts.data() + rank_, 1, stream);
+    handle_.sync_stream(stream);
+    return local_count;
   }
 
-  static void validate_sample_weight(const raft::handle_t& handle,
-                                     const double* sample_weight,
-                                     std::int64_t n_rows)
+  // Compute the sum of sample weights per rank and gather these per-rank sums into
+  // rank_sample_weight_sums_. Also compute sample_weight_sum_, the sum of sample weights over all
+  // ranks.
+  void compute_global_sample_weights(const raft::handle_t& handle)
   {
-    ASSERT(sample_weight == nullptr || DT::is_dev_ptr(sample_weight),
-           "sample_weight must be a GPU pointer");
-    if (sample_weight == nullptr) { return; }
+    double local_sample_weight_sum{0.0};
+    auto stream = handle.get_stream().get();
+    if (n_rows_ > 0) {
+      if (use_weighted_bootstrap()) {
+        raft::update_host(
+          &local_sample_weight_sum, sample_weight_cdf_.data() + n_rows_ - 1, 1, stream);
+        handle.sync_stream(stream);
+      } else {
+        local_sample_weight_sum =
+          thrust::reduce(rmm::exec_policy(stream), sample_weight_, sample_weight_ + n_rows_, 0.0);
+      }
+    }
 
-    bool has_invalid = thrust::any_of(rmm::exec_policy(handle.get_stream()),
-                                      sample_weight,
-                                      sample_weight + n_rows,
-                                      InvalidSampleWeight<double>{});
-    ASSERT(!has_invalid, "sample_weight values must be finite and non-negative");
+    if (!distributed_) {
+      sample_weight_sum_       = local_sample_weight_sum;
+      rank_sample_weight_sums_ = {local_sample_weight_sum};
+      return;
+    }
+
+    rmm::device_uvector<double> local_weight_sum(1, stream);
+    rmm::device_uvector<double> rank_weight_sums(comm_size_, stream);
+    raft::update_device(local_weight_sum.data(), &local_sample_weight_sum, 1, stream);
+    handle.get_comms().allgather(local_weight_sum.data(), rank_weight_sums.data(), 1, stream);
+    ASSERT(handle.get_comms().sync_stream(stream) == raft::comms::status_t::SUCCESS,
+           "An error occurred in the distributed RF weight-sum allgather.");
+
+    rank_sample_weight_sums_.resize(comm_size_);
+    raft::update_host(
+      rank_sample_weight_sums_.data(), rank_weight_sums.data(), rank_weight_sums.size(), stream);
+    handle.sync_stream(stream);
+    sample_weight_sum_ =
+      std::accumulate(rank_sample_weight_sums_.begin(), rank_sample_weight_sums_.end(), 0.0);
+  }
+
+  void validate_sample_weight(const raft::handle_t& handle) const
+  {
+    ASSERT(n_rows_ >= 0, "n_rows must be non-negative");
+    ASSERT(n_sampled_rows_ >= 0, "n_sampled_rows must be non-negative");
+
+    ASSERT(sample_weight_ == nullptr || DT::is_dev_ptr(sample_weight_),
+           "sample_weight_ must be a GPU pointer");
+
+    if (distributed_) {
+      // All ranks must have consistent sample_weight_.
+      //    Either all ranks have non-null sample_weight_, or
+      //    all ranks must have sample_weight_ set to null.
+      // Also, ensure that n_sampled_rows_ is identical for all ranks.
+      auto stream = handle.get_stream().get();
+      rmm::device_uvector<std::int64_t> local_values(2, stream);
+      rmm::device_uvector<std::int64_t> gathered_values(ML::checked_mul<std::size_t>(2, comm_size_),
+                                                        stream);
+      std::int64_t h_local_values[2] = {sample_weight_ == nullptr ? 0 : 1, n_sampled_rows_};
+      raft::update_device(local_values.data(), h_local_values, 2, stream);
+      handle.get_comms().allgather(local_values.data(), gathered_values.data(), 2, stream);
+      ASSERT(handle.get_comms().sync_stream(stream) == raft::comms::status_t::SUCCESS,
+             "An error occurred while validating distributed RF sample weights.");
+
+      std::vector<std::int64_t> h_gathered_values(gathered_values.size());
+      raft::update_host(
+        h_gathered_values.data(), gathered_values.data(), gathered_values.size(), stream);
+      handle.sync_stream(stream);
+      for (int current_rank = 0; current_rank < comm_size_; ++current_rank) {
+        ASSERT(h_gathered_values[2 * current_rank] == h_gathered_values[0],
+               "sample_weight must be supplied consistently on every rank");
+        if (bootstrap_ && sample_weight_ != nullptr) {
+          ASSERT(h_gathered_values[2 * current_rank + 1] == h_gathered_values[1],
+                 "n_sampled_rows must be identical on every rank for weighted bootstrapping");
+        }
+      }
+    }
+
+    // Ensure that every element in sample_weight is non-negative and finite.
+    bool has_invalid_sample_weight = false;
+    if (sample_weight_) {
+      has_invalid_sample_weight = thrust::any_of(rmm::exec_policy(handle.get_stream()),
+                                                 sample_weight_,
+                                                 sample_weight_ + n_rows_,
+                                                 InvalidSampleWeight<double>{});
+    }
+    if (distributed_) {
+      auto stream = handle.get_stream().get();
+      rmm::device_uvector<std::int32_t> sample_invalid_flag(1, stream);
+      sample_invalid_flag.set_element(0, has_invalid_sample_weight ? 1 : 0, stream);
+      handle.get_comms().allreduce(
+        sample_invalid_flag.data(), sample_invalid_flag.data(), 1, raft::comms::op_t::MAX, stream);
+      ASSERT(handle.get_comms().sync_stream(stream) == raft::comms::status_t::SUCCESS,
+             "An error occurred while validating distributed RF sample weights.");
+      std::int32_t h_sample_invalid_flag;
+      raft::update_host(&h_sample_invalid_flag, sample_invalid_flag.data(), 1, stream);
+      handle.sync_stream(stream);
+      has_invalid_sample_weight = h_sample_invalid_flag != 0;
+    }
+    ASSERT(!has_invalid_sample_weight, "sample_weight values must be finite and non-negative");
   }
 
   bool use_weighted_bootstrap() const { return bootstrap_ && sample_weight_ != nullptr; }
 
+  const raft::handle_t& handle_;
   bool bootstrap_;
   uint64_t seed_;
   std::int64_t n_rows_;
   std::int64_t n_sampled_rows_;
   bool* bootstrap_masks_;
   const double* sample_weight_;
+  bool distributed_;
+  int rank_;
+  int comm_size_;
   double sample_weight_sum_;
+  std::vector<double> rank_sample_weight_sums_;
   rmm::device_uvector<double> sample_weight_cdf_;
   std::deque<rmm::device_uvector<std::int64_t>> selected_rows_;
   std::deque<rmm::device_uvector<double>> weighted_draw_scratch_;
@@ -311,10 +471,26 @@ class RandomForest {
       raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1;
     this->error_checking(input, labels, n_rows, n_cols, false, distributed);
     std::int64_t const n_rows_i64 = n_rows;
-    std::int64_t n_sampled_rows   = 0;
+    std::int64_t global_n_rows    = n_rows_i64;
+    if (distributed && this->rf_params.bootstrap) {
+      rmm::device_uvector<std::int64_t> device_global_n_rows(1, handle.get_stream());
+      raft::update_device(device_global_n_rows.data(), &global_n_rows, 1, handle.get_stream());
+      handle.get_comms().allreduce(device_global_n_rows.data(),
+                                   device_global_n_rows.data(),
+                                   1,
+                                   raft::comms::op_t::SUM,
+                                   handle.get_stream().get());
+      ASSERT(
+        handle.get_comms().sync_stream(handle.get_stream().get()) == raft::comms::status_t::SUCCESS,
+        "An error occurred in the distributed RF global row-count all-reduce.");
+      raft::update_host(&global_n_rows, device_global_n_rows.data(), 1, handle.get_stream());
+      handle.sync_stream();
+    }
+    std::int64_t n_sampled_rows = 0;
     if (this->rf_params.bootstrap) {
+      auto sample_population = distributed && sample_weight != nullptr ? global_n_rows : n_rows_i64;
       n_sampled_rows =
-        static_cast<std::int64_t>(std::round(this->rf_params.max_samples * n_rows_i64));
+        static_cast<std::int64_t>(std::round(this->rf_params.max_samples * sample_population));
     } else {
       if (this->rf_params.max_samples != 1.0) {
         CUML_LOG_WARN(
@@ -507,10 +683,11 @@ class RandomForest {
   }
 };
 
-// class specializations
-template class RandomForest<float, int>;
-template class RandomForest<float, float>;
-template class RandomForest<double, int>;
-template class RandomForest<double, double>;
+// Instantiated in randomforest.cu. Keep consumers of this implementation header from
+// instantiating the full forest implementation and its decision-tree kernel dependencies.
+extern template class RandomForest<float, int>;
+extern template class RandomForest<float, float>;
+extern template class RandomForest<double, int>;
+extern template class RandomForest<double, double>;
 
 }  // End namespace ML
