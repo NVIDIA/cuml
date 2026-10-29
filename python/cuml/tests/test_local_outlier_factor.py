@@ -11,8 +11,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse
+from sklearn.base import is_outlier_detector
 from sklearn.neighbors import LocalOutlierFactor as skLocalOutlierFactor
 
+from cuml.internals.interop import UnsupportedOnGPU
 from cuml.neighbors import LocalOutlierFactor as cuLocalOutlierFactor
 
 
@@ -251,3 +253,71 @@ def test_pickle(outlier_data, query_data):
     np.testing.assert_array_equal(
         loaded.score_samples(query_data), cu_model.score_samples(query_data)
     )
+
+
+@pytest.mark.parametrize("novelty", [False, True])
+def test_is_outlier_detector(novelty):
+    assert is_outlier_detector(cuLocalOutlierFactor(novelty=novelty))
+
+
+def test_n_jobs_not_a_parameter():
+    assert "n_jobs" not in cuLocalOutlierFactor().get_params()
+    with pytest.raises(TypeError):
+        cuLocalOutlierFactor(n_jobs=1)
+
+
+@pytest.mark.parametrize("p", [1, 2, 3])
+def test_default_metric_uses_p(outlier_data, p):
+    # The default metric is minkowski, so p=1 is the manhattan distance
+    sk_model = skLocalOutlierFactor(p=p).fit(outlier_data)
+    cu_model = cuLocalOutlierFactor(p=p, output_type="numpy").fit(outlier_data)
+    assert cu_model.effective_metric_ == sk_model.effective_metric_
+    np.testing.assert_allclose(
+        cu_model.negative_outlier_factor_,
+        sk_model.negative_outlier_factor_,
+        atol=1e-4,
+    )
+
+
+def test_too_few_samples_error():
+    X = np.ones((1, 7), dtype=np.float32)
+    msg = (
+        "Expected n_neighbors < n_samples_fit, but n_neighbors = 1, "
+        "n_samples_fit = 1, n_samples = 1"
+    )
+    with pytest.raises(ValueError, match=msg):
+        skLocalOutlierFactor(n_neighbors=1).fit(X)
+    with pytest.raises(ValueError, match=msg):
+        cuLocalOutlierFactor(n_neighbors=1).fit(X)
+
+
+@pytest.mark.filterwarnings("ignore:Parameter p is found in metric_params")
+def test_metric_params_p(outlier_data):
+    sk_model = skLocalOutlierFactor(metric_params={"p": 1}).fit(outlier_data)
+    cu_model = cuLocalOutlierFactor(
+        metric_params={"p": 1}, output_type="numpy"
+    ).fit(outlier_data)
+    assert cu_model.effective_metric_ == "manhattan"
+    np.testing.assert_allclose(
+        cu_model.negative_outlier_factor_,
+        sk_model.negative_outlier_factor_,
+        atol=1e-4,
+    )
+
+
+@pytest.mark.parametrize(
+    "metric, metric_params",
+    [
+        ("minkowski", {"w": np.ones(8)}),
+        ("minkowski", {"p": 3, "w": np.ones(8)}),
+        ("euclidean", {"p": 1}),
+    ],
+)
+def test_unsupported_metric_params_raise(outlier_data, metric, metric_params):
+    model = cuLocalOutlierFactor(metric=metric, metric_params=metric_params)
+    with pytest.raises(ValueError, match="metric_params keys"):
+        model.fit(outlier_data)
+
+    sk_model = skLocalOutlierFactor(metric=metric, metric_params=metric_params)
+    with pytest.raises(UnsupportedOnGPU):
+        cuLocalOutlierFactor.from_sklearn(sk_model)

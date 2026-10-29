@@ -251,6 +251,12 @@ XFAILS = {
         "check_methods_subset_invariance": "UMAP results depend on data subset",
         "check_transformer_preserve_dtypes": "UMAP returns float32 embeddings",
     },
+    LocalOutlierFactor: {
+        "check_outliers_train": "LocalOutlierFactor returns float32 scores",
+        "check_outliers_train(readonly_memmap=True)": (
+            "LocalOutlierFactor returns float32 scores"
+        ),
+    },
     Lasso: {
         "check_sample_weight_equivalence_on_sparse_data": "Sample weights not equal to repeating data",
     },

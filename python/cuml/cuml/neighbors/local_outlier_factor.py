@@ -8,6 +8,7 @@ from numbers import Real
 import cupy as cp
 from sklearn.utils.metaestimators import available_if
 
+from cuml.internals.interop import UnsupportedOnGPU
 from cuml.internals.outputs import ReflectedAttr, mlfunc
 from cuml.internals.validation import check_is_fitted
 from cuml.neighbors.nearest_neighbors import NeighborsBase
@@ -31,6 +32,17 @@ def _novelty_disabled(model):
     return True
 
 
+def _check_metric_params(metric, metric_params):
+    """Reject metric_params keys that cuML would silently ignore."""
+    supported = {"p"} if metric in ("minkowski", "lp") else set()
+    if unsupported := set(metric_params or {}).difference(supported):
+        raise ValueError(
+            f"metric_params keys {sorted(unsupported)} are not supported "
+            f"with metric={metric!r}. Only 'p' is supported, and only for "
+            "the 'minkowski' and 'lp' metrics."
+        )
+
+
 class LocalOutlierFactor(NeighborsBase):
     """
     Unsupervised outlier detection using the Local Outlier Factor (LOF).
@@ -50,9 +62,10 @@ class LocalOutlierFactor(NeighborsBase):
     algorithm : string (default='auto')
         The query algorithm to use, see
         :class:`~cuml.neighbors.NearestNeighbors` for the valid options.
-    metric : string (default='euclidean')
+    metric : string (default='minkowski')
         Distance metric to use, see :class:`~cuml.neighbors.NearestNeighbors`
-        for the supported metrics of each algorithm.
+        for the supported metrics of each algorithm. With the default
+        ``p=2``, ``'minkowski'`` is computed as the euclidean distance.
     p : float (default=2)
         Parameter for the Minkowski metric. When p = 1, this is equivalent to
         manhattan distance (l1), and euclidean distance (l2) for p = 2. For
@@ -61,7 +74,10 @@ class LocalOutlierFactor(NeighborsBase):
         Used to configure the nearest neighbor algorithm to be used, see
         :class:`~cuml.neighbors.NearestNeighbors`.
     metric_params : dict, optional (default = None)
-        Additional keyword arguments for the metric function.
+        Additional keyword arguments for the metric function. The only
+        supported key is ``'p'`` with the ``'minkowski'`` and ``'lp'``
+        metrics, where it takes precedence over the ``p`` parameter. Other
+        keys raise a ``ValueError``.
     contamination : 'auto' or float (default='auto')
         The proportion of outliers in the data set, used to define the
         threshold on the scores of the samples.
@@ -75,8 +91,6 @@ class LocalOutlierFactor(NeighborsBase):
         Set to True to use it for novelty detection. In that case ``predict``,
         ``decision_function`` and ``score_samples`` should only be used on
         new unseen data and not on the training set.
-    n_jobs : int (default = None)
-        Ignored, here for scikit-learn API compatibility.
     verbose : int or boolean, default=False
         Sets logging level. It must be one of `cuml.common.logger.level_*`.
         See :ref:`verbosity-levels` for more info.
@@ -140,12 +154,23 @@ class LocalOutlierFactor(NeighborsBase):
 
     _cpu_class_path = "sklearn.neighbors.LocalOutlierFactor"
 
+    _estimator_type = "outlier_detector"
+
     @classmethod
     def _get_param_names(cls):
-        return [*super()._get_param_names(), "contamination", "novelty"]
+        # n_jobs is not exposed, the GPU neighbor search doesn't use it
+        return [
+            *(p for p in super()._get_param_names() if p != "n_jobs"),
+            "contamination",
+            "novelty",
+        ]
 
     @classmethod
     def _params_from_cpu(cls, model):
+        try:
+            _check_metric_params(model.metric, model.metric_params)
+        except ValueError as exc:
+            raise UnsupportedOnGPU(str(exc)) from exc
         return {
             "contamination": model.contamination,
             "novelty": model.novelty,
@@ -185,32 +210,35 @@ class LocalOutlierFactor(NeighborsBase):
             **super()._attrs_to_cpu(model),
         }
 
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags.estimator_type = "outlier_detector"
+        return tags
+
     def __init__(
         self,
         *,
         n_neighbors=20,
         algorithm="auto",
-        metric="euclidean",
+        metric="minkowski",
         p=2,
         algo_params=None,
         metric_params=None,
         contamination="auto",
         novelty=False,
-        n_jobs=None,  # Ignored, here for sklearn API compatibility
         verbose=False,
         output_type=None,
     ):
-        super().__init__(
-            n_neighbors=n_neighbors,
-            algorithm=algorithm,
-            metric=metric,
-            p=p,
-            algo_params=algo_params,
-            metric_params=metric_params,
-            n_jobs=n_jobs,
-            verbose=verbose,
-            output_type=output_type,
+        # Skip NeighborsBase.__init__, it sets the ignored n_jobs parameter
+        super(NeighborsBase, self).__init__(
+            verbose=verbose, output_type=output_type
         )
+        self.n_neighbors = n_neighbors
+        self.algorithm = algorithm
+        self.metric = metric
+        self.p = p
+        self.algo_params = algo_params
+        self.metric_params = metric_params
         self.contamination = contamination
         self.novelty = novelty
 
@@ -239,14 +267,17 @@ class LocalOutlierFactor(NeighborsBase):
                 "contamination must be 'auto' or a float in the range "
                 "(0, 0.5]."
             )
+        _check_metric_params(self.metric, self.metric_params)
 
         super().fit(X)
 
         n_samples = self.n_samples_fit_
         if n_samples < 2:
+            # Same message as scikit-learn
             raise ValueError(
-                "LocalOutlierFactor needs at least 2 samples, got "
-                f"n_samples = {n_samples}."
+                "Expected n_neighbors < n_samples_fit, but "
+                f"n_neighbors = 1, n_samples_fit = {n_samples}, "
+                f"n_samples = {n_samples}"
             )
         if self.n_neighbors > n_samples:
             warnings.warn(

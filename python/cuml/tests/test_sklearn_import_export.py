@@ -711,7 +711,7 @@ def test_local_outlier_factor(random_state, sparse, novelty):
         X = scipy.sparse.csr_matrix(X)
 
     cu_model = cuml.LocalOutlierFactor(
-        metric="minkowski", n_neighbors=10, contamination=0.1, novelty=novelty
+        n_neighbors=10, contamination=0.1, novelty=novelty
     ).fit(X)
     sk_model = sklearn.neighbors.LocalOutlierFactor(
         n_neighbors=10, contamination=0.1, novelty=novelty
