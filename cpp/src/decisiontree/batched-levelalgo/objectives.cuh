@@ -6,7 +6,6 @@
 #pragma once
 
 #include "bins.cuh"
-#include "dataset.h"
 #include "split.cuh"
 
 #include <cuml/tree/algo_helper.h>

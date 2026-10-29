@@ -11,26 +11,15 @@
 #include <cuml/tree/flatnode.h>
 
 #include <raft/core/handle.hpp>
-#include <raft/core/nvtx.hpp>
 #include <raft/util/cudart_utils.hpp>
 
-#include <treelite/c_api.h>
 #include <treelite/tree.h>
 
 #include <algorithm>
-#include <climits>
 #include <cstdint>
 #include <iomanip>
 #include <locale>
 #include <vector>
-
-/** check for treelite runtime API errors and assert accordingly */
-
-#define TREELITE_CHECK_RET(call)                                                                 \
-  do {                                                                                           \
-    int status = call;                                                                           \
-    ASSERT(status >= 0, "TREELITE FAIL: call='%s'. Reason:%s\n", #call, TreeliteGetLastError()); \
-  } while (0)
 
 namespace ML {
 
@@ -44,18 +33,6 @@ inline bool is_dev_ptr(const void* p)
   cudaError_t err = cudaPointerGetAttributes(&pointer_attr, p);
   if (err == cudaSuccess) {
     return (pointer_attr.devicePointer || pointer_attr.type == cudaMemoryTypeDevice);
-  } else {
-    err = cudaGetLastError();
-    return false;
-  }
-}
-
-inline bool is_host_ptr(const void* p)
-{
-  cudaPointerAttributes pointer_attr;
-  cudaError_t err = cudaPointerGetAttributes(&pointer_attr, p);
-  if (err == cudaSuccess) {
-    return (pointer_attr.hostPointer || pointer_attr.type == cudaMemoryTypeUnregistered);
   } else {
     err = cudaGetLastError();
     return false;
@@ -324,62 +301,6 @@ class DecisionTree {
         .train();
     } else {
       ASSERT(false, "Unknown split criterion.");
-    }
-  }
-
-  template <class DataT, class LabelT>
-  static void predict(const raft::handle_t& handle,
-                      const DT::TreeMetaDataNode<DataT, LabelT>& tree,
-                      const DataT* rows,
-                      std::size_t n_rows,
-                      std::size_t n_cols,
-                      DataT* predictions,
-                      int num_outputs,
-                      rapids_logger::level_enum verbosity)
-  {
-    if (verbosity >= rapids_logger::level_enum::off) { default_logger().set_level(verbosity); }
-    ASSERT(is_host_ptr(rows) && is_host_ptr(predictions),
-           "DT Error: Current impl. expects both input and predictions to be CPU "
-           "pointers.\n");
-
-    ASSERT(tree.sparsetree.size() != 0,
-           "Cannot predict w/ empty tree, tree size %zu",
-           tree.sparsetree.size());
-
-    predict_all(tree, rows, n_rows, n_cols, predictions, num_outputs);
-  }
-
-  template <class DataT, class LabelT>
-  static void predict_all(const DT::TreeMetaDataNode<DataT, LabelT>& tree,
-                          const DataT* rows,
-                          std::size_t n_rows,
-                          std::size_t n_cols,
-                          DataT* preds,
-                          int num_outputs)
-  {
-    for (std::size_t row_id = 0; row_id < n_rows; row_id++) {
-      predict_one(&rows[row_id * n_cols], tree, preds + row_id * num_outputs, num_outputs);
-    }
-  }
-
-  template <class DataT, class LabelT>
-  static void predict_one(const DataT* row,
-                          const DT::TreeMetaDataNode<DataT, LabelT>& tree,
-                          DataT* preds_out,
-                          int num_outputs)
-  {
-    std::size_t idx = 0;
-    auto n          = tree.sparsetree[idx];
-    while (!n.IsLeaf()) {
-      if (row[n.ColumnId()] <= n.QueryValue()) {
-        idx = n.LeftChildId();
-      } else {
-        idx = n.RightChildId();
-      }
-      n = tree.sparsetree[idx];
-    }
-    for (int i = 0; i < num_outputs; i++) {
-      preds_out[i] += tree.vector_leaf[idx * num_outputs + i];
     }
   }
 

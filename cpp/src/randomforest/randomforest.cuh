@@ -14,8 +14,6 @@
 #include <raft/core/resource/cuda_stream.hpp>
 #include <raft/random/permute.cuh>
 #include <raft/random/rng.cuh>
-#include <raft/stats/accuracy.cuh>
-#include <raft/stats/regression_metrics.cuh>
 #include <raft/util/cudart_utils.hpp>
 
 #include <rmm/exec_policy.hpp>
@@ -34,7 +32,6 @@
 
 #include <decisiontree/batched-levelalgo/quantiles.cuh>
 #include <decisiontree/decisiontree.cuh>
-#include <decisiontree/treelite_util.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -394,41 +391,25 @@ template <class T, class L>
 class RandomForest {
  protected:
   RF_params rf_params;  // structure containing RF hyperparameters
-  int rf_type;          // 0 for classification 1 for regression
 
-  void error_checking(const T* input,
-                      L* predictions,
-                      int n_rows,
-                      int n_cols,
-                      bool predict,
-                      bool allow_empty_local_rows = false) const
+  static void error_checking(
+    T const* input, L const* labels, int n_rows, int n_cols, bool allow_empty_local_rows)
   {
-    if (predict) {
-      ASSERT(predictions != nullptr, "Error! User has not allocated memory for predictions.");
-    }
     ASSERT(allow_empty_local_rows ? (n_rows >= 0) : (n_rows > 0), "Invalid n_rows %d", n_rows);
     ASSERT((n_cols > 0), "Invalid n_cols %d", n_cols);
 
     if (n_rows == 0) { return; }
 
-    bool input_is_dev_ptr = DT::is_dev_ptr(input);
-    bool preds_is_dev_ptr = DT::is_dev_ptr(predictions);
-
-    if (!input_is_dev_ptr || (input_is_dev_ptr != preds_is_dev_ptr)) {
-      ASSERT(false,
-             "RF Error: Expected both input and labels/predictions to be GPU "
-             "pointers");
-    }
+    ASSERT(DT::is_dev_ptr(input) && DT::is_dev_ptr(labels),
+           "RF Error: Expected both input and labels to be GPU pointers");
   }
 
  public:
   /**
    * @brief Construct RandomForest object.
    * @param[in] cfg_rf_params: Random forest hyper-parameter struct.
-   * @param[in] cfg_rf_type: Task type: 0 for classification, 1 for regression
    */
-  RandomForest(RF_params cfg_rf_params, int cfg_rf_type = RF_type::CLASSIFICATION)
-    : rf_params(cfg_rf_params), rf_type(cfg_rf_type) {};
+  explicit RandomForest(RF_params cfg_rf_params) : rf_params(cfg_rf_params) {};
 
   /**
    * @brief Build (i.e., fit, train) random forest for input data.
@@ -469,7 +450,7 @@ class RandomForest {
     const raft::handle_t& handle = user_handle;
     bool distributed =
       raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1;
-    this->error_checking(input, labels, n_rows, n_cols, false, distributed);
+    this->error_checking(input, labels, n_rows, n_cols, distributed);
     std::int64_t const n_rows_i64 = n_rows;
     std::int64_t global_n_rows    = n_rows_i64;
     if (distributed && this->rf_params.bootstrap) {
@@ -568,118 +549,6 @@ class RandomForest {
     // Cleanup
     handle.sync_stream_pool();
     handle.sync_stream();
-  }
-
-  /**
-   * @brief Predict target feature for input data
-   * @param[in] user_handle: raft::handle_t.
-   * @param[in] input: test data (n_rows samples, n_cols features) in row major format. GPU
-   * pointer.
-   * @param[in] n_rows: number of  data samples.
-   * @param[in] n_cols: number of features (excluding target feature).
-   * @param[in, out] predictions: n_rows predicted labels. GPU pointer, user allocated.
-   * @param[in] verbosity: verbosity level for logging messages during execution
-   */
-  void predict(const raft::handle_t& user_handle,
-               const T* input,
-               int n_rows,
-               int n_cols,
-               L* predictions,
-               const RandomForestMetaData<T, L>* forest,
-               rapids_logger::level_enum verbosity) const
-  {
-    ML::default_logger().set_level(verbosity);
-    this->error_checking(input, predictions, n_rows, n_cols, true);
-    std::vector<L> h_predictions(n_rows);
-    cudaStream_t stream = user_handle.get_stream().get();
-
-    std::vector<T> h_input(std::size_t(n_rows) * n_cols);
-    raft::update_host(h_input.data(), input, std::size_t(n_rows) * n_cols, stream);
-    user_handle.sync_stream(stream);
-
-    int row_size = n_cols;
-
-    default_logger().set_pattern("%v");
-    for (int row_id = 0; row_id < n_rows; row_id++) {
-      std::vector<T> row_prediction(forest->trees[0]->num_outputs);
-      for (int i = 0; i < this->rf_params.n_trees; i++) {
-        DT::DecisionTree::predict(user_handle,
-                                  *forest->trees[i],
-                                  &h_input[row_id * row_size],
-                                  1,
-                                  n_cols,
-                                  row_prediction.data(),
-                                  forest->trees[i]->num_outputs,
-                                  verbosity);
-      }
-      for (int k = 0; k < forest->trees[0]->num_outputs; k++) {
-        row_prediction[k] /= this->rf_params.n_trees;
-      }
-      if (rf_type == RF_type::CLASSIFICATION) {  // classification task: use 'majority' prediction
-        L best_class = 0;
-        T best_prob  = 0.0;
-        for (int k = 0; k < forest->trees[0]->num_outputs; k++) {
-          if (row_prediction[k] > best_prob) {
-            best_class = k;
-            best_prob  = row_prediction[k];
-          }
-        }
-
-        h_predictions[row_id] = best_class;
-      } else {
-        h_predictions[row_id] = row_prediction[0];
-      }
-    }
-
-    raft::update_device(predictions, h_predictions.data(), n_rows, stream);
-    user_handle.sync_stream(stream);
-    default_logger().set_pattern(default_pattern());
-  }
-
-  /**
-   * @brief Predict target feature for input data and score against ref_labels.
-   * @param[in] user_handle: raft::handle_t.
-   * @param[in] input: test data (n_rows samples, n_cols features) in row major format. GPU
-   * pointer.
-   * @param[in] ref_labels: label values for cross validation (n_rows elements); GPU pointer.
-   * @param[in] n_rows: number of  data samples.
-   * @param[in] n_cols: number of features (excluding target feature).
-   * @param[in] predictions: n_rows predicted labels. GPU pointer, user allocated.
-   * @param[in] verbosity: verbosity level for logging messages during execution
-   * @param[in] rf_type: task type: 0 for classification, 1 for regression
-   */
-  static RF_metrics score(const raft::handle_t& user_handle,
-                          const L* ref_labels,
-                          int n_rows,
-                          const L* predictions,
-                          rapids_logger::level_enum verbosity,
-                          int rf_type = RF_type::CLASSIFICATION)
-  {
-    ML::default_logger().set_level(verbosity);
-    cudaStream_t stream = user_handle.get_stream().get();
-    RF_metrics stats;
-    if (rf_type == RF_type::CLASSIFICATION) {  // task classifiation: get classification metrics
-      float accuracy = raft::stats::accuracy(predictions, ref_labels, n_rows, stream);
-      stats          = set_rf_metrics_classification(accuracy);
-      if (ML::default_logger().should_log(rapids_logger::level_enum::debug)) print(stats);
-
-      /* TODO: Potentially augment RF_metrics w/ more metrics (e.g., precision, F1, etc.).
-        For non binary classification problems (i.e., one target and  > 2 labels), need avg.
-        for each of these metrics */
-    } else {  // regression task: get regression metrics
-      double mean_abs_error, mean_squared_error, median_abs_error;
-      raft::stats::regression_metrics(predictions,
-                                      ref_labels,
-                                      n_rows,
-                                      stream,
-                                      mean_abs_error,
-                                      mean_squared_error,
-                                      median_abs_error);
-      stats = set_rf_metrics_regression(mean_abs_error, mean_squared_error, median_abs_error);
-      if (ML::default_logger().should_log(rapids_logger::level_enum::debug)) print(stats);
-    }
-
-    return stats;
   }
 };
 
