@@ -46,6 +46,9 @@ CATALOG = {
     "KernelDensity": EstimatorSpec(
         "sklearn.neighbors", "KernelDensity", "scikit-learn"
     ),
+    "LocalOutlierFactor": EstimatorSpec(
+        "sklearn.neighbors", "LocalOutlierFactor", "scikit-learn"
+    ),
     "LinearRegression": EstimatorSpec(
         "sklearn.linear_model", "LinearRegression", "scikit-learn"
     ),

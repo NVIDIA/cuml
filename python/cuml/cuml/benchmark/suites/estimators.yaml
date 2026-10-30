@@ -2377,6 +2377,19 @@ cases:
       kernel: gaussian
       bandwidth: 1.0
 
+  - estimator: LocalOutlierFactor
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 100000
+        features: 16
+      dtype: float32
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_neighbors: 20
+
   - estimator: BernoulliNB
     providers: [cuml]
     dataset:

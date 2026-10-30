@@ -80,6 +80,7 @@ k_neighbors_config = ClassEnumerator(
     exclude_classes=[
         cuml.neighbors.NearestNeighbors,
         cuml.neighbors.KernelDensity,
+        cuml.neighbors.LocalOutlierFactor,
     ],
 )
 k_neighbors_models = k_neighbors_config.get_models()

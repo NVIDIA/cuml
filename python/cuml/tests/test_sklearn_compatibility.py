@@ -55,6 +55,7 @@ from cuml.neighbors import (
     KernelDensity,
     KNeighborsClassifier,
     KNeighborsRegressor,
+    LocalOutlierFactor,
     NearestNeighbors,
 )
 from cuml.preprocessing import (
@@ -116,6 +117,8 @@ ESTIMATORS = [
     KNeighborsRegressor(),
     KNeighborsClassifier(),
     KernelDensity(),
+    LocalOutlierFactor(),
+    LocalOutlierFactor(novelty=True),
     EmpiricalCovariance(),
     LedoitWolf(),
     Lars(),
@@ -244,6 +247,12 @@ XFAILS = {
         "check_methods_subset_invariance": "UMAP results depend on data subset",
         "check_transformer_preserve_dtypes": "UMAP returns float32 embeddings",
     },
+    LocalOutlierFactor: {
+        "check_outliers_train": "LocalOutlierFactor returns float32 scores",
+        "check_outliers_train(readonly_memmap=True)": (
+            "LocalOutlierFactor returns float32 scores"
+        ),
+    },
     Lasso: {
         "check_sample_weight_equivalence_on_sparse_data": "Sample weights not equal to repeating data",
     },
@@ -286,6 +295,9 @@ if missing := set(XFAILS).difference((type(est) for est in ESTIMATORS)):
 )
 @pytest.mark.filterwarnings("ignore:Changing solver to 'svd'.*:UserWarning")
 @pytest.mark.filterwarnings("ignore:The number of bins.*:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:n_neighbors.*is greater than the total number of samples.*:UserWarning"
+)
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 def test_sklearn_compatible_estimator(estimator, check):
     check_name = estimator_checks._get_check_estimator_ids(check)
