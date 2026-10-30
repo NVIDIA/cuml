@@ -911,6 +911,16 @@ def test_gpu_synchronization_failure_fails_observation(
         "_generate_data",
         lambda case, backend: (np.ones((64, 8)), None),
     )
+    monkeypatch.setattr(
+        backend, "prepare_inputs", lambda inputs, runtime: inputs
+    )
+    monkeypatch.setattr(
+        backend,
+        "instrumentation",
+        lambda *args: contextlib.nullcontext(
+            base_backend.VerificationResult()
+        ),
+    )
     monkeypatch.setattr(importlib, "import_module", lambda name: cupy)
     result = _benchmark(resolve_case(_request(), PROFILE), provider="cuml")
     assert result["outcome"]["status"] == "failed"
@@ -1965,16 +1975,34 @@ def _real_backend_smoke(provider, workload, output, *, report_phase):
             X[case.training_rows :] if case.lifecycle == "inference" else X
         )
         assert actual.dtype == np.dtype(case.dtypes["X"])
-        assert sparse.isspmatrix_csr(actual) == (case.input_format == "csr")
+        if provider == "cuml":
+            import cupy as cp
+            from cupyx.scipy import sparse as device_sparse
+
+            assert device_sparse.isspmatrix_csr(actual) == (
+                case.input_format == "csr"
+            )
+            assert isinstance(actual, cp.ndarray) or device_sparse.issparse(
+                actual
+            )
+            host = actual.get()
+        else:
+            assert sparse.isspmatrix_csr(actual) == (
+                case.input_format == "csr"
+            )
+            host = actual
         if case.input_format == "csr":
             for name in ("data", "indices", "indptr"):
                 np.testing.assert_array_equal(
-                    getattr(actual, name), getattr(expected, name)
+                    getattr(host, name), getattr(expected, name)
                 )
         else:
-            np.testing.assert_array_equal(actual, expected)
+            np.testing.assert_array_equal(host, expected)
         calls.append(actual.shape)
-        return invoke(estimator, *args)
+        output = invoke(estimator, *args)
+        if provider == "cuml" and case.lifecycle == "inference":
+            assert isinstance(output, cp.ndarray)
+        return output
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(cls, case.operation, observe)
@@ -2006,6 +2034,104 @@ def test_real_backend_smoke(monkeypatch, tmp_path, provider, workload):
         timeout=90,
     )
     _validate_artifact(artifact)
+
+
+@pytest.mark.parametrize("kind", ["dense", "csr", "categorical"])
+def test_native_device_preparation_and_output_contract(kind):
+    import cudf
+    import cupy as cp
+    from cupyx.scipy import sparse as device_sparse
+
+    import cuml
+
+    backend = get_backend("cuml")
+    request = _request()
+    if kind == "categorical":
+        request["dataset"].update(generator="categorical")
+    elif kind == "csr":
+        request["dataset"]["format"] = "csr"
+    case = resolve_case(request, PROFILE)
+    X_host, y_host = generate_data(case)
+    X, y = backend.convert_data(case, X_host, y_host)
+    assert isinstance(y, cp.ndarray)
+    if kind == "categorical":
+        assert isinstance(X, cudf.DataFrame)
+        np.testing.assert_array_equal(X.to_numpy(), X_host.to_numpy())
+    elif kind == "csr":
+        assert device_sparse.isspmatrix_csr(X)
+        np.testing.assert_array_equal(X.get().toarray(), X_host.toarray())
+    else:
+        assert isinstance(X, cp.ndarray)
+        np.testing.assert_array_equal(X.get(), X_host)
+    inputs = (X, y)
+    assert backend.prepare_inputs(inputs) is inputs
+    assert cuml.global_settings.output_type is None
+    with backend.instrumentation(None, "measurement", 0):
+        assert cuml.global_settings.output_type is None
+
+
+def test_native_instrumentation_rejects_nondefault_output_type():
+    import cuml
+
+    backend = get_backend("cuml")
+    with cuml.using_output_type("numpy"):
+        with pytest.raises(ValueError, match="default global output_type"):
+            with backend.instrumentation(None, "measurement", 0):
+                pytest.fail("nondefault output type must be rejected")
+        assert cuml.global_settings.output_type == "numpy"
+
+
+@pytest.mark.parametrize("output_type", ["numpy", "pandas"])
+def test_native_estimator_rejects_host_output_default(output_type):
+    class Estimator:
+        def __init__(self):
+            self.output_type = output_type
+
+    with pytest.raises(ValueError, match="device-resident estimator outputs"):
+        get_backend("cuml").construct_estimator(Estimator, {})
+
+
+def test_native_preparation_precedes_initial_fit_and_timing(monkeypatch):
+    backend = get_backend("cuml")
+    events = []
+    X_device, y_device = object(), object()
+
+    class Estimator:
+        def __init__(self, **kwargs):
+            events.append("construct")
+
+        def fit(self, X, y):
+            assert X is X_device and y is y_device
+            events.append("fit")
+            return self
+
+        def predict(self, X):
+            assert X is X_device
+            events.append("predict")
+            return X
+
+    def partition(case, selected_backend):
+        assert selected_backend is backend
+        events.append("convert")
+        return X_device, y_device, X_device, y_device
+
+    monkeypatch.setattr(harness, "_partition_data", partition)
+    monkeypatch.setattr(backend, "load_estimator", lambda spec: Estimator)
+    monkeypatch.setattr(
+        backend, "synchronize", lambda value=None: events.append("sync")
+    )
+    monkeypatch.setattr(
+        harness.time, "perf_counter", lambda: events.append("clock") or 1.0
+    )
+    request = _request(operation="predict", fit_input_selection=["X", "y"])
+    request["dataset"]["shape"]["train_rows"] = 32
+    result = _benchmark(resolve_case(request, PROFILE), provider="cuml")
+    assert result["outcome"] == {"status": "success"}
+    assert (
+        events
+        == ["convert", "sync", "construct", "fit", "sync"]
+        + ["sync", "clock", "predict", "sync", "clock"] * 3
+    )
 
 
 @pytest.mark.parametrize("inference", [False, True])
