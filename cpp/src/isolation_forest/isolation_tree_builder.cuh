@@ -68,6 +68,7 @@ struct IFNode {
   T threshold;
   int left_child;
   int right_child;
+  int n_node_samples;
 };
 
 /** @brief Check if pointer is on GPU (for input validation). */
@@ -160,10 +161,12 @@ __device__ void build_tree_iterative_global(const T* __restrict__ local_data,
 
       if (node_idx >= max_nodes_per_tree) { continue; }
 
+      nodes[node_idx].n_node_samples = n_node_samples;
+
       // Stopping condition: max depth, isolated sample, or exhausted capacity.
       if (depth >= max_depth || n_node_samples <= 1 || n_nodes + 2 > max_nodes_per_tree) {
         T path_length   = static_cast<T>(depth) + compute_c_n<T>(n_node_samples);
-        nodes[node_idx] = {-1, path_length, -1, -1};
+        nodes[node_idx] = {-1, path_length, -1, -1, n_node_samples};
         continue;
       }
 
@@ -199,7 +202,7 @@ __device__ void build_tree_iterative_global(const T* __restrict__ local_data,
 
       if (local_feature < 0) {
         T path_length   = static_cast<T>(depth) + compute_c_n<T>(n_node_samples);
-        nodes[node_idx] = {-1, path_length, -1, -1};
+        nodes[node_idx] = {-1, path_length, -1, -1, n_node_samples};
         continue;
       }
 
