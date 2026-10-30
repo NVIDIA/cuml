@@ -91,9 +91,6 @@ class IsolationForest {
     model->n_features_per_tree = n_sampled_features;
     model->n_samples_per_tree  = n_sampled_rows;
     model->c_normalization     = compute_c_normalization(n_sampled_rows);
-    ASSERT(model->c_normalization != 0.0,
-           "Isolation Forest must have a non-zero normalization constant c(n). "
-           "Make sure you have at least two samples in the training data.");
 
     auto stream               = handle.get_stream();
     model->max_nodes_per_tree = compute_global_max_nodes_per_tree(max_depth, n_sampled_rows);
