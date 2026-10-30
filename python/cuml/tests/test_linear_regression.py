@@ -330,7 +330,10 @@ def test_linear_regression_input_mutation(
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("weighted", [True, False])
 @pytest.mark.parametrize("n_targets", [0, 1, 3])
-def test_linear_regression_sparse(dtype, fit_intercept, weighted, n_targets):
+@pytest.mark.parametrize("format", ["coo", "csr"])
+def test_linear_regression_sparse(
+    dtype, fit_intercept, weighted, n_targets, format
+):
     n_samples, n_features = 3000, 500
     rng = np.random.default_rng(42)
     coef = rng.random((n_features, n_targets) if n_targets else n_features)
@@ -339,7 +342,12 @@ def test_linear_regression_sparse(dtype, fit_intercept, weighted, n_targets):
     else:
         intercept = 0.0
     X = scipy.sparse.rand(
-        n_samples, n_features, density=0.2, random_state=42, dtype=dtype
+        n_samples,
+        n_features,
+        density=0.2,
+        random_state=42,
+        dtype=dtype,
+        format=format,
     )
     y = (X.dot(coef) + intercept).astype(dtype)
 
