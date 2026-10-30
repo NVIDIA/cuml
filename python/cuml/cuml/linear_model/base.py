@@ -242,6 +242,9 @@ def fit_least_squares(
         solver, None otherwise.
     """
     y_1d = y.ndim == 1
+    if X_is_sparse := cupyx.scipy.sparse.issparse(X):
+        # Centering and lsmr are much faster with CSR inputs
+        X = X.tocsr()
 
     X, y, X_offset, y_offset, sqrt_weight = center_and_scale(
         X,
@@ -267,7 +270,7 @@ def fit_least_squares(
         coef = vh.T.dot(temp).T
         n_iter = None
     elif solver == "lsmr":
-        if cupyx.scipy.sparse.issparse(X) and fit_intercept:
+        if X_is_sparse and fit_intercept:
             # To keep sparsity, sparse inputs aren't already centered when
             # fitting an intercept. We handle removing the offset within the
             # fit via a LinearOperator.
