@@ -125,7 +125,7 @@ hypothesis.settings.register_profile(
 def pytest_addoption(parser):
     """Add custom command line options for pytest.
 
-    This function adds three custom options to control test execution:
+    This function adds four custom options to control test execution:
     - --run_stress: Run stress tests
     - --run_quality: Run quality tests
     - --run_unit: Run unit tests
@@ -334,7 +334,7 @@ def _get_gpu_memory(device_index=0):
     Parameters
     ----------
     device_index: int or str
-        The index or UUID of the device from which to obtain the CPU affinity.
+        The index or UUID of the device from which to obtain the total memory.
 
     Returns
     -------

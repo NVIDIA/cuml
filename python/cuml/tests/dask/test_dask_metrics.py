@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 from itertools import chain, permutations
@@ -11,7 +11,12 @@ import pytest
 from sklearn.metrics import confusion_matrix as sk_confusion_matrix
 
 from cuml.dask.metrics import confusion_matrix
-from cuml.testing.utils import generate_random_labels, stress_param
+from cuml.testing.utils import stress_param
+
+
+@pytest.fixture
+def rng():
+    return np.random.RandomState(42)
 
 
 @pytest.mark.mg
@@ -38,14 +43,13 @@ def test_confusion_matrix_binary(client, chunks):
 @pytest.mark.parametrize("n_samples", [50, 3000, stress_param(500000)])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64])
 @pytest.mark.parametrize("problem_type", ["binary", "multiclass"])
-def test_confusion_matrix_random(n_samples, dtype, problem_type, client):
+def test_confusion_matrix_random(rng, n_samples, dtype, problem_type, client):
     upper_range = 2 if problem_type == "binary" else 1000
 
-    y_true, y_pred, np_y_true, np_y_pred = generate_random_labels(
-        lambda rng: rng.randint(0, upper_range, n_samples).astype(dtype),
-        as_cupy=True,
-    )
-    y_true, y_pred = da.from_array(y_true), da.from_array(y_pred)
+    np_y_true = rng.randint(0, upper_range, n_samples).astype(dtype)
+    np_y_pred = rng.randint(0, upper_range, n_samples).astype(dtype)
+    y_true = da.from_array(cp.asarray(np_y_true))
+    y_pred = da.from_array(cp.asarray(np_y_pred))
 
     cm = confusion_matrix(y_true, y_pred)
     ref = sk_confusion_matrix(np_y_true, np_y_pred)
@@ -71,11 +75,11 @@ def test_confusion_matrix_normalize(normalize, expected_results, client):
 
 @pytest.mark.mg
 @pytest.mark.parametrize("labels", [(0, 1), (2, 1), (2, 1, 4, 7), (2, 20)])
-def test_confusion_matrix_multiclass_subset_labels(labels, client):
-    y_true, y_pred, np_y_true, np_y_pred = generate_random_labels(
-        lambda rng: rng.randint(0, 3, 10).astype(np.int32), as_cupy=True
-    )
-    y_true, y_pred = da.from_array(y_true), da.from_array(y_pred)
+def test_confusion_matrix_multiclass_subset_labels(rng, labels, client):
+    np_y_true = rng.randint(0, 3, 10).astype(np.int32)
+    np_y_pred = rng.randint(0, 3, 10).astype(np.int32)
+    y_true = da.from_array(cp.asarray(np_y_true))
+    y_pred = da.from_array(cp.asarray(np_y_pred))
 
     ref = sk_confusion_matrix(np_y_true, np_y_pred, labels=labels)
     labels = cp.array(labels, dtype=np.int32)
@@ -88,12 +92,12 @@ def test_confusion_matrix_multiclass_subset_labels(labels, client):
 @pytest.mark.parametrize("dtype", [np.int32, np.int64])
 @pytest.mark.parametrize("weights_dtype", ["int", "float"])
 def test_confusion_matrix_random_weights(
-    n_samples, dtype, weights_dtype, client
+    rng, n_samples, dtype, weights_dtype, client
 ):
-    y_true, y_pred, np_y_true, np_y_pred = generate_random_labels(
-        lambda rng: rng.randint(0, 10, n_samples).astype(dtype), as_cupy=True
-    )
-    y_true, y_pred = da.from_array(y_true), da.from_array(y_pred)
+    np_y_true = rng.randint(0, 10, n_samples).astype(dtype)
+    np_y_pred = rng.randint(0, 10, n_samples).astype(dtype)
+    y_true = da.from_array(cp.asarray(np_y_true))
+    y_pred = da.from_array(cp.asarray(np_y_pred))
 
     if weights_dtype == "int":
         sample_weight = np.random.RandomState(0).randint(0, 10, n_samples)

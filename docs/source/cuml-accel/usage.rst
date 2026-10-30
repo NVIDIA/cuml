@@ -31,6 +31,11 @@ In Jupyter or IPython, load the extension before other imports:
 
    %load_ext cuml.accel
 
+In JupyterLab, you can instead enable ``cuml.accel`` from the GPU accelerator
+toggle without loading the extension or changing the notebook. See
+:ref:`Enable from the JupyterLab toolbar <cuml-accel-jupyterlab-toggle>` for
+requirements and steps.
+
 .. _cuml-accel-env-var:
 
 For third-party applications whose code you do not control, set

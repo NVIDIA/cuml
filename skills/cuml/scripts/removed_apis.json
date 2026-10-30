@@ -1,0 +1,59 @@
+{
+  "description": "cuML APIs that were removed and whose replacement cannot be found by inspecting the installed cuML (signatures, docstrings, error messages). Used by check_removed_apis.py and verified by python/cuml/tests/test_agent_skill.py. Versions are cuML release versions (YY.MM).",
+  "entries": [
+    {
+      "kind": "module",
+      "name": "cuml.fil",
+      "deprecated_in": "26.08",
+      "removed_in": "26.10",
+      "replacement": "nvforest.load_from_sklearn(model), nvforest.load_model(path), or RandomForest*.as_nvforest()",
+      "replacement_targets": [
+        "nvforest.load_from_sklearn",
+        "nvforest.load_model",
+        "cuml.ensemble.RandomForestClassifier.as_nvforest"
+      ]
+    },
+    {
+      "kind": "kwarg",
+      "name": "probability",
+      "classes": [
+        "SVC",
+        "LinearSVC"
+      ],
+      "check_callables": [
+        "cuml.svm.SVC",
+        "cuml.svm.LinearSVC"
+      ],
+      "deprecated_in": "26.06",
+      "removed_in": "26.08",
+      "replacement": "sklearn.calibration.CalibratedClassifierCV wrapped around the cuML estimator",
+      "replacement_targets": [
+        "sklearn.calibration.CalibratedClassifierCV"
+      ]
+    },
+    {
+      "kind": "build_kwds_key",
+      "name": "nnd_n_clusters",
+      "check_sources": [
+        "python/cuml/cuml/manifold/umap/umap.pyx",
+        "python/cuml/cuml/cluster/hdbscan/hdbscan.pyx"
+      ],
+      "deprecated_in": "26.02",
+      "removed_in": "26.04",
+      "replacement": "knn_n_clusters (unknown build_kwds keys are silently ignored)",
+      "replacement_targets": []
+    },
+    {
+      "kind": "build_kwds_key",
+      "name": "nnd_do_batch",
+      "check_sources": [
+        "python/cuml/cuml/manifold/umap/umap.pyx",
+        "python/cuml/cuml/cluster/hdbscan/hdbscan.pyx"
+      ],
+      "deprecated_in": "26.02",
+      "removed_in": "26.04",
+      "replacement": "knn_n_clusters > 1 enables batching (unknown build_kwds keys are silently ignored)",
+      "replacement_targets": []
+    }
+  ]
+}

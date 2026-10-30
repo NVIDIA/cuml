@@ -5,12 +5,11 @@
 
 #pragma once
 
-#include "bins.cuh"
-
 #include <raft/linalg/unary_op.cuh>
 #include <raft/util/cuda_utils.cuh>
 
 #include <cstdint>
+#include <limits>  // for numeric_limits
 
 namespace ML {
 namespace DT {

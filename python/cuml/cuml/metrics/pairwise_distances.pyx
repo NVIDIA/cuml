@@ -407,7 +407,9 @@ def pairwise_distances(X, Y=None, metric="euclidean", **kwds):
 
     cdef uintptr_t X_ptr = X_data.data.ptr
     cdef uintptr_t Y_ptr = Y_data.data.ptr
-    cdef bool is_row_major = False if is_sparse else Y.flags.c_contiguous
+    cdef bool is_row_major = (
+        False if is_sparse else (X.flags.c_contiguous and Y.flags.c_contiguous)
+    )
     cdef bool is_float32 = X_data.dtype == "float32"
 
     # Create the output array

@@ -393,7 +393,7 @@ cdef class ApproxIndex:
         out.nlist = params["nlist"]
         out.nprobe = params["nprobe"]
 
-    cdef _init_ivfpq(self, IVFPQParam *out, params):
+    cdef _init_ivfpq(self, IVFPQParam *out, params, n_rows):
         # TODO: These parameter defaults don't work for all datasets and
         # don't match the defaults in cuVS. The defaults here should be
         # redone to match cuVS.
@@ -409,6 +409,22 @@ cdef class ApproxIndex:
         out.M = params["M"]
         out.n_bits = params["n_bits"]
 
+        # Leave invalid hyperparameters to cuVS's parameter validation.
+        if out.nlist > 0 and 4 <= out.n_bits <= 8:
+            min_rows = max(out.nlist, 1 << out.n_bits)
+            # cuVS trains on half the data when n_rows >= 2 * nlist,
+            # otherwise it uses all rows. Each codebook needs 2**n_bits rows.
+            if min_rows >= 2 * out.nlist or n_rows >= 2 * out.nlist:
+                min_rows = max(out.nlist, 2 * (1 << out.n_bits))
+            if n_rows < min_rows:
+                raise ValueError(
+                    f"X has {n_rows} rows, but algorithm='ivfpq' with "
+                    f"n_bits={out.n_bits} and nlist={out.nlist} requires at least "
+                    f"{min_rows} rows. Provide more rows or reduce "
+                    "algo_params['n_bits'] (valid range: [4, 8]) and/or "
+                    "algo_params['nlist']."
+                )
+
     @staticmethod
     def build(X, metric, algorithm, params=None, float p=2):
         """Build a new approx index."""
@@ -422,7 +438,7 @@ cdef class ApproxIndex:
             self._init_ivfflat(&flat_params, params)
             build_params = &flat_params
         elif algorithm == "ivfpq":
-            self._init_ivfpq(&pq_params, params)
+            self._init_ivfpq(&pq_params, params, X.shape[0])
             build_params = &pq_params
         else:
             raise ValueError("algorithm must be one of {'ivfflat', 'ivfpq'}")
@@ -1054,8 +1070,12 @@ class NearestNeighbors(NeighborsBase):
             - nlist: (int) number of cells to partition dataset into
             - nprobe: (int) at query time, number of cells used for search
             - M: (int) number of subquantizers
-            - n_bits: (int) bits allocated per subquantizer
+            - n_bits: (int) bits allocated per subquantizer, from 4 to 8
             - usePrecomputedTables : (bool) whether to use precomputed tables
+
+        With the default ``nlist=8``, IVF-PQ requires at least
+        ``2**(n_bits + 1)`` rows in ``X`` (512 for the default ``n_bits=8``).
+        Reducing ``n_bits`` reduces this minimum.
     metric_params : dict, optional (default = None)
         Additional keyword arguments for the metric function.
     n_jobs : int (default = None)

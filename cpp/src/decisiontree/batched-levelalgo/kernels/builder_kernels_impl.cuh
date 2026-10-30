@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include "../dataset.h"  // for Dataset
 #include "builder_kernels.cuh"
 
 #include <common/grid_sync.cuh>

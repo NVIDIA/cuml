@@ -15,7 +15,6 @@ use.
 
    cuml
    cuml.accel
-   cuml.benchmark
    cuml.cluster
    cuml.compose
    cuml.covariance

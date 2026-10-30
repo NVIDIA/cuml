@@ -1,0 +1,2545 @@
+# Single-GPU estimator benchmarks across representative input shapes and
+# parameter settings, with explicit provider coverage and standard/smoke profiles.
+
+version: 2
+name: estimators
+providers: [cuml, scikit-learn, umap-learn, hdbscan, cuml.accel, cuml.dask]
+
+profiles:
+  standard:
+    warmups: 1
+    repetitions: 3
+    size_scale: 1.0
+  smoke:
+    warmups: 1
+    repetitions: 1
+    size_scale: 0.01
+
+cases:
+  - estimator: LogisticRegression
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 75600000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LogisticRegression
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 9450000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LogisticRegression
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 2340000
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearRegression
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 75600000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearRegression
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 9450000
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearRegression
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 2340000
+        features: 512
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: Ridge
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 75600000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: Ridge
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 9450000
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: Ridge
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 2340000
+        features: 512
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: ElasticNet
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 151200000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      alpha: 0.1
+      l1_ratio: 0.5
+
+  - estimator: ElasticNet
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 18900000
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      alpha: 0.1
+      l1_ratio: 0.5
+
+  - estimator: ElasticNet
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 4680000
+        features: 512
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      alpha: 0.1
+      l1_ratio: 0.5
+
+  - estimator: Lasso
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 151200000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: Lasso
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 18900000
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: Lasso
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 4680000
+        features: 512
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KernelRidge
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 1350
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KernelRidge
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 900
+        features: 64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KernelRidge
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 450
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: MBSGDRegressor
+    providers: [cuml]
+    dataset:
+      generator: regression
+      shape:
+        rows: 36000000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: MBSGDRegressor
+    providers: [cuml]
+    dataset:
+      generator: regression
+      shape:
+        rows: 4500000
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: MBSGDRegressor
+    providers: [cuml]
+    dataset:
+      generator: regression
+      shape:
+        rows: 1080000
+        features: 512
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KMeans
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 36000000
+        features: 16
+      parameters:
+        centers: 8
+    operation: fit_predict
+    input_selection: [X]
+    parameters:
+      init: k-means++
+      n_clusters: 8
+      max_iter: 300
+      n_init: 1
+
+  - estimator: KMeans
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 4500000
+        features: 128
+      parameters:
+        centers: 8
+    operation: fit_predict
+    input_selection: [X]
+    parameters:
+      init: k-means++
+      n_clusters: 8
+      max_iter: 300
+      n_init: 1
+
+  - estimator: KMeans
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 1350000
+        features: 512
+      parameters:
+        centers: 8
+    operation: fit_predict
+    input_selection: [X]
+    parameters:
+      init: k-means++
+      n_clusters: 8
+      max_iter: 300
+      n_init: 1
+
+  - estimator: AgglomerativeClustering
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 1800
+        features: 16
+      parameters:
+        centers: 8
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_clusters: 8
+      metric: euclidean
+      linkage: single
+
+  - estimator: AgglomerativeClustering
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 900
+        features: 64
+      parameters:
+        centers: 8
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_clusters: 8
+      metric: euclidean
+      linkage: single
+
+  - estimator: AgglomerativeClustering
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 450
+        features: 128
+      parameters:
+        centers: 8
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_clusters: 8
+      metric: euclidean
+      linkage: single
+
+  - estimator: SpectralClustering
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 900
+        features: 16
+      parameters:
+        centers: 8
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_clusters: 8
+      affinity: nearest_neighbors
+      n_neighbors: 10
+      n_init: 1
+      random_state: 42
+
+  - estimator: SpectralClustering
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 675
+        features: 64
+      parameters:
+        centers: 8
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_clusters: 8
+      affinity: nearest_neighbors
+      n_neighbors: 10
+      n_init: 1
+      random_state: 42
+
+  - estimator: SpectralClustering
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 450
+        features: 128
+      parameters:
+        centers: 8
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_clusters: 8
+      affinity: nearest_neighbors
+      n_neighbors: 10
+      n_init: 1
+      random_state: 42
+
+  - estimator: NearestNeighbors
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 80000
+        train_rows: 720000
+        features: 16
+      parameters:
+        centers: 3
+    operation: kneighbors
+    input_selection: [X]
+    fit_input_selection: [X]
+    parameters:
+      n_neighbors: 64
+
+  - estimator: NearestNeighbors
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 80000
+        train_rows: 720000
+        features: 16
+      parameters:
+        centers: 3
+    operation: kneighbors
+    input_selection: [X]
+    fit_input_selection: [X]
+    parameters:
+      n_neighbors: 64
+      algorithm: brute
+      n_jobs: -1
+
+  - estimator: NearestNeighbors
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 50000
+        train_rows: 450000
+        features: 128
+      parameters:
+        centers: 3
+    operation: kneighbors
+    input_selection: [X]
+    fit_input_selection: [X]
+    parameters:
+      n_neighbors: 64
+
+  - estimator: NearestNeighbors
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 50000
+        train_rows: 450000
+        features: 128
+      parameters:
+        centers: 3
+    operation: kneighbors
+    input_selection: [X]
+    fit_input_selection: [X]
+    parameters:
+      n_neighbors: 64
+      algorithm: brute
+      n_jobs: -1
+
+  - estimator: NearestNeighbors
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 16000
+        train_rows: 144000
+        features: 512
+      parameters:
+        centers: 3
+    operation: kneighbors
+    input_selection: [X]
+    fit_input_selection: [X]
+    parameters:
+      n_neighbors: 64
+
+  - estimator: NearestNeighbors
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 16000
+        train_rows: 144000
+        features: 512
+      parameters:
+        centers: 3
+    operation: kneighbors
+    input_selection: [X]
+    fit_input_selection: [X]
+    parameters:
+      n_neighbors: 64
+      algorithm: brute
+      n_jobs: -1
+
+  - estimator: PCA
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 21600000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: PCA
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 21600000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: PCA
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 10800000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: PCA
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 10800000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: PCA
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 3600000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: PCA
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 3600000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: IncrementalPCA
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 3600000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: IncrementalPCA
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 1800000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: IncrementalPCA
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 450000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: TruncatedSVD
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 21600000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: TruncatedSVD
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 10800000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: TruncatedSVD
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 3600000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: GaussianRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 67500000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: GaussianRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 67500000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: GaussianRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 16200000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: GaussianRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 16200000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: GaussianRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 5400000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: GaussianRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 5400000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: SparseRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 22500000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: SparseRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 22500000
+        features: 32
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: SparseRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 5400000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: SparseRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 5400000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: SparseRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 1800000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 10
+
+  - estimator: SparseRandomProjection
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 1800000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_components: 25
+
+  - estimator: EmpiricalCovariance
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 1800000
+        features: 16
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: EmpiricalCovariance
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 450000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: EmpiricalCovariance
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 90000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: LedoitWolf
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 1800000
+        features: 16
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: LedoitWolf
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 450000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: LedoitWolf
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 90000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: RandomForestClassifier
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 2970000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+
+  - estimator: RandomForestClassifier
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 2970000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+      n_jobs: -1
+
+  - estimator: RandomForestClassifier
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 720000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+
+  - estimator: RandomForestClassifier
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 720000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+      n_jobs: -1
+
+  - estimator: RandomForestClassifier
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 180000
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+
+  - estimator: RandomForestClassifier
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 180000
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+      n_jobs: -1
+
+  - estimator: RandomForestRegressor
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 450000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+
+  - estimator: RandomForestRegressor
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 450000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+      n_jobs: -1
+
+  - estimator: RandomForestRegressor
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 112500
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+
+  - estimator: RandomForestRegressor
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 112500
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+      n_jobs: -1
+
+  - estimator: RandomForestRegressor
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 27000
+        features: 512
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+
+  - estimator: RandomForestRegressor
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 27000
+        features: 512
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      n_estimators: 20
+      n_jobs: -1
+
+  - estimator: SVC
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 225000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      kernel: rbf
+
+  - estimator: SVC
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 225000
+        features: 64
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      kernel: rbf
+
+  - estimator: SVC
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 112500
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      kernel: rbf
+
+  - estimator: SVR
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 112500
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      kernel: rbf
+
+  - estimator: SVR
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 112500
+        features: 64
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      kernel: rbf
+
+  - estimator: SVR
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 112500
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters:
+      kernel: rbf
+
+  - estimator: LinearSVC
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 72000000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearSVC
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 36000000
+        features: 64
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearSVC
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 18000000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearSVR
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 45000000
+        features: 16
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearSVR
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 18000000
+        features: 64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: LinearSVR
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: regression
+      shape:
+        rows: 9000000
+        features: 128
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: DBSCAN
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 225000
+        features: 16
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      eps: 3
+      min_samples: 2
+
+  - estimator: DBSCAN
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 225000
+        features: 16
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      eps: 3
+      min_samples: 2
+      algorithm: brute
+
+  - estimator: DBSCAN
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 450000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      eps: 3
+      min_samples: 2
+
+  - estimator: DBSCAN
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 450000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      eps: 3
+      min_samples: 2
+      algorithm: brute
+
+  - estimator: DBSCAN
+    providers: [cuml, cuml.dask]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 270000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      eps: 3
+      min_samples: 2
+
+  - estimator: DBSCAN
+    providers: [scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 270000
+        features: 512
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      eps: 3
+      min_samples: 2
+      algorithm: brute
+
+  - estimator: KNeighborsClassifier
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 50000
+        train_rows: 450000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KNeighborsClassifier
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 25000
+        train_rows: 225000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KNeighborsClassifier
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 10000
+        train_rows: 90000
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KNeighborsRegressor
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 50000
+        train_rows: 450000
+        features: 16
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KNeighborsRegressor
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 25000
+        train_rows: 225000
+        features: 128
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KNeighborsRegressor
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: regression
+      shape:
+        rows: 10000
+        train_rows: 90000
+        features: 512
+    operation: predict
+    input_selection: [X]
+    fit_input_selection: [X, y]
+    parameters: {}
+
+  - estimator: StandardScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 189000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: StandardScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 46800
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: StandardScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 23400
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: MinMaxScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 189000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: MinMaxScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 46800
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: MinMaxScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 23400
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: MaxAbsScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 189000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: MaxAbsScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 46800
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: MaxAbsScaler
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 23400
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: Normalizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 180000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: Normalizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 54000
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: Normalizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 28800
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: RobustScaler
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 270000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: RobustScaler
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 63000
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: RobustScaler
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 540
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: PolynomialFeatures
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 1800000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      degree: 2
+
+  - estimator: PolynomialFeatures
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 450000
+        features: 32
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      degree: 2
+
+  - estimator: PolynomialFeatures
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: classification
+      shape:
+        rows: 360000
+        features: 64
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      degree: 2
+
+  - estimator: Binarizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 189000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: Binarizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 46800
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: Binarizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 23400
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: KBinsDiscretizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 189000
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_bins: 16
+      encode: ordinal
+      strategy: uniform
+
+  - estimator: KBinsDiscretizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 46800
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_bins: 16
+      encode: ordinal
+      strategy: uniform
+
+  - estimator: KBinsDiscretizer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 23400
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_bins: 16
+      encode: ordinal
+      strategy: uniform
+
+  - estimator: PowerTransformer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 18000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      method: yeo-johnson
+
+  - estimator: PowerTransformer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 4500
+        features: 64
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      method: yeo-johnson
+
+  - estimator: PowerTransformer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 2250
+        features: 128
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      method: yeo-johnson
+
+  - estimator: QuantileTransformer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 90000
+        features: 64
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_quantiles: 1000
+      subsample: 100000
+      random_state: 42
+
+  - estimator: QuantileTransformer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 22500
+        features: 256
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_quantiles: 1000
+      subsample: 100000
+      random_state: 42
+
+  - estimator: QuantileTransformer
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 10800
+        features: 512
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_quantiles: 1000
+      subsample: 100000
+      random_state: 42
+
+  - estimator: LabelEncoder
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 9000000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 8
+        n_redundant: 2
+        n_clusters_per_class: 1
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [y]
+    parameters: {}
+
+  - estimator: LabelEncoder
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 4500000
+        features: 16
+      parameters:
+        n_classes: 32
+        n_informative: 8
+        n_redundant: 2
+        n_clusters_per_class: 1
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [y]
+    parameters: {}
+
+  - estimator: LabelEncoder
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 1800000
+        features: 16
+      parameters:
+        n_classes: 256
+        n_informative: 8
+        n_redundant: 2
+        n_clusters_per_class: 1
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [y]
+    parameters: {}
+
+  - estimator: LabelBinarizer
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 9000000
+        features: 16
+      parameters:
+        n_classes: 2
+        n_informative: 8
+        n_redundant: 2
+        n_clusters_per_class: 1
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [y]
+    parameters: {}
+
+  - estimator: LabelBinarizer
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 1800000
+        features: 16
+      parameters:
+        n_classes: 8
+        n_informative: 8
+        n_redundant: 2
+        n_clusters_per_class: 1
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [y]
+    parameters: {}
+
+  - estimator: LabelBinarizer
+    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
+    dataset:
+      generator: classification
+      shape:
+        rows: 450000
+        features: 16
+      parameters:
+        n_classes: 32
+        n_informative: 8
+        n_redundant: 2
+        n_clusters_per_class: 1
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [y]
+    parameters: {}
+
+  - estimator: TSNE
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 135000
+        features: 16
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: TSNE
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 67500
+        features: 64
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: TSNE
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 27000
+        features: 128
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: MultinomialNB
+    providers: [cuml, scikit-learn, cuml.dask]
+    dataset:
+      generator: positive
+      shape:
+        rows: 18000000
+        features: 64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: MultinomialNB
+    providers: [cuml, scikit-learn, cuml.dask]
+    dataset:
+      generator: positive
+      shape:
+        rows: 5400000
+        features: 256
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: MultinomialNB
+    providers: [cuml, scikit-learn, cuml.dask]
+    dataset:
+      generator: positive
+      shape:
+        rows: 1800000
+        features: 1024
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: GaussianNB
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 9000000
+        features: 64
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: GaussianNB
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 2700000
+        features: 256
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: GaussianNB
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: classification
+      shape:
+        rows: 900000
+        features: 1024
+      parameters:
+        n_classes: 2
+        n_informative: 2
+        n_redundant: 2
+        n_clusters_per_class: 2
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: KernelDensity
+    providers: [cuml, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 18000
+        features: 16
+      parameters:
+        centers: 3
+    operation: fit
+    input_selection: [X]
+    parameters:
+      kernel: gaussian
+      bandwidth: 1.0
+
+  - estimator: LocalOutlierFactor
+    providers: [cuml, scikit-learn]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 100000
+        features: 16
+      dtype: float32
+    operation: fit
+    input_selection: [X]
+    parameters:
+      n_neighbors: 20
+
+  - estimator: BernoulliNB
+    providers: [cuml]
+    dataset:
+      generator: matrix
+      shape:
+        rows: 180000
+        features: 256
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: ComplementNB
+    providers: [cuml]
+    dataset:
+      generator: positive
+      shape:
+        rows: 180000
+        features: 256
+      dtype:
+        X: float32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: CategoricalNB
+    providers: [cuml]
+    dataset:
+      generator: categorical
+      shape:
+        rows: 180000
+        features: 64
+      parameters:
+        n_categories: 16
+      dtype:
+        X: int32
+        y: int64
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+
+  - estimator: TargetEncoder
+    providers: [cuml]
+    dataset:
+      generator: categorical
+      shape:
+        rows: 180000
+        features: 16
+      parameters:
+        n_categories: 64
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X, y]
+    parameters:
+      smooth: 0.0
+      seed: 42
+
+  - estimator: TargetEncoder
+    providers: [cuml.accel]
+    dataset:
+      generator: categorical
+      shape:
+        rows: 180000
+        features: 16
+      parameters:
+        n_categories: 64
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X, y]
+    parameters:
+      smooth: 0.0
+      random_state: 42
+
+  - estimator: OneHotEncoder
+    providers: [cuml, cuml.accel, cuml.dask]
+    dataset:
+      generator: categorical
+      shape:
+        rows: 90000
+        features: 16
+      parameters:
+        n_categories: 8
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      sparse_output: false
+      handle_unknown: ignore
+
+  - estimator: OrdinalEncoder
+    providers: [cuml, cuml.accel, cuml.dask]
+    dataset:
+      generator: categorical
+      shape:
+        rows: 450000
+        features: 32
+      parameters:
+        n_categories: 64
+      dtype:
+        X: float32
+        y: int64
+    operation: fit_transform
+    input_selection: [X]
+    parameters: {}
+
+  - estimator: SpectralEmbedding
+    providers: [cuml, scikit-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 30000
+        features: 64
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_components: 2
+      n_neighbors: 10
+      random_state: 42
+
+  - estimator: UMAP
+    providers: [cuml, umap-learn, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 200000
+        features: 100
+    operation: fit_transform
+    input_selection: [X]
+    parameters:
+      n_neighbors: 10
+      n_components: 2
+      random_state: 42
+
+  - estimator: HDBSCAN
+    providers: [cuml, scikit-learn, hdbscan, cuml.accel]
+    dataset:
+      generator: blobs
+      shape:
+        rows: 35000
+        features: 100
+    operation: fit_predict
+    input_selection: [X]
+    parameters:
+      min_cluster_size: 5

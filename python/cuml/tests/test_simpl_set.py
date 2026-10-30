@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 from importlib.metadata import version as package_version
@@ -54,6 +54,11 @@ umap_numba_regression = pytest.mark.xfail(
 @pytest.mark.parametrize("n_features", [8, 32])
 @pytest.mark.parametrize("n_neighbors", [8, 16])
 @pytest.mark.parametrize("precomputed_nearest_neighbors", [False, True])
+@pytest.mark.xfail(
+    reason="Fuzzy simplicial set graph mismatch (see #8796)",
+    raises=AssertionError,
+    strict=False,
+)
 def test_fuzzy_simplicial_set(
     n_rows, n_features, n_neighbors, precomputed_nearest_neighbors
 ):

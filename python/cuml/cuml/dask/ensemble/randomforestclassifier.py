@@ -2,8 +2,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-import warnings
-
 import cupy as cp
 import dask.array
 
@@ -52,8 +50,12 @@ class RandomForestClassifier(
           sample with replacement.
         * If ``False``, the whole dataset is used to build each tree.
 
-        Weighted bootstrapping through ``sample_weight`` or ``class_weight``
-        is not yet supported for distributed random forests.
+        With weights, rows are sampled with probabilities proportional to
+        their weights across the complete distributed dataset.
+    class_weight : dict, "balanced" or None (default = None)
+        Weights associated with classes. ``"balanced"`` uses inverse global
+        class frequencies. Class weights are multiplied by ``sample_weight``
+        when both are provided.
     max_samples : float (default = 1.0)
         Ratio of dataset rows used while fitting each tree.
     max_depth : int or None (default = None)
@@ -94,17 +96,11 @@ class RandomForestClassifier(
          * If type ``float``, then ``min_samples_split`` represents a fraction
            and ``ceil(min_samples_split * n_rows)`` is the minimum number of
            samples for each split.
-    n_streams : int
-        Deprecated. Distributed training currently builds trees serially to
-        preserve collective order.
     workers : optional, list of strings
         Dask addresses of workers to use for computation.
         If None, all available Dask workers will be used.
     random_state : int (default = None)
         Seed for the random number generator. Unseeded by default.
-    ignore_empty_partitions: optional, boolean
-        Deprecated. This parameter no longer has any effect and
-        will be removed in release 26.12.
     """
 
     def __init__(
@@ -115,7 +111,6 @@ class RandomForestClassifier(
         verbose=False,
         n_estimators=100,
         random_state=None,
-        ignore_empty_partitions=None,
         **kwargs,
     ):
         super().__init__(client=client, verbose=verbose, **kwargs)
@@ -125,7 +120,6 @@ class RandomForestClassifier(
             workers=workers,
             n_estimators=n_estimators,
             base_seed=random_state,
-            ignore_empty_partitions=ignore_empty_partitions,
             **kwargs,
         )
 
@@ -135,7 +129,7 @@ class RandomForestClassifier(
             n_estimators=n_estimators, random_state=random_state, **kwargs
         )
 
-    def fit(self, X, y, broadcast_data=None, sample_weight=None):
+    def fit(self, X, y, sample_weight=None):
         """
         Fit the input data with a Random Forest classifier
 
@@ -175,47 +169,42 @@ class RandomForestClassifier(
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             Labels of training examples.
             **y must be partitioned the same way as X**
-        sample_weight : array-like, optional
-            Sample weights are not yet supported by distributed random
-            forests.
-        broadcast_data : bool, optional
-            Deprecated. This parameter no longer has effect and will
-            be removed in release 26.12.
+        sample_weight : Dask cuDF Series or CuPy backed Dask Array, optional
+            Non-negative weights of training examples, partitioned the same
+            way as X and y. With ``bootstrap=True``, weights determine
+            sampling probabilities. Otherwise, weights are used in the
+            impurity calculation.
         """
-        if self.kwargs.get("bootstrap", True) and (
-            sample_weight is not None
-            or self.kwargs.get("class_weight") is not None
+        if sample_weight is not None and (
+            sample_weight.npartitions != X.npartitions
+            or sample_weight.npartitions != y.npartitions
         ):
-            raise NotImplementedError(
-                "Weighted bootstrapping is not yet supported for distributed "
-                "random forests. Set bootstrap=False or do not provide "
-                "sample_weight or class_weight."
+            raise ValueError(
+                "X, y, and sample_weight must have the same number of "
+                "partitions"
             )
-        if sample_weight is not None:
-            raise NotImplementedError(
-                "sample_weight is not yet supported for distributed random "
-                "forests"
-            )
-        if broadcast_data is not None:
-            warnings.warn(
-                (
-                    "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
-            )
+
         if isinstance(y, dask.array.Array):
+            y_for_class_counts = y
+            if len(y.shape) == 2:
+                if y.shape[1] != 1:
+                    raise ValueError(
+                        "y must have exactly one column when two-dimensional"
+                    )
+                y_for_class_counts = y.flatten()
+
             # Dask implements ``unique(return_counts=True)`` using structured
             # arrays, which CuPy does not support. Compute the unique labels
             # first, then count all labels together with scalar reductions.
-            unique_vals = cp.asarray(dask.array.unique(y).compute())
+            unique_vals = cp.asarray(
+                dask.array.unique(y_for_class_counts).compute()
+            )
             if unique_vals.size == 0:
                 class_counts = cp.empty(0, dtype=cp.int64)
             else:
                 class_counts = dask.array.stack(
                     [
-                        (y == class_value).sum()
+                        (y_for_class_counts == class_value).sum()
                         for class_value in cp.asnumpy(unique_vals)
                     ]
                 ).compute()
@@ -224,14 +213,35 @@ class RandomForestClassifier(
             classes = cp.asnumpy(unique_vals[order])
             class_counts = cp.asnumpy(class_counts[order])
         else:
+            y_for_class_counts = y
             counts_by_class = y.value_counts().compute().sort_index()
             classes = cp.asnumpy(cp.asarray(counts_by_class.index))
             class_counts = cp.asnumpy(cp.asarray(counts_by_class))
+
+        if (
+            sample_weight is not None
+            and self.kwargs.get("class_weight") == "balanced"
+        ):
+            # Use weighted class frequencies if class_weight="balanced"
+            # and sample_weight is provided.
+            class_counts = cp.asnumpy(
+                cp.asarray(
+                    dask.compute(
+                        *[
+                            (
+                                sample_weight
+                                * (y_for_class_counts == class_value)
+                            ).sum()
+                            for class_value in classes
+                        ]
+                    )
+                )
+            )
         self.classes_ = classes
         self._set_internal_model(None)
         self._fit(
             model=self.rfs,
-            dataset=(X, y),
+            dataset=(X, y) if sample_weight is None else (X, y, sample_weight),
             classes=classes,
             class_counts=class_counts,
         )
@@ -245,7 +255,6 @@ class RandomForestClassifier(
         default_chunk_size=None,
         align_bytes=None,
         delayed=True,
-        broadcast_data=None,
     ):
         """
         Predicts the labels for X.
@@ -272,24 +281,12 @@ class RandomForestClassifier(
         delayed : bool (default = True)
             Whether to do a lazy prediction (and return Delayed objects) or an
             eagerly executed one.
-        broadcast_data : bool, optional
-            Deprecated. This parameter no longer has effect and will
-            be removed in release 26.12.
 
         Returns
         -------
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
             The predicted class labels.
         """
-        if broadcast_data is not None:
-            warnings.warn(
-                (
-                    "broadcast_data parameter is no longer valid "
-                    "and will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
-            )
         return self._predict_using_nvforest(
             X,
             threshold=threshold,

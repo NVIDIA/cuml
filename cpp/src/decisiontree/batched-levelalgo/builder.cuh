@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "dataset.h"  // for Dataset
 #include "kernels/builder_kernels.cuh"
 
 #include <common/Timer.h>
@@ -20,14 +21,16 @@
 #include <raft/util/cuda_utils.cuh>
 
 #include <rmm/device_uvector.hpp>
+#include <rmm/exec_policy.hpp>
 
 #include <cub/block/block_scan.cuh>
+#include <cuda/std/functional>
+#include <thrust/transform_reduce.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <memory>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -394,18 +397,29 @@ struct Builder {
   {
     raft::common::nvtx::range fun_scope("Builder::train @builder.cuh [batched-levelalgo]");
     MLCommon::TimerCPU timer;
-    NodeQueue<DataT, LabelT> queue(params,
-                                   this->maxNodes(),
-                                   dataset.n_sampled_rows,
-                                   this->globalSampledRows(),
-                                   dataset.num_outputs);
+    auto global_sampled_rows = globalSum(dataset.n_sampled_rows);
+    // Total training weight across all ranks for this tree.
+    auto root_weight = static_cast<double>(global_sampled_rows);
+    if constexpr (ObjectiveT::weighted) {
+      auto weights      = dataset.sample_weight;
+      auto local_weight = thrust::transform_reduce(
+        rmm::exec_policy(builder_stream),
+        dataset.row_ids,
+        dataset.row_ids + dataset.n_sampled_rows,
+        [weights] __device__(std::int64_t row) -> double { return weights[row]; },
+        0.0,
+        cuda::std::plus{});
+      root_weight = globalSum(local_weight);
+    }
+    NodeQueue<DataT, LabelT> queue(
+      params, this->maxNodes(), dataset.n_sampled_rows, global_sampled_rows, dataset.num_outputs);
     while (queue.HasWork()) {
       auto work_items                      = queue.Pop();
-      auto [splits_host_ptr, splits_count] = doSplit(work_items);
+      auto [splits_host_ptr, splits_count] = doSplit(work_items, root_weight);
       queue.Push(work_items, splits_host_ptr);
     }
     auto tree = queue.GetTree();
-    this->SetLeafPredictions(tree, queue.GetInstanceRanges());
+    this->SetLeafPredictions(tree, queue.GetInstanceRanges(), root_weight);
     tree->train_time = timer.getElapsedMilliseconds();
     return tree;
   }
@@ -431,23 +445,24 @@ struct Builder {
     return n_blocks_dimx;
   }
 
-  std::int64_t globalSampledRows()
+  template <typename T>
+  T globalSum(T local_value)
   {
-    auto global_sampled_rows = static_cast<std::int64_t>(dataset.n_sampled_rows);
-    if (!distributed) { return global_sampled_rows; }
+    if (!distributed) { return local_value; }
 
-    rmm::device_uvector<std::int64_t> d_sampled_rows(1, builder_stream);
-    raft::update_device(d_sampled_rows.data(), &global_sampled_rows, 1, builder_stream);
+    rmm::device_uvector<T> d_value(1, builder_stream);
+    raft::update_device(d_value.data(), &local_value, 1, builder_stream);
     handle.get_comms().allreduce(
-      d_sampled_rows.data(), d_sampled_rows.data(), 1, raft::comms::op_t::SUM, builder_stream);
+      d_value.data(), d_value.data(), 1, raft::comms::op_t::SUM, builder_stream);
     ASSERT(handle.get_comms().sync_stream(builder_stream) == raft::comms::status_t::SUCCESS,
-           "An error occurred in the distributed RF sampled-row-count all-reduce.");
-    raft::update_host(&global_sampled_rows, d_sampled_rows.data(), 1, builder_stream);
+           "An error occurred in the distributed RF root statistics all-reduce.");
+    T global_value;
+    raft::update_host(&global_value, d_value.data(), 1, builder_stream);
     handle.sync_stream(builder_stream);
-    return global_sampled_rows;
+    return global_value;
   }
 
-  auto doSplit(const std::vector<NodeWorkItem>& work_items)
+  auto doSplit(const std::vector<NodeWorkItem>& work_items, double root_weight)
   {
     raft::common::nvtx::range fun_scope("Builder::doSplit @builder.cuh [batched-levelalgo]");
     // start fresh on the number of *new* nodes created in this batch
@@ -481,7 +496,7 @@ struct Builder {
                                                          original_n_sampled_cols);
       dataset.n_sampled_cols = std::min(
         original_n_sampled_cols, ML::checked_sub<std::int64_t>(dataset.n_cols, sample_offset));
-      computeBestSplits(active_items, seed, sample_offset);
+      computeBestSplits(active_items, seed, sample_offset, root_weight);
 
       std::vector<NodeWorkItem> retry_items;
       std::vector<std::size_t> retry_to_original;
@@ -525,7 +540,8 @@ struct Builder {
 
   void computeBestSplits(const std::vector<NodeWorkItem>& work_items,
                          uint64_t sampling_seed,
-                         std::int64_t sample_offset)
+                         std::int64_t sample_offset,
+                         double root_weight)
   {
     initSplit<DataT, TPB_DEFAULT>(splits, work_items.size(), builder_stream);
     auto mutex_bytes = ML::checked_mul<std::size_t>(sizeof(int), params.max_batch_size);
@@ -537,7 +553,7 @@ struct Builder {
     sampleFeatures(work_items, sampling_seed, sample_offset);
 
     for (std::int64_t c = 0; c < dataset.n_sampled_cols; c += n_blks_for_cols) {
-      computeSplit(c, n_blocks_dimx, work_items.size(), split_smem_config);
+      computeSplit(c, n_blocks_dimx, work_items.size(), split_smem_config, root_weight);
       RAFT_CUDA_TRY(cudaPeekAtLastError());
     }
     raft::update_host(h_splits, splits, work_items.size(), builder_stream);
@@ -612,7 +628,8 @@ struct Builder {
   void computeSplit(std::int64_t col,
                     size_t n_blocks_dimx,
                     size_t n_work_items,
-                    const SharedMemoryConfig& split_smem_config)
+                    const SharedMemoryConfig& split_smem_config,
+                    double root_weight)
   {
     // if no instances to split, return
     if (n_blocks_dimx == 0) return;
@@ -639,6 +656,7 @@ struct Builder {
     ObjectiveT objective(dataset.num_outputs,
                          params.min_samples_leaf,
                          params.split_criterion,
+                         root_weight,
                          params.min_impurity_decrease);
     raft::common::nvtx::range kernel_scope("computeSplitKernels @builder.cuh [batched-levelalgo]");
     launchBuildHistogramsKernel<DataT, LabelT, TPB_DEFAULT, ObjectiveT>(histograms,
@@ -674,7 +692,8 @@ struct Builder {
 
   // Set the leaf value predictions in batch
   void SetLeafPredictions(std::shared_ptr<DT::TreeMetaDataNode<DataT, LabelT>> tree,
-                          const std::vector<InstanceRange>& instance_ranges)
+                          const std::vector<InstanceRange>& instance_ranges,
+                          double root_weight)
   {
     auto vector_leaf_size =
       ML::checked_mul<std::size_t>(tree->sparsetree.size(), dataset.num_outputs);
@@ -692,7 +711,8 @@ struct Builder {
     rmm::device_uvector<InstanceRange> d_instance_ranges(max_batch_size, builder_stream);
     rmm::device_uvector<DataT> d_leaves(max_leaf_values, builder_stream);
 
-    ObjectiveT objective(dataset.num_outputs, params.min_samples_leaf, params.split_criterion);
+    ObjectiveT objective(
+      dataset.num_outputs, params.min_samples_leaf, params.split_criterion, root_weight);
     for (std::size_t batch_begin = 0; batch_begin < tree->sparsetree.size();
          batch_begin += max_batch_size) {
       std::size_t batch_size = min(max_batch_size, tree->sparsetree.size() - batch_begin);

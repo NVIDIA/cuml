@@ -14,8 +14,7 @@ from cuml.internals.validation import check_inputs
 
 
 class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
-    """
-    Implements a Random Forest classifier model which fits multiple decision
+    """Implements a Random Forest classifier model which fits multiple decision
     tree classifiers in an ensemble.
 
     .. note:: Note that the underlying algorithm for tree node splits differs
@@ -108,8 +107,16 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
            and ``max(2, ceil(min_samples_split * n_rows))`` is the minimum
            number of samples for each split.
     min_impurity_decrease : float (default = 0.0)
-        Minimum decrease in impurity required for
-        node to be split.
+        A node will be split if this split induces a decrease of the weighted impurity
+        greater than this value.
+
+        .. versionchanged:: 26.12
+
+            Impurity decrease is now weighted by the node's fraction of the
+            tree's total training weight. Positive thresholds may produce
+            smaller trees and different predictions. The default ``0.0``
+            needs no adjustment.
+
     max_batch_size : int (default = 4096)
         Maximum number of nodes that can be processed in a given batch.
     random_state : int (default = None)
@@ -158,6 +165,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
     When converting to sklearn using `as_sklearn()`, the `feature_importances_` attribute will return
     NaN values. If you need feature importances, save them before conversion:
     `importances = cuml_model.feature_importances_`
+
     """
 
     oob_decision_function_ = ReflectedAttr()
@@ -250,7 +258,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         self.class_weight = class_weight
 
     @nvtx.annotate(
-        message="fit RF-Classifier @randomforestclassifier.pyx",
+        message="fit RF-Classifier @randomforestclassifier.py",
         domain="cuml_python",
     )
     @generate_docstring(y="dense_intdtype")
@@ -259,11 +267,14 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         """
         Perform Random Forest Classification on the input data
         """
-        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return self._fit(X, y, sample_weight=sample_weight)
 
     def _prepare_fit_inputs(self, X, y, sample_weight=None):
         classes = getattr(self, "_distributed_classes", True)
+        # In distributed setting, some partitions may have sample weights that are all zeros
+        sample_weight_allow_all_zero = (
+            hasattr(self, "_distributed_n_rows") and self.bootstrap
+        )
         X, y, sample_weight, classes = check_inputs(
             self,
             X,
@@ -273,6 +284,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
             order="A",
             y_dtype="int32",
             sample_weight_dtype="float64",
+            sample_weight_allow_all_zero=sample_weight_allow_all_zero,
             return_classes=classes,
             reset=True,
         )
@@ -296,7 +308,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         return X, y, sample_weight
 
     @nvtx.annotate(
-        message="predict RF-Classifier @randomforestclassifier.pyx",
+        message="predict RF-Classifier @randomforestclassifier.py",
         domain="cuml_python",
     )
     @insert_into_docstring(
@@ -446,7 +458,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         return out
 
     @nvtx.annotate(
-        message="score RF-Classifier @randomforestclassifier.pyx",
+        message="score RF-Classifier @randomforestclassifier.py",
         domain="cuml_python",
     )
     @insert_into_docstring(

@@ -110,8 +110,8 @@ def test_BaseEstimator__validate_params():
     model = LogisticRegression()
     model._validate_params()
 
-    model.C = "oops"
-    with pytest.raises(Exception, match="C"):
+    model.tol = "oops"
+    with pytest.raises(Exception, match="tol"):
         model._validate_params()
 
 
@@ -146,7 +146,7 @@ def test_init_positional_and_keyword():
 
 
 def test_repr():
-    model = LogisticRegression(C=1.5)
+    model = LogisticRegression(tol=1e-3)
     assert str(model) == str(model._cpu)
     assert repr(model) == repr(model._cpu)
     # smoketest _repr_mimebundle_. It changes per-call, so can't directly compare
@@ -165,7 +165,7 @@ def test_repr():
 
 
 def test_repr_mimebundle():
-    model = LogisticRegression(C=1.5)
+    model = LogisticRegression(tol=1e-3)
     X, y = make_classification()
     # TODO: see https://github.com/NVIDIA/cuml/issues/8212
     try:
@@ -187,7 +187,7 @@ def test_repr_mimebundle():
 def test_repr_mimebundle_display_text():
     """If `display="text"` is configured, no host sync is needed"""
     X, y = make_classification()
-    model = LogisticRegression(C=1.5).fit(X, y)
+    model = LogisticRegression(tol=1e-3).fit(X, y)
     with sklearn.config_context(display="text"):
         # The conditional definition of `_repr_html_` is proxied through
         assert not hasattr(model, "_repr_html_")
@@ -200,7 +200,7 @@ def test_repr_mimebundle_display_text():
 def test_pipeline_repr():
     """sklearn's pretty printer requires you not override __repr__
     for pipelines to repr properly"""
-    model = LogisticRegression(C=1.5)
+    model = LogisticRegression(tol=1e-3)
     pipe = Pipeline([("cls", model)])
     native = Pipeline([("cls", model._cpu)])
     assert str(pipe) == str(native)
@@ -215,12 +215,12 @@ def test_pipeline_repr():
 
 
 def test_dir():
-    params = {"C", "fit_intercept"}
+    params = {"tol", "fit_intercept"}
     attrs = {"n_features_in_", "coef_", "intercept_"}
     methods = {"fit", "predict"}
     private = {"_cpu", "_gpu", "_synced", "_call_method"}
 
-    model = LogisticRegression(C=1.5)
+    model = LogisticRegression(tol=1e-3)
     names = set(dir(model))
     assert names.issuperset(params | methods)
     assert names.isdisjoint(attrs | private)
@@ -233,8 +233,8 @@ def test_dir():
 
 
 def test_getattr():
-    model = LogisticRegression(C=1.5, fit_intercept=False)
-    assert model.C == 1.5
+    model = LogisticRegression(tol=1e-3, fit_intercept=False)
+    assert model.tol == 1e-3
     assert model.fit_intercept is False
 
     # Never proxy through private attributes
@@ -343,12 +343,12 @@ def test_delattr():
 
 def test_get_params():
     model = LogisticRegression(
-        C=1.5,
+        tol=1e-3,
         fit_intercept=False,
         solver="newton-cholesky",
     )
     params = model.get_params()
-    assert params["C"] == 1.5
+    assert params["tol"] == 1e-3
     assert not params["fit_intercept"]
     assert params["solver"] == "newton-cholesky"
     assert params == model._cpu.get_params()
@@ -387,7 +387,7 @@ def test_set_params():
 @pytest.mark.parametrize("fit", [False, True])
 def test_clone(fit):
     model = LogisticRegression(
-        C=1.5,
+        tol=1e-3,
         fit_intercept=False,
         solver="newton-cholesky",
     )
@@ -415,7 +415,7 @@ def test_pickle_proxy_estimator_class():
 
 
 def test_pickle_unfit():
-    model = LogisticRegression(C=1.5, solver="newton-cholesky")
+    model = LogisticRegression(tol=1e-3, solver="newton-cholesky")
 
     model2 = pickle.loads(pickle.dumps(model))
 
@@ -426,7 +426,7 @@ def test_pickle_unfit():
 
 def test_pickle_gpu_fit():
     X, y = make_classification(n_samples=10)
-    model = LogisticRegression(C=1.5, solver="newton-cholesky")
+    model = LogisticRegression(tol=1e-3, solver="newton-cholesky")
     model.fit(X, y)
     # Ensure the test case is one that is GPU accelerated
     assert model._gpu is not None
@@ -479,7 +479,7 @@ def test_pickle_cpu_fit_but_params_supported():
 def test_unpickle_cuml_accel_not_active():
     """Unpickling in an process without cuml.accel enabled uses the CPU model"""
     X, y = make_classification(n_samples=10)
-    model = LogisticRegression(C=1.5, solver="newton-cholesky")
+    model = LogisticRegression(tol=1e-3, solver="newton-cholesky")
     model.fit(X, y)
 
     buf = pickle.dumps((model, X, y))
@@ -489,7 +489,7 @@ def test_unpickle_cuml_accel_not_active():
 
         model, X, y = pickle.loads({buf!r})
 
-        assert model.C == 1.5
+        assert model.tol == 1e-3
         assert model.solver == "newton-cholesky"
 
         from cuml.accel import enabled
@@ -526,7 +526,7 @@ def test_unpickle_cuml_accel_not_active():
 def test_unpickle_cuml_not_installed():
     """Unpickling in an environment without cuml installed uses the CPU model"""
     X, y = make_classification(n_samples=10)
-    model = LogisticRegression(C=1.5, solver="newton-cholesky")
+    model = LogisticRegression(tol=1e-3, solver="newton-cholesky")
     model.fit(X, y)
 
     buf = pickle.dumps((model, X, y))
@@ -540,7 +540,7 @@ def test_unpickle_cuml_not_installed():
 
         model, X, y = pickle.loads({buf!r})
 
-        assert model.C == 1.5
+        assert model.tol == 1e-3
         assert model.solver == "newton-cholesky"
 
         # Is a scikit-learn model of expected type
@@ -670,9 +670,9 @@ def test_common_fit_attributes():
 
 def test_fit_validates_params():
     X, y = make_classification()
-    model = LogisticRegression(C="oops")
+    model = LogisticRegression(tol="oops")
 
-    with pytest.raises(Exception, match="C"):
+    with pytest.raises(Exception, match="tol"):
         model.fit(X, y)
 
 
@@ -859,7 +859,7 @@ def test_metadata_routing_consumed(metadata_routing):
     lr.set_fit_request(sample_weight=True)
     lr.set_score_request(sample_weight=False)
 
-    search = GridSearchCV(estimator=lr, param_grid={"C": [0.9, 1]})
+    search = GridSearchCV(estimator=lr, param_grid={"tol": [1e-3, 1e-2]})
     search.fit(X, y, sample_weight=weights)
 
 

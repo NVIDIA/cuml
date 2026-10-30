@@ -230,7 +230,7 @@ void opg_knn(opg_knn_param<in_t, ind_t, dist_t, out_t>& params, raft::handle_t& 
 
   ASSERT(params.k <= 1024, "k must be <= 1024");
   ASSERT(params.batch_size > 0, "max_batch_size must be > 0");
-  ASSERT(params.k < params.idx_desc->M, "k must be less than the total number of query rows");
+  ASSERT(params.k < params.idx_desc->M, "k must be less than the total number of index rows");
   for (Matrix::RankSizePair* rsp : work.idxPartsToRanks) {
     ASSERT(rsp->size >= params.k,
            "k must be <= the number of rows in the smallest index partition.");

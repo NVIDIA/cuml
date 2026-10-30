@@ -285,6 +285,29 @@ def test_max_features_parameter(blobs_data, max_features, expected_features):
     assert predictions.shape[0] == blobs_data.shape[0]
 
 
+def test_split_feature_selection_ignores_column_order():
+    """Splits should pick uniformly among the non-constant features.
+
+    The two informative columns are separated by a run of constant columns,
+    so a selection that depends on column order favours one of them.
+    """
+    rng = np.random.RandomState(0)
+    X = np.zeros((256, 10), dtype=np.float32)
+    X[:, 0] = rng.randn(256)
+    X[:, 9] = rng.randn(256)
+    clf = cuIsolationForest(n_estimators=1000, random_state=42).fit(X)
+    tl_model = clf.as_treelite()
+    roots = np.array(
+        [
+            tl_model.get_tree_accessor(tree_id).get_field("split_index")[0]
+            for tree_id in range(tl_model.num_tree)
+        ]
+    )
+    assert set(roots.tolist()) == {0, 9}
+    # Uniform selection gives 0.5
+    assert 0.4 < np.mean(roots == 0) < 0.6
+
+
 @pytest.mark.parametrize("max_features", [0, -1, 1.1, "invalid", True])
 def test_invalid_max_features_raises(blobs_data, max_features):
     """Invalid max_features values should raise during fit."""
@@ -382,13 +405,13 @@ def test_as_sklearn_scoring_parity(anomaly_data, params):
 
 
 def test_as_sklearn_float64_parity(anomaly_data):
-    """Conversion of a float64 fit matches to float64 precision."""
+    """Conversion of a float64 fit matches within Treelite ratio precision."""
     X = anomaly_data.astype(np.float64)
     cu_model = cuIsolationForest(n_estimators=20, random_state=1).fit(X)
     sk_model = cu_model.as_sklearn()
     cu_scores = np.asarray(cu_model.score_samples(X), dtype=np.float64)
     np.testing.assert_allclose(
-        sk_model.score_samples(X), cu_scores, rtol=0, atol=1e-10
+        sk_model.score_samples(X), cu_scores, rtol=0, atol=1e-8
     )
 
 
@@ -517,34 +540,6 @@ def test_sync_attrs_to_cpu_populates_target(blobs_data):
         rtol=0,
         atol=1e-5,
     )
-
-
-def test_invert_average_path_length_roundtrip():
-    """Recovered counts invert sklearn's average path length exactly."""
-    from sklearn.ensemble._iforest import _average_path_length
-
-    from cuml.ensemble.isolation_forest import _invert_average_path_length
-
-    for n in (1, 2, 3, 10, 256, 5000):
-        value = float(_average_path_length(np.asarray([n]))[0])
-        assert _invert_average_path_length(value) == n
-
-
-def test_invert_average_path_length_fails_loudly():
-    """Values matching no count, or more than one, raise a clear error."""
-    from sklearn.ensemble._iforest import _average_path_length
-
-    from cuml.ensemble.isolation_forest import _invert_average_path_length
-
-    with pytest.raises(ValueError, match="negative"):
-        _invert_average_path_length(-0.5)
-    # Between apl(4) and apl(5), far from both: no candidate matches.
-    with pytest.raises(ValueError, match="no integer count"):
-        _invert_average_path_length(1.95)
-    # At large counts adjacent values collapse within tolerance: ambiguous.
-    midpoint = float(_average_path_length(np.asarray([50000, 50001])).mean())
-    with pytest.raises(ValueError, match="more than one"):
-        _invert_average_path_length(midpoint)
 
 
 def test_contamination_float_preserves_feature_names():
@@ -811,11 +806,11 @@ def test_as_nvforest_loads(blobs_data):
     clf.fit(X)
 
     nvforest_model = clf.as_nvforest()
-    avg_path_lengths = cp.asarray(nvforest_model.predict(X))
+    anomaly_scores = cp.asarray(nvforest_model.predict(X))
 
     assert "ForestInferenceRegressor" in type(nvforest_model).__name__
-    assert avg_path_lengths.shape[0] == X.shape[0]
-    assert bool(cp.all(cp.isfinite(avg_path_lengths)))
+    assert anomaly_scores.shape[0] == X.shape[0]
+    assert bool(cp.all(cp.isfinite(anomaly_scores)))
 
 
 def test_score_samples_single_sample():

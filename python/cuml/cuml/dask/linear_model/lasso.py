@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -77,7 +77,7 @@ class Lasso(BaseEstimator):
             Dense matrix (floats or doubles) of shape (n_samples, n_features).
 
         y : Dask cuDF DataFrame or CuPy backed Dask Array
-            Dense matrix (floats or doubles) of shape (n_samples, n_features).
+            Dense vector (floats or doubles) of shape (n_samples,).
 
         """
         self.solver.fit(X, y)
@@ -101,7 +101,7 @@ class Lasso(BaseEstimator):
         Returns
         -------
         y : Dask cuDF DataFrame or CuPy backed Dask Array
-            Dense matrix (floats or doubles) of shape (n_samples, n_features).
+            Dense vector (floats or doubles) of shape (n_samples,).
 
         """
 

@@ -5,6 +5,7 @@
 import cudf
 import cupy as cp
 import numpy as np
+import pandas as pd
 import pytest
 import scipy
 import scipy.sparse
@@ -59,6 +60,7 @@ from cuml.testing.utils import array_equal
 
 
 SKLEARN_18 = Version(sklearn.__version__) >= Version("1.8.0.dev0")
+SKLEARN_110 = Version(sklearn.__version__) >= Version("1.10.0.dev0")
 
 
 def _filter_scipy_lbfgsb_deprecation(func):
@@ -252,6 +254,22 @@ def test_logistic_regression(random_state):
     )
     original = LogisticRegression(C=5.0, max_iter=500)
     assert_estimator_roundtrip(original, SkLogisticRegression, X, y)
+
+
+@pytest.mark.skipif(not SKLEARN_110, reason="alpha added in sklearn 1.10")
+def test_logistic_regression_no_penalty_alpha(random_state):
+    # The roundtrip test covers `alpha = 1 / C`, this covers `alpha == 0`
+    X, y = make_classification(
+        n_samples=50, n_features=5, n_informative=3, random_state=random_state
+    )
+    sk_model = LogisticRegression(penalty=None).fit(X, y).as_sklearn()
+    assert sk_model.alpha == 0.0
+    assert sk_model.C == "deprecated"
+
+    model = LogisticRegression.from_sklearn(
+        SkLogisticRegression(alpha=0).fit(X, y)
+    )
+    assert model.C == np.inf
 
 
 def test_elasticnet(random_state):
@@ -1177,6 +1195,70 @@ def test_target_encoder(random_state):
     assert array_equal(original_output, roundtrip_output)
 
 
+def _make_missing_X(values, kind):
+    """Build a single-column input where ``None`` in ``values`` is a missing
+    value in the representation given by ``kind``."""
+    if kind == "float-nan":
+        codes = {"a": 0.0, "b": 1.0, "c": 2.0, None: np.nan}
+        return np.array([codes[v] for v in values])[:, None]
+    elif kind == "pandas-str":
+        # pandas 3 infers a str column, which stores missing values as NaN
+        return pd.DataFrame({"c": values})
+    missing = None if kind == "object-none" else np.nan
+    values = [missing if v is None else v for v in values]
+    return np.array(values, dtype=object)[:, None]
+
+
+@pytest.mark.parametrize(
+    "kind", ["object-none", "object-nan", "pandas-str", "float-nan"]
+)
+def test_target_encoder_missing_category(kind):
+    # A missing value seen during fit is a category of its own (gh-8697)
+    X = _make_missing_X(["a", "b", None, "b", None, "a"], kind)
+    X_test = _make_missing_X(["b", None, "c"], kind)
+    y = np.array([1.5, 2.5, 3.5, 4.5, 7.5, 7.5])
+    expected = np.array([3.5, 5.5, 4.5])[:, None]
+
+    cu_model = TargetEncoder(multi_feature_mode="independent", smooth=0).fit(
+        X, y
+    )
+    sk_model = sklearn.preprocessing.TargetEncoder(
+        smooth=0, target_type="continuous", random_state=42
+    ).fit(X, y)
+
+    cu_model2 = TargetEncoder.from_sklearn(sk_model)
+    sk_model2 = cu_model.as_sklearn()
+    roundtrip = TargetEncoder.from_sklearn(sk_model2)
+
+    assert_allclose(cu_model.transform(X_test), expected)
+    assert_allclose(sk_model.transform(X_test), expected)
+    assert_allclose(cu_model2.transform(X_test), expected)
+    assert_allclose(sk_model2.transform(X_test), expected)
+    assert_allclose(roundtrip.transform(X_test), expected)
+
+    # sklearn treats `None` and `NaN` as different categories, cuML has only
+    # one missing category. The exported model has to accept either. This is
+    # because in cuml we only use None
+    if kind in ("object-none", "object-nan"):
+        for test_kind in ("object-none", "object-nan"):
+            X_test = _make_missing_X(["b", None, "c"], test_kind)
+            assert_allclose(sk_model2.transform(X_test), expected)
+
+
+def test_target_encoder_from_sklearn_none_and_nan():
+    # sklearn keeps `None` and `NaN` as two categories with their own
+    # encodings, cuML can't represent that. This is pretty rare so
+    # for now we raise UnsupportedOnGPU
+    X = np.array(["a", "b", None, "a", "b", np.nan], dtype=object)[:, None]
+    y = np.array([1.5, 2.5, 3.5, 4.5, 7.5, 7.5])
+    sk_model = sklearn.preprocessing.TargetEncoder(
+        target_type="continuous", random_state=42
+    ).fit(X, y)
+
+    with pytest.raises(UnsupportedOnGPU, match="both None and NaN"):
+        TargetEncoder.from_sklearn(sk_model)
+
+
 def test_label_encoder():
     y = np.array(["a", "b", "b", "a"])
     cu_model = cuml.preprocessing.LabelEncoder().fit(y)
@@ -1284,3 +1366,83 @@ def test_one_hot_encoder_cuda_array_like_params():
     cu_out2 = cu_model2.transform(X)
     np.testing.assert_array_equal(cu_out1.toarray(), sk_out.toarray())
     np.testing.assert_array_equal(cu_out2.toarray(), sk_out.toarray())
+
+
+@pytest.mark.parametrize("handle_unknown", ["error", "ignore"])
+@pytest.mark.filterwarnings("ignore:Found unknown categories.*:UserWarning")
+def test_ordinal_encoder(handle_unknown):
+    X = np.array(
+        [["x", "a"], ["x", "b"], ["y", "a"], ["x", "c"]], dtype="object"
+    )
+    kws = {"handle_unknown": handle_unknown}
+    if handle_unknown == "error":
+        sk_kws = kws
+    else:
+        sk_kws = {
+            "handle_unknown": "use_encoded_value",
+            "unknown_value": np.nan,
+        }
+    cu_model = cuml.preprocessing.OrdinalEncoder(**kws).fit(X)
+    sk_model = sklearn.preprocessing.OrdinalEncoder(**sk_kws).fit(X)
+
+    cu_model2 = cuml.preprocessing.OrdinalEncoder.from_sklearn(sk_model)
+    sk_model2 = cu_model.as_sklearn()
+
+    roundtrip = cuml.preprocessing.OrdinalEncoder.from_sklearn(sk_model2)
+    assert_roundtrip_consistency(cu_model, roundtrip)
+
+    for c1, c2 in zip(cu_model.categories_, sk_model2.categories_):
+        np.testing.assert_array_equal(c1, c2)
+
+    cu_out = cu_model2.transform(X)
+    sk_out = sk_model2.transform(X)
+    np.testing.assert_array_equal(cu_out, sk_out)
+
+    if handle_unknown == "ignore":
+        X = np.array([["x", "d"], ["x", "a"], ["z", "c"]], dtype="object")
+        cu_out = cu_model2.transform(X)
+        sk_out = sk_model2.transform(X)
+        np.testing.assert_array_equal(cu_out, sk_out)
+
+
+def test_ordinal_encoder_cuda_array_like_params():
+    cats = [cp.array([1, 2]), cudf.Series([10, 20, 30])]
+    X = np.array([[1, 10], [1, 20], [2, 30], [2, 10]])
+    cu_model1 = cuml.preprocessing.OrdinalEncoder(categories=cats).fit(X)
+    sk_model = cu_model1.as_sklearn()
+    cu_model2 = cuml.preprocessing.OrdinalEncoder.from_sklearn(sk_model)
+
+    cu_out1 = cu_model1.transform(X)
+    sk_out = sk_model.transform(X)
+    cu_out2 = cu_model2.transform(X)
+    np.testing.assert_array_equal(cu_out1, sk_out)
+    np.testing.assert_array_equal(cu_out2, sk_out)
+
+
+@pytest.mark.parametrize("name", ["OneHotEncoder", "OrdinalEncoder"])
+def test_one_hot_encoder_ordinal_encoder_none_categories(name):
+    sk_cls = getattr(sklearn.preprocessing, name)
+    cu_cls = getattr(cuml.preprocessing, name)
+
+    X = np.array([["a"], [None], ["b"]], dtype="object")
+    sk_model = sk_cls().fit(X)
+    with pytest.raises(
+        UnsupportedOnGPU, match="`None` is not supported as a category value"
+    ):
+        cu_cls.from_sklearn(sk_model)
+
+    X = np.array([["a"], [None], [np.nan], ["b"]], dtype="object")
+    sk_model = sk_cls().fit(X)
+    with pytest.raises(
+        UnsupportedOnGPU, match="`None` is not supported as a category value"
+    ):
+        cu_cls.from_sklearn(sk_model)
+
+    X = np.array([["a"], [np.nan], ["b"]], dtype="object")
+    sk_model = sk_cls().fit(X)
+    if hasattr(sk_model, "sparse_output"):
+        sk_model.sparse_output = False
+    cu_model = cu_cls.from_sklearn(sk_model)
+    sk_out = sk_model.transform(X)
+    cu_out = cu_model.transform(X)
+    np.testing.assert_array_equal(cu_out, sk_out)

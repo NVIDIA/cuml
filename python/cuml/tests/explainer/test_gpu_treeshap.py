@@ -115,6 +115,10 @@ def count_categorical_split(tl_model):
         "reg:pseudohubererror",
     ],
 )
+@pytest.mark.skipif(
+    cp.cuda.Device().compute_capability == "70",
+    reason="Current XGBoost wheels lack SM70 kernels (see #8760)",
+)
 def test_xgb_regressor(objective):
     xgb = pytest.importorskip("xgboost")
     pytest.importorskip(
@@ -190,6 +194,10 @@ def test_xgb_regressor(objective):
         "multi:softmax",
         "multi:softprob",
     ],
+)
+@pytest.mark.skipif(
+    cp.cuda.Device().compute_capability == "70",
+    reason="Current XGBoost wheels lack SM70 kernels (see #8760)",
 )
 def test_xgb_classifier(objective, n_classes):
     xgb = pytest.importorskip("xgboost")

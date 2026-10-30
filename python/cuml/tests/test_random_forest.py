@@ -528,7 +528,8 @@ def test_tweedie_convergence(max_depth, split_criterion):
             n_estimators=n_estimators,
             bootstrap=bootstrap,
             max_features=max_features,
-            min_impurity_decrease=min_impurity_decrease,
+            # MSE uses the full variance, while others use the half deviance.
+            min_impurity_decrease=2 * min_impurity_decrease,
         )
         .fit(X, y)
         .predict(X)
@@ -1151,16 +1152,16 @@ def test_rf_nbins_small(small_clf):
     # random forest classification model
     cuml_model = curfc()
 
-    # display warning when nbins less than samples
+    # Check the n_bins warning without assuming it is the last warning.
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         cuml_model.fit(X_train[0:3, :], y_train[0:3])
-        assert (
+        expected_message = (
             "The number of bins, `n_bins` is greater than "
             "the number of samples used for training. "
             "Changing `n_bins` to number of training samples."
-            in str(w[-1].message)
         )
+        assert any(expected_message in str(warning.message) for warning in w)
 
 
 def test_rf_regression_with_identical_labels():

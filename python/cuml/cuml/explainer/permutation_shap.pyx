@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import time
@@ -98,7 +98,7 @@ class PermutationExplainer(SHAPBase):
         explanations remain in the (more naturally additive) log-odds units.
         For more details on how link functions work see any overview of link
         functions for generalized linear models.
-    gpu_model : bool or None (default = None)
+    is_gpu_model : bool or None (default = None)
         If None Explainer will try to infer whether `model` can take GPU data
         (as CuPy arrays), otherwise it will use NumPy arrays to call `model`.
         Set to True to force the explainer to use GPU data,  set to False to
