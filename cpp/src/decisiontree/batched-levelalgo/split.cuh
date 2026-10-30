@@ -47,6 +47,8 @@ struct Split {
   std::int64_t colid;
   /** best info gain on this node */
   DataT best_metric_val;
+  /** contribution to whole-tree impurity decrease, used to rank different nodes */
+  double weighted_impurity_decrease;
   /** global number of samples in the left child */
   std::int64_t global_nLeft;
   /** rank-local number of samples in the left child */
@@ -58,23 +60,25 @@ struct Split {
 
   HDI Split()
   {
-    quesval = best_metric_val = Min;
-    colid                     = -1;
-    global_nLeft              = 0;
-    local_nLeft               = 0;
-    split_start               = -1;
-    split_end                 = -1;
+    quesval = best_metric_val  = Min;
+    weighted_impurity_decrease = 0.0;
+    colid                      = -1;
+    global_nLeft               = 0;
+    local_nLeft                = 0;
+    split_start                = -1;
+    split_end                  = -1;
   }
 
   HDI SplitT& operator=(const SplitT& other)
   {
-    quesval         = other.quesval;
-    colid           = other.colid;
-    best_metric_val = other.best_metric_val;
-    global_nLeft    = other.global_nLeft;
-    local_nLeft     = other.local_nLeft;
-    split_start     = other.split_start;
-    split_end       = other.split_end;
+    quesval                    = other.quesval;
+    colid                      = other.colid;
+    best_metric_val            = other.best_metric_val;
+    weighted_impurity_decrease = other.weighted_impurity_decrease;
+    global_nLeft               = other.global_nLeft;
+    local_nLeft                = other.local_nLeft;
+    split_start                = other.split_start;
+    split_end                  = other.split_end;
     return *this;
   }
 
@@ -108,17 +112,19 @@ struct Split {
   DI bool replace_with(DataT other_quesval,
                        std::int64_t other_colid,
                        DataT other_best_metric_val,
+                       double other_weighted_impurity_decrease,
                        std::int64_t other_global_nLeft,
                        std::int64_t other_split_start,
                        std::int64_t other_split_end)
   {
-    quesval         = other_quesval;
-    colid           = other_colid;
-    best_metric_val = other_best_metric_val;
-    global_nLeft    = other_global_nLeft;
-    local_nLeft     = 0;
-    split_start     = other_split_start;
-    split_end       = other_split_end;
+    quesval                    = other_quesval;
+    colid                      = other_colid;
+    best_metric_val            = other_best_metric_val;
+    weighted_impurity_decrease = other_weighted_impurity_decrease;
+    global_nLeft               = other_global_nLeft;
+    local_nLeft                = 0;
+    split_start                = other_split_start;
+    split_end                  = other_split_end;
     return true;
   }
 
@@ -140,10 +146,12 @@ struct Split {
    *
    * local_nLeft is intentionally not accepted here: split selection is based
    * on global counts, and local counts are filled just before partitioning.
+   * Compare local gain; carry weighted impurity decrease for host scheduling.
    */
   DI bool update(DataT other_quesval,
                  std::int64_t other_colid,
                  DataT other_best_metric_val,
+                 double other_weighted_impurity_decrease,
                  std::int64_t other_global_nLeft,
                  std::int64_t other_split_start,
                  std::int64_t other_split_end)
@@ -153,6 +161,7 @@ struct Split {
       return replace_with(other_quesval,
                           other_colid,
                           other_best_metric_val,
+                          other_weighted_impurity_decrease,
                           other_global_nLeft,
                           other_split_start,
                           other_split_end);
@@ -164,6 +173,7 @@ struct Split {
       return replace_with(other_quesval,
                           other_colid,
                           other_best_metric_val,
+                          other_weighted_impurity_decrease,
                           other_global_nLeft,
                           other_split_start,
                           other_split_end);
@@ -175,6 +185,7 @@ struct Split {
     // reduction.
     if (can_merge_equivalent_split_range(other_global_nLeft, other_split_start, other_split_end)) {
       merge_equivalent_split_range(other_quesval, other_split_start, other_split_end);
+      weighted_impurity_decrease = other_weighted_impurity_decrease;
       return true;
     }
 
@@ -184,6 +195,7 @@ struct Split {
       return replace_with(other_quesval,
                           other_colid,
                           other_best_metric_val,
+                          other_weighted_impurity_decrease,
                           other_global_nLeft,
                           other_split_start,
                           other_split_end);
@@ -195,11 +207,17 @@ struct Split {
   DI bool update(DataT other_quesval,
                  std::int64_t other_colid,
                  DataT other_best_metric_val,
+                 double other_weighted_impurity_decrease,
                  std::int64_t other_global_nLeft,
                  std::int64_t other_bin)
   {
-    return update(
-      other_quesval, other_colid, other_best_metric_val, other_global_nLeft, other_bin, other_bin);
+    return update(other_quesval,
+                  other_colid,
+                  other_best_metric_val,
+                  other_weighted_impurity_decrease,
+                  other_global_nLeft,
+                  other_bin,
+                  other_bin);
   }
 
   /**
@@ -214,10 +232,11 @@ struct Split {
       auto qu  = raft::shfl(quesval, id);
       auto co  = raft::shfl(colid, id);
       auto be  = raft::shfl(best_metric_val, id);
+      auto imp = raft::shfl(weighted_impurity_decrease, id);
       auto gnl = raft::shfl(global_nLeft, id);
       auto bs  = raft::shfl(split_start, id);
       auto bn  = raft::shfl(split_end, id);
-      update(qu, co, be, gnl, bs, bn);
+      update(qu, co, be, imp, gnl, bs, bn);
     }
   }
 
@@ -243,6 +262,7 @@ struct Split {
     auto lane   = raft::laneId();
     if (lane == 0) split_scratch[warp] = *this;
     __syncthreads();
+    // The kernel launch must ensure we don't have more than 32 warps
     if (warp == 0) {
       if (lane < nWarps)
         *this = split_scratch[lane];
@@ -256,21 +276,27 @@ struct Split {
         while (atomicCAS(mutex, 0, 1))
           ;
         SplitT split_reg;
-        split_reg.quesval         = split->quesval;
-        split_reg.colid           = split->colid;
-        split_reg.best_metric_val = split->best_metric_val;
-        split_reg.global_nLeft    = split->global_nLeft;
-        split_reg.split_start     = split->split_start;
-        split_reg.split_end       = split->split_end;
-        bool update_result =
-          split_reg.update(quesval, colid, best_metric_val, global_nLeft, split_start, split_end);
-        if (update_result) {
-          split->quesval         = split_reg.quesval;
-          split->colid           = split_reg.colid;
-          split->best_metric_val = split_reg.best_metric_val;
-          split->global_nLeft    = split_reg.global_nLeft;
-          split->split_start     = split_reg.split_start;
-          split->split_end       = split_reg.split_end;
+        split_reg.quesval                    = split->quesval;
+        split_reg.colid                      = split->colid;
+        split_reg.best_metric_val            = split->best_metric_val;
+        split_reg.weighted_impurity_decrease = split->weighted_impurity_decrease;
+        split_reg.global_nLeft               = split->global_nLeft;
+        split_reg.split_start                = split->split_start;
+        split_reg.split_end                  = split->split_end;
+        if (split_reg.update(quesval,
+                             colid,
+                             best_metric_val,
+                             weighted_impurity_decrease,
+                             global_nLeft,
+                             split_start,
+                             split_end)) {
+          split->quesval                    = split_reg.quesval;
+          split->colid                      = split_reg.colid;
+          split->best_metric_val            = split_reg.best_metric_val;
+          split->weighted_impurity_decrease = split_reg.weighted_impurity_decrease;
+          split->global_nLeft               = split_reg.global_nLeft;
+          split->split_start                = split_reg.split_start;
+          split->split_end                  = split_reg.split_end;
         }
         __threadfence();
         atomicExch(mutex, 0);

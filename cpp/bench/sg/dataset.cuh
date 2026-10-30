@@ -88,8 +88,11 @@ struct Dataset {
   /** free-up the buffers */
   void deallocate(const raft::handle_t& handle, const DatasetParams& p)
   {
-    X.release();
-    y.release();
+    auto stream = handle.get_stream();
+    X.resize(0, stream);
+    X.shrink_to_fit(stream);
+    y.resize(0, stream);
+    y.shrink_to_fit(stream);
   }
 
   /** whether the current dataset is for classification or regression */

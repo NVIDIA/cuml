@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -70,7 +70,7 @@ class RFClassifier : public BlobsFixture<D> {
 };
 
 template <typename D>
-std::vector<Params> getInputs()
+std::vector<Params> getInputs(int max_leaves)
 {
   std::vector<Params> out;
   Params p;
@@ -82,7 +82,7 @@ std::vector<Params> getInputs()
                      2152953ULL};  // seed
 
   p.rf = set_rf_params(10,                  /*max_depth */
-                       (1 << 20),           /* max_leaves */
+                       max_leaves,          /* max_leaves */
                        0.3,                 /* max_features */
                        32,                  /* max_n_bins */
                        3,                   /* min_samples_leaf */
@@ -130,8 +130,11 @@ std::vector<Params> getInputs()
   return out;
 }
 
-ML_BENCH_REGISTER(Params, RFClassifier<float>, "blobs", getInputs<float>());
-ML_BENCH_REGISTER(Params, RFClassifier<double>, "blobs", getInputs<double>());
+// Keep the greedy leaf limit nonbinding at the tested depths for a fair policy comparison.
+ML_BENCH_REGISTER(Params, RFClassifier<float>, "blobs/depthwise", getInputs<float>(-1));
+ML_BENCH_REGISTER(Params, RFClassifier<double>, "blobs/depthwise", getInputs<double>(-1));
+ML_BENCH_REGISTER(Params, RFClassifier<float>, "blobs/greedy", getInputs<float>(1 << 20));
+ML_BENCH_REGISTER(Params, RFClassifier<double>, "blobs/greedy", getInputs<double>(1 << 20));
 
 }  // end namespace rf
 }  // end namespace Bench

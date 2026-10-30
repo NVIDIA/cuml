@@ -1596,6 +1596,41 @@ TEST(RfTest, EquivalentSplitRangeUsesMiddleThreshold)
   EXPECT_EQ(tree[root.RightChildId()].InstanceCount(), 6);
 }
 
+TEST(RfTest, GreedyGrowthSplitsLeafWithLargestImprovement)
+{
+  thrust::device_vector<float> X = std::vector<float>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+  thrust::device_vector<float> y =
+    std::vector<float>{0, 4, 100, 100, 100, 100, 100, 102, 102, 102, 102, 102};
+  auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(1);
+  raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
+
+  // The root separates the first two rows. Left improvement is 4 * 2/12;
+  // right improvement is 1 * 10/12. Both policies can grow the full four-leaf tree,
+  // but batched growth expands the left child first and greedy expands the right.
+  for (auto [max_leaves, max_batch_size] : {std::pair{-1, 1}, {-1, 128}, {4, 1}, {4, 128}}) {
+    SCOPED_TRACE(max_leaves);
+    SCOPED_TRACE(max_batch_size);
+    auto params =
+      set_rf_params(8, max_leaves, 1.0, 12, 1, 2, 0.0, false, 1, 1.0, 0, MSE, 1, max_batch_size);
+    RandomForestMetaData<float, float> forest;
+    fit(handle, &forest, X.data().get(), y.size(), 1, y.data().get(), params);
+
+    const auto& tree = forest.trees[0]->sparsetree;
+    ASSERT_EQ(tree.size(), 7);
+    ASSERT_EQ(tree[0].QueryValue(), 1.0f);
+    const auto& left  = tree[tree[0].LeftChildId()];
+    const auto& right = tree[tree[0].RightChildId()];
+    ASSERT_FALSE(left.IsLeaf());
+    ASSERT_FALSE(right.IsLeaf());
+    // Children are appended when a node splits, so their IDs record expansion order.
+    if (max_leaves == -1) {
+      EXPECT_LT(left.LeftChildId(), right.LeftChildId());
+    } else {
+      EXPECT_GT(left.LeftChildId(), right.LeftChildId());
+    }
+  }
+}
+
 TEST(RfWeightedTest, ImpurityIsWeighted)
 {
   thrust::device_vector<float> X        = std::vector<float>{0, 1, 2};

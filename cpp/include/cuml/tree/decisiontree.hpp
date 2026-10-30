@@ -10,7 +10,6 @@
 
 #include <cuml/common/export.hpp>
 
-#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -25,7 +24,8 @@ struct DecisionTreeParams {
    */
   int max_depth;
   /**
-   * Maximum leaf nodes per tree. Soft constraint. Unlimited, If `-1`.
+   * Maximum leaf nodes per tree. A positive limit uses greedy best-first growth,
+   * ranked by weighted impurity decrease. If `-1`, use unlimited batched growth.
    */
   int max_leaves;
   /**
@@ -59,6 +59,8 @@ struct DecisionTreeParams {
    * used only for batched-level algo
    */
   int max_batch_size;
+
+  [[nodiscard]] bool isGreedy() const noexcept { return this->max_leaves != -1; }
 };
 
 /**

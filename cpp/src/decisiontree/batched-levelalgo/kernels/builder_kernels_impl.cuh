@@ -171,7 +171,7 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
   // Each slot corresponds to one thread lane in the tiled workload_info layout.
   // workload_info is grouped by node, so scan-by-key resets ranks at node boundaries.
   const auto n_slots = n_blocks_dimx * TPB;
-  auto exec_policy   = rmm::exec_policy(builder_stream);
+  auto exec_policy   = rmm::exec_policy_nosync(builder_stream);
   auto slots_begin   = thrust::make_counting_iterator<std::size_t>(0);
 
   auto node_key = [workload_info] __host__ __device__(std::size_t slot) {
