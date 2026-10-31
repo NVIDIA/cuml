@@ -2240,3 +2240,42 @@ def test_check_cudf_unsupported_object_inputs(kind):
         match="An object dtype X argument must be composed of",
     ):
         check_cudf(X, input_name="X")
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+@pytest.mark.parametrize("dtype", [None, "float32", "float64"])
+@pytest.mark.parametrize("byteorder", ["<", ">"])
+def test_check_array_host_reorder_matches_cupy(
+    in_order, out_order, dtype, byteorder
+):
+    """A NumPy input in the opposite layout lands on the device with the
+    values, dtype and order `cp.array` would give, big-endian included."""
+    X = np.asarray(
+        np.arange(60, dtype="float32").reshape(12, 5),
+        dtype=f"{byteorder}f4",
+        order=in_order,
+    )
+    out = check_array(X, dtype=dtype, order=out_order, mem_type="device")
+    expected = cp.array(X, dtype=dtype, order=out_order)
+    assert isinstance(out, cp.ndarray)
+    assert out.dtype == expected.dtype
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, expected)
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+@pytest.mark.parametrize("shape", [(7, 3), (5, 4, 3)])
+def test_host_to_device_reorders_in_blocks(
+    monkeypatch, in_order, out_order, shape
+):
+    """The device-side reorder gives the same result when split into many
+    blocks, including a short final block."""
+    from cuml.internals import validation
+
+    monkeypatch.setattr(validation, "_H2D_BLOCK_BYTES", 30)
+    X = np.asarray(
+        np.random.default_rng(0).random(shape), dtype="float32", order=in_order
+    )
+    out = validation._host_to_device(X, order=out_order)
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, cp.asarray(X))
