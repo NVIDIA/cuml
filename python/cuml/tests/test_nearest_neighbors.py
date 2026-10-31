@@ -5,6 +5,7 @@
 
 import gc
 import math
+import warnings
 
 import cudf
 import cupy as cp
@@ -184,6 +185,289 @@ def test_neighborhood_predictions(
     assert array_equal(labels, y)
 
 
+def test_ivf_cuvs_default_params():
+    from cuml.neighbors.nearest_neighbors import _normalize_ivf_params
+
+    assert _normalize_ivf_params("ivfflat", None) == {
+        "n_lists": 1024,
+        "n_probes": 20,
+        "kmeans_n_iters": 20,
+        "kmeans_trainset_fraction": 0.5,
+        "conservative_memory_allocation": False,
+    }
+
+    assert _normalize_ivf_params("ivfpq", None) == {
+        "n_lists": 1024,
+        "n_probes": 20,
+        "kmeans_n_iters": 20,
+        "kmeans_trainset_fraction": 0.5,
+        "pq_dim": 0,
+        "pq_bits": 8,
+        "codebook_kind": "subspace",
+        "codes_layout": "interleaved",
+        "force_random_rotation": False,
+        "conservative_memory_allocation": False,
+        "max_train_points_per_pq_code": 256,
+        "lut_dtype": cp.float32,
+        "internal_distance_dtype": cp.float32,
+        "coarse_search_dtype": cp.float32,
+        "max_internal_batch_size": 4096,
+    }
+
+
+@pytest.mark.parametrize("algorithm", ["ivfflat", "ivfpq"])
+def test_ivf_cuvs_defaults_for_small_dataset(algorithm):
+    from cuml.neighbors.nearest_neighbors import _normalize_ivf_params
+
+    params = _normalize_ivf_params(algorithm, None, n_rows=100)
+    assert params["n_lists"] == 10
+    assert params["n_probes"] == 10
+
+    params = _normalize_ivf_params(algorithm, None, n_rows=10)
+    assert params["n_lists"] == 3
+    assert params["n_probes"] == 3
+
+    params = _normalize_ivf_params(algorithm, None, n_rows=500)
+    assert params["n_lists"] == 22
+    assert params["n_probes"] == 20
+
+    params = _normalize_ivf_params(
+        algorithm, {"n_lists": 8, "n_probes": 2}, n_rows=100
+    )
+    assert params["n_lists"] == 8
+    assert params["n_probes"] == 2
+
+
+@pytest.mark.parametrize(
+    "n_rows,n_lists,train_fraction,expected",
+    [
+        (512, 8, 0.5, 256),
+        (256, 8, 1.0, 256),
+        (1000, 8, 0.25, 250),
+        (255, 200, 0.5, 255),
+    ],
+)
+def test_ivfpq_training_rows(n_rows, n_lists, train_fraction, expected):
+    from cuml.neighbors.nearest_neighbors import _ivfpq_training_rows
+
+    assert _ivfpq_training_rows(n_rows, n_lists, train_fraction) == expected
+
+
+@pytest.mark.parametrize(
+    "algorithm,algo_params",
+    [
+        ("ivfflat", {"n_probe": 2}),
+        ("ivfpq", {"pq_bit": 8}),
+    ],
+)
+def test_ivf_unknown_algo_params(algorithm, algo_params):
+    from cuml.neighbors.nearest_neighbors import _normalize_ivf_params
+
+    with pytest.raises(ValueError, match="Unsupported algo_params"):
+        _normalize_ivf_params(algorithm, algo_params)
+
+
+@pytest.mark.parametrize(
+    "algorithm,algo_params",
+    [
+        (
+            "ivfflat",
+            {
+                "n_lists": 4,
+                "n_probes": 2,
+                "kmeans_n_iters": 5,
+                "kmeans_trainset_fraction": 0.5,
+                "conservative_memory_allocation": True,
+            },
+        ),
+        (
+            "ivfpq",
+            {
+                "n_lists": 8,
+                "n_probes": 2,
+                "kmeans_n_iters": 5,
+                "kmeans_trainset_fraction": 0.5,
+                "pq_dim": 32,
+                "pq_bits": 4,
+                "codebook_kind": "subspace",
+                "codes_layout": "interleaved",
+                "force_random_rotation": True,
+                "conservative_memory_allocation": True,
+                "max_train_points_per_pq_code": 64,
+                "lut_dtype": cp.float16,
+                "internal_distance_dtype": cp.float16,
+                "coarse_search_dtype": cp.float16,
+                "max_internal_batch_size": 1024,
+            },
+        ),
+    ],
+)
+def test_ivf_cuvs_param_names(algorithm, algo_params):
+    X, _ = make_blobs(
+        n_samples=4000,
+        n_features=64,
+        random_state=0,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        knn = cuKNN(
+            algorithm=algorithm,
+            algo_params=algo_params,
+        )
+        knn.fit(X)
+    distances, indices = knn.kneighbors(
+        X[:32],
+        n_neighbors=4,
+    )
+    assert distances.shape == (32, 4)
+    assert indices.shape == (32, 4)
+
+
+def test_ivfpq_invalid_encoding_size():
+    X, _ = make_blobs(n_samples=32, n_features=4, random_state=0)
+
+    with pytest.raises(
+        ValueError,
+        match=r"pq_dim \* pq_bits must be a multiple of 8",
+    ):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"pq_dim": 3, "pq_bits": 4},
+        ).fit(X)
+
+
+@pytest.mark.parametrize("pq_bits", [0, 3, 9])
+def test_ivfpq_invalid_pq_bits(pq_bits):
+    X, _ = make_blobs(n_samples=32, n_features=8, random_state=0)
+
+    with pytest.raises(ValueError, match="pq_bits must be between 4 and 8"):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"pq_dim": 8, "pq_bits": pq_bits},
+        ).fit(X)
+
+
+def test_ivfpq_negative_pq_dim():
+    X, _ = make_blobs(n_samples=32, n_features=8, random_state=0)
+
+    with pytest.raises(
+        ValueError,
+        match="pq_dim must be greater than or equal to 0",
+    ):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"pq_dim": -1, "pq_bits": 8},
+        ).fit(X)
+
+
+def test_ivfpq_flat_codes_layout_rejected():
+    X, _ = make_blobs(n_samples=32, n_features=8, random_state=0)
+
+    with pytest.raises(ValueError, match="codes_layout='flat' is not supported"):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={"codes_layout": "flat"},
+        ).fit(X)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=RuntimeError,
+    reason="cuVS IVF-PQ GPU search does not support flat codes layout",
+)
+def test_cuvs_ivfpq_flat_layout_search_unsupported():
+    ivf_pq = pytest.importorskip("cuvs.neighbors.ivf_pq")
+    from cuvs.common.exceptions import CuvsException
+
+    X = cp.random.RandomState(0).rand(512, 32).astype(cp.float32)
+    params = ivf_pq.IndexParams(n_lists=8, pq_dim=8, codes_layout="flat")
+
+    try:
+        index = ivf_pq.build(params, X)
+    except Exception as exc:
+        raise AssertionError("cuVS could not build a flat-layout index") from exc
+
+    try:
+        ivf_pq.search(ivf_pq.SearchParams(n_probes=8), index, X[:4], 4)
+    except CuvsException as exc:
+        expected = (
+            "IVF-PQ search requires INTERLEAVED codes layout. "
+            "FLAT layout is not supported for GPU search."
+        )
+        if expected not in str(exc):
+            raise AssertionError("cuVS rejected search for another reason") from exc
+        raise RuntimeError("cuVS flat-layout GPU search is unsupported") from exc
+    except Exception as exc:
+        raise AssertionError("cuVS search failed for another reason") from exc
+
+
+@pytest.mark.parametrize(
+    "algorithm,algo_params",
+    [
+        (
+            "ivfflat",
+            {"nlist": 4, "nprobe": 2},
+        ),
+        (
+            "ivfpq",
+            {
+                "nlist": 8,
+                "nprobe": 2,
+                "M": 32,
+                "n_bits": 4,
+                "usePrecomputedTables": True,
+            },
+        ),
+    ],
+)
+def test_ivf_legacy_param_names_warn(algorithm, algo_params):
+    X, _ = make_blobs(
+        n_samples=4000,
+        n_features=64,
+        random_state=0,
+    )
+
+    with pytest.warns(
+        FutureWarning,
+        match=r"deprecated in 26\.12.*removed in 27\.02",
+    ):
+        cuKNN(
+            algorithm=algorithm,
+            algo_params=algo_params,
+        ).fit(X)
+
+
+def test_ivf_conflicting_param_names():
+    X, _ = make_blobs(
+        n_samples=1000,
+        n_features=64,
+        random_state=0,
+    )
+
+    with pytest.raises(ValueError, match="Conflicting values"):
+        cuKNN(
+            algorithm="ivfflat",
+            algo_params={
+                "nlist": 4,
+                "n_lists": 8,
+            },
+        ).fit(X)
+
+
+def test_ivf_partial_algo_params():
+    X, _ = make_blobs(
+        n_samples=1000,
+        n_features=64,
+        random_state=0,
+    )
+
+    cuKNN(
+        algorithm="ivfflat",
+        algo_params={"n_probes": 2},
+    ).fit(X)
+
+
 @pytest.mark.parametrize(
     "nlist,nrows,ncols,n_neighbors",
     [
@@ -193,7 +477,10 @@ def test_neighborhood_predictions(
     ],
 )
 def test_ivfflat_pred(nrows, ncols, n_neighbors, nlist):
-    algo_params = {"nlist": nlist, "nprobe": nlist * 0.5}
+    algo_params = {
+        "n_lists": nlist,
+        "n_probes": int(nlist * 0.5),
+    }
 
     X, y = make_blobs(
         n_samples=nrows, centers=5, n_features=ncols, random_state=0
@@ -215,21 +502,17 @@ def test_ivfflat_pred(nrows, ncols, n_neighbors, nlist):
 @pytest.mark.parametrize("nlist", [8])
 @pytest.mark.parametrize("M", [32])
 @pytest.mark.parametrize("n_bits", [4])
-@pytest.mark.parametrize("usePrecomputedTables", [False, True])
 @pytest.mark.parametrize("nrows", [4000])
 @pytest.mark.parametrize("ncols", [64, 512])
 @pytest.mark.parametrize("n_neighbors", [8])
-def test_ivfpq_pred(
-    nrows, ncols, n_neighbors, nlist, M, n_bits, usePrecomputedTables
-):
+def test_ivfpq_pred(nrows, ncols, n_neighbors, nlist, M, n_bits):
     if ncols == 512:
         pytest.skip("https://github.com/NVIDIA/cuml/issues/5603")
     algo_params = {
-        "nlist": nlist,
-        "nprobe": int(nlist * 0.2),
-        "M": M,
-        "n_bits": n_bits,
-        "usePrecomputedTables": usePrecomputedTables,
+        "n_lists": nlist,
+        "n_probes": int(nlist * 0.2),
+        "pq_dim": M,
+        "pq_bits": n_bits,
     }
 
     X, y = make_blobs(
@@ -251,23 +534,33 @@ def test_ivfpq_pred(
 
 
 @pytest.mark.parametrize(
-    "nrows,nlist,n_bits,min_rows",
+    "nrows,n_lists,pq_bits,fraction,train_rows,required_rows",
     [
-        (100, None, None, 512),
-        (511, 8, 8, 512),
-        (31, 8, 4, 32),
-        (127, 8, 6, 128),
-        (255, 256, 8, 256),
-        (299, 300, 4, 300),
-        (255, 200, 8, 256),
-        (400, 200, 8, 512),
+        (100, None, None, 0.5, 50, 256),
+        (511, 8, 8, 0.5, 255, 256),
+        (31, 8, 4, 0.5, 15, 16),
+        (127, 8, 6, 0.5, 63, 64),
+        (255, 256, 8, 0.5, 255, 256),
+        (299, 300, 4, 0.5, 299, 300),
+        (255, 200, 8, 0.5, 255, 256),
+        (400, 200, 8, 0.5, 200, 256),
+        (256, 8, 8, 0.5, 128, 256),
+        (1000, 8, 8, 0.25, 250, 256),
     ],
 )
-def test_ivfpq_insufficient_samples(nrows, nlist, n_bits, min_rows):
+def test_ivfpq_insufficient_samples(
+    nrows, n_lists, pq_bits, fraction, train_rows, required_rows
+):
     algo_params = (
         None
-        if nlist is None
-        else {"nlist": nlist, "nprobe": 1, "M": 8, "n_bits": n_bits}
+        if n_lists is None
+        else {
+            "n_lists": n_lists,
+            "n_probes": 1,
+            "pq_dim": 8,
+            "pq_bits": pq_bits,
+            "kmeans_trainset_fraction": fraction,
+        }
     )
     X, _ = make_blobs(n_samples=nrows, n_features=8, random_state=42)
     model = cuKNN(algorithm="ivfpq", algo_params=algo_params)
@@ -277,22 +570,37 @@ def test_ivfpq_insufficient_samples(nrows, nlist, n_bits, min_rows):
 
     message = str(exc_info.value)
     assert f"X has {nrows} rows" in message
-    assert f"requires at least {min_rows} rows" in message
-    assert f"n_bits={8 if n_bits is None else n_bits}" in message
-    assert f"nlist={8 if nlist is None else nlist}" in message
-    assert "algo_params['n_bits']" in message
-    assert "algo_params['nlist']" in message
+    assert f"only {train_rows} training rows" in message
+    assert f"at least {required_rows} are required" in message
+    assert f"pq_bits={8 if pq_bits is None else pq_bits}" in message
+    assert f"n_lists={10 if n_lists is None else n_lists}" in message
+    assert "algo_params['pq_bits']" in message
+    assert "algo_params['n_lists']" in message
 
 
 @pytest.mark.parametrize(
-    "nrows,nlist,n_bits",
-    [(512, 8, 8), (32, 8, 4), (128, 8, 6), (256, 256, 8), (256, 200, 8)],
+    "nrows,n_lists,pq_bits,fraction",
+    [
+        (512, 8, 8, 0.5),
+        (32, 8, 4, 0.5),
+        (128, 8, 6, 0.5),
+        (256, 256, 8, 0.5),
+        (256, 200, 8, 0.5),
+        (256, 8, 8, 1.0),
+        (1024, 8, 8, 0.25),
+    ],
 )
-def test_ivfpq_minimum_samples(nrows, nlist, n_bits):
+def test_ivfpq_minimum_samples(nrows, n_lists, pq_bits, fraction):
     X, _ = make_blobs(n_samples=nrows, n_features=8, random_state=42)
     model = cuKNN(
         algorithm="ivfpq",
-        algo_params={"nlist": nlist, "nprobe": 1, "M": 8, "n_bits": n_bits},
+        algo_params={
+            "n_lists": n_lists,
+            "n_probes": 1,
+            "pq_dim": 8,
+            "pq_bits": pq_bits,
+            "kmeans_trainset_fraction": fraction,
+        },
     )
     model.fit(X)
     distances, indices = model.kneighbors(X[:1], n_neighbors=1)
