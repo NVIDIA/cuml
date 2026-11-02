@@ -69,6 +69,7 @@ jobs:
       date: ${{ inputs.date }}
       script: ci/build_cpp.sh
       sha: ${{ inputs.sha }}
+      matrix_type: cuda-13-4-nightly
   docs-build-matrix:
     permissions:
       contents: read
@@ -76,6 +77,7 @@ jobs:
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       matrix_name: docs-build
+      matrix_type: cuda-13-4-nightly
   docs-build:
     if: github.ref_type == 'branch'
     needs: [docs-build-matrix, python-build]
@@ -139,6 +141,7 @@ jobs:
       sha: ${{ inputs.sha }}
       # Build a conda package for each CUDA x ARCH x minimum supported Python version
       matrix_filter: group_by({CUDA_VER, ARCH}) | map(min_by(.PY_VER | split(".") | map(tonumber)))
+      matrix_type: cuda-13-4-nightly
   upload-conda:
     needs: [cpp-build, python-build]
     permissions:
@@ -176,6 +179,7 @@ jobs:
       matrix_filter: group_by([.ARCH, (.CUDA_VER|split(".")|map(tonumber)|.[0])]) | map(max_by(.PY_VER|split(".")|map(tonumber)))
       package-name: libcuml
       package-type: cpp
+      matrix_type: cuda-13-4-nightly
   wheel-publish-libcuml:
     needs: wheel-build-libcuml
     permissions:
@@ -216,6 +220,7 @@ jobs:
       package-type: python
       # Build a wheel for each CUDA x ARCH x minimum supported Python version
       matrix_filter: group_by({CUDA_VER, ARCH}) | map(min_by(.PY_VER | split(".") | map(tonumber)))
+      matrix_type: cuda-13-4-nightly
   wheel-publish-cuml:
     needs: wheel-build-cuml
     permissions:
@@ -242,4 +247,4 @@ jobs:
       packages: write
     with:
       push: true
-      cuda: '["12.9", "13.3"]'
+      cuda: '["12.9", "13.4"]'

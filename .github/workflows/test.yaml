@@ -55,6 +55,7 @@ jobs:
       date: ${{ inputs.date }}
       script: ci/test_cpp.sh
       sha: ${{ inputs.sha }}
+      matrix_type: cuda-13-4-nightly,nightly
   conda-python-tests-singlegpu:
     permissions:
       actions: read
@@ -70,6 +71,7 @@ jobs:
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
       script: "ci/test_python_singlegpu.sh"
+      matrix_type: cuda-13-4-nightly,nightly
   conda-python-tests-dask:
     permissions:
       actions: read
@@ -85,6 +87,7 @@ jobs:
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
       script: "ci/test_python_dask.sh"
+      matrix_type: cuda-13-4-nightly,nightly
   conda-python-scikit-learn-accel-tests:
     permissions:
       actions: read
@@ -114,6 +117,7 @@ jobs:
           | sort_by(.PY_VER)
           | map(.DEPENDENCIES = "intermediate")
         )
+      matrix_type: cuda-13-4-nightly,nightly
   conda-python-cuml-accel-upstream-tests:
     permissions:
       actions: read
@@ -131,6 +135,7 @@ jobs:
       script: "ci/test_python_cuml_accel_upstream.sh"
       # Select amd64 and one job per major CUDA version with the latest CUDA and Python versions
       matrix_filter: map(select(.ARCH == "amd64")) | group_by(.CUDA_VER|split(".")|map(tonumber)|.[0]) | map(max_by([.CUDA_VER,.PY_VER]|map(split(".")|map(tonumber))))
+      matrix_type: cuda-13-4-nightly,nightly
   conda-python-sklearn-examples-tests:
     permissions:
       actions: read
@@ -148,6 +153,7 @@ jobs:
       script: "ci/test_python_sklearn_examples.sh"
       # Select amd64 and one job per major CUDA version with the latest CUDA and Python versions
       matrix_filter: map(select(.ARCH == "amd64")) | group_by(.CUDA_VER|split(".")|map(tonumber)|.[0]) | map(max_by([.CUDA_VER,.PY_VER]|map(split(".")|map(tonumber))))
+      matrix_type: cuda-13-4-nightly,nightly
   conda-notebook-tests:
     permissions:
       actions: read
@@ -180,6 +186,7 @@ jobs:
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
       script: ci/test_wheel.sh
+      matrix_type: cuda-13-4-nightly,nightly
   wheel-tests-cuml-nightly-dependencies-versions:
     permissions:
       actions: read
@@ -203,6 +210,7 @@ jobs:
         | max_by([.CUDA_VER, .PY_VER] | map(split(".") | map(tonumber)))
         | .DEPENDENCIES = "nightly"
         | [.]
+      matrix_type: cuda-13-4-nightly,nightly
   wheel-tests-cuml-dask:
     permissions:
       actions: read
@@ -218,6 +226,7 @@ jobs:
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
       script: ci/test_wheel_dask.sh
+      matrix_type: cuda-13-4-nightly,nightly
   wheel-tests-integrations:
     permissions:
       actions: read
@@ -236,3 +245,4 @@ jobs:
       # Test all CUDA major versions with latest dependencies and respective latest Python version
       matrix_filter: 'map(select(.DEPENDENCIES == "latest")) | group_by(.CUDA_VER|split(".")|.[0]) | map(max_by(.PY_VER|split(".")|map(tonumber)))'
       continue-on-error: true
+      matrix_type: cuda-13-4-nightly,nightly

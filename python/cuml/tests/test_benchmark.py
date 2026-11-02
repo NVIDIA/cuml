@@ -2584,6 +2584,47 @@ def test_run_command_forwards_output(monkeypatch, capfd):
     assert captured.err == "progress €\n"
 
 
+@pytest.mark.parametrize("initial_timeout", [False, True])
+@pytest.mark.parametrize("returncode", [0, 7])
+def test_run_command_missing_stderr_snapshot(
+    monkeypatch, capsys, initial_timeout, returncode
+):
+    monkeypatch.setattr(
+        runner.locale, "getpreferredencoding", lambda _: "utf-8"
+    )
+    snapshots = [b"progress \xe2", None, b"progress \xe2\x82\xac\n"]
+    if initial_timeout:
+        snapshots.insert(0, None)
+
+    class Process:
+        stderr = SimpleNamespace(close=lambda: None)
+
+        def __init__(self, command, **kwargs):
+            self.command = command
+            self.returncode = returncode
+            self.snapshots = iter(snapshots)
+
+        def communicate(self, timeout):
+            snapshot = next(self.snapshots)
+            if snapshot == snapshots[-1]:
+                return None, snapshot
+            raise subprocess.TimeoutExpired(
+                self.command, timeout, stderr=snapshot
+            )
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(runner.subprocess, "Popen", Process)
+    if returncode:
+        with pytest.raises(RuntimeError) as error:
+            runner.run_command(["worker"], {})
+        assert str(error.value) == ("worker exited with status 7:\nprogress €")
+    else:
+        runner.run_command(["worker"], {})
+    assert capsys.readouterr().err == "progress €\n"
+
+
 @pytest.mark.skipif(
     os.name != "posix", reason="process group cleanup is POSIX-specific"
 )
