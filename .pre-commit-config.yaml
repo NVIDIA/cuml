@@ -8,6 +8,8 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        # Preserve the signing service's generated signature files verbatim.
+        exclude: '(^|/)skill\.oms\.sig$'
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.3
     hooks:
