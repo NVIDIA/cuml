@@ -10,6 +10,7 @@ import scipy.sparse as sp
 import sklearn.linear_model
 from hypothesis import assume, example, given
 from sklearn.datasets import make_regression
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 import cuml
@@ -30,7 +31,7 @@ def reg_example(**kwargs):
 
 
 @given(
-    solver=st.sampled_from(["eig", "svd", "lsmr"]),
+    solver=st.sampled_from(["eig", "cholesky", "svd", "lsmr"]),
     fit_intercept=st.booleans(),
     weighted=st.booleans(),
     n_targets=st.integers(min_value=1, max_value=3),
@@ -47,6 +48,11 @@ def reg_example(**kwargs):
 @reg_example(solver="svd", n_targets=3)
 @reg_example(solver="svd", fit_intercept=False)
 @reg_example(solver="svd", weighted=True)
+@reg_example(solver="cholesky")
+@reg_example(solver="cholesky", dtype=np.float64)
+@reg_example(solver="cholesky", n_targets=3)
+@reg_example(solver="cholesky", fit_intercept=False)
+@reg_example(solver="cholesky", weighted=True)
 def test_ridge_regression(
     solver,
     fit_intercept,
@@ -94,7 +100,7 @@ def test_ridge_regression(
     np.testing.assert_allclose(cu_pred, sk_pred, atol=1e-2)
 
 
-@pytest.mark.parametrize("solver", ["eig", "svd", "lsmr"])
+@pytest.mark.parametrize("solver", ["eig", "svd", "cholesky", "lsmr"])
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_ridge_coef_and_intercept_shape(solver, dtype):
     n_samples, n_features, n_targets = 33, 7, 3
@@ -134,13 +140,32 @@ def test_ridge_coef_and_intercept_shape(solver, dtype):
     assert isinstance(model.intercept_, float)
 
 
+def test_ridge_cholesky_singular_matrix():
+    X, y = make_regression(n_samples=2000, n_features=100, random_state=42)
+    # Some colinear features
+    X[:, ::20] = X[:, 0:1]
+
+    sk_model = sklearn.linear_model.Ridge().fit(X, y)
+    with pytest.warns(UserWarning, match="Singular matrix encountered"):
+        cu_model = cuml.Ridge(solver="cholesky", alpha=0).fit(X, y)
+
+    sk_pred = sk_model.predict(X)
+    cu_pred = cu_model.predict(X)
+
+    assert r2_score(sk_pred, cu_pred) >= 0.98
+
+
+@pytest.mark.parametrize("solver", ["lsmr", "cholesky"])
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("weighted", [True, False])
+@pytest.mark.parametrize("shape", [(3000, 500), (500, 3000)])
 @pytest.mark.parametrize("n_targets", [0, 1, 3])
 @pytest.mark.parametrize("format", ["coo", "csr", "csc"])
-def test_ridge_sparse(dtype, fit_intercept, weighted, n_targets, format):
-    n_samples, n_features = 3000, 500
+def test_ridge_sparse(
+    solver, dtype, fit_intercept, weighted, shape, n_targets, format
+):
+    n_samples, n_features = shape
     rng = np.random.default_rng(42)
     coef = rng.random((n_features, n_targets) if n_targets else n_features)
     if fit_intercept:
@@ -162,7 +187,7 @@ def test_ridge_sparse(dtype, fit_intercept, weighted, n_targets, format):
     else:
         sample_weight = None
 
-    cu_model = cuml.Ridge(tol=1e-6, fit_intercept=fit_intercept)
+    cu_model = cuml.Ridge(solver=solver, tol=1e-6, fit_intercept=fit_intercept)
     cu_model.fit(X, y, sample_weight=sample_weight)
     cu_pred = cu_model.predict(X)
 
@@ -189,12 +214,16 @@ def test_ridge_sparse(dtype, fit_intercept, weighted, n_targets, format):
     )
 
     # Check predictions are close
-    np.testing.assert_allclose(cu_pred, sk_pred, atol=1e-2)
+    atol = 1e-1 if solver == "cholesky" and fit_intercept else 1e-2
+    np.testing.assert_allclose(cu_pred, sk_pred, atol=atol)
 
     # Check fit metadata
-    assert isinstance(cu_model.n_iter_, np.ndarray)
-    assert cu_model.n_iter_.shape == (n_targets or 1,)
-    assert cu_model.solver_ == "lsmr"
+    assert cu_model.solver_ == solver
+    if solver == "lsmr":
+        assert isinstance(cu_model.n_iter_, np.ndarray)
+        assert cu_model.n_iter_.shape == (n_targets or 1,)
+    else:
+        assert cu_model.n_iter_ is None
 
 
 def test_ridge_and_least_squares_equal_when_alpha_is_0():
@@ -224,6 +253,8 @@ def test_ridge_predict_dtype(train_dtype, test_dtype):
         ("svd", 1, 1),
         ("svd", 1, 3),
         ("svd", 3, 3),
+        ("cholesky", 1, 3),
+        ("cholesky", 3, 3),
         ("lsmr", 3, 3),
     ],
 )
@@ -318,7 +349,7 @@ def test_solver_auto():
     assert model.solver_ == "eig"
 
 
-@pytest.mark.parametrize("solver", ["eig", "svd", "lsmr"])
+@pytest.mark.parametrize("solver", ["eig", "svd", "cholesky", "lsmr"])
 def test_more_features_than_samples(solver):
     X, y = make_regression(n_features=200, n_samples=100, random_state=42)
 
@@ -332,12 +363,14 @@ def test_more_features_than_samples(solver):
 
 
 @given(
-    solver=st.sampled_from(["svd", "eig", "lsmr"]),
+    solver=st.sampled_from(["svd", "eig", "cholesky", "lsmr"]),
     n_targets=st.integers(min_value=1, max_value=2),
     fit_intercept=st.booleans(),
     weighted=st.booleans(),
 )
 @example(solver="eig", n_targets=1, fit_intercept=True, weighted=False)
+@example(solver="cholesky", n_targets=2, fit_intercept=True, weighted=False)
+@example(solver="cholesky", n_targets=2, fit_intercept=True, weighted=True)
 @example(solver="svd", n_targets=1, fit_intercept=True, weighted=False)
 @example(solver="svd", n_targets=2, fit_intercept=True, weighted=False)
 @example(solver="svd", n_targets=2, fit_intercept=False, weighted=True)
