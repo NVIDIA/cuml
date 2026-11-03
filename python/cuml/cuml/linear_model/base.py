@@ -243,8 +243,9 @@ def fit_least_squares(
     """
     y_1d = y.ndim == 1
     if X_is_sparse := cupyx.scipy.sparse.issparse(X):
-        # Centering and lsmr are much faster with CSR inputs
-        X = X.tocsr()
+        # Centering and lsmr are much faster with CSR/CSC inputs
+        if X.format not in ("csr", "csc"):
+            X = X.tocsr()
 
     X, y, X_offset, y_offset, sqrt_weight = center_and_scale(
         X,

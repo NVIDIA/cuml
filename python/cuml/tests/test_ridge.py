@@ -138,7 +138,7 @@ def test_ridge_coef_and_intercept_shape(solver, dtype):
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("weighted", [True, False])
 @pytest.mark.parametrize("n_targets", [0, 1, 3])
-@pytest.mark.parametrize("format", ["coo", "csr"])
+@pytest.mark.parametrize("format", ["coo", "csr", "csc"])
 def test_ridge_sparse(dtype, fit_intercept, weighted, n_targets, format):
     n_samples, n_features = 3000, 500
     rng = np.random.default_rng(42)

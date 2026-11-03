@@ -330,7 +330,7 @@ def test_linear_regression_input_mutation(
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("weighted", [True, False])
 @pytest.mark.parametrize("n_targets", [0, 1, 3])
-@pytest.mark.parametrize("format", ["coo", "csr"])
+@pytest.mark.parametrize("format", ["coo", "csr", "csc"])
 def test_linear_regression_sparse(
     dtype, fit_intercept, weighted, n_targets, format
 ):
