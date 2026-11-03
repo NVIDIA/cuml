@@ -2758,6 +2758,7 @@ def test_run_interrupt_stops_provider_and_descendant(tmp_path, monkeypatch):
     import psutil
 
     pid_file = tmp_path / "pids.json"
+    temporary_pid_file = tmp_path / "pids.json.tmp"
     processes = []
     original = subprocess.Popen
 
@@ -2776,7 +2777,9 @@ def test_run_interrupt_stops_provider_and_descendant(tmp_path, monkeypatch):
     script = (
         "import json, os, subprocess, sys, time; "
         "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
-        f"open({str(pid_file)!r}, 'w').write(json.dumps([os.getpid(), child.pid])); "
+        f"f = open({str(temporary_pid_file)!r}, 'w'); "
+        "f.write(json.dumps([os.getpid(), child.pid])); f.close(); "
+        f"os.replace({str(temporary_pid_file)!r}, {str(pid_file)!r}); "
         "time.sleep(120)"
     )
     with pytest.raises(KeyboardInterrupt):
