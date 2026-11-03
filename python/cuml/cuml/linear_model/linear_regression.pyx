@@ -86,14 +86,14 @@ class LinearRegression(InteropMixin,
 
     Parameters
     ----------
-    algorithm : {'auto', 'cholesky', 'eig', 'svd', 'lsmr', 'nnls', 'qr', 'svd-qr', 'svd-jacobi'}, default='auto'
+    algorithm : {'auto', 'lu', 'eig', 'svd', 'lsmr', 'nnls', 'qr', 'svd-qr', 'svd-jacobi'}, default='auto'
         The algorithm to use when fitting:
 
         - 'auto': will select 'nnls' if ``positive=True``. Otherwise it
           selects 'eig' if supported, falling back to 'lsmr' if X is sparse,
           and 'svd' otherwise.
 
-        - 'cholesky': uses a cholesky decomposition of the covariance matrix,
+        - 'lu': uses an LU decomposition of the covariance matrix,
           falling back to an eigendecomposition if that's singular. This is
           typically the fastest dense solver, and is competitive for sparse
           matrices. It supports all options.
@@ -368,25 +368,16 @@ class LinearRegression(InteropMixin,
         sample_weight_is_copy = cuda_ptr(sample_weight) != cuda_ptr(sample_weight_orig)
 
         if self.algorithm not in (
-<<<<<<< HEAD
-            "auto", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi", "nnls"
-=======
-            "auto", "cholesky", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"
->>>>>>> c8f156b19 (Add `cholesky` solver to `LinearRegression`)
+            "auto", "lu", "eig", "svd", "lsmr", "nnls", "qr", "svd-qr", "svd-jacobi"
         ):
             raise ValueError(f"algorithm={self.algorithm!r} is not supported")
 
         # Determine the solver to use
         fallback_reason = None
-<<<<<<< HEAD
         if self.positive:
             solver = "nnls"
-        elif self.algorithm == "lsmr":
-            solver = "lsmr"
-=======
-        if self.algorithm in ("cholesky", "lsmr"):
+        elif self.algorithm in ("lu", "lsmr"):
             solver = self.algorithm
->>>>>>> c8f156b19 (Add `cholesky` solver to `LinearRegression`)
         elif sp.issparse(X):
             solver = "lsmr"
             fallback_reason = "sparse X"
