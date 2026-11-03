@@ -2773,10 +2773,13 @@ def test_run_interrupt_stops_provider_and_descendant(tmp_path, monkeypatch):
             raise KeyboardInterrupt
 
     monkeypatch.setattr(runner.subprocess, "Popen", InterruptedProcess)
+    tmp_file = tmp_path / "pids.json.tmp"
+    # Write then rename so pid_file never exists with partial contents.
     script = (
-        "import json, os, subprocess, sys, time; "
+        "import json, os, pathlib, subprocess, sys, time; "
         "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
-        f"open({str(pid_file)!r}, 'w').write(json.dumps([os.getpid(), child.pid])); "
+        f"pathlib.Path({str(tmp_file)!r}).write_text(json.dumps([os.getpid(), child.pid])); "
+        f"os.replace({str(tmp_file)!r}, {str(pid_file)!r}); "
         "time.sleep(120)"
     )
     with pytest.raises(KeyboardInterrupt):
