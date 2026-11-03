@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,7 +10,6 @@
 #include <cuml/ensemble/treelite_defs.hpp>
 #include <cuml/tree/decisiontree.hpp>
 
-#include <map>
 #include <memory>
 
 namespace raft {
@@ -18,36 +17,6 @@ class handle_t;  // forward decl
 }
 
 namespace CUML_EXPORT ML {
-
-enum RF_type {
-  CLASSIFICATION,
-  REGRESSION,
-};
-
-enum task_category { REGRESSION_MODEL = 1, CLASSIFICATION_MODEL = 2 };
-
-struct RF_metrics {
-  RF_type rf_type;
-
-  // Classification metrics
-  float accuracy;
-
-  // Regression metrics
-  double mean_abs_error;
-  double mean_squared_error;
-  double median_abs_error;
-};
-
-RF_metrics set_all_rf_metrics(RF_type rf_type,
-                              float accuracy,
-                              double mean_abs_error,
-                              double mean_squared_error,
-                              double median_abs_error);
-RF_metrics set_rf_metrics_classification(float accuracy);
-RF_metrics set_rf_metrics_regression(double mean_abs_error,
-                                     double mean_squared_error,
-                                     double median_abs_error);
-void print(const RF_metrics rf_metrics);
 
 struct RF_params {
   /**
@@ -85,20 +54,6 @@ struct RF_params {
   DT::DecisionTreeParams tree_params;
 };
 
-/* Update labels so they are unique from 0 to n_unique_vals.
-   Create an old_label to new_label map per random forest.
-*/
-void preprocess_labels(int n_rows,
-                       std::vector<int>& labels,
-                       std::map<int, int>& labels_map,
-                       rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-
-/* Revert preprocessing effect, if needed. */
-void postprocess_labels(int n_rows,
-                        std::vector<int>& labels,
-                        std::map<int, int>& labels_map,
-                        rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-
 template <class T, class L>
 struct RandomForestMetaData {
   std::vector<std::shared_ptr<DT::TreeMetaDataNode<T, L>>> trees;
@@ -109,12 +64,6 @@ struct RandomForestMetaData {
    */
   int n_features = 0;
 };
-
-template <class T, class L>
-void delete_rf_metadata(RandomForestMetaData<T, L>* forest);
-
-template <class T, class L>
-std::string get_rf_summary_text(const RandomForestMetaData<T, L>* forest);
 
 template <class T, class L>
 std::string get_rf_detailed_text(const RandomForestMetaData<T, L>* forest);
@@ -200,34 +149,6 @@ void fit_treelite(const raft::handle_t& user_handle,
                   const double* sample_weight = nullptr,
                   bool input_row_major        = false);
 
-void predict(const raft::handle_t& user_handle,
-             const RandomForestClassifierF* forest,
-             const float* input,
-             int n_rows,
-             int n_cols,
-             int* predictions,
-             rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-void predict(const raft::handle_t& user_handle,
-             const RandomForestClassifierD* forest,
-             const double* input,
-             int n_rows,
-             int n_cols,
-             int* predictions,
-             rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-
-RF_metrics score(const raft::handle_t& user_handle,
-                 const RandomForestClassifierF* forest,
-                 const int* ref_labels,
-                 int n_rows,
-                 const int* predictions,
-                 rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-RF_metrics score(const raft::handle_t& user_handle,
-                 const RandomForestClassifierD* forest,
-                 const int* ref_labels,
-                 int n_rows,
-                 const int* predictions,
-                 rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-
 RF_params set_rf_params(int max_depth,
                         int max_leaves,
                         float max_features,
@@ -301,32 +222,4 @@ void fit_treelite(const raft::handle_t& user_handle,
                   rapids_logger::level_enum verbosity,
                   const double* sample_weight = nullptr,
                   bool input_row_major        = false);
-
-void predict(const raft::handle_t& user_handle,
-             const RandomForestRegressorF* forest,
-             const float* input,
-             int n_rows,
-             int n_cols,
-             float* predictions,
-             rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-void predict(const raft::handle_t& user_handle,
-             const RandomForestRegressorD* forest,
-             const double* input,
-             int n_rows,
-             int n_cols,
-             double* predictions,
-             rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-
-RF_metrics score(const raft::handle_t& user_handle,
-                 const RandomForestRegressorF* forest,
-                 const float* ref_labels,
-                 int n_rows,
-                 const float* predictions,
-                 rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
-RF_metrics score(const raft::handle_t& user_handle,
-                 const RandomForestRegressorD* forest,
-                 const double* ref_labels,
-                 int n_rows,
-                 const double* predictions,
-                 rapids_logger::level_enum verbosity = rapids_logger::level_enum::info);
 };  // namespace CUML_EXPORT ML
