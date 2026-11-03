@@ -55,6 +55,11 @@ tolerance.
 
 ## When it is a bug
 
-Exceptions, crashes, or clearly worse held-out quality than scikit-learn on the same data are
-bugs: report them at https://github.com/NVIDIA/cuml/issues with a minimal reproducer and
+Exceptions, crashes, or clearly worse held-out quality than scikit-learn on the same data
+can indicate a bug. Record the installed cuML version, then check newer release notes and
+https://github.com/NVIDIA/cuml/issues for a known fix or existing report. If a newer release
+includes a relevant fix, try it if practical. Add a reproducer to a matching issue rather
+than opening a duplicate.
+
+For a new issue, include a minimal reproducer, the installed cuML version, and
 `python -m cuml.health_checks` output.

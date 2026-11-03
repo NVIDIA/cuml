@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "dataset.h"  // for Dataset
 #include "kernels/builder_kernels.cuh"
 
 #include <common/Timer.h>
