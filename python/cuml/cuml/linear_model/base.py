@@ -195,12 +195,21 @@ _ridge_transform_zero_alpha = cp.ElementwiseKernel(
 )
 
 
-def _fit_cholesky(
-    X, y, sample_weight, X_offset, y_offset, sqrt_weight, alpha, fit_intercept
+def _fit_cholesky_or_lu(
+    X,
+    y,
+    sample_weight,
+    X_offset,
+    y_offset,
+    sqrt_weight,
+    alpha,
+    fit_intercept,
+    solver,
 ):
-    """Fits a least-squares problem using a cholesky decomposition.
+    """Fits a least-squares problem using a cholesky or LU decomposition.
 
     See `fit_least_squares` for parameters."""
+    assert solver in ("cholesky", "lu")
     n_samples, n_features = X.shape
     n_targets = y.shape[1]
 
@@ -244,10 +253,13 @@ def _fit_cholesky(
         """Returns the `w` solution of `A @ w = B`"""
         try:
             with cupyx.errstate(linalg="raise"):
-                return cupyx.lapack.posv(A, B)
+                if solver == "lu":
+                    return cp.linalg.solve(A, B)
+                else:
+                    return cupyx.lapack.posv(A, B)
         except cp.linalg.LinAlgError:
             warnings.warn(
-                "Singular matrix encountered in 'cholesky' solver, falling back "
+                f"Singular matrix encountered in {solver!r} solver, falling back "
                 "to 'eig' solver."
             )
 
@@ -307,7 +319,7 @@ def fit_least_squares(
     alpha : float or cp.ndarray
         Ridge regularization strength. Must be a non-negative float. Defaults
         to 0 for no regularization (a LinearRegression).
-    solver : {'svd', 'cholesky', 'lsmr'}
+    solver : {'svd', 'cholesky', 'lu', 'lsmr'}
         The solver to use.
     tol : float
         Tolerance, used by the LSMR solver.
@@ -357,8 +369,8 @@ def fit_least_squares(
             temp = _ridge_transform(u.T.dot(y), s[:, None], alpha)
         coef = vh.T.dot(temp).T
         n_iter = None
-    elif solver == "cholesky":
-        coef = _fit_cholesky(
+    elif solver in ("cholesky", "lu"):
+        coef = _fit_cholesky_or_lu(
             X,
             y,
             sample_weight,
@@ -367,6 +379,7 @@ def fit_least_squares(
             sqrt_weight,
             alpha,
             fit_intercept,
+            solver,
         )
         n_iter = None
     elif solver == "lsmr":
