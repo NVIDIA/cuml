@@ -14,3 +14,4 @@ cuml.neighbors
    KNeighborsClassifier
    KNeighborsRegressor
    KernelDensity
+   LocalOutlierFactor

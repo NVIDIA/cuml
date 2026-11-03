@@ -6,7 +6,7 @@ files:
   all:
     output: conda
     matrix:
-      cuda: ["12.9", "13.3"]
+      cuda: ["12.9", "13.4"]
       arch: [x86_64, aarch64]
     includes:
       - common_build
@@ -42,7 +42,7 @@ files:
   cpp_all:
     output: conda
     matrix:
-      cuda: ["12.9", "13.3"]
+      cuda: ["12.9", "13.4"]
       arch: [x86_64]
     includes:
       - common_build
@@ -60,7 +60,7 @@ files:
   clang_tidy:
     output: conda
     matrix:
-      cuda: ["12.9", "13.3"]
+      cuda: ["12.9", "13.4"]
       arch: [x86_64]
     includes:
       - clang_tidy
@@ -343,7 +343,7 @@ dependencies:
         packages:
           # skipping Cython 3.2.7 because of https://github.com/cython/cython/issues/7781
           - &cython cython>=3.2.2,!=3.2.7
-          - treelite==4.7.2
+          - treelite==4.8.1
   py_run_cuml:
     common:
       - output_types: [conda, requirements, constraints, pyproject]
@@ -354,7 +354,7 @@ dependencies:
           - packaging
           - rich
           - &scikit_learn scikit-learn>=1.6
-          - treelite==4.*,>=4.7.2
+          - treelite==4.*,>=4.8.1
   # 'cuda_version' intentionally does not contain fallback entries... we want
   # a loud error if an unsupported 'cuda' value is passed
   cuda_version:
@@ -393,6 +393,10 @@ dependencies:
               cuda: "13.3"
             packages:
               - cuda-version=13.3
+          - matrix:
+              cuda: "13.4"
+            packages:
+              - cuda-version=13.4
       - output_types: [requirements, constraints]
         matrices:
           # if use_cuda_wheels=false is provided, do not add dependencies on any CUDA wheels
@@ -448,6 +452,11 @@ dependencies:
               use_cuda_wheels: "true"
             packages:
               - cuda-toolkit==13.3.*
+          - matrix:
+              cuda: "13.4"
+              use_cuda_wheels: "true"
+            packages:
+              - cuda-toolkit==13.4.*
   # NOTE: 'tileiras' is needed too, but in CI that's provided by a system-installed CTK.
   cutile_python:
     specific:
@@ -506,7 +515,7 @@ dependencies:
               use_cuda_wheels: "true"
             packages:
               - &ctk_cu13 cuda-toolkit[cublas,cufft,curand,cusolver,cusparse]==13.*
-              - &nvjitlink_cu13 nvidia-nvjitlink>=13.3,<14
+              - &nvjitlink_cu13 nvidia-nvjitlink>=13.4,<14
           # if no matching matrix selectors passed, list the CUDA 13 requirement
           # (just as a source of documentation, as this populates pyproject.toml in source control)
           - matrix:

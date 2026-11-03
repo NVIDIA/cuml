@@ -35,6 +35,7 @@
 #include <thrust/shuffle.h>
 #include <thrust/transform.h>
 
+#include <decisiontree/batched-levelalgo/bins.cuh>  // for ClassificationBin, RegressionBin, ...
 #include <decisiontree/batched-levelalgo/kernels/builder_kernels.cuh>
 #include <decisiontree/batched-levelalgo/objectives.cuh>
 #include <decisiontree/batched-levelalgo/quantiles.cuh>
@@ -316,52 +317,18 @@ std::shared_ptr<thrust::device_vector<LabelT>> nvForestPredict(
   return pred;
 }
 
-template <typename DataT, typename LabelT>
-auto nvForestPredictProba(const raft::handle_t& handle,
-                          RfTestParams params,
-                          DataT* X_transpose,
-                          RandomForestMetaData<DataT, LabelT>* forest)
-{
-  static_assert(std::is_integral_v<LabelT>, "Must be classification");
+struct RfMetrics {
+  float accuracy;
+  double mean_abs_error;
+  double mean_squared_error;
+};
 
-  std::size_t num_outputs = params.n_labels;
-  auto pred = std::make_shared<thrust::device_vector<float>>(params.n_rows * num_outputs);
-  TreeliteModelHandle model;
-  build_treelite_forest(&model, forest, params.n_cols);
-
-  auto device = handle.get_device();
-  auto stream = handle.get_next_usable_stream().get();
-
-  auto nvforest_model = nvforest::import_from_treelite_handle(model,
-                                                              nvforest::tree_layout::breadth_first,
-                                                              128,
-                                                              std::is_same_v<DataT, double>,
-                                                              nvforest::device_type::gpu,
-                                                              device,
-                                                              stream);
-  handle.sync_stream();
-  handle.sync_stream_pool();
-  delete static_cast<treelite::Model*>(model);
-
-  nvforest_model.predict(stream,
-                         pred->data().get(),
-                         X_transpose,
-                         params.n_rows,
-                         nvforest::device_type::gpu,
-                         nvforest::device_type::gpu,
-                         nvforest::infer_kind::default_kind,
-                         1);
-  handle.sync_stream();
-  handle.sync_stream_pool();
-
-  return pred;
-}
 template <typename LabelT>
-RF_metrics Score(const raft::handle_t& handle,
-                 RfTestParams params,
-                 const LabelT* y,
-                 const LabelT* pred,
-                 const double* sample_weight)
+RfMetrics Score(const raft::handle_t& handle,
+                RfTestParams params,
+                const LabelT* y,
+                const LabelT* pred,
+                const double* sample_weight)
 {
   thrust::host_vector<LabelT> h_y(params.n_rows);
   thrust::host_vector<LabelT> h_pred(params.n_rows);
@@ -382,7 +349,7 @@ RF_metrics Score(const raft::handle_t& handle,
       weight_sum += weight;
       if (h_y[i] == h_pred[i]) { correct += weight; }
     }
-    return set_rf_metrics_classification(float(correct / weight_sum));
+    return {float(correct / weight_sum), -1.0, -1.0};
   } else {
     double mean_abs_error     = 0.0;
     double mean_squared_error = 0.0;
@@ -395,7 +362,7 @@ RF_metrics Score(const raft::handle_t& handle,
     }
     mean_abs_error /= weight_sum;
     mean_squared_error /= weight_sum;
-    return set_rf_metrics_regression(mean_abs_error, mean_squared_error, -1.0);
+    return {-1.0f, mean_abs_error, mean_squared_error};
   }
 }
 
@@ -451,12 +418,11 @@ auto TrainScore(const raft::handle_t& handle,
         params.input_row_major);
   }
 
-  auto pred = std::make_shared<thrust::device_vector<LabelT>>(params.n_rows);
-  predict(handle, forest_ptr, X_transpose, params.n_rows, params.n_cols, pred->data().get());
+  auto pred = nvForestPredict(handle, params, X_transpose, forest_ptr);
 
   // Predict and compare against known labels
-  RF_metrics metrics = Score(handle, params, y, pred->data().get(), sample_weight);
-  return std::make_tuple(forest, pred, metrics);
+  RfMetrics metrics = Score(handle, params, y, pred->data().get(), sample_weight);
+  return std::make_tuple(forest, metrics);
 }
 
 template <typename DataT, typename LabelT>
@@ -519,12 +485,12 @@ class RfSpecialisedTest {
       sample_weight = h_sample_weight;
     }
     forest.reset(new typename ML::RandomForestMetaData<DataT, LabelT>);
-    std::tie(forest, predictions, training_metrics) = TrainScore(handle,
-                                                                 params,
-                                                                 TrainingInputPtr(),
-                                                                 X_transpose.data().get(),
-                                                                 y.data().get(),
-                                                                 SampleWeightPtr());
+    std::tie(forest, training_metrics) = TrainScore(handle,
+                                                    params,
+                                                    TrainingInputPtr(),
+                                                    X_transpose.data().get(),
+                                                    y.data().get(),
+                                                    SampleWeightPtr());
 
     Test();
   }
@@ -540,13 +506,13 @@ class RfSpecialisedTest {
     raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
     RfTestParams alt_params = params;
     alt_params.max_depth--;
-    auto [alt_forest, alt_predictions, alt_metrics] = TrainScore(handle,
-                                                                 alt_params,
-                                                                 TrainingInputPtr(),
-                                                                 X_transpose.data().get(),
-                                                                 y.data().get(),
-                                                                 SampleWeightPtr());
-    double eps                                      = 1e-8;
+    auto [alt_forest, alt_metrics] = TrainScore(handle,
+                                                alt_params,
+                                                TrainingInputPtr(),
+                                                X_transpose.data().get(),
+                                                y.data().get(),
+                                                SampleWeightPtr());
+    double eps                     = 1e-8;
     if (params.split_criterion == MSE) {
       EXPECT_LE(training_metrics.mean_squared_error, alt_metrics.mean_squared_error + eps);
     } else if (params.split_criterion == MAE) {
@@ -606,12 +572,12 @@ class RfSpecialisedTest {
     // Repeat training
     auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(params.n_streams);
     raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
-    auto [alt_forest, alt_predictions, alt_metrics] = TrainScore(handle,
-                                                                 params,
-                                                                 TrainingInputPtr(),
-                                                                 X_transpose.data().get(),
-                                                                 y.data().get(),
-                                                                 SampleWeightPtr());
+    auto [alt_forest, alt_metrics] = TrainScore(handle,
+                                                params,
+                                                TrainingInputPtr(),
+                                                X_transpose.data().get(),
+                                                y.data().get(),
+                                                SampleWeightPtr());
 
     for (int i = 0u; i < forest->rf_params.n_trees; i++) {
       EXPECT_EQ(forest->trees[i]->sparsetree, alt_forest->trees[i]->sparsetree);
@@ -679,63 +645,6 @@ class RfSpecialisedTest {
     ExpectNodeCountsMatchTrainingData(tree, right_id, right_rows, h_X);
   }
 
-  // Difference between the largest element and second largest
-  DataT MinDifference(DataT* begin, std::size_t len)
-  {
-    std::size_t max_element_index = 0;
-    DataT max_element             = 0.0;
-    for (std::size_t i = 0; i < len; i++) {
-      if (begin[i] > max_element) {
-        max_element_index = i;
-        max_element       = begin[i];
-      }
-    }
-    DataT second_max_element = 0.0;
-    for (std::size_t i = 0; i < len; i++) {
-      if (begin[i] > second_max_element && i != max_element_index) {
-        second_max_element = begin[i];
-      }
-    }
-
-    return std::abs(max_element - second_max_element);
-  }
-
-  // Compare nvForest against native rf predictions
-  // Only for single precision models
-  void TestNvForestPredict()
-  {
-    if constexpr (std::is_same_v<DataT, double>) {
-      return;
-    } else {
-      auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(params.n_streams);
-      raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
-      auto nvforest_pred = nvForestPredict(handle, params, X_transpose.data().get(), forest.get());
-
-      thrust::host_vector<float> h_nvforest_pred(*nvforest_pred);
-      thrust::host_vector<float> h_pred(*predictions);
-
-      thrust::host_vector<float> h_nvforest_pred_prob;
-      if constexpr (std::is_integral_v<LabelT>) {
-        h_nvforest_pred_prob =
-          *nvForestPredictProba(handle, params, X_transpose.data().get(), forest.get());
-      }
-
-      float tol = 1e-2;
-      for (std::size_t i = 0; i < h_nvforest_pred.size(); i++) {
-        // If the output probabilities are very similar for different classes
-        // nvForest may output a different class due to numerical differences
-        // Skip these cases
-        if constexpr (std::is_integral_v<LabelT>) {
-          int num_outputs = forest->trees[0]->num_outputs;
-          auto min_diff   = MinDifference(&h_nvforest_pred_prob[i * num_outputs], num_outputs);
-          if (min_diff < tol) continue;
-        }
-
-        EXPECT_LE(abs(h_nvforest_pred[i] - h_pred[i]), tol);
-      }
-    }
-  }
-
   void TestFeatureImportances()
   {
     // Test feature importances for both regression and classification
@@ -786,18 +695,16 @@ class RfSpecialisedTest {
     TestMinImpurity();
     TestTreeSize();
     TestInstanceCounts();
-    TestNvForestPredict();
     TestFeatureImportances();
   }
 
-  RF_metrics training_metrics;
+  RfMetrics training_metrics;
   thrust::device_vector<DataT> X;
   thrust::device_vector<DataT> X_transpose;
   thrust::device_vector<LabelT> y;
   thrust::device_vector<double> sample_weight;
   RfTestParams params;
   std::shared_ptr<RandomForestMetaData<DataT, LabelT>> forest;
-  std::shared_ptr<thrust::device_vector<LabelT>> predictions;
 };
 
 // Dispatch tests based on any template parameters
