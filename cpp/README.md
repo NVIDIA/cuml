@@ -38,14 +38,14 @@ Current cmake offers the following configuration options:
 | SINGLEGPU | [ON, OFF] | OFF | Disable cuML MNMG C++ sources and tests, and build cuVS without multi-GPU algorithms. Forces `BUILD_CUML_MG_TESTS` to `OFF`. |
 | DISABLE_OPENMP | [ON, OFF]  | OFF  | Set to `ON` to disable OpenMP  |
 | CMAKE_CUDA_ARCHITECTURES |  List of GPU architectures, semicolon-separated | Empty  | List the GPU architectures to compile the GPU targets for. Set to "NATIVE" to auto detect GPU architecture of the system, set to "ALL" to compile for all supported archs. |
-| USE_CCACHE | [ON, OFF]  | ON  | Cache build artifacts with ccache. |
+| USE_CCACHE | [ON, OFF]  | OFF  | Cache build artifacts with ccache. |
 
 - Debug configuration options:
 
 | Flag | Possible Values | Default Value | Behavior |
 | --- | --- | --- | --- |
-| KERNEL_INFO | [ON, OFF]  | OFF  | Enable/disable kernel resource usage info in nvcc. |
-| LINE_INFO | [ON, OFF]  | OFF  | Enable/disable lineinfo in nvcc.  |
+| CUDA_ENABLE_KERNEL_INFO | [ON, OFF]  | OFF  | Enable/disable kernel resource usage info in nvcc. |
+| CUDA_ENABLE_LINE_INFO | [ON, OFF]  | OFF  | Enable/disable lineinfo in nvcc.  |
 | NVTX | [ON, OFF]  | OFF  | Enable/disable nvtx markers in libcuml.  |
 
 After running CMake in a `build` directory, if the `BUILD_*` options were not turned `OFF`, the following targets can be built:
