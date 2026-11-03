@@ -262,7 +262,7 @@ cuML's cmake has the following configurable flags available:
 
 | Flag | Possible Values | Default Value | Behavior |
 | --- | --- | --- | --- |
-| BUILD_CUML_CPP_LIBRARY | [ON, OFF]  | ON  | Enable/disable building the `libcuml` shared library. Setting this variable to `OFF` sets the variables BUILD_CUML_TESTS, BUILD_CUML_MG_TESTS and BUILD_CUML_EXAMPLES to `OFF` |
+| BUILD_CUML_CPP_LIBRARY | [ON, OFF]  | ON  | Enable/disable building the `libcuml` shared library. Setting this variable to `OFF` also forces `BUILD_CUML_TESTS`, `BUILD_CUML_MG_TESTS`, `BUILD_CUML_EXAMPLES`, `BUILD_PRIMS_TESTS`, and `BUILD_CUML_BENCH` to `OFF` |
 | BUILD_CUML_TESTS | [ON, OFF]  | ON  |  Enable/disable building cuML single-GPU C++ test targets.  |
 | BUILD_CUML_MG_TESTS | [ON, OFF]  | OFF | Enable/disable building cuML multi-GPU C++ test targets. Requires MPI and RAFT distributed dependencies. |
 | SINGLEGPU | [ON, OFF] | OFF | Disable cuML MNMG C++ sources and tests, and build cuVS without multi-GPU algorithms. Forces `BUILD_CUML_MG_TESTS` to `OFF`. |
