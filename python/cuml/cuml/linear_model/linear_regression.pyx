@@ -86,12 +86,17 @@ class LinearRegression(InteropMixin,
 
     Parameters
     ----------
-    algorithm : {'auto', 'eig', 'svd', 'lsmr', 'qr', 'svd-qr', 'svd-jacobi', 'nnls'}, default='auto'
+    algorithm : {'auto', 'cholesky', 'eig', 'svd', 'lsmr', 'nnls', 'qr', 'svd-qr', 'svd-jacobi'}, default='auto'
         The algorithm to use when fitting:
 
         - 'auto': will select 'nnls' if ``positive=True``. Otherwise it
           selects 'eig' if supported, falling back to 'lsmr' if X is sparse,
           and 'svd' otherwise.
+
+        - 'cholesky': uses a cholesky decomposition of the covariance matrix,
+          falling back to an eigendecomposition if that's singular. This is
+          typically the fastest dense solver, and is competitive for sparse
+          matrices. It supports all options.
 
         - 'eig': uses an eigendecomposition of the covariance matrix. It is
           faster than SVD, but potentially unstable. It doesn't support
@@ -101,17 +106,18 @@ class LinearRegression(InteropMixin,
           stable. It doesn't support sparse ``X``.
 
         - 'lsmr': uses ``cupyx.scipy.sparse.linalg.lsmr``, an iterative
-          algorithm. It supports all input types and is typically very fast.
+          algorithm. It is typically the fastest sparse solver, and competitive
+          for dense matrices. It supports all options.
+
+        - 'nnls': solves a non-negative least squares problem with an active
+          set method. It requires ``positive=True``, and doesn't support
+          sparse ``X``.
 
         - 'qr': uses QR decomposition and solves ``Rx = Q^T y``. It's faster
           than SVD, but doesn't support multi-target ``y`` or sparse ``X``.
 
         - 'svd-qr': computes SVD decomposition using QR algorithm. It's the
           slowest option. It doesn't support multi-target ``y`` or sparse ``X``.
-
-        - 'nnls': solves a non-negative least squares problem with an active
-          set method. It requires ``positive=True``, supports multi-target
-          ``y``, and doesn't support sparse ``X``.
 
     fit_intercept : boolean (default = True)
         If True, LinearRegression tries to correct for the global mean of y.
@@ -362,16 +368,25 @@ class LinearRegression(InteropMixin,
         sample_weight_is_copy = cuda_ptr(sample_weight) != cuda_ptr(sample_weight_orig)
 
         if self.algorithm not in (
+<<<<<<< HEAD
             "auto", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi", "nnls"
+=======
+            "auto", "cholesky", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"
+>>>>>>> c8f156b19 (Add `cholesky` solver to `LinearRegression`)
         ):
             raise ValueError(f"algorithm={self.algorithm!r} is not supported")
 
         # Determine the solver to use
         fallback_reason = None
+<<<<<<< HEAD
         if self.positive:
             solver = "nnls"
         elif self.algorithm == "lsmr":
             solver = "lsmr"
+=======
+        if self.algorithm in ("cholesky", "lsmr"):
+            solver = self.algorithm
+>>>>>>> c8f156b19 (Add `cholesky` solver to `LinearRegression`)
         elif sp.issparse(X):
             solver = "lsmr"
             fallback_reason = "sparse X"
