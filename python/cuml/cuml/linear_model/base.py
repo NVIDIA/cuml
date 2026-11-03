@@ -1,11 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import warnings
+
 import cupy as cp
-import cupyx.scipy.sparse
+import cupyx.scipy.sparse as cp_sp
 import cupyx.scipy.sparse.linalg
 import numpy as np
 
 from cuml.common.doc_utils import generate_docstring
+from cuml.common.sparse import sparse_gram
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import check_inputs, check_is_fitted
 
@@ -111,7 +114,7 @@ def center_and_scale(
     sample_weight_sqrt : cupy.ndarray or None, shape (n_samples,)
         The sqrt of the ``sample_weight``, or None if unweighted.
     """
-    X_is_sparse = cupyx.scipy.sparse.issparse(X)
+    X_is_sparse = cp_sp.issparse(X)
 
     # Ensure 2D
     if X.ndim == 1:
@@ -192,6 +195,90 @@ _ridge_transform_zero_alpha = cp.ElementwiseKernel(
 )
 
 
+def _fit_cholesky(
+    X, y, sample_weight, X_offset, y_offset, sqrt_weight, alpha, fit_intercept
+):
+    """Fits a least-squares problem using a cholesky decomposition.
+
+    See `fit_least_squares` for parameters."""
+    n_samples, n_features = X.shape
+    n_targets = y.shape[1]
+
+    if dual := n_samples < n_features:
+        # A = X.dot(X.T), B = y
+        N = n_samples
+        if cp_sp.issparse(X):
+            # Compute A without densifying X
+            A = sparse_gram(X, transpose=True)
+            if fit_intercept:
+                temp1 = X.dot(X_offset[:, None])
+                temp2 = X_offset.dot(X_offset)
+                if sqrt_weight is not None:
+                    temp1 = temp1 * sqrt_weight
+                    temp2 = temp2 * cp.outer(sqrt_weight, sqrt_weight)
+                A -= temp1
+                A -= temp1.T
+                A += temp2
+                del temp1, temp2
+        else:
+            A = X.dot(X.T)
+        B = y.copy()
+    else:
+        # A = X.T.dot(X), B = X.T.dot(y)
+        N = n_features
+        if cp_sp.issparse(X):
+            # Compute A, B without densifying X
+            A = sparse_gram(X)
+            B = X.T.dot(y)
+            if fit_intercept:
+                if sqrt_weight is None:
+                    A -= n_samples * cp.outer(X_offset, X_offset)
+                    B -= y.sum(axis=0) * X_offset[:, None]
+                else:
+                    A -= sample_weight.sum() * cp.outer(X_offset, X_offset)
+        else:
+            A = X.T.dot(X)
+            B = X.T.dot(y)
+
+    def _solve(A, B):
+        """Returns the `w` solution of `A @ w = B`"""
+        try:
+            with cupyx.errstate(linalg="raise"):
+                return cupyx.lapack.posv(A, B)
+        except cp.linalg.LinAlgError:
+            warnings.warn(
+                "Singular matrix encountered in 'cholesky' solver, falling back "
+                "to 'eig' solver."
+            )
+
+        w, q = cp.linalg.eigh(A)
+        return q.dot(_ridge_transform_zero_alpha(q.T.dot(B), w[:, None]))
+
+    if (alpha == alpha[0]).all():
+        # uniform alpha, only one _solve needed
+        if alpha[0] != 0.0:
+            A.flat[:: N + 1] += alpha[0]
+        coefs = _solve(A, B).T
+    else:
+        coefs = cp.empty((n_targets, N), dtype=X.dtype)
+        last_alpha = 0.0
+        for coef, target, current_alpha in zip(coefs, B.T, alpha):
+            offset = current_alpha - last_alpha
+            if offset != 0.0:
+                A.flat[:: N + 1] += offset
+            coef[:] = _solve(A, target).ravel()
+            last_alpha = current_alpha
+
+    if dual:
+        temp1 = X.T.dot(coefs.T)
+        if cp_sp.issparse(X) and fit_intercept:
+            temp2 = coefs if sqrt_weight is None else sqrt_weight * coefs
+            temp1 -= X_offset[:, None] * temp2.sum()
+        coefs = temp1.T
+
+    return coefs
+
+
 def fit_least_squares(
     X,
     y,
@@ -220,7 +307,7 @@ def fit_least_squares(
     alpha : float or cp.ndarray
         Ridge regularization strength. Must be a non-negative float. Defaults
         to 0 for no regularization (a LinearRegression).
-    solver : {'svd', 'lsmr'}
+    solver : {'svd', 'cholesky', 'lsmr'}
         The solver to use.
     tol : float
         Tolerance, used by the LSMR solver.
@@ -242,7 +329,7 @@ def fit_least_squares(
         solver, None otherwise.
     """
     y_1d = y.ndim == 1
-    if X_is_sparse := cupyx.scipy.sparse.issparse(X):
+    if X_is_sparse := cp_sp.issparse(X):
         # Centering and lsmr are much faster with CSR/CSC inputs
         if X.format not in ("csr", "csc"):
             X = X.tocsr()
@@ -270,19 +357,31 @@ def fit_least_squares(
             temp = _ridge_transform(u.T.dot(y), s[:, None], alpha)
         coef = vh.T.dot(temp).T
         n_iter = None
+    elif solver == "cholesky":
+        coef = _fit_cholesky(
+            X,
+            y,
+            sample_weight,
+            X_offset,
+            y_offset,
+            sqrt_weight,
+            alpha,
+            fit_intercept,
+        )
+        n_iter = None
     elif solver == "lsmr":
         if X_is_sparse and fit_intercept:
             # To keep sparsity, sparse inputs aren't already centered when
             # fitting an intercept. We handle removing the offset within the
             # fit via a LinearOperator.
             if sqrt_weight is None:
-                A = cupyx.scipy.sparse.linalg.LinearOperator(
+                A = cp_sp.linalg.LinearOperator(
                     shape=X.shape,
                     matvec=lambda w: X.dot(w) - w.dot(X_offset),
                     rmatvec=lambda w: X.T.dot(w) - X_offset * w.sum(),
                 )
             else:
-                A = cupyx.scipy.sparse.linalg.LinearOperator(
+                A = cp_sp.linalg.LinearOperator(
                     shape=X.shape,
                     matvec=lambda w: X.dot(w) - sqrt_weight * w.dot(X_offset),
                     rmatvec=lambda w: X.T.dot(w)
@@ -297,7 +396,7 @@ def fit_least_squares(
 
         for i in range(y.shape[1]):
             b = y[:, i]
-            info = cupyx.scipy.sparse.linalg.lsmr(
+            info = cp_sp.linalg.lsmr(
                 A,
                 b,
                 damp=damp[i],
