@@ -26,7 +26,7 @@ Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
 - [Comparing cuML with scikit-learn (references/parity-and-numerics.md)](references/parity-and-numerics.md) <br>
-- [RAPIDS installation guide](https://docs.rapids.ai/install/) <br>
+- [installation guide](https://docs.nvidia.com/datascience/install/) <br>
 - [cuML cuml.accel benchmarks](https://docs.nvidia.com/cuml/latest/cuml-accel/benchmarks/) <br>
 - [Agent Skills](https://agentskills.io/) <br>
 - [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator) <br>
