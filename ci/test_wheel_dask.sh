@@ -13,7 +13,7 @@ mkdir -p "${RAPIDS_TESTS_DIR}"
 
 # generate constraints, the constraints will limit the version of the
 # dependencies that can be installed later on when installing the wheel
-rapids-generate-pip-constraints test_python "${PIP_CONSTRAINT}" constraints
+rapids-generate-pip-constraints test_python "${PIP_CONSTRAINT}"
 
 # notes:
 #

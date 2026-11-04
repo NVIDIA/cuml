@@ -66,8 +66,9 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
     max_leaves : int (default = -1)
-        Maximum leaf nodes per tree. Soft constraint. Unlimited,
-        If ``-1``.
+        Maximum leaf nodes per tree. A positive limit grows the tree greedily,
+        splitting the leaf with the largest weighted impurity decrease first.
+        If ``-1``, use unlimited batched growth.
     max_features : {'sqrt', 'log2', None}, int or float (default = 1.0)
         The number of features to consider per node split:
 
@@ -211,10 +212,13 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         Perform Random Forest Regression on the input data
 
         """
-        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return self._fit(X, y, sample_weight=sample_weight)
 
     def _prepare_fit_inputs(self, X, y, sample_weight=None):
+        # In distributed setting, some partitions may have sample weights that are all zeros
+        sample_weight_allow_all_zero = (
+            hasattr(self, "_distributed_n_rows") and self.bootstrap
+        )
         return check_inputs(
             self,
             X,
@@ -223,6 +227,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             dtype=("float32", "float64"),
             order="A",
             sample_weight_dtype="float64",
+            sample_weight_allow_all_zero=sample_weight_allow_all_zero,
             reset=True,
         )
 

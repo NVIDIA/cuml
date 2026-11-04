@@ -941,11 +941,6 @@ def correctness_sparse(a, b, atol=0.1, rtol=0.2, threshold=0.95):
     reason="Upstream regression in umap<0.5.12 with numba >= 0.62.0",
     strict=True,
 )
-@pytest.mark.xfail(
-    reason="Fuzzy simplicial set graph mismatch (see #8796)",
-    raises=AssertionError,
-    strict=False,
-)
 def test_fuzzy_simplicial_set(n_rows, n_features, n_neighbors):
     n_clusters = 30
     random_state = 42
