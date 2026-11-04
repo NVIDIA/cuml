@@ -31,19 +31,6 @@ EXITCODE=0
 trap "EXITCODE=1" ERR
 set +e
 
-rapids-logger "TEMP: WSL diagnostics"
-nproc; free -g; nvidia-smi topo -m || true; ls -la /dev/shm; df -h /dev/shm
-export NCCL_DEBUG=INFO
-export NCCL_DEBUG_SUBSYS=ALL
-python -c "
-from raft_dask.common.nccl import nccl, unique_id
-n = nccl()
-uid = nccl.get_unique_id()
-n.init(1, uid, 0)
-print('single-rank NCCL init OK')
-" || true
-timeout -v --signal=SIGINT --kill-after=60s 10m ./ci/run_cuml_dask_pytests.sh -x -k 'test_get_combined_model' || true
-unset NCCL_DEBUG NCCL_DEBUG_SUBSYS
 rapids-logger "pytest cuml dask"
 timeout -v --signal=SIGINT --kill-after=60s 1h ./ci/run_cuml_dask_pytests.sh --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-dask.xml"
 
