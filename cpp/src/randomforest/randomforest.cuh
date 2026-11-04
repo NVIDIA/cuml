@@ -88,7 +88,7 @@ class RowSampler {
     validate_sample_weight(handle);
     if (use_weighted_bootstrap()) {
       sample_weight_cdf_.resize(ML::narrow_cast<std::size_t>(n_rows_), handle.get_stream());
-      thrust::inclusive_scan(rmm::exec_policy(handle.get_stream()),
+      thrust::inclusive_scan(rmm::exec_policy_nosync(handle.get_stream()),
                              sample_weight_,
                              sample_weight_ + n_rows_,
                              sample_weight_cdf_.begin());
@@ -156,7 +156,7 @@ class RowSampler {
                                     weighted_draw_scratch.size(),
                                     0.0,
                                     rank_sample_weight_sums_[rank_]);
-      thrust::upper_bound(rmm::exec_policy(stream),
+      thrust::upper_bound(rmm::exec_policy_nosync(stream),
                           sample_weight_cdf_.data(),
                           sample_weight_cdf_.data() + n_rows_,
                           weighted_draw_scratch.begin(),
@@ -182,7 +182,7 @@ class RowSampler {
       selected_rows.resize(n_selected, stream);
     } else {
       selected_rows.resize(ML::narrow_cast<std::size_t>(n_sampled_rows_), stream);
-      thrust::sequence(rmm::exec_policy(stream), selected_rows.begin(), selected_rows.end());
+      thrust::sequence(rmm::exec_policy_nosync(stream), selected_rows.begin(), selected_rows.end());
     }
 
     store_bootstrap_mask(tree_id, selected_rows, stream);
@@ -203,8 +203,8 @@ class RowSampler {
     if (bootstrap_masks_ == nullptr) { return; }
 
     bool* tree_mask = bootstrap_masks_ + (ML::checked_mul<std::size_t>(tree_id, n_rows_));
-    thrust::fill(rmm::exec_policy(stream), tree_mask, tree_mask + n_rows_, false);
-    thrust::scatter(rmm::exec_policy(stream),
+    thrust::fill(rmm::exec_policy_nosync(stream), tree_mask, tree_mask + n_rows_, false);
+    thrust::scatter(rmm::exec_policy_nosync(stream),
                     thrust::make_constant_iterator(true),
                     thrust::make_constant_iterator(true) + selected_rows.size(),
                     selected_rows.data(),

@@ -82,7 +82,7 @@ inline void sample_features(std::int64_t* column_samples,
   auto n_column_samples = ML::checked_mul<std::size_t>(work_items_size, sampled_cols);
   auto counting         = thrust::make_counting_iterator<std::size_t>(0);
 
-  thrust::for_each(thrust::cuda::par.on(stream),
+  thrust::for_each(thrust::cuda::par_nosync.on(stream),
                    counting,
                    counting + n_column_samples,
                    [=] __device__(std::size_t sample_idx) {

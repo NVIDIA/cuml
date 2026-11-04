@@ -51,7 +51,9 @@ class RandomForestRegressor(
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
     max_leaves : int (default = -1)
-        Maximum leaf nodes per tree. Soft constraint. Unlimited, If ``-1``.
+        Maximum leaf nodes per tree. A positive limit grows the tree greedily,
+        splitting the leaf with the largest weighted impurity decrease first.
+        If ``-1``, use unlimited batched growth.
     max_features : float (default = 'auto')
         Ratio of number of features (columns) to consider
         per node split.\n
