@@ -96,7 +96,7 @@ class LinearRegression(InteropMixin,
         - 'lu': uses an LU decomposition of the covariance matrix,
           falling back to an eigendecomposition if that's singular. This is
           typically the fastest dense solver, and is competitive for sparse
-          matrices. It supports all options.
+          matrices. It doesn't support sparse ``X`` when ``fit_intercept=True``.
 
         - 'eig': uses an eigendecomposition of the covariance matrix. It is
           faster than SVD, but potentially unstable. It doesn't support
@@ -376,6 +376,9 @@ class LinearRegression(InteropMixin,
         fallback_reason = None
         if self.positive:
             solver = "nnls"
+        elif self.algorithm == "lu" and sp.issparse(X) and self.fit_intercept:
+            solver = "lsmr"
+            fallback_reason = "sparse X with `fit_intercept=True`"
         elif self.algorithm in ("lu", "lsmr"):
             solver = self.algorithm
         elif sp.issparse(X):

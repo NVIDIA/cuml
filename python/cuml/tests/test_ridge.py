@@ -155,15 +155,17 @@ def test_ridge_cholesky_singular_matrix():
     assert r2_score(sk_pred, cu_pred) >= 0.98
 
 
-@pytest.mark.parametrize("solver", ["lsmr", "cholesky"])
+@pytest.mark.parametrize(
+    "solver, fit_intercept",
+    [("lsmr", True), ("lsmr", False), ("cholesky", False)],
+)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-@pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("weighted", [True, False])
 @pytest.mark.parametrize("shape", [(3000, 500), (500, 3000)])
 @pytest.mark.parametrize("n_targets", [0, 1, 3])
 @pytest.mark.parametrize("format", ["coo", "csr", "csc"])
 def test_ridge_sparse(
-    solver, dtype, fit_intercept, weighted, shape, n_targets, format
+    solver, fit_intercept, dtype, weighted, shape, n_targets, format
 ):
     n_samples, n_features = shape
     rng = np.random.default_rng(42)
@@ -192,7 +194,8 @@ def test_ridge_sparse(
     cu_pred = cu_model.predict(X)
 
     sk_model = sklearn.linear_model.Ridge(
-        solver="lsqr", fit_intercept=fit_intercept
+        solver="lsqr" if solver == "lsmr" else solver,
+        fit_intercept=fit_intercept,
     )
     sk_model.fit(X, y, sample_weight=sample_weight)
     sk_pred = sk_model.predict(X).reshape(cu_pred.shape)
@@ -324,6 +327,19 @@ def test_invalid_sparse_solver(solver):
         ValueError, match=f"solver={solver!r} doesn't support sparse X"
     ):
         model.fit(X, y)
+
+
+def test_cholesky_sparse_invalid_fit_intercept():
+    X, y = make_regression(random_state=42)
+    X_sparse = sp.csr_matrix(X)
+
+    model = cuml.Ridge(solver="cholesky", fit_intercept=True)
+    model.fit(X, y)  # smoketest dense with fit_intercept works
+    with pytest.raises(
+        ValueError,
+        match="solver='cholesky' does not support fitting the intercept on sparse",
+    ):
+        model.fit(X_sparse, y)
 
 
 def test_solver_auto():

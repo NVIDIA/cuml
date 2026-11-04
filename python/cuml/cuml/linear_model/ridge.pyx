@@ -95,7 +95,7 @@ class Ridge(InteropMixin,
         - 'cholesky': uses a cholesky decomposition of the covariance matrix,
           falling back to an eigendecomposition if that's singular. This is
           typically the fastest dense solver, and is competitive for sparse
-          matrices. It supports all options.
+          matrices. It doesn't support sparse ``X`` when ``fit_intercept=True``.
 
         - 'eig': uses an eigendecomposition of the covariance matrix. It is
           faster than SVD, but potentially unstable. It doesn't support
@@ -440,11 +440,18 @@ class Ridge(InteropMixin,
             else:
                 solver = "eig"
 
-        if sp.issparse(X) and solver not in ("lsmr", "cholesky"):
-            raise ValueError(
-                f"solver={solver!r} doesn't support sparse X, please select "
-                "'lsmr', 'cholesky', or 'auto' instead"
-            )
+        if sp.issparse(X):
+            if solver not in ("lsmr", "cholesky"):
+                raise ValueError(
+                    f"{solver=!r} doesn't support sparse X, please select "
+                    "'auto', 'lsmr', or 'cholesky' instead"
+                )
+            elif solver == "cholesky" and self.fit_intercept:
+                raise ValueError(
+                    "solver='cholesky' does not support fitting the intercept "
+                    "on sparse data. Please select 'auto' or 'lsmr', or set "
+                    "`fit_intercept=False`"
+                )
 
         # Perform fit
         if solver == "eig":
