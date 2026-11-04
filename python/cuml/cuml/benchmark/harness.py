@@ -74,6 +74,7 @@ def _run_record(suite: Suite, argv: list[str]) -> dict[str, Any]:
                 "execution_plan": [
                     {
                         "case_label": c.label,
+                        "tags": list(c.tags),
                         "warmups": c.warmups,
                         "repetitions": c.repetitions,
                         "timeout_sec": c.timeout_sec,
@@ -135,6 +136,7 @@ def _base_result(
                 "profile": suite.profile_name,
                 "timeout_sec": case.timeout_sec,
                 "resolved_dataset_parameters": dict(case.dataset_parameters),
+                "tags": list(case.tags),
             }
         },
     }

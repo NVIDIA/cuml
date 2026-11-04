@@ -162,6 +162,7 @@ class ResolvedCase:
     warmups: int
     repetitions: int
     timeout_sec: float | None
+    tags: tuple[str, ...] = ()
 
     @property
     def lifecycle(self) -> Literal["fit", "inference"]:
@@ -245,6 +246,8 @@ def _resolve_case(
 ) -> ResolvedCase:
     """Resolve typed case and profile settings into a validated workload."""
     schema = _manifest_schema()
+    if len(set(request.tags)) != len(request.tags):
+        raise SuiteError("duplicate tags")
     if request.operation not in OPERATIONS:
         raise SuiteError(f"invalid operation {request.operation!r}")
     is_fit = request.operation in TRAINING_OPERATIONS
@@ -292,6 +295,7 @@ def _resolve_case(
         raise SuiteError(f"dataset: {exc}") from exc
     return ResolvedCase(
         estimator=request.estimator,
+        tags=tuple(request.tags),
         dataset=dataset.generator,
         operation=request.operation,
         generated_rows=generated_rows,
