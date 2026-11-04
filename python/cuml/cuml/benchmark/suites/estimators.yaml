@@ -161,9 +161,7 @@ cases:
         features: 16
     operation: fit
     input_selection: [X, y]
-    parameters:
-      alpha: 0.1
-      l1_ratio: 0.5
+    parameters: {}
 
   - estimator: ElasticNet
     tags: [balanced]
@@ -175,9 +173,7 @@ cases:
         features: 128
     operation: fit
     input_selection: [X, y]
-    parameters:
-      alpha: 0.1
-      l1_ratio: 0.5
+    parameters: {}
 
   - estimator: ElasticNet
     tags: [wide]
@@ -189,9 +185,7 @@ cases:
         features: 512
     operation: fit
     input_selection: [X, y]
-    parameters:
-      alpha: 0.1
-      l1_ratio: 0.5
+    parameters: {}
 
   - estimator: Lasso
     tags: [thin]
@@ -313,11 +307,7 @@ cases:
         centers: 8
     operation: fit_predict
     input_selection: [X]
-    parameters:
-      init: k-means++
-      n_clusters: 8
-      max_iter: 300
-      n_init: 1
+    parameters: {}
 
   - estimator: KMeans
     tags: [balanced]
@@ -331,11 +321,7 @@ cases:
         centers: 8
     operation: fit_predict
     input_selection: [X]
-    parameters:
-      init: k-means++
-      n_clusters: 8
-      max_iter: 300
-      n_init: 1
+    parameters: {}
 
   - estimator: KMeans
     tags: [wide]
@@ -349,11 +335,7 @@ cases:
         centers: 8
     operation: fit_predict
     input_selection: [X]
-    parameters:
-      init: k-means++
-      n_clusters: 8
-      max_iter: 300
-      n_init: 1
+    parameters: {}
 
   - estimator: AgglomerativeClustering
     tags: [thin]
@@ -367,10 +349,7 @@ cases:
         centers: 8
     operation: fit
     input_selection: [X]
-    parameters:
-      n_clusters: 8
-      metric: euclidean
-      linkage: single
+    parameters: {}
 
   - estimator: AgglomerativeClustering
     tags: [balanced]
@@ -384,10 +363,7 @@ cases:
         centers: 8
     operation: fit
     input_selection: [X]
-    parameters:
-      n_clusters: 8
-      metric: euclidean
-      linkage: single
+    parameters: {}
 
   - estimator: AgglomerativeClustering
     tags: [wide]
@@ -401,10 +377,7 @@ cases:
         centers: 8
     operation: fit
     input_selection: [X]
-    parameters:
-      n_clusters: 8
-      metric: euclidean
-      linkage: single
+    parameters: {}
 
   - estimator: SpectralClustering
     tags: [thin]
@@ -418,12 +391,7 @@ cases:
         centers: 8
     operation: fit
     input_selection: [X]
-    parameters:
-      n_clusters: 8
-      affinity: nearest_neighbors
-      n_neighbors: 10
-      n_init: 1
-      random_state: 42
+    parameters: {}
 
   - estimator: SpectralClustering
     tags: [balanced]
@@ -437,12 +405,7 @@ cases:
         centers: 8
     operation: fit
     input_selection: [X]
-    parameters:
-      n_clusters: 8
-      affinity: nearest_neighbors
-      n_neighbors: 10
-      n_init: 1
-      random_state: 42
+    parameters: {}
 
   - estimator: SpectralClustering
     tags: [wide]
@@ -456,12 +419,7 @@ cases:
         centers: 8
     operation: fit
     input_selection: [X]
-    parameters:
-      n_clusters: 8
-      affinity: nearest_neighbors
-      n_neighbors: 10
-      n_init: 1
-      random_state: 42
+    parameters: {}
 
   - estimator: NearestNeighbors
     tags: [thin]
@@ -477,8 +435,7 @@ cases:
     operation: kneighbors
     input_selection: [X]
     fit_input_selection: [X]
-    parameters:
-      n_neighbors: 64
+    parameters: {}
 
   - estimator: NearestNeighbors
     tags: [thin]
@@ -495,8 +452,6 @@ cases:
     input_selection: [X]
     fit_input_selection: [X]
     parameters:
-      n_neighbors: 64
-      algorithm: brute
       n_jobs: -1
 
   - estimator: NearestNeighbors
@@ -513,8 +468,7 @@ cases:
     operation: kneighbors
     input_selection: [X]
     fit_input_selection: [X]
-    parameters:
-      n_neighbors: 64
+    parameters: {}
 
   - estimator: NearestNeighbors
     tags: [balanced]
@@ -531,8 +485,6 @@ cases:
     input_selection: [X]
     fit_input_selection: [X]
     parameters:
-      n_neighbors: 64
-      algorithm: brute
       n_jobs: -1
 
   - estimator: NearestNeighbors
@@ -549,8 +501,7 @@ cases:
     operation: kneighbors
     input_selection: [X]
     fit_input_selection: [X]
-    parameters:
-      n_neighbors: 64
+    parameters: {}
 
   - estimator: NearestNeighbors
     tags: [wide]
@@ -567,8 +518,6 @@ cases:
     input_selection: [X]
     fit_input_selection: [X]
     parameters:
-      n_neighbors: 64
-      algorithm: brute
       n_jobs: -1
 
   - estimator: PCA
@@ -583,23 +532,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
-
-  - estimator: PCA
-    tags: [thin]
-    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
-    dataset:
-      generator: blobs
-      shape:
-        rows: 21600000
-        features: 32
-      parameters:
-        centers: 3
-    operation: fit
-    input_selection: [X]
-    parameters:
-      n_components: 25
+    parameters: {}
 
   - estimator: PCA
     tags: [balanced]
@@ -613,23 +546,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
-
-  - estimator: PCA
-    tags: [balanced]
-    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
-    dataset:
-      generator: blobs
-      shape:
-        rows: 10800000
-        features: 128
-      parameters:
-        centers: 3
-    operation: fit
-    input_selection: [X]
-    parameters:
-      n_components: 25
+    parameters: {}
 
   - estimator: PCA
     tags: [wide]
@@ -643,23 +560,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
-
-  - estimator: PCA
-    tags: [wide]
-    providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
-    dataset:
-      generator: blobs
-      shape:
-        rows: 3600000
-        features: 512
-      parameters:
-        centers: 3
-    operation: fit
-    input_selection: [X]
-    parameters:
-      n_components: 25
+    parameters: {}
 
   - estimator: IncrementalPCA
     tags: [thin]
@@ -673,8 +574,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
+    parameters: {}
 
   - estimator: IncrementalPCA
     tags: [balanced]
@@ -688,8 +588,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
+    parameters: {}
 
   - estimator: IncrementalPCA
     tags: [wide]
@@ -703,8 +602,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
+    parameters: {}
 
   - estimator: TruncatedSVD
     tags: [thin]
@@ -718,8 +616,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
+    parameters: {}
 
   - estimator: TruncatedSVD
     tags: [balanced]
@@ -733,8 +630,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
+    parameters: {}
 
   - estimator: TruncatedSVD
     tags: [wide]
@@ -748,8 +644,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      n_components: 10
+    parameters: {}
 
   - estimator: GaussianRandomProjection
     tags: [thin]
@@ -1154,8 +1049,7 @@ cases:
         features: 16
     operation: fit
     input_selection: [X, y]
-    parameters:
-      n_estimators: 20
+    parameters: {}
 
   - estimator: RandomForestRegressor
     tags: [thin]
@@ -1168,7 +1062,6 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters:
-      n_estimators: 20
       n_jobs: -1
 
   - estimator: RandomForestRegressor
@@ -1181,8 +1074,7 @@ cases:
         features: 128
     operation: fit
     input_selection: [X, y]
-    parameters:
-      n_estimators: 20
+    parameters: {}
 
   - estimator: RandomForestRegressor
     tags: [balanced]
@@ -1195,7 +1087,6 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters:
-      n_estimators: 20
       n_jobs: -1
 
   - estimator: RandomForestRegressor
@@ -1208,8 +1099,7 @@ cases:
         features: 512
     operation: fit
     input_selection: [X, y]
-    parameters:
-      n_estimators: 20
+    parameters: {}
 
   - estimator: RandomForestRegressor
     tags: [wide]
@@ -1222,7 +1112,6 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters:
-      n_estimators: 20
       n_jobs: -1
 
   - estimator: SVC
@@ -1243,8 +1132,7 @@ cases:
         y: int64
     operation: fit
     input_selection: [X, y]
-    parameters:
-      kernel: rbf
+    parameters: {}
 
   - estimator: SVC
     tags: [balanced]
@@ -1264,8 +1152,7 @@ cases:
         y: int64
     operation: fit
     input_selection: [X, y]
-    parameters:
-      kernel: rbf
+    parameters: {}
 
   - estimator: SVC
     tags: [wide]
@@ -1285,8 +1172,7 @@ cases:
         y: int64
     operation: fit
     input_selection: [X, y]
-    parameters:
-      kernel: rbf
+    parameters: {}
 
   - estimator: SVR
     tags: [thin]
@@ -1298,8 +1184,7 @@ cases:
         features: 16
     operation: fit
     input_selection: [X, y]
-    parameters:
-      kernel: rbf
+    parameters: {}
 
   - estimator: SVR
     tags: [balanced]
@@ -1311,8 +1196,7 @@ cases:
         features: 64
     operation: fit
     input_selection: [X, y]
-    parameters:
-      kernel: rbf
+    parameters: {}
 
   - estimator: SVR
     tags: [wide]
@@ -1324,8 +1208,7 @@ cases:
         features: 128
     operation: fit
     input_selection: [X, y]
-    parameters:
-      kernel: rbf
+    parameters: {}
 
   - estimator: LinearSVC
     tags: [thin]
@@ -1435,26 +1318,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      eps: 3
-      min_samples: 2
-
-  - estimator: DBSCAN
-    tags: [thin]
-    providers: [scikit-learn, cuml.accel]
-    dataset:
-      generator: blobs
-      shape:
-        rows: 225000
-        features: 16
-      parameters:
-        centers: 3
-    operation: fit
-    input_selection: [X]
-    parameters:
-      eps: 3
-      min_samples: 2
-      algorithm: brute
+    parameters: {}
 
   - estimator: DBSCAN
     tags: [balanced]
@@ -1468,26 +1332,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      eps: 3
-      min_samples: 2
-
-  - estimator: DBSCAN
-    tags: [balanced]
-    providers: [scikit-learn, cuml.accel]
-    dataset:
-      generator: blobs
-      shape:
-        rows: 450000
-        features: 128
-      parameters:
-        centers: 3
-    operation: fit
-    input_selection: [X]
-    parameters:
-      eps: 3
-      min_samples: 2
-      algorithm: brute
+    parameters: {}
 
   - estimator: DBSCAN
     tags: [wide]
@@ -1501,26 +1346,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      eps: 3
-      min_samples: 2
-
-  - estimator: DBSCAN
-    tags: [wide]
-    providers: [scikit-learn, cuml.accel]
-    dataset:
-      generator: blobs
-      shape:
-        rows: 270000
-        features: 512
-      parameters:
-        centers: 3
-    operation: fit
-    input_selection: [X]
-    parameters:
-      eps: 3
-      min_samples: 2
-      algorithm: brute
+    parameters: {}
 
   - estimator: KNeighborsClassifier
     tags: [thin]
@@ -1948,8 +1774,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      degree: 2
+    parameters: {}
 
   - estimator: PolynomialFeatures
     tags: [balanced]
@@ -1969,8 +1794,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      degree: 2
+    parameters: {}
 
   - estimator: PolynomialFeatures
     tags: [wide]
@@ -1990,8 +1814,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      degree: 2
+    parameters: {}
 
   - estimator: Binarizer
     tags: [thin]
@@ -2071,10 +1894,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_bins: 16
-      encode: ordinal
-      strategy: uniform
+    parameters: {}
 
   - estimator: KBinsDiscretizer
     tags: [balanced]
@@ -2094,10 +1914,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_bins: 16
-      encode: ordinal
-      strategy: uniform
+    parameters: {}
 
   - estimator: KBinsDiscretizer
     tags: [wide]
@@ -2117,10 +1934,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_bins: 16
-      encode: ordinal
-      strategy: uniform
+    parameters: {}
 
   - estimator: PowerTransformer
     tags: [thin]
@@ -2140,8 +1954,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      method: yeo-johnson
+    parameters: {}
 
   - estimator: PowerTransformer
     tags: [balanced]
@@ -2161,8 +1974,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      method: yeo-johnson
+    parameters: {}
 
   - estimator: PowerTransformer
     tags: [wide]
@@ -2182,8 +1994,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      method: yeo-johnson
+    parameters: {}
 
   - estimator: QuantileTransformer
     tags: [thin]
@@ -2203,10 +2014,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_quantiles: 1000
-      subsample: 100000
-      random_state: 42
+    parameters: {}
 
   - estimator: QuantileTransformer
     tags: [balanced]
@@ -2226,10 +2034,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_quantiles: 1000
-      subsample: 100000
-      random_state: 42
+    parameters: {}
 
   - estimator: QuantileTransformer
     tags: [wide]
@@ -2249,10 +2054,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_quantiles: 1000
-      subsample: 100000
-      random_state: 42
+    parameters: {}
 
   - estimator: LabelEncoder
     providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
@@ -2517,9 +2319,7 @@ cases:
         centers: 3
     operation: fit
     input_selection: [X]
-    parameters:
-      kernel: gaussian
-      bandwidth: 1.0
+    parameters: {}
 
   - estimator: LocalOutlierFactor
     providers: [cuml, scikit-learn]
@@ -2531,8 +2331,7 @@ cases:
       dtype: float32
     operation: fit
     input_selection: [X]
-    parameters:
-      n_neighbors: 20
+    parameters: {}
 
   - estimator: BernoulliNB
     providers: [cuml]
@@ -2592,9 +2391,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X, y]
-    parameters:
-      smooth: 0.0
-      seed: 42
+    parameters: {}
 
   - estimator: TargetEncoder
     providers: [cuml.accel]
@@ -2611,7 +2408,6 @@ cases:
     operation: fit_transform
     input_selection: [X, y]
     parameters:
-      smooth: 0.0
       random_state: 42
 
   - estimator: OneHotEncoder
@@ -2628,9 +2424,7 @@ cases:
         y: int64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      sparse_output: false
-      handle_unknown: ignore
+    parameters: {}
 
   - estimator: OrdinalEncoder
     providers: [cuml, cuml.accel, cuml.dask]
@@ -2657,10 +2451,7 @@ cases:
         features: 64
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_components: 2
-      n_neighbors: 10
-      random_state: 42
+    parameters: {}
 
   - estimator: UMAP
     providers: [cuml, umap-learn, cuml.accel]
@@ -2671,10 +2462,7 @@ cases:
         features: 100
     operation: fit_transform
     input_selection: [X]
-    parameters:
-      n_neighbors: 10
-      n_components: 2
-      random_state: 42
+    parameters: {}
 
   - estimator: HDBSCAN
     providers: [cuml, scikit-learn, hdbscan, cuml.accel]
@@ -2685,5 +2473,4 @@ cases:
         features: 100
     operation: fit_predict
     input_selection: [X]
-    parameters:
-      min_cluster_size: 5
+    parameters: {}
