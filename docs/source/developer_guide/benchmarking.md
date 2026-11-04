@@ -23,10 +23,7 @@ python -m cuml.benchmark --suite estimators --profile smoke \
 
 The `estimators` built-in (the default suite) is packaged in
 `python/cuml/cuml/benchmark/suites/estimators.yaml`. Refer to the manifest for
-its workloads, supported providers, profiles, tag meanings, and sizing policy.
-
-Use `python docs/benchmarks/score_sizing.py <artifact.json>` to assess workload
-sizing from operation runtimes and variability.
+its workloads, supported providers, and profiles.
 
 By default, the CLI runs benchmarks using only `cuml`. Use `--provider`
 to select another provider and compare implementations of the same algorithms.
