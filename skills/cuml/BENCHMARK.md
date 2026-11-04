@@ -10,11 +10,11 @@ Recommended for publication based on the completed evaluation evidence in this r
 
 - Skill: `cuml`
 - Validation status: `passed`
-- Evaluation date: 2026-11-02
+- Evaluation date: 2026-11-04
 - Evaluator version: `1.6.6`
 - Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-5-5`), Codex (`openai/openai/gpt-6.1-sol`)
 - Tasks: 32 evaluation tasks (32 positive)
-- Dataset digest: `sha256:4dad3d83e6a81208bd4d1bb359ae83e0666d9ab17ea5d4df92b5a3c1b825229f` (skill-evaluator-dataset-snapshot/1)
+- Dataset digest: `sha256:8efd78ed52747d376b59182ebeb97a529c0cfa2167658e8a2efb1c39eb4452f4` (skill-evaluator-dataset-snapshot/1)
 - Attempts per task: 1
 - Environment: `k8s-sandbox`
 - Tier 2 evidence: required for publication
@@ -50,12 +50,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 93.6% — baseline ran, but no comparable score was available; uplift unavailable | 82.3% — baseline ran, but no comparable score was available; uplift unavailable |
-| Security | 100.0% → 95.3% (-4.7 points) | 100.0% → 90.6% (-9.4 points) |
-| Correctness | 78.8% → 95.6% (+16.8 points) | 93.1% → 95.0% (+1.9 points) |
-| Discoverability | 98.3% — baseline ran, but no comparable score was available; uplift unavailable | 87.3% — baseline ran, but no comparable score was available; uplift unavailable |
-| Effectiveness | 66.0% → 86.6% (+20.6 points) | 71.7% → 81.1% (+9.4 points) |
-| Efficiency | 92.1% — baseline ran, but no comparable score was available; uplift unavailable | 57.3% — baseline ran, but no comparable score was available; uplift unavailable |
+| Overall | 95.5% — baseline ran, but no comparable score was available; uplift unavailable | 83.5% — baseline ran, but no comparable score was available; uplift unavailable |
+| Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 93.8% (-6.2 points) |
+| Correctness | 81.3% → 98.1% (+16.8 points) | 91.9% → 94.4% (+2.5 points) |
+| Discoverability | 98.2% — baseline ran, but no comparable score was available; uplift unavailable | 89.1% — baseline ran, but no comparable score was available; uplift unavailable |
+| Effectiveness | 66.3% → 87.4% (+21.1 points) | 70.5% → 83.7% (+13.2 points) |
+| Efficiency | 94.0% — baseline ran, but no comparable score was available; uplift unavailable | 56.8% — baseline ran, but no comparable score was available; uplift unavailable |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Scores are rounded to one decimal; threshold-adjacent values use additional precision so their displayed band matches the verdict. Uplift is derived from those displayed scores and shown in percentage points.
 
@@ -68,9 +68,9 @@ Shared-source comparisons use the same signals and weights on both conditions. T
 | Agent | Dimension | Basis | Baseline → With skill (uplift) | Explanation |
 | --- | --- | --- | --- | --- |
 | claude-code | Discoverability | Dimension comparison | N/A | Discoverability is not applicable to the no-skill baseline; there is no installed skill to discover. |
-| claude-code | Efficiency | Token-only comparison | 98.0% → 94.5% (-3.5 points) | Only Token Efficiency is comparable; the full dimension scores use different evaluator sources. |
+| claude-code | Efficiency | Token-only comparison | 97.6% → 94.5% (-3.1 points) | Only Token Efficiency is comparable; the full dimension scores use different evaluator sources. |
 | codex | Discoverability | Dimension comparison | N/A | Discoverability is not applicable to the no-skill baseline; there is no installed skill to discover. |
-| codex | Efficiency | Token-only comparison | 81.7% → 74.6% (-7.1 points) | Only Token Efficiency is comparable; the full dimension scores use different evaluator sources. |
+| codex | Efficiency | Token-only comparison | 80.4% → 73.9% (-6.5 points) | Only Token Efficiency is comparable; the full dimension scores use different evaluator sources. |
 
 ## Token Usage
 
@@ -78,73 +78,73 @@ Actual Tier 3 execution usage is reported for every observed agent/case pair and
 
 | Agent | Dataset case | With skill | Without skill | Delta | Change | Coverage |
 |---|---|---:|---:|---:|---:|---|
-| claude-code | All cases | 6,838,215 | 1,525,320 | +5,312,895 | +348.31% | skill 32/32; base 32/32 |
-| claude-code | b01 | 238,605 | 37,700 | +200,905 | +532.90% | skill 1/1; base 1/1 |
-| claude-code | b02 | 247,764 | 39,196 | +208,568 | +532.12% | skill 1/1; base 1/1 |
-| claude-code | b03 | 244,351 | 38,946 | +205,405 | +527.41% | skill 1/1; base 1/1 |
-| claude-code | b04 | 154,676 | 37,009 | +117,667 | +317.94% | skill 1/1; base 1/1 |
-| claude-code | b05 | 155,753 | 72,066 | +83,687 | +116.13% | skill 1/1; base 1/1 |
-| claude-code | b06 | 75,261 | 36,292 | +38,969 | +107.38% | skill 1/1; base 1/1 |
-| claude-code | b07 | 434,154 | 38,332 | +395,822 | +1032.62% | skill 1/1; base 1/1 |
-| claude-code | b08 | 77,137 | 73,897 | +3,240 | +4.38% | skill 1/1; base 1/1 |
-| claude-code | b09 | 393,659 | 75,536 | +318,123 | +421.15% | skill 1/1; base 1/1 |
-| claude-code | b10 | 544,592 | 75,428 | +469,164 | +622.00% | skill 1/1; base 1/1 |
-| claude-code | p01 | 74,220 | 71,519 | +2,701 | +3.78% | skill 1/1; base 1/1 |
-| claude-code | p02 | 153,783 | 37,043 | +116,740 | +315.15% | skill 1/1; base 1/1 |
-| claude-code | p03 | 114,968 | 38,360 | +76,608 | +199.71% | skill 1/1; base 1/1 |
-| claude-code | p04 | 244,710 | 37,450 | +207,260 | +553.43% | skill 1/1; base 1/1 |
-| claude-code | p05 | 153,984 | 36,803 | +117,181 | +318.40% | skill 1/1; base 1/1 |
-| claude-code | p06 | 196,323 | 36,867 | +159,456 | +432.52% | skill 1/1; base 1/1 |
-| claude-code | p07 | 276,950 | 38,197 | +238,753 | +625.06% | skill 1/1; base 1/1 |
-| claude-code | p08 | 406,653 | 37,281 | +369,372 | +990.78% | skill 1/1; base 1/1 |
-| claude-code | p09 | 74,653 | 37,101 | +37,552 | +101.22% | skill 1/1; base 1/1 |
-| claude-code | p10 | 376,174 | 37,859 | +338,315 | +893.62% | skill 1/1; base 1/1 |
-| claude-code | p11 | 238,441 | 74,020 | +164,421 | +222.13% | skill 1/1; base 1/1 |
-| claude-code | p12 | 195,352 | 36,607 | +158,745 | +433.65% | skill 1/1; base 1/1 |
-| claude-code | p13 | 113,173 | 36,236 | +76,937 | +212.32% | skill 1/1; base 1/1 |
-| claude-code | p14 | 201,645 | 150,773 | +50,872 | +33.74% | skill 1/1; base 1/1 |
-| claude-code | p15 | 74,372 | 35,776 | +38,596 | +107.88% | skill 1/1; base 1/1 |
-| claude-code | p16 | 74,613 | 36,058 | +38,555 | +106.92% | skill 1/1; base 1/1 |
-| claude-code | p17 | 158,214 | 36,477 | +121,737 | +333.74% | skill 1/1; base 1/1 |
-| claude-code | p18 | 521,158 | 39,764 | +481,394 | +1210.63% | skill 1/1; base 1/1 |
-| claude-code | p19 | 190,869 | 36,064 | +154,805 | +429.25% | skill 1/1; base 1/1 |
-| claude-code | p20 | 74,661 | 36,897 | +37,764 | +102.35% | skill 1/1; base 1/1 |
-| claude-code | p21 | 242,964 | 36,642 | +206,322 | +563.08% | skill 1/1; base 1/1 |
-| claude-code | p22 | 114,383 | 37,124 | +77,259 | +208.11% | skill 1/1; base 1/1 |
-| codex | All cases | 8,661,616 | 1,707,063 | +6,954,553 | +407.40% | skill 32/32; base 32/32 |
-| codex | b01 | 259,780 | 48,100 | +211,680 | +440.08% | skill 1/1; base 1/1 |
-| codex | b02 | 433,205 | 62,567 | +370,638 | +592.39% | skill 1/1; base 1/1 |
-| codex | b03 | 774,030 | 55,239 | +718,791 | +1301.24% | skill 1/1; base 1/1 |
-| codex | b04 | 200,534 | 30,571 | +169,963 | +555.96% | skill 1/1; base 1/1 |
-| codex | b05 | 238,691 | 48,257 | +190,434 | +394.62% | skill 1/1; base 1/1 |
-| codex | b06 | 110,216 | 14,256 | +95,960 | +673.12% | skill 1/1; base 1/1 |
-| codex | b07 | 289,772 | 53,269 | +236,503 | +443.98% | skill 1/1; base 1/1 |
-| codex | b08 | 124,429 | 35,456 | +88,973 | +250.94% | skill 1/1; base 1/1 |
-| codex | b09 | 707,457 | 16,616 | +690,841 | +4157.69% | skill 1/1; base 1/1 |
-| codex | b10 | 314,754 | 40,647 | +274,107 | +674.36% | skill 1/1; base 1/1 |
-| codex | p01 | 50,129 | 34,527 | +15,602 | +45.19% | skill 1/1; base 1/1 |
-| codex | p02 | 220,793 | 49,408 | +171,385 | +346.88% | skill 1/1; base 1/1 |
-| codex | p03 | 72,297 | 60,104 | +12,193 | +20.29% | skill 1/1; base 1/1 |
-| codex | p04 | 496,447 | 82,416 | +414,031 | +502.37% | skill 1/1; base 1/1 |
-| codex | p05 | 431,683 | 39,845 | +391,838 | +983.41% | skill 1/1; base 1/1 |
-| codex | p06 | 166,468 | 47,933 | +118,535 | +247.29% | skill 1/1; base 1/1 |
-| codex | p07 | 303,826 | 73,366 | +230,460 | +314.12% | skill 1/1; base 1/1 |
-| codex | p08 | 394,129 | 66,749 | +327,380 | +490.46% | skill 1/1; base 1/1 |
-| codex | p09 | 417,090 | 36,290 | +380,800 | +1049.32% | skill 1/1; base 1/1 |
-| codex | p10 | 410,937 | 62,352 | +348,585 | +559.06% | skill 1/1; base 1/1 |
-| codex | p11 | 263,413 | 278,281 | -14,868 | -5.34% | skill 1/1; base 1/1 |
-| codex | p12 | 214,047 | 31,367 | +182,680 | +582.40% | skill 1/1; base 1/1 |
-| codex | p13 | 93,934 | 21,725 | +72,209 | +332.38% | skill 1/1; base 1/1 |
-| codex | p14 | 258,033 | 56,850 | +201,183 | +353.88% | skill 1/1; base 1/1 |
-| codex | p15 | 41,755 | 17,829 | +23,926 | +134.20% | skill 1/1; base 1/1 |
-| codex | p16 | 54,593 | 36,412 | +18,181 | +49.93% | skill 1/1; base 1/1 |
-| codex | p17 | 338,675 | 56,958 | +281,717 | +494.60% | skill 1/1; base 1/1 |
-| codex | p18 | 313,260 | 67,094 | +246,166 | +366.90% | skill 1/1; base 1/1 |
-| codex | p19 | 139,339 | 25,429 | +113,910 | +447.95% | skill 1/1; base 1/1 |
-| codex | p20 | 118,893 | 47,289 | +71,604 | +151.42% | skill 1/1; base 1/1 |
-| codex | p21 | 186,589 | 61,597 | +124,992 | +202.92% | skill 1/1; base 1/1 |
-| codex | p22 | 222,418 | 48,264 | +174,154 | +360.84% | skill 1/1; base 1/1 |
-| ALL AGENTS | Dataset aggregate | 15,499,831 | 3,232,383 | +12,267,448 | +379.52% | skill 64/64; base 64/64 |
+| claude-code | All cases | 6,891,762 | 2,179,539 | +4,712,223 | +216.20% | skill 32/32; base 32/32 |
+| claude-code | b01 | 239,106 | 38,621 | +200,485 | +519.11% | skill 1/1; base 1/1 |
+| claude-code | b02 | 246,666 | 39,894 | +206,772 | +518.30% | skill 1/1; base 1/1 |
+| claude-code | b03 | 199,311 | 38,086 | +161,225 | +423.32% | skill 1/1; base 1/1 |
+| claude-code | b04 | 195,783 | 36,873 | +158,910 | +430.97% | skill 1/1; base 1/1 |
+| claude-code | b05 | 155,758 | 37,090 | +118,668 | +319.95% | skill 1/1; base 1/1 |
+| claude-code | b06 | 75,110 | 36,448 | +38,662 | +106.07% | skill 1/1; base 1/1 |
+| claude-code | b07 | 388,915 | 38,222 | +350,693 | +917.52% | skill 1/1; base 1/1 |
+| claude-code | b08 | 241,742 | 74,214 | +167,528 | +225.74% | skill 1/1; base 1/1 |
+| claude-code | b09 | 301,405 | 111,649 | +189,756 | +169.96% | skill 1/1; base 1/1 |
+| claude-code | b10 | 566,836 | 76,588 | +490,248 | +640.11% | skill 1/1; base 1/1 |
+| claude-code | p01 | 74,108 | 71,970 | +2,138 | +2.97% | skill 1/1; base 1/1 |
+| claude-code | p02 | 75,471 | 36,937 | +38,534 | +104.32% | skill 1/1; base 1/1 |
+| claude-code | p03 | 154,593 | 73,530 | +81,063 | +110.24% | skill 1/1; base 1/1 |
+| claude-code | p04 | 200,784 | 37,363 | +163,421 | +437.39% | skill 1/1; base 1/1 |
+| claude-code | p05 | 195,572 | 37,546 | +158,026 | +420.89% | skill 1/1; base 1/1 |
+| claude-code | p06 | 196,595 | 344,194 | -147,599 | -42.88% | skill 1/1; base 1/1 |
+| claude-code | p07 | 283,283 | 38,268 | +245,015 | +640.26% | skill 1/1; base 1/1 |
+| claude-code | p08 | 364,733 | 37,552 | +327,181 | +871.27% | skill 1/1; base 1/1 |
+| claude-code | p09 | 75,082 | 36,808 | +38,274 | +103.98% | skill 1/1; base 1/1 |
+| claude-code | p10 | 333,008 | 39,344 | +293,664 | +746.40% | skill 1/1; base 1/1 |
+| claude-code | p11 | 241,667 | 74,551 | +167,116 | +224.16% | skill 1/1; base 1/1 |
+| claude-code | p12 | 197,090 | 36,928 | +160,162 | +433.71% | skill 1/1; base 1/1 |
+| claude-code | p13 | 113,265 | 35,616 | +77,649 | +218.02% | skill 1/1; base 1/1 |
+| claude-code | p14 | 480,379 | 151,806 | +328,573 | +216.44% | skill 1/1; base 1/1 |
+| claude-code | p15 | 74,104 | 35,704 | +38,400 | +107.55% | skill 1/1; base 1/1 |
+| claude-code | p16 | 74,664 | 36,017 | +38,647 | +107.30% | skill 1/1; base 1/1 |
+| claude-code | p17 | 154,030 | 36,246 | +117,784 | +324.96% | skill 1/1; base 1/1 |
+| claude-code | p18 | 447,854 | 344,795 | +103,059 | +29.89% | skill 1/1; base 1/1 |
+| claude-code | p19 | 151,994 | 35,927 | +116,067 | +323.06% | skill 1/1; base 1/1 |
+| claude-code | p20 | 74,690 | 36,898 | +37,792 | +102.42% | skill 1/1; base 1/1 |
+| claude-code | p21 | 242,934 | 36,746 | +206,188 | +561.12% | skill 1/1; base 1/1 |
+| claude-code | p22 | 75,230 | 37,108 | +38,122 | +102.73% | skill 1/1; base 1/1 |
+| codex | All cases | 8,209,804 | 1,661,718 | +6,548,086 | +394.06% | skill 32/32; base 32/32 |
+| codex | b01 | 391,778 | 50,076 | +341,702 | +682.37% | skill 1/1; base 1/1 |
+| codex | b02 | 349,425 | 67,545 | +281,880 | +417.32% | skill 1/1; base 1/1 |
+| codex | b03 | 780,328 | 49,205 | +731,123 | +1485.87% | skill 1/1; base 1/1 |
+| codex | b04 | 162,172 | 36,557 | +125,615 | +343.61% | skill 1/1; base 1/1 |
+| codex | b05 | 326,664 | 39,695 | +286,969 | +722.93% | skill 1/1; base 1/1 |
+| codex | b06 | 136,168 | 43,416 | +92,752 | +213.64% | skill 1/1; base 1/1 |
+| codex | b07 | 324,658 | 44,878 | +279,780 | +623.42% | skill 1/1; base 1/1 |
+| codex | b08 | 144,187 | 31,284 | +112,903 | +360.90% | skill 1/1; base 1/1 |
+| codex | b09 | 370,987 | 82,095 | +288,892 | +351.90% | skill 1/1; base 1/1 |
+| codex | b10 | 302,500 | 45,197 | +257,303 | +569.29% | skill 1/1; base 1/1 |
+| codex | p01 | 41,728 | 40,432 | +1,296 | +3.21% | skill 1/1; base 1/1 |
+| codex | p02 | 240,179 | 39,816 | +200,363 | +503.22% | skill 1/1; base 1/1 |
+| codex | p03 | 186,142 | 54,187 | +131,955 | +243.52% | skill 1/1; base 1/1 |
+| codex | p04 | 473,039 | 65,784 | +407,255 | +619.08% | skill 1/1; base 1/1 |
+| codex | p05 | 303,495 | 39,316 | +264,179 | +671.94% | skill 1/1; base 1/1 |
+| codex | p06 | 153,331 | 52,274 | +101,057 | +193.32% | skill 1/1; base 1/1 |
+| codex | p07 | 242,297 | 64,786 | +177,511 | +274.00% | skill 1/1; base 1/1 |
+| codex | p08 | 262,575 | 64,945 | +197,630 | +304.30% | skill 1/1; base 1/1 |
+| codex | p09 | 158,583 | 39,150 | +119,433 | +305.07% | skill 1/1; base 1/1 |
+| codex | p10 | 478,238 | 68,070 | +410,168 | +602.57% | skill 1/1; base 1/1 |
+| codex | p11 | 275,380 | 31,891 | +243,489 | +763.50% | skill 1/1; base 1/1 |
+| codex | p12 | 182,244 | 38,493 | +143,751 | +373.45% | skill 1/1; base 1/1 |
+| codex | p13 | 97,498 | 17,655 | +79,843 | +452.24% | skill 1/1; base 1/1 |
+| codex | p14 | 357,922 | 159,292 | +198,630 | +124.70% | skill 1/1; base 1/1 |
+| codex | p15 | 41,738 | 17,883 | +23,855 | +133.39% | skill 1/1; base 1/1 |
+| codex | p16 | 53,247 | 39,029 | +14,218 | +36.43% | skill 1/1; base 1/1 |
+| codex | p17 | 358,377 | 48,491 | +309,886 | +639.06% | skill 1/1; base 1/1 |
+| codex | p18 | 347,392 | 95,610 | +251,782 | +263.34% | skill 1/1; base 1/1 |
+| codex | p19 | 161,148 | 26,396 | +134,752 | +510.50% | skill 1/1; base 1/1 |
+| codex | p20 | 50,431 | 46,695 | +3,736 | +8.00% | skill 1/1; base 1/1 |
+| codex | p21 | 256,736 | 65,203 | +191,533 | +293.75% | skill 1/1; base 1/1 |
+| codex | p22 | 199,217 | 56,372 | +142,845 | +253.40% | skill 1/1; base 1/1 |
+| ALL AGENTS | Dataset aggregate | 15,101,566 | 3,841,257 | +11,260,309 | +293.14% | skill 64/64; base 64/64 |
 
 Prompt tokens include cached reads, so total tokens are `prompt + completion` (cached is not added twice). The Efficiency score uses `(prompt - cached) + completion`. Change is `100 * (with - without) / without`; negative means fewer tokens. N/A comparisons include their reason in the coverage column; coverage is never estimated.
 
