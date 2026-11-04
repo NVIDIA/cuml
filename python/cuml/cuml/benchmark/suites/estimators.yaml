@@ -8,6 +8,7 @@
 # 3. Proportionate resource use: input sizes balance measurement duration with
 #    GPU and host memory requirements for reliable execution on the target device.
 # Fast operations may remain below 100 ms to avoid excessive memory use.
+# Assess runtime and variability with docs/benchmarks/score_sizing.py.
 #
 # Preserve generator distributions; prefer estimator defaults except for bounded
 # classifier tree count, explicit projection dimensions, CPU threading, and the
