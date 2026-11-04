@@ -256,6 +256,30 @@ def test_logistic_regression(random_state):
     assert_estimator_roundtrip(original, SkLogisticRegression, X, y)
 
 
+@_filter_scipy_lbfgsb_deprecation
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"penalty": "l2", "C": 5.0},
+        {"penalty": "l1", "C": 5.0},
+        {"penalty": "elasticnet", "l1_ratio": 0.5, "C": 5.0},
+        {"penalty": None},
+    ],
+    ids=["l2", "l1", "elasticnet", "none"],
+)
+def test_logistic_regression_penalty_roundtrip(random_state, params):
+    """Each of cuml's four `penalty` options survives a roundtrip.
+
+    sklearn >= 1.8 encodes the penalty with `l1_ratio` and `C`/`alpha`, so
+    the export has to translate it and the import has to translate it back.
+    """
+    X, y = make_classification(
+        n_samples=50, n_features=5, n_informative=3, random_state=random_state
+    )
+    original = LogisticRegression(**params, max_iter=500)
+    assert_estimator_roundtrip(original, SkLogisticRegression, X, y)
+
+
 @pytest.mark.skipif(not SKLEARN_110, reason="alpha added in sklearn 1.10")
 def test_logistic_regression_no_penalty_alpha(random_state):
     # The roundtrip test covers `alpha = 1 / C`, this covers `alpha == 0`
@@ -269,7 +293,8 @@ def test_logistic_regression_no_penalty_alpha(random_state):
     model = LogisticRegression.from_sklearn(
         SkLogisticRegression(alpha=0).fit(X, y)
     )
-    assert model.C == np.inf
+    assert model.penalty is None
+    assert model.C == 1.0
 
 
 def test_elasticnet(random_state):
