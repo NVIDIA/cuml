@@ -196,58 +196,28 @@ _ridge_transform_zero_alpha = cp.ElementwiseKernel(
 
 
 def _fit_cholesky_or_lu(
-    X,
-    y,
-    sample_weight,
-    X_offset,
-    y_offset,
-    sqrt_weight,
-    alpha,
-    fit_intercept,
-    solver,
+    X, y, sample_weight, X_offset, y_offset, alpha, fit_intercept, solver
 ):
     """Fits a least-squares problem using a cholesky or LU decomposition.
 
     See `fit_least_squares` for parameters."""
+    X_is_sparse = cp_sp.issparse(X)
+
+    # Sanity checking, should be caught earlier in fit_least_squares
     assert solver in ("cholesky", "lu")
+    assert not (X_is_sparse and fit_intercept)
+
     n_samples, n_features = X.shape
     n_targets = y.shape[1]
 
     if dual := n_samples < n_features:
-        # A = X.dot(X.T), B = y
         N = n_samples
-        if cp_sp.issparse(X):
-            # Compute A without densifying X
-            A = sparse_gram(X, transpose=True)
-            if fit_intercept:
-                temp1 = X.dot(X_offset[:, None])
-                temp2 = X_offset.dot(X_offset)
-                if sqrt_weight is not None:
-                    temp1 = temp1 * sqrt_weight
-                    temp2 = temp2 * cp.outer(sqrt_weight, sqrt_weight)
-                A -= temp1
-                A -= temp1.T
-                A += temp2
-                del temp1, temp2
-        else:
-            A = X.dot(X.T)
-        B = y.copy()
+        A = sparse_gram(X, transpose=True) if X_is_sparse else X.dot(X.T)
+        B = y
     else:
-        # A = X.T.dot(X), B = X.T.dot(y)
         N = n_features
-        if cp_sp.issparse(X):
-            # Compute A, B without densifying X
-            A = sparse_gram(X)
-            B = X.T.dot(y)
-            if fit_intercept:
-                if sqrt_weight is None:
-                    A -= n_samples * cp.outer(X_offset, X_offset)
-                    B -= y.sum(axis=0) * X_offset[:, None]
-                else:
-                    A -= sample_weight.sum() * cp.outer(X_offset, X_offset)
-        else:
-            A = X.T.dot(X)
-            B = X.T.dot(y)
+        A = sparse_gram(X) if X_is_sparse else X.T.dot(X)
+        B = X.T.dot(y)
 
     def _solve(A, B):
         """Returns the `w` solution of `A @ w = B`"""
@@ -282,11 +252,7 @@ def _fit_cholesky_or_lu(
             last_alpha = current_alpha
 
     if dual:
-        temp1 = X.T.dot(coefs.T)
-        if cp_sp.issparse(X) and fit_intercept:
-            temp2 = coefs if sqrt_weight is None else sqrt_weight * coefs
-            temp1 -= X_offset[:, None] * temp2.sum()
-        coefs = temp1.T
+        coefs = X.T.dot(coefs.T).T
 
     return coefs
 
@@ -342,6 +308,12 @@ def fit_least_squares(
     """
     y_1d = y.ndim == 1
     if X_is_sparse := cp_sp.issparse(X):
+        if solver not in ("lu", "cholesky", "lsmr"):
+            raise ValueError(f"{solver=!r} doesn't support sparse inputs")
+        if fit_intercept and solver in ("lu", "cholesky"):
+            raise ValueError(
+                f"{solver=!r} with sparse X and {fit_intercept=} is not supported"
+            )
         # Centering and lsmr are much faster with CSR/CSC inputs
         if X.format not in ("csr", "csc"):
             X = X.tocsr()
@@ -376,7 +348,6 @@ def fit_least_squares(
             sample_weight,
             X_offset,
             y_offset,
-            sqrt_weight,
             alpha,
             fit_intercept,
             solver,
