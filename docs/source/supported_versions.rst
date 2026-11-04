@@ -1,3 +1,9 @@
+..
+   This page is a Jinja template. The ``deps.*`` version constraints are
+   filled in from dependencies.yaml at build time by
+   docs/source/sphinxext/dependency_versions.py. To change a version, edit
+   dependencies.yaml; to add a package, add it here and to ``PACKAGES`` there.
+
 Supported Versions
 ==================
 
@@ -10,11 +16,11 @@ Required Runtime Dependencies
 
 The following dependencies are required for the cuML library:
 
-* **NumPy**: >=2,<3.0a0
-* **scikit-learn**: >=1.6
-* **scipy**: >=1.14.0
-* **cupy**: cupy-cuda12x>=14.0.1 (CUDA 12), cupy-cuda13x>=14.0.1 (CUDA 13)
-* **treelite**: >=4.6.1,<5.0.0
+* **NumPy**: {{ deps.numpy }}
+* **scikit-learn**: {{ deps.scikit_learn }}
+* **scipy**: {{ deps.scipy }}
+* **cupy**: {{ deps.cupy }}
+* **treelite**: {{ deps.treelite }}
 
 Dask Runtime Dependencies
 -------------------------
@@ -33,11 +39,11 @@ Optional Runtime Dependencies
 
 The following dependencies are optional and provide additional functionality:
 
-* **xgboost**: >=2.1.0 (for gradient boosting algorithms)
-* **hdbscan**: >=0.8.39,<0.8.40 (for hierarchical density-based clustering)
-* **umap-learn**: >=0.5.7,<0.5.13 (for dimensionality reduction)
-* **pynndescent**: (for approximate nearest neighbor search)
-* **numba-cuda-mlir** >=0.3.0 (for user defined metrics)
+* **xgboost**: {{ deps.xgboost }} (for gradient boosting algorithms)
+* **hdbscan**: {{ deps.hdbscan }} (for hierarchical density-based clustering)
+* **umap-learn**: {{ deps.umap_learn }} (for dimensionality reduction)
+* **pynndescent**: {{ deps.pynndescent }} (for approximate nearest neighbor search)
+* **numba-cuda-mlir**: {{ deps.numba_cuda_mlir }} (for user defined metrics)
 
 CUDA-X Dependencies
 -------------------
