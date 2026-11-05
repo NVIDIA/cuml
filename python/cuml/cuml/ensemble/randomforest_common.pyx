@@ -371,6 +371,14 @@ class BaseRandomForestModel(InteropMixin, Base):
         # Resolve at use time so set_params and sklearn.clone retain the
         # constructor parameters.
         max_leaf_nodes = self.max_leaf_nodes
+        if max_leaf_nodes is not None and (
+            not isinstance(max_leaf_nodes, numbers.Integral)
+            or max_leaf_nodes < 2
+        ):
+            raise ValueError(
+                "max_leaf_nodes must be an integer of at least 2 or None; "
+                f"got {max_leaf_nodes!r}"
+            )
         if self.max_leaves != -1 and max_leaf_nodes is not None:
             raise ValueError(
                 "Only one of `max_leaves` and `max_leaf_nodes` may be set "

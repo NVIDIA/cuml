@@ -66,7 +66,8 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
     max_leaf_nodes : int or None (default = None)
-        Maximum leaf nodes per tree. A positive limit grows the tree greedily,
+        Maximum leaf nodes per tree. Must be at least 2 or ``None``.
+        A finite limit grows the tree greedily,
         splitting the leaf with the largest weighted impurity decrease first.
         If ``None``, use unlimited batched growth.
 
