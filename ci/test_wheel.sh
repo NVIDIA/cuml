@@ -63,6 +63,13 @@ set +e
 rapids-logger "Testing libcuml linkage"
 python -m pytest --cache-clear python/libcuml/tests/test_libcuml_linkage.py -v
 
+export PYTHONFAULTHANDLER=1
+rapids-logger "TEMP: repeat benchmark real-worker tests"
+for i in $(seq 1 20); do
+  out=$(cd python/cuml/tests && python -m pytest test_benchmark.py -k 'test_cli_real_workers or test_real_backend_smoke' -q -p no:cacheprovider 2>&1)
+  if echo "${out}" | tail -1 | grep -q failed; then echo "iter ${i} FAILED"; echo "${out}" | tail -300; else echo "iter ${i}: $(echo "${out}" | tail -1)"; fi
+done
+
 rapids-logger "pytest cuml single GPU"
 timeout -v --signal=SIGINT --kill-after=60s 90m ./ci/run_cuml_singlegpu_pytests.sh \
   --numprocesses=8 \
