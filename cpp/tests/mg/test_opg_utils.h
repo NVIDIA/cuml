@@ -31,6 +31,16 @@ inline void get_node_local_rank_size(int& local_rank, int& local_size)
 }
 
 /**
+ * @brief Initialise MPI if this process has not already done so.
+ */
+inline void initialize_mpi_once()
+{
+  int mpi_initialized = 0;
+  MPI_Initialized(&mpi_initialized);
+  if (!mpi_initialized) { MPI_Init(nullptr, nullptr); }
+}
+
+/**
  *
  * @brief Testing environment to handle googletest runs
  * @note Inspired from:
