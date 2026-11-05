@@ -72,8 +72,9 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
     max_leaves : int (default = -1)
-        Maximum leaf nodes per tree. Soft constraint. Unlimited,
-        If ``-1``.
+        Maximum leaf nodes per tree. A positive limit grows the tree greedily,
+        splitting the leaf with the largest weighted impurity decrease first.
+        If ``-1``, use unlimited batched growth.
     max_features : {'sqrt', 'log2', None}, int or float (default = 'sqrt')
         The number of features to consider per node split:
 
@@ -267,11 +268,14 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         """
         Perform Random Forest Classification on the input data
         """
-        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return self._fit(X, y, sample_weight=sample_weight)
 
     def _prepare_fit_inputs(self, X, y, sample_weight=None):
         classes = getattr(self, "_distributed_classes", True)
+        # In distributed setting, some partitions may have sample weights that are all zeros
+        sample_weight_allow_all_zero = (
+            hasattr(self, "_distributed_n_rows") and self.bootstrap
+        )
         X, y, sample_weight, classes = check_inputs(
             self,
             X,
@@ -281,6 +285,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
             order="A",
             y_dtype="int32",
             sample_weight_dtype="float64",
+            sample_weight_allow_all_zero=sample_weight_allow_all_zero,
             return_classes=classes,
             reset=True,
         )

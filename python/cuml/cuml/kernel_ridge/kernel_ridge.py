@@ -146,37 +146,35 @@ class KernelRidge(InteropMixin, RegressorMixin, Base):
 
     Examples
     --------
+    >>> import cupy as cp
+    >>> from cuml.kernel_ridge import KernelRidge
 
-    .. code-block:: python
+    >>> n_samples, n_features = 10, 5
+    >>> rng = cp.random.RandomState(0)
+    >>> y = rng.randn(n_samples)
+    >>> X = rng.randn(n_samples, n_features)
 
-        >>> import cupy as cp
-        >>> from cuml.kernel_ridge import KernelRidge
-        >>> from numba import cuda
-        >>> import math
+    >>> model = KernelRidge(kernel="poly").fit(X, y)
+    >>> pred = model.predict(X)
 
-        >>> n_samples, n_features = 10, 5
-        >>> rng = cp.random.RandomState(0)
-        >>> y = rng.randn(n_samples)
-        >>> X = rng.randn(n_samples, n_features)
+    Custom kernels may be provided as numba compiled device functions.
 
-        >>> model = KernelRidge(kernel="poly").fit(X, y)
-        >>> pred = model.predict(X)
+    >>> import math
+    >>> from numba_cuda_mlir import cuda  # doctest: +SKIP
 
+    >>> @cuda.jit(device=True)  # doctest: +SKIP
+    ... def custom_rbf_kernel(x, y, gamma=None):
+    ...     if gamma is None:
+    ...         gamma = 1.0 / len(x)
+    ...     sum = 0.0
+    ...     for i in range(len(x)):
+    ...         sum += (x[i] - y[i]) ** 2
+    ...     return math.exp(-gamma * sum)
 
-        >>> @cuda.jit(device=True)
-        ... def custom_rbf_kernel(x, y, gamma=None):
-        ...     if gamma is None:
-        ...         gamma = 1.0 / len(x)
-        ...     sum = 0.0
-        ...     for i in range(len(x)):
-        ...         sum += (x[i] - y[i]) ** 2
-        ...     return math.exp(-gamma * sum)
-
-
-        >>> model = KernelRidge(kernel=custom_rbf_kernel,
-        ...                     kernel_params={"gamma": 2.0}).fit(X, y)
-        >>> pred = model.predict(X)
-
+    >>> model = KernelRidge(  # doctest: +SKIP
+    ...     kernel=custom_rbf_kernel,
+    ...     kernel_params={"gamma": 2.0}
+    ... ).fit(X, y)
     """
 
     dual_coef_ = ReflectedAttr()
