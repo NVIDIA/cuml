@@ -211,7 +211,7 @@ def _run_plan(
             str(path),
         ]
         if suite.keyword_expression:
-            command.extend(["-k", suite.keyword_expression])
+            command.append(f"-k={suite.keyword_expression}")
         if resume and path.exists():
             command.append("--resume")
         if verbose:

@@ -236,7 +236,10 @@ def test_cli_collect_only(document, tmp_path, monkeypatch, capsys):
     assert exc.value.code == 2
 
 
-def test_cli_keyword_workers_and_resume(document, tmp_path, monkeypatch):
+@pytest.mark.parametrize("expression", ["PCA", "-missing or PCA"])
+def test_cli_keyword_workers_and_resume(
+    document, tmp_path, monkeypatch, expression
+):
     monkeypatch.delenv("CUML_ACCEL_ENABLED", raising=False)
     document["cases"].append(_request(estimator="TruncatedSVD"))
     path = _write_suite(tmp_path, document)
@@ -250,13 +253,13 @@ def test_cli_keyword_workers_and_resume(document, tmp_path, monkeypatch):
         str(output),
     ]
     expected = select_plan(load_suite(path), "PCA").runs[0].cases
-    assert cli.main([*argv, "-k", "PCA"]) == 0
+    assert cli.main([*argv, f"-k={expression}"]) == 0
     artifact_path = output / "scikit-learn.json"
     artifact = json.loads(artifact_path.read_text())
     assert [result["id"] for result in artifact["results"]] == [
         case.workload_id() for case in expected
     ]
-    assert "-k" in artifact["run"]["command"]["argv"]
+    assert f"-k={expression}" in artifact["run"]["command"]["argv"]
     assert cli.main([*argv, "-k", "PCA and not UMAP", "--resume"]) == 0
     resumed = json.loads(artifact_path.read_text())
     assert resumed["results"] == artifact["results"]
