@@ -42,8 +42,8 @@ def _public_estimators():
         cls.__name__
         for cls in get_all_base_subclasses().values()
         # ``Base`` itself and the intermediate ``*Base`` classes are not part
-        # of the public API, and the ``*MG`` classes are multi-GPU internals.
-        if not (cls.__name__.endswith("MG") or "Base" in cls.__name__)
+        # of the public API.
+        if "Base" not in cls.__name__
         and not getattr(cls, "__abstractmethods__", None)
         # Restrict to cuml's own classes. Test modules define dummy ``Base``
         # subclasses that otherwise leak in once they have been imported.

@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 import cuml
 import cuml.internals.logger as logger
+from cuml.cluster.kmeans_mg import KMeansMG
 from cuml.datasets import make_blobs
 from cuml.testing.datasets import make_pattern
 from cuml.testing.utils import (
@@ -613,3 +614,11 @@ def test_get_feature_names_out():
     res = cu_model.get_feature_names_out()
     sol = sk_model.get_feature_names_out()
     np.testing.assert_array_equal(res, sol)
+
+
+def test_kmeans_mg_device_buffer_samples_requires_partitions():
+    # Host streaming is only supported for partitioned input, the check runs
+    # before any comms are used
+    model = KMeansMG(handle=None, device_buffer_samples=64)
+    with pytest.raises(ValueError, match="device_buffer_samples=64 is not"):
+        model.fit(np.zeros((10, 2), dtype="float32"))

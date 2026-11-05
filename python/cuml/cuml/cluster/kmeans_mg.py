@@ -4,6 +4,7 @@
 #
 
 from cuml.cluster import KMeans
+from cuml.internals.param_validation import validate_params
 
 
 class KMeansMG(KMeans):
@@ -22,26 +23,30 @@ class KMeansMG(KMeans):
 
         When ``X`` is a sequence of local data partitions.
         """
+        self._validate_fit_params()
         if isinstance(X, (list, tuple)):
             return self._fit_mg_parts(X, sample_weight_parts=sample_weight)
+        if self.device_buffer_samples > 0:
+            # Only the partitioned path supports host streaming
+            raise ValueError(
+                f"device_buffer_samples={self.device_buffer_samples} is not "
+                f"supported for the multi-GPU KMeans fit path; set "
+                f"device_buffer_samples=0."
+            )
         return super().fit(X, sample_weight=sample_weight)
 
     def _validate_fit_params(self):
-        super()._validate_fit_params()
-        if isinstance(self.init, str):
-            if self.init == "k-means++":
-                raise ValueError(
-                    "init='k-means++' is not supported for KMeansMG. "
-                    "Use init='k-means||' or init='scalable-k-means++'."
-                )
-            if self.init not in {
-                "scalable-k-means++",
-                "k-means||",
-                "random",
-            }:
-                raise ValueError(
-                    f"init={self.init!r} is not supported for KMeansMG."
-                )
+        """Validate parameters, including values the multi-GPU path lacks.
+
+        Called by ``fit`` and by the dask preflight, neither of which (for
+        partitioned input) goes through ``mlfunc``'s validation.
+        """
+        validate_params(self)
+        if isinstance(self.init, str) and self.init == "k-means++":
+            raise ValueError(
+                "init='k-means++' is not supported for KMeansMG. "
+                "Use init='k-means||' or init='scalable-k-means++'."
+            )
 
         if self.oversampling_factor == 0:
             raise ValueError(

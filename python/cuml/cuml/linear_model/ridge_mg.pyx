@@ -1,8 +1,9 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import cupy as cp
 
+from cuml.internals.param_validation import Float, Options
 from cuml.linear_model import Ridge
 from cuml.linear_model.base_mg import MGFitMixin
 
@@ -47,6 +48,12 @@ cdef extern from "cuml/linear_model/ridge_mg.hpp" namespace "ML::Ridge::opg" nog
 
 
 class RidgeMG(MGFitMixin, Ridge):
+    # The multi-GPU implementation supports a subset of Ridge's options
+    _parameter_constraints = {
+        "alpha": [Float(ge=0)],
+        "solver": [Options("auto", "eig", "svd")],
+    }
+
     def _fit(
         self,
         uintptr_t X_ptr,
@@ -55,17 +62,7 @@ class RidgeMG(MGFitMixin, Ridge):
         dtype,
         uintptr_t input_desc_ptr,
     ):
-        # Validate alpha
-        if self.alpha < 0.0:
-            raise ValueError(f"alpha must be non-negative, got {self.alpha}")
-
-        # Validate and select solver
-        SUPPORTED_SOLVERS = ["auto", "eig", "svd"]
-        if (solver := self.solver) not in SUPPORTED_SOLVERS:
-            raise ValueError(
-                f"Expected `solver` to be one of {SUPPORTED_SOLVERS}, got {solver!r}"
-            )
-
+        solver = self.solver
         if solver == "eig":
             if n_cols == 1:
                 raise ValueError(
