@@ -74,7 +74,8 @@ class RandomForestClassifier(
         .. versionadded:: 26.12
 
     max_leaves : int (default = -1)
-        Deprecated alias for ``max_leaf_nodes``. Use ``max_leaf_nodes`` if not set.
+        Deprecated alias for ``max_leaf_nodes``. When set to ``-1`` (default), the leaf
+        limit is determined by ``max_leaf_nodes``.
 
         .. deprecated:: 26.12
 
