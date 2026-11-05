@@ -593,6 +593,8 @@ jobs:
       build_type: pull-request
       script: ci/test_wheel_dask.sh
       matrix_type: pull-request,wsl-pr
+      # NCCL_CUMEM_ENABLE=0 on WSL needs more than Docker's default 64 MB /dev/shm.
+      container-options: "--shm-size=1g"
   devcontainer:
     permissions:
       actions: read

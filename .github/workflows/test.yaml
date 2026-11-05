@@ -227,6 +227,8 @@ jobs:
       sha: ${{ inputs.sha }}
       script: ci/test_wheel_dask.sh
       matrix_type: nightly,wsl-nightly
+      # NCCL_CUMEM_ENABLE=0 on WSL needs more than Docker's default 64 MB /dev/shm.
+      container-options: "--shm-size=1g"
   wheel-tests-integrations:
     permissions:
       actions: read
