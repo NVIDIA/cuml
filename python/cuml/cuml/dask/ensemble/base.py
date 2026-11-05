@@ -149,6 +149,11 @@ def _func_fit(
     handle = get_raft_comm_state(session_id, get_worker())["handle"]
     X = concatenate([item[0] for item in input_data])
     y = concatenate([item[1] for item in input_data])
+    sample_weight = (
+        concatenate([item[2] for item in input_data])
+        if len(input_data[0]) == 3
+        else None
+    )
     model._raft_handle = handle
     model._distributed_n_rows = total_rows
     if classes is not None:
@@ -156,22 +161,7 @@ def _func_fit(
     if class_counts is not None:
         model._distributed_class_counts = class_counts
     try:
-        validation_error = None
-        try:
-            _, _, sample_weight = model._prepare_fit_inputs(X, y)
-            if sample_weight is not None and sample_weight.sum().item() <= 0.0:
-                raise ValueError(
-                    "Rank-local sample weights must sum to a positive value"
-                )
-        except Exception as error:
-            validation_error = error
-
-        if model._allreduce_validation_status(validation_error is not None):
-            if validation_error is not None:
-                raise validation_error
-            raise RuntimeError("Input validation failed on another worker")
-
-        return model.fit(X, y)
+        return model.fit(X, y, sample_weight=sample_weight)
     finally:
         del model._raft_handle
         del model._distributed_n_rows

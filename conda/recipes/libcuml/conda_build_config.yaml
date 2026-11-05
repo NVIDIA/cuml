@@ -16,5 +16,8 @@ c_stdlib_version:
 cmake_version:
   - ">=4.0"
 
-treelite_version:
-  - ">=4.7.2,<5.0.0"
+treelite_version_run:
+  - ">=4.8.1,<5.0.0"
+
+treelite_version_build:
+  - "==4.8.1"

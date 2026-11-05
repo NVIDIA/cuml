@@ -1,19 +1,19 @@
 # SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+import importlib
 import inspect
 import math
 
 import cupy as cp
 import numpy as np
 import pytest
+import sklearn.kernel_ridge
+import sklearn.metrics
 from cupy import linalg
 from hypothesis import assume, example, given, settings
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
-from numba import cuda
-from sklearn.kernel_ridge import KernelRidge as sklKernelRidge
-from sklearn.metrics.pairwise import pairwise_kernels as skl_pairwise_kernels
 
 import cuml
 from cuml import KernelRidge as cuKernelRidge
@@ -57,58 +57,117 @@ def test_pairwise_kernels_basic():
     pairwise_kernels(X, metric="chi2", gamma=1.0)
     # standard kernel with incorrect kwd argument
     with pytest.raises(
-        ValueError, match="kwds contains arguments not used by kernel function"
+        TypeError, match="unexpected keyword argument 'wrong_parameter_name'"
     ):
         pairwise_kernels(X, metric="linear", wrong_parameter_name=1.0)
     # standard kernel with filtered kwd argument
     pairwise_kernels(
         X, metric="rbf", filter_params=True, wrong_parameter_name=1.0
     )
+    # invalid metric name
+    with pytest.raises(ValueError, match="metric='invalid' is not supported"):
+        pairwise_kernels(X, metric="invalid")
 
 
-def test_pairwise_kernels_custom():
+def test_pairwise_kernels_precomputed():
+    X1 = np.zeros((4, 4))
+    X2 = np.zeros((4, 3))
+    Y = np.zeros((3, 4))
+
+    np.testing.assert_array_equal(
+        pairwise_kernels(X1, metric="precomputed"), X1
+    )
+    np.testing.assert_array_equal(
+        pairwise_kernels(X2, Y, metric="precomputed"), X2
+    )
+
+    with pytest.raises(ValueError, match="Precomputed metric requires shape"):
+        pairwise_kernels(X1, Y, metric="precomputed")
+
+
+@pytest.mark.parametrize("compiler", ["numba.cuda", "numba_cuda_mlir.cuda"])
+def test_pairwise_kernels_custom(compiler):
+    cuda = pytest.importorskip(compiler)
+
+    rng = np.random.RandomState(0)
+    X = rng.uniform(size=(4, 3))
+    Y = rng.uniform(size=(2, 3))
+
+    @cuda.jit(device=True)
+    def my_metric(x, y, b=0.0, a=0.0):
+        total = 0.0
+        for i in range(len(x)):
+            total += abs(y[i] - x[i])
+        return total + a - b
+
+    # Basic operation with only X
+    sol = sklearn.metrics.pairwise_kernels(X, metric=my_metric.py_func)
+    res = pairwise_kernels(X, metric=my_metric)
+    np.testing.assert_array_equal(res, sol)
+
+    # Basic operation with X and Y
+    sol = sklearn.metrics.pairwise_kernels(X, Y, metric=my_metric.py_func)
+    res = pairwise_kernels(X, Y, metric=my_metric)
+    np.testing.assert_array_equal(res, sol)
+
+    # Optional parameters are passed in correctly
+    res = pairwise_kernels(X, Y, metric=my_metric, a=5)
+    np.testing.assert_array_equal(res, sol + 5)
+
+    res = pairwise_kernels(X, Y, metric=my_metric, a=5, b=2)
+    np.testing.assert_array_equal(res, sol + 5 - 2)
+
+    res = pairwise_kernels(X, Y, metric=my_metric, b=2)
+    np.testing.assert_array_equal(res, sol - 2)
+
+    # Invalid parameters error by default
+    with pytest.raises(
+        TypeError, match=r"unexpected keyword arguments: \['bad'\]"
+    ):
+        pairwise_kernels(X, Y, metric=my_metric, bad=2.0)
+
+    # Invalid parameters are ignored if filter_params=True
+    res = pairwise_kernels(
+        X, Y, metric=my_metric, filter_params=True, a=5, bad=2.0
+    )
+    np.testing.assert_array_equal(res, sol + 5)
+
+
+@pytest.mark.parametrize("compiler", ["numba.cuda", "numba_cuda_mlir.cuda"])
+def test_pairwise_kernels_custom_bad_functions(compiler):
+    cuda = pytest.importorskip(compiler)
+
     X = np.zeros((4, 4))
 
     # incorrect function type
-    def non_numba_kernel(x, y):
-        return x.dot(y)
+    def my_metric(x, y):
+        return x + y
 
     with pytest.raises(
-        TypeError, match="Kernel function should be a numba device function."
+        TypeError, match="Kernel function should be a numba device function"
     ):
-        pairwise_kernels(X, metric=non_numba_kernel)
+        pairwise_kernels(X, metric=my_metric)
 
-    # correct function type
+    # malformed function - missing y parameter
     @cuda.jit(device=True)
-    def numba_kernel(x, y, special_argument=3.0):
-        return 1 + 2
-
-    pairwise_kernels(X, metric=numba_kernel)
-    pairwise_kernels(X, metric=numba_kernel, special_argument=1.0)
-
-    # malformed function
-    @cuda.jit(device=True)
-    def bad_numba_kernel(x):
-        return 1 + 2
+    def my_metric(x):
+        return x
 
     with pytest.raises(
-        ValueError, match="Expected at least two arguments to kernel function."
+        ValueError, match="Expected at least two arguments to kernel function"
     ):
-        pairwise_kernels(X, metric=bad_numba_kernel)
+        pairwise_kernels(X, metric=my_metric)
 
-    # malformed function 2 - No default value
+    # malformed function - no default value for extra parameter
     @cuda.jit(device=True)
-    def bad_numba_kernel2(x, y, z):
-        return 1 + 2
+    def my_metric(x, y, z):
+        return x + y
 
     with pytest.raises(
         ValueError,
-        match="Extra kernel parameters must be passed as keyword arguments.",
+        match="Extra kernel parameters must be passed as keyword arguments",
     ):
-        pairwise_kernels(X, metric=bad_numba_kernel2)
-
-    # Precomputed
-    assert np.allclose(X, pairwise_kernels(X, metric="precomputed"))
+        pairwise_kernels(X, metric=my_metric)
 
 
 @pytest.mark.parametrize("metric", ["additive_chi2", "chi2"])
@@ -144,12 +203,11 @@ def test_additive_chi2_dtypes(dtype):
     X = np.array([[1], [2], [3]], dtype="float64")
     cu_X = cp.asarray(X, dtype=dtype)
 
-    sol = skl_pairwise_kernels(X, metric="additive_chi2")
+    sol = sklearn.metrics.pairwise_kernels(X, metric="additive_chi2")
     res = pairwise_kernels(cu_X, metric="additive_chi2")
     cp.testing.assert_allclose(res, sol)
 
 
-@cuda.jit(device=True)
 def custom_kernel(x, y, custom_arg=5.0):
     sum = 0.0
     for i in range(len(x)):
@@ -157,21 +215,24 @@ def custom_kernel(x, y, custom_arg=5.0):
     return math.exp(-custom_arg * sum) + 0.1
 
 
-test_kernels = sorted(PAIRWISE_KERNEL_FUNCTIONS.keys()) + [custom_kernel]
+test_kernels = sorted(PAIRWISE_KERNEL_FUNCTIONS.keys())
+test_kernels.extend(["numba.cuda", "numba_cuda_mlir.cuda"])
 
 
 @st.composite
 def kernel_arg_strategy(draw):
     kernel = draw(st.sampled_from(test_kernels))
-    kernel_func = (
-        PAIRWISE_KERNEL_FUNCTIONS[kernel]
-        if isinstance(kernel, str)
-        else kernel
-    )
+    if kernel.startswith("numba"):
+        try:
+            cuda = importlib.import_module(kernel)
+        except ImportError:
+            # dependency not available
+            assume(False)
+        kernel_func = kernel = cuda.jit(device=True)(custom_kernel)
+    else:
+        kernel_func = PAIRWISE_KERNEL_FUNCTIONS[kernel]
     # Inspect the function and generate some arguments
-    py_func = (
-        kernel_func.py_func if hasattr(kernel_func, "py_func") else kernel_func
-    )
+    py_func = getattr(kernel_func, "py_func", kernel_func)
     all_func_kwargs = list(inspect.signature(py_func).parameters.values())[2:]
     param = {}
     for arg in all_func_kwargs:
@@ -224,7 +285,6 @@ def array_strategy(draw):
 )
 @given(kernel_arg_strategy(), array_strategy())
 @settings(deadline=None)
-@pytest.mark.skip("https://github.com/NVIDIA/cuml/issues/5177")
 def test_pairwise_kernels(kernel_arg, XY):
     X, Y = XY
     kernel, args = kernel_arg
@@ -237,7 +297,7 @@ def test_pairwise_kernels(kernel_arg, XY):
 
     K = pairwise_kernels(X, Y, metric=kernel, **args)
     skl_kernel = kernel.py_func if hasattr(kernel, "py_func") else kernel
-    K_sklearn = skl_pairwise_kernels(
+    K_sklearn = sklearn.metrics.pairwise_kernels(
         *as_numpy(X, Y), metric=skl_kernel, **args
     )
     assert np.allclose(as_numpy(K), K_sklearn, atol=0.01, rtol=0.01)
@@ -347,7 +407,7 @@ def test_estimator(kernel_arg, arrays, gamma, degree, coef0):
         kernel_params=args,
     )
     skl_kernel = kernel.py_func if hasattr(kernel, "py_func") else kernel
-    skl_model = sklKernelRidge(
+    skl_model = sklearn.kernel_ridge.KernelRidge(
         kernel=skl_kernel,
         alpha=as_numpy(alpha),
         gamma=gamma,
