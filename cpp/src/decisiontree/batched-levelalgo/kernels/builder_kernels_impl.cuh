@@ -264,7 +264,8 @@ void launchBuildLeafHistogramsKernel(ObjectiveT objective,
   auto tiles_per_node    = raft::ceildiv(dataset.num_outputs, outputs_per_block);
   auto smem_size         = sizeof(typename ObjectiveT::BinT) * outputs_per_block;
   // Flatten the grid so neither the node count nor the target count is limited by grid.y.
-  auto num_blocks = ML::narrow_cast<int>(ML::checked_mul<std::size_t>(batch_size, tiles_per_node));
+  auto num_blocks =
+    ML::narrow_cast<ML::cuda_launch_t>(ML::checked_mul<std::size_t>(batch_size, tiles_per_node));
   if (tiles_per_node == 1) {
     // Preserve the original kernel's work for ordinary class counts and scalar regression.
     buildLeafHistogramsKernel<true>
