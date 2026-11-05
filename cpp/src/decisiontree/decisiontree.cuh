@@ -218,8 +218,9 @@ class DecisionTree {
     uint64_t seed,
     const Quantiles<DataT>& quantiles,
     std::int64_t treeid,
-    const double* sample_weight = nullptr,
-    bool row_major              = false)
+    const double* sample_weight    = nullptr,
+    bool row_major                 = false,
+    std::uint32_t* bootstrap_count = nullptr)
   {
     if (params.split_criterion ==
         CRITERION::CRITERION_END) {  // Set default to GINI (classification) or MSE (regression)
@@ -230,7 +231,7 @@ class DecisionTree {
     // Dispatch objective family. The objective object switches on the criterion at runtime.
     if (not std::is_same<DataT, LabelT>::value and (params.split_criterion == CRITERION::GINI ||
                                                     params.split_criterion == CRITERION::ENTROPY)) {
-      if (sample_weight != nullptr) {
+      if (sample_weight != nullptr || bootstrap_count != nullptr) {
         return Builder<ClassificationObjectiveFunction<DataT, LabelT, true>>(handle,
                                                                              s,
                                                                              treeid,
@@ -239,6 +240,7 @@ class DecisionTree {
                                                                              data,
                                                                              labels,
                                                                              sample_weight,
+                                                                             bootstrap_count,
                                                                              nrows,
                                                                              ncols,
                                                                              row_ids,
@@ -255,6 +257,7 @@ class DecisionTree {
                                                                      data,
                                                                      labels,
                                                                      sample_weight,
+                                                                     bootstrap_count,
                                                                      nrows,
                                                                      ncols,
                                                                      row_ids,
@@ -267,7 +270,7 @@ class DecisionTree {
                 params.split_criterion == CRITERION::POISSON ||
                 params.split_criterion == CRITERION::GAMMA ||
                 params.split_criterion == CRITERION::INVERSE_GAUSSIAN)) {
-      if (sample_weight != nullptr) {
+      if (sample_weight != nullptr || bootstrap_count != nullptr) {
         return Builder<RegressionObjectiveFunction<DataT, LabelT, true>>(handle,
                                                                          s,
                                                                          treeid,
@@ -276,6 +279,7 @@ class DecisionTree {
                                                                          data,
                                                                          labels,
                                                                          sample_weight,
+                                                                         bootstrap_count,
                                                                          nrows,
                                                                          ncols,
                                                                          row_ids,
@@ -292,6 +296,7 @@ class DecisionTree {
                                                                  data,
                                                                  labels,
                                                                  sample_weight,
+                                                                 bootstrap_count,
                                                                  nrows,
                                                                  ncols,
                                                                  row_ids,
