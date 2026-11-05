@@ -437,8 +437,8 @@
       "assertions": [
         "States that native Windows pip install is not supported",
         "Recommends WSL2 as the way to run cuML on Windows 11",
-        "Gives a valid install inside WSL2 (cuml-cu12/cuml-cu13 via pip, conda, or the RAPIDS container)",
-        "Links to the official RAPIDS installation guide (https://docs.rapids.ai/install/) for platform, GPU, CUDA, and driver requirements"
+        "Gives a valid install inside WSL2 (cuml-cu12/cuml-cu13 via pip, conda, or the rapidsai/base container)",
+        "Links to the official installation guide (https://docs.nvidia.com/datascience/install/) for platform, GPU, CUDA, and driver requirements"
       ],
       "probe_verdicts": {
         "haiku": "W",
