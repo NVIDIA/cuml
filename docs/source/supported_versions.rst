@@ -13,7 +13,6 @@ The following dependencies are required for the cuML library:
 * **NumPy**: >=2,<3.0a0
 * **scikit-learn**: >=1.6
 * **scipy**: >=1.14.0
-* **numba**: >=0.60.0,<0.62.0a0
 * **cupy**: cupy-cuda12x>=14.0.1 (CUDA 12), cupy-cuda13x>=14.0.1 (CUDA 13)
 * **treelite**: >=4.6.1,<5.0.0
 
@@ -38,6 +37,7 @@ The following dependencies are optional and provide additional functionality:
 * **hdbscan**: >=0.8.39,<0.8.40 (for hierarchical density-based clustering)
 * **umap-learn**: >=0.5.7,<0.5.13 (for dimensionality reduction)
 * **pynndescent**: (for approximate nearest neighbor search)
+* **numba-cuda-mlir** >=0.3.0 (for user defined metrics)
 
 CUDA-X Dependencies
 -------------------

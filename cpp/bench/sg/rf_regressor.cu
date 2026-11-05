@@ -69,7 +69,7 @@ class RFRegressor : public RegressionFixture<D> {
 };
 
 template <typename D>
-std::vector<RegParams> getInputs()
+std::vector<RegParams> getInputs(int max_leaves)
 {
   struct DimInfo {
     int nrows, ncols, n_informative, n_trees;
@@ -87,7 +87,7 @@ std::vector<RegParams> getInputs()
                      .seed           = 12345ULL};
 
   p.rf                          = set_rf_params(10,                 /*max_depth */
-                       (1 << 20),          /* max_leaves */
+                       max_leaves,         /* max_leaves */
                        0.3,                /* max_features */
                        32,                 /* max_n_bins */
                        3,                  /* min_samples_leaf */
@@ -123,8 +123,11 @@ std::vector<RegParams> getInputs()
   return out;
 }
 
-ML_BENCH_REGISTER(RegParams, RFRegressor<float>, "regression", getInputs<float>());
-ML_BENCH_REGISTER(RegParams, RFRegressor<double>, "regression", getInputs<double>());
+// Keep the greedy leaf limit nonbinding at the tested depths for a fair policy comparison.
+ML_BENCH_REGISTER(RegParams, RFRegressor<float>, "regression/depthwise", getInputs<float>(-1));
+ML_BENCH_REGISTER(RegParams, RFRegressor<double>, "regression/depthwise", getInputs<double>(-1));
+ML_BENCH_REGISTER(RegParams, RFRegressor<float>, "regression/greedy", getInputs<float>(1 << 20));
+ML_BENCH_REGISTER(RegParams, RFRegressor<double>, "regression/greedy", getInputs<double>(1 << 20));
 
 }  // namespace rf
 }  // namespace Bench
