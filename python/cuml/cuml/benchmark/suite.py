@@ -338,6 +338,7 @@ class SuitePlan:
     name: str
     profile_name: str
     runs: tuple[Suite, ...]
+    keyword_expression: str = ""
 
 
 def _providers(values: list[str], where: str) -> None:

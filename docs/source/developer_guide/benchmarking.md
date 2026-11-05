@@ -45,6 +45,25 @@ Provider requirements:
 - Estimator availability and accepted constructor parameters depend on installed
   packages.
 
+### Select and preview cases
+
+Use `-k` to select cases and `--collect-only` to preview them without running
+benchmarks or writing files:
+
+```bash
+python -m cuml.benchmark --profile smoke -k 'PCA or UMAP'
+python -m cuml.benchmark -k '(PCA or UMAP) and dtype=float32' --collect-only
+```
+
+Terms match case-insensitive substrings of estimator names, operations, dataset
+generators, workload IDs, and profile-scaled `rows=N`, `features=N`, and
+`dtype=TYPE` attributes. Combine terms with lowercase `not`, `and`, `or`, and
+parentheses.
+
+Invalid expressions or no matches exit nonzero. The `--collect-only` option
+reports counts by provider. Resuming requires the same selected cases as the
+checkpoint.
+
 ## Define a suite
 
 Save this manifest as `my-suite.yaml`:

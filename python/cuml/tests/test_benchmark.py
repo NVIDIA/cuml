@@ -33,6 +33,7 @@ from cuml.benchmark import _runner as coordinator
 from cuml.benchmark import _subprocess as runner
 from cuml.benchmark import cli, harness
 from cuml.benchmark._hashing import canonical_json
+from cuml.benchmark._selection import compile_expression, select_plan
 from cuml.benchmark.backends import base as base_backend
 from cuml.benchmark.backends import cuml as cuml_backend
 from cuml.benchmark.backends import get_backend
@@ -127,6 +128,164 @@ def document():
         "profiles": {"standard": dict(PROFILE)},
         "cases": [_request()],
     }
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("", True),
+        ("  ", True),
+        ("pCa", True),
+        ("pca.fit", True),
+        ("matrix and rows=64 and features=8 and dtype=float32", True),
+        ("PCA or UMAP and predict", True),
+        ("(PCA or UMAP) and predict", False),
+        ("not (UMAP or predict)", True),
+        ("not not PCA", True),
+        ("PCA and not fit", False),
+        ("scikit-learn", False),
+        ("n_components", False),
+    ],
+)
+def test_keyword_expression(expression, expected):
+    case = resolve_case(_request(), PROFILE)
+    assert compile_expression(expression)(case) is expected
+    assert compile_expression(case.label)(case)
+    assert compile_expression(case.workload_id())(case)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "PCA UMAP",
+        "PCA and",
+        "or PCA",
+        "()",
+        "(PCA",
+        "PCA)",
+        "not",
+        "PCA or or fit",
+    ],
+)
+def test_invalid_keyword_expression(expression):
+    with pytest.raises(SuiteError, match="invalid -k expression"):
+        compile_expression(expression)
+
+
+def test_keyword_selection_resolved_profiles(document, tmp_path):
+    document["profiles"]["standard"]["size_scale"] = 0.5
+    document["cases"][0]["dataset"]["shape"].update(rows=200, features=16)
+    document["cases"].append(_request(estimator="TruncatedSVD"))
+    plan = load_suite(_write_suite(tmp_path, document))
+    selected = select_plan(plan, "rows=100 and features=16")
+    assert selected.runs[0].cases == (plan.runs[0].cases[0],)
+    assert selected.runs[0].cases[0] is plan.runs[0].cases[0]
+    assert select_plan(plan, "").runs == plan.runs
+    with pytest.raises(SuiteError, match="no benchmark cases match"):
+        select_plan(plan, "rows=64")
+
+
+def test_cli_collect_only(document, tmp_path, monkeypatch, capsys):
+    document["providers"] = ["cuml", "scikit-learn"]
+    document["cases"][0]["providers"] = ["cuml"]
+    document["cases"].append(
+        _request(estimator="TruncatedSVD", providers=["scikit-learn"])
+    )
+    path = _write_suite(tmp_path, document)
+    output = tmp_path / "untouched"
+    monkeypatch.chdir(tmp_path)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail(
+            "collection must not prepare backends or execute benchmarks"
+        )
+
+    monkeypatch.setattr(cli, "_run_plan", forbidden)
+    monkeypatch.setattr(cli, "default_output_path", forbidden)
+    monkeypatch.setattr(harness, "run_suite", forbidden)
+    monkeypatch.setattr(harness, "generate_data", forbidden)
+    monkeypatch.setattr(
+        cuml_backend.CumlBackend, "bootstrap_process", forbidden
+    )
+    monkeypatch.setattr(cuml_backend.CumlBackend, "prepare_process", forbidden)
+    argv = [
+        "--suite",
+        str(path),
+        "--provider",
+        "cuml",
+        "--provider",
+        "scikit-learn",
+        "-k",
+        "pca",
+        "--collect-only",
+    ]
+    assert cli.main(argv) == 0
+    first = capsys.readouterr().out
+    assert "cuml — 1 selected / 1 available" in first
+    assert "scikit-learn — 0 selected / 1 available" in first
+    assert (
+        "PCA.fit  dataset=matrix  rows=64  features=8  dtype=float32" in first
+    )
+    assert "Collected 1 case across 1 provider." in first
+    assert cli.main([*argv, "--output", str(output)]) == 0
+    assert capsys.readouterr().out == first
+    assert not output.exists()
+    assert not (tmp_path / ".benchmarks").exists()
+    with pytest.raises(SystemExit) as exc:
+        cli.main([*argv, "--resume", "--output", str(output)])
+    assert exc.value.code == 2
+
+
+def test_cli_keyword_workers_and_resume(document, tmp_path, monkeypatch):
+    monkeypatch.delenv("CUML_ACCEL_ENABLED", raising=False)
+    document["cases"].append(_request(estimator="TruncatedSVD"))
+    path = _write_suite(tmp_path, document)
+    output = tmp_path / "results"
+    argv = [
+        "--suite",
+        str(path),
+        "--provider",
+        "scikit-learn",
+        "--output",
+        str(output),
+    ]
+    expected = select_plan(load_suite(path), "PCA").runs[0].cases
+    assert cli.main([*argv, "-k", "PCA"]) == 0
+    artifact_path = output / "scikit-learn.json"
+    artifact = json.loads(artifact_path.read_text())
+    assert [result["id"] for result in artifact["results"]] == [
+        case.workload_id() for case in expected
+    ]
+    assert "-k" in artifact["run"]["command"]["argv"]
+    assert cli.main([*argv, "-k", "PCA and not UMAP", "--resume"]) == 0
+    resumed = json.loads(artifact_path.read_text())
+    assert resumed["results"] == artifact["results"]
+    assert resumed["run"]["id"] == artifact["run"]["id"]
+    assert cli.main([*argv, "--resume"]) == 1
+    assert json.loads(artifact_path.read_text()) == resumed
+
+
+@pytest.mark.parametrize("expression", ["PCA and", "unknown-estimator"])
+def test_cli_keyword_errors_do_not_write(document, tmp_path, expression):
+    path = _write_suite(tmp_path, document)
+    output = tmp_path / "untouched"
+    for flags in [[], ["--collect-only"]]:
+        with pytest.raises(SystemExit) as exc:
+            cli.main(
+                [
+                    "--suite",
+                    str(path),
+                    "--provider",
+                    "scikit-learn",
+                    "--output",
+                    str(output),
+                    "-k",
+                    expression,
+                    *flags,
+                ]
+            )
+        assert exc.value.code == 2
+        assert not output.exists()
 
 
 def test_provider_qualified_estimator_workers(document, tmp_path, monkeypatch):
