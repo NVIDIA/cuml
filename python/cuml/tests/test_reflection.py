@@ -313,6 +313,59 @@ def test_convert_arrays_dense_array(input_type, order, output_type):
     assert out.flags.c_contiguous if order == "C" else out.flags.f_contiguous
 
 
+@pytest.mark.parametrize("layout", ["C", "F", "1d", "non-contiguous", "int64"])
+def test_convert_arrays_numpy_pinned(monkeypatch, layout):
+    """Outputs within the size limits are copied into pinned host memory"""
+    import cuml.internals.outputs as outputs
+
+    monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MIN_BYTES", 0)
+    X = cp.random.default_rng(42).standard_normal((50, 8))
+    if layout == "F":
+        X = cp.asfortranarray(X)
+    elif layout == "1d":
+        X = X[:, 0].copy()
+    elif layout == "non-contiguous":
+        X = X[::2, ::3]
+    elif layout == "int64":
+        X = (X * 100).astype(cp.int64)
+
+    out = convert_arrays(X, "numpy")
+    assert type(out) is np.ndarray
+    # A view onto a block from CuPy's pinned memory pool
+    assert out.base is not None
+    assert out.flags.writeable
+    assert out.dtype == X.dtype
+    np.testing.assert_array_equal(out, X.get())
+    if layout == "F":
+        assert out.flags.f_contiguous
+    else:
+        assert out.flags.c_contiguous
+    out[...] = 0  # writeable, and doesn't alias the device array
+    assert cp.any(X != 0)
+
+
+@pytest.mark.parametrize("limit", ["below-min", "above-max", "empty"])
+def test_convert_arrays_numpy_pageable_fallback(monkeypatch, limit):
+    """Outputs outside the size limits keep the pageable `get()` path"""
+    import cuml.internals.outputs as outputs
+
+    X = cp.arange(64, dtype=cp.float32)
+    if limit == "below-min":
+        monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MIN_BYTES", X.nbytes + 1)
+    elif limit == "above-max":
+        monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MIN_BYTES", 0)
+        monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MAX_BYTES", X.nbytes - 1)
+    else:
+        monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MIN_BYTES", 0)
+        X = X[:0]
+
+    out = convert_arrays(X, "numpy")
+    assert type(out) is np.ndarray
+    # `ndarray.get()` returns an array that owns its memory
+    assert out.base is None
+    np.testing.assert_array_equal(out, X.get())
+
+
 @pytest.mark.parametrize("input_type", ["numpy", "cupy", "pandas", "cudf"])
 @pytest.mark.parametrize("output_type", ["numpy", "cupy"])
 def test_convert_arrays_dense_array_1d(input_type, output_type):

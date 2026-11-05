@@ -437,6 +437,13 @@ class ClassLabels:
             )
 
 
+# Smallest NumPy output allocated from pinned (page-locked) host memory.
+# Below about 1 MiB a pinned destination saves nothing measurable and can
+# make a call slower (measured on `predict` calls with 32 KiB - 512 KiB
+# outputs), so small outputs keep the ordinary pageable path.
+_PINNED_OUTPUT_MIN_BYTES = int(
+    os.environ.get("CUML_PINNED_OUTPUT_MIN_BYTES", 1 << 20)
+)
 # Largest NumPy output allocated from pinned (page-locked) host memory.
 # Pinned memory cannot be swapped and is a limited resource, so outputs
 # above this size fall back to an ordinary pageable allocation.
@@ -453,12 +460,16 @@ def _cupy_to_numpy(obj):
     before the copy can start, and the copy itself is staged through the
     driver's bounce buffers; measured on a 500 MB output that was 180 ms,
     of which 154 ms was first-touch faulting, against 9 ms into a pinned
-    destination, which is written by a single DMA. The buffer comes from
+    destination, which is written by a single DMA. Outputs smaller than
+    ``_PINNED_OUTPUT_MIN_BYTES`` or larger than ``_PINNED_OUTPUT_MAX_BYTES``
+    keep the pageable path. The buffer comes from
     CuPy's pinned memory pool and returns to it when the NumPy array is
     garbage collected. The array is writeable and owns no memory itself,
     like any other view.
     """
-    if obj.size == 0 or obj.nbytes > _PINNED_OUTPUT_MAX_BYTES:
+    if obj.size == 0 or not (
+        _PINNED_OUTPUT_MIN_BYTES <= obj.nbytes <= _PINNED_OUTPUT_MAX_BYTES
+    ):
         return obj.get(order="A")
     if not (obj.flags.c_contiguous or obj.flags.f_contiguous):
         # `get(order="A")` would make the same device-side copy
