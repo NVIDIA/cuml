@@ -533,6 +533,8 @@ dependencies:
           - ipykernel
           - nbsphinx
           - &onnxruntime onnxruntime
+          # used by docs/source/sphinxext/dependency_versions.py
+          - pyyaml
           - recommonmark
           - *scikit_learn
           - &skl2onnx skl2onnx
