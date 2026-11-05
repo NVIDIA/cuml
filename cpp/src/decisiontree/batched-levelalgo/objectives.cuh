@@ -22,7 +22,7 @@ class ClassificationObjectiveFunction {
   using DataT  = DataT_;
   using LabelT = LabelT_;
   using BinT   = std::conditional_t<weighted_, WeightedClassificationBin, ClassificationBin>;
-  static constexpr bool weighted                  = weighted_;
+  static constexpr bool weighted = weighted_;
   // Used to handle leaf histogram shared memory allocation.
   static constexpr int default_shmem_kib          = 48;
   static constexpr int max_leaf_outputs_per_block = default_shmem_kib * 1024 / sizeof(BinT);
