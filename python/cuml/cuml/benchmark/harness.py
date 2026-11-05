@@ -28,7 +28,7 @@ from .suite import ResolvedCase, Suite, SuiteError, Workload
 
 logger = logging.getLogger("cuml.benchmark")
 
-METHODOLOGY = "cuml-benchmark-observations-v4"
+METHODOLOGY = "cuml-benchmark-observations-v5"
 EXTENSION = "com.nvidia.cuml.benchmark"
 
 

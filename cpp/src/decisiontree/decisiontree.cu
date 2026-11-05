@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -92,7 +92,6 @@ std::string get_tree_text(const TreeMetaDataNode<T, L>* tree)
 template <class T, class L>
 std::string get_tree_json(const TreeMetaDataNode<T, L>* tree)
 {
-  std::ostringstream oss;
   return get_node_json("", tree, 0);
 }
 
