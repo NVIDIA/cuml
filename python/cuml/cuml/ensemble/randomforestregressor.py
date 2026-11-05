@@ -65,10 +65,20 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         .. rapids-pre-commit-hooks: disable-next-line
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
-    max_leaves : int (default = -1)
+    max_leaf_nodes : int or None (default = None)
         Maximum leaf nodes per tree. A positive limit grows the tree greedily,
         splitting the leaf with the largest weighted impurity decrease first.
-        If ``-1``, use unlimited batched growth.
+        If ``None``, use unlimited batched growth.
+
+        .. versionadded:: 26.12
+
+    max_leaves : int (default = -1)
+        Deprecated alias for ``max_leaf_nodes``. Use ``max_leaf_nodes`` if not set.
+
+        .. deprecated:: 26.12
+
+            ``max_leaves`` will be removed in 27.02. Use ``max_leaf_nodes`` instead.
+
     max_features : {'sqrt', 'log2', None}, int or float (default = 1.0)
         The number of features to consider per node split:
 
@@ -168,6 +178,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         bootstrap=True,
         max_samples=1.0,
         max_depth=None,
+        max_leaf_nodes=None,
         max_leaves=-1,
         max_features=1.0,
         n_bins=128,
@@ -187,6 +198,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             bootstrap=bootstrap,
             max_samples=max_samples,
             max_depth=max_depth,
+            max_leaf_nodes=max_leaf_nodes,
             max_leaves=max_leaves,
             max_features=max_features,
             n_bins=n_bins,

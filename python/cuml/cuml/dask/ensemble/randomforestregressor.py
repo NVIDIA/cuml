@@ -50,10 +50,20 @@ class RandomForestRegressor(
         .. rapids-pre-commit-hooks: disable-next-line
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
-    max_leaves : int (default = -1)
+    max_leaf_nodes : int or None (default = None)
         Maximum leaf nodes per tree. A positive limit grows the tree greedily,
         splitting the leaf with the largest weighted impurity decrease first.
-        If ``-1``, use unlimited batched growth.
+        If ``None``, use unlimited batched growth.
+
+        .. versionadded:: 26.12
+
+    max_leaves : int (default = -1)
+        Deprecated alias for ``max_leaf_nodes``. Use ``max_leaf_nodes`` if not set.
+
+        .. deprecated:: 26.12
+
+            ``max_leaves`` will be removed in 27.02. Use ``max_leaf_nodes`` instead.
+
     max_features : float (default = 'auto')
         Ratio of number of features (columns) to consider
         per node split.\n
