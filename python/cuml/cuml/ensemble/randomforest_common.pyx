@@ -378,8 +378,8 @@ class BaseRandomForestModel(InteropMixin, Base):
             )
         if self.max_leaves != -1:
             warnings.warn(
-                "`max_leaves` was deprecated in 26.12 and will be removed in "
-                "27.02. Use `max_leaf_nodes` instead.",
+                "`max_leaves` was deprecated in 26.12 and will be "
+                "removed in 27.02. Use `max_leaf_nodes` instead.",
                 FutureWarning,
             )
             max_leaf_nodes = self.max_leaves
