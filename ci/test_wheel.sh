@@ -64,6 +64,9 @@ rapids-logger "Testing libcuml linkage"
 python -m pytest --cache-clear python/libcuml/tests/test_libcuml_linkage.py -v
 
 rapids-logger "pytest cuml single GPU"
+df -h /dev/shm
+nvidia-smi --query-gpu=timestamp,memory.used,memory.total --format=csv -l 2 > /tmp/gpu_mem.csv 2>&1 &
+GPU_MEM_PID=$!
 timeout -v --signal=SIGINT --kill-after=60s 90m ./ci/run_cuml_singlegpu_pytests.sh \
   --numprocesses=8 \
   --dist=worksteal \
@@ -77,6 +80,10 @@ if [[ "${RAPIDS_DEPENDENCIES:-}" == "nightly" ]]; then
     --dist=worksteal \
     --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-accel.xml"
 fi
+
+kill "${GPU_MEM_PID}"
+rapids-logger "GPU memory.used max (MiB) and samples above 60000 MiB"
+awk -F', ' 'NR>1 {v=$2+0; if (v>m) m=v; if (v>60000) print} END {print "max", m}' /tmp/gpu_mem.csv | tail -200
 
 # Run test_sparse_pca_inputs separately
 timeout -v --signal=SIGINT --kill-after=60s 10m ./ci/run_cuml_singlegpu_pytests.sh \

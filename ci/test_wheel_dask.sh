@@ -36,6 +36,8 @@ if grep -qi microsoft /proc/version; then
   export NCCL_CUMEM_ENABLE=0
 fi
 
+df -h /dev/shm
+export NCCL_DEBUG=WARN
 rapids-logger "pytest cuml dask"
 timeout -v --signal=SIGINT --kill-after=60s 1h ./ci/run_cuml_dask_pytests.sh --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-dask.xml"
 
