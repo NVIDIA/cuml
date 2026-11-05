@@ -67,10 +67,14 @@ rapids-logger "pytest cuml single GPU"
 df -h /dev/shm
 nvidia-smi --query-gpu=timestamp,memory.used,memory.total --format=csv -l 2 > /tmp/gpu_mem.csv 2>&1 &
 GPU_MEM_PID=$!
+hostname; nproc; free -m; cat /proc/sys/vm/overcommit_memory; ulimit -a
+(while true; do echo "$(date -u +%H:%M:%S) $(awk '/MemAvailable|Committed_AS|SwapFree/ {printf "%s %d ", $1, $2/1024}' /proc/meminfo)"; sleep 2; done) > /tmp/host_mem.log 2>&1 &
+HOST_MEM_PID=$!
 timeout -v --signal=SIGINT --kill-after=60s 90m ./ci/run_cuml_singlegpu_pytests.sh \
   --numprocesses=8 \
   --dist=worksteal \
   -k 'not test_sparse_pca_inputs' \
+  -v \
   --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml.xml"
 
 if [[ "${RAPIDS_DEPENDENCIES:-}" == "nightly" ]]; then
@@ -84,6 +88,10 @@ fi
 kill "${GPU_MEM_PID}"
 rapids-logger "GPU memory.used max (MiB) and samples above 60000 MiB"
 awk -F', ' 'NR>1 {v=$2+0; if (v>m) m=v; if (v>60000) print} END {print "max", m}' /tmp/gpu_mem.csv | tail -200
+kill "${HOST_MEM_PID}"
+rapids-logger "Host MemAvailable min (MiB) and samples below 4096 MiB"
+awk '{v=$3+0; if (NR==1 || v<m) {m=v; t=$0}; if (v<4096) print} END {print "min", t}' /tmp/host_mem.log | tail -200
+awk 'NR % 30 == 1' /tmp/host_mem.log
 
 # Run test_sparse_pca_inputs separately
 timeout -v --signal=SIGINT --kill-after=60s 10m ./ci/run_cuml_singlegpu_pytests.sh \
