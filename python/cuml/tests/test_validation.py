@@ -1869,6 +1869,13 @@ def test_check_sample_weight_all_zero(sample_weight):
         check_sample_weight(sample_weight)
 
 
+@pytest.mark.parametrize("mem_type", ["host", "device"])
+def test_check_sample_weight_allow_all_zero(mem_type):
+    weights = np.zeros(3)
+    out = check_sample_weight(weights, mem_type=mem_type, allow_all_zero=True)
+    np.testing.assert_array_equal(cp.asnumpy(out), weights)
+
+
 @pytest.mark.parametrize("value", ["NaN", "infinity"])
 def test_check_sample_weight_non_finite(value):
     scalar = float(value)

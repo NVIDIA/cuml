@@ -3,12 +3,19 @@
 
 """Provide GPU benchmark execution and cuML source provenance."""
 
-import contextlib
-import subprocess
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
 
-from .base import GPUBackend
+import contextlib
+import importlib
+import subprocess
+from collections.abc import Iterator
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..suite import ResolvedCase, Suite
+
+from .base import GPUBackend, VerificationResult
 
 
 def _git_output(root: Path, *args: str) -> str:
@@ -91,3 +98,60 @@ class CumlBackend(GPUBackend):
         return (
             _source() if package == "cuml" else super().package_source(package)
         )
+
+
+class NativeCumlBackend(CumlBackend):
+    """Measure native operations with device-resident inputs and outputs.
+
+    Keep this separate from the shared cuML provenance backend: accel accepts
+    host inputs, and Dask has its own distributed preparation and output policy.
+    """
+
+    def construct_estimator(
+        self,
+        estimator_class: type[Any],
+        parameters: dict[str, Any],
+        runtime: Any = None,
+    ) -> Any:
+        """Construct an estimator and reject host-output configuration."""
+        estimator = super().construct_estimator(
+            estimator_class, parameters, runtime
+        )
+        if getattr(estimator, "output_type", None) in ("numpy", "pandas"):
+            raise ValueError(
+                "Native benchmarks require device-resident estimator outputs; "
+                f"got output_type={estimator.output_type!r}"
+            )
+        return estimator
+
+    def convert_data(
+        self, case: ResolvedCase, X: Any, y: Any
+    ) -> tuple[Any, Any]:
+        """Move generated dense, CSR, or categorical inputs onto the device."""
+        cp = importlib.import_module("cupy")
+        if case.input_format == "csr":
+            X = importlib.import_module("cupyx.scipy.sparse").csr_matrix(X)
+        elif case.dataset == "categorical":
+            X = importlib.import_module("cudf").from_pandas(X)
+        else:
+            X = cp.asarray(X)
+        return X, cp.asarray(y)
+
+    def prepare_inputs(
+        self, inputs: tuple[Any, ...], runtime: Any = None
+    ) -> tuple[Any, ...]:
+        """Complete conversion before inputs are used by fit or observation."""
+        self.synchronize()
+        return inputs
+
+    @contextlib.contextmanager
+    def instrumentation(
+        self, suite: Suite, role: str, repetition: int
+    ) -> Iterator[VerificationResult]:
+        """Require default output behavior."""
+        cuml = importlib.import_module("cuml")
+        if cuml.global_settings.output_type is not None:
+            raise ValueError(
+                "Native benchmarks require the default global output_type=None"
+            )
+        yield VerificationResult()
