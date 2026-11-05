@@ -948,8 +948,11 @@ def test_random_forest_classifier_as_sklearn_estimator_classes(random_state):
 
 
 @pytest.mark.parametrize("oob_score", [False, True])
-def test_random_forest_regressor(random_state, oob_score):
-    X, y = make_regression(n_samples=200, random_state=random_state)
+@pytest.mark.parametrize("n_targets", [1, 3])
+def test_random_forest_regressor(random_state, oob_score, n_targets):
+    X, y = make_regression(
+        n_samples=200, n_targets=n_targets, random_state=random_state
+    )
     X = X.astype("float32")
 
     cu_model = cuml.RandomForestRegressor(
@@ -963,6 +966,10 @@ def test_random_forest_regressor(random_state, oob_score):
 
     sk_model2 = cu_model.as_sklearn()
     cu_model2 = cuml.RandomForestRegressor.from_sklearn(sk_model)
+
+    assert cu_model2.n_outputs_ == sk_model2.n_outputs_ == n_targets
+    assert array_equal(sk_model2.predict(X), cu_model.predict(X))
+    assert array_equal(cu_model2.predict(X), sk_model.predict(X))
 
     # Ensure params/attrs roundtrip
     # Exclude feature_importances_ because sklearn can't compute them from
@@ -979,6 +986,8 @@ def test_random_forest_regressor(random_state, oob_score):
         assert cu_model.oob_score_ == sk_model2.oob_score_
         assert cu_model2.oob_score_ == sk_model.oob_score_
         assert isinstance(sk_model2.oob_prediction_, np.ndarray)
+        assert array_equal(sk_model2.oob_prediction_, cu_model.oob_prediction_)
+        assert array_equal(cu_model2.oob_prediction_, sk_model.oob_prediction_)
         with cuml.using_output_type("cupy"):
             assert isinstance(cu_model.oob_prediction_, cp.ndarray)
             assert isinstance(cu_model2.oob_prediction_, cp.ndarray)

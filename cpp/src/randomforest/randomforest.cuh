@@ -418,13 +418,12 @@ class RandomForest {
    *   Column-major by default, or row-major when `input_row_major` is true. Device pointer.
    * @param[in] n_rows: number of training data samples.
    * @param[in] n_cols: number of features (i.e., columns) excluding target feature.
-   * @param[in] labels: 1D array of target predictions/labels. Device Pointer.
+   * @param[in] labels: Target predictions/labels. Device pointer.
             For classification task, only labels of type int are supported.
               Assumption: labels were preprocessed to map to ascending numbers from 0;
               needed for current gini impl in decision tree
-            For regression task, the labels (predictions) can be float or double data type.
-  * @param[in] n_unique_labels: (meaningful only for classification) #unique label values (known
-  during preprocessing)
+            For regression, a column-major (n_rows, n_outputs) array of float or double targets.
+  * @param[in] n_outputs: Number of classes for classification or targets for regression.
   * @param[in] forest: CPU point to RandomForestMetaData struct.
   * @param[out] bootstrap_masks: optional device pointer to store bootstrap masks
   *   (n_trees * n_rows), only populated if a non-null pointer is provided.
@@ -440,13 +439,14 @@ class RandomForest {
            int n_rows,
            int n_cols,
            L* labels,
-           int n_unique_labels,
+           int n_outputs,
            RandomForestMetaData<T, L>* forest,
            bool* bootstrap_masks       = nullptr,
            const double* sample_weight = nullptr,
            bool input_row_major        = false)
   {
     raft::common::nvtx::range fun_scope("RandomForest::fit @randomforest.cuh");
+    ASSERT(n_outputs >= 1, "n_outputs must be at least 1");
     const raft::handle_t& handle = user_handle;
     bool distributed =
       raft::resource::comms_initialized(handle) && handle.get_comms().get_size() > 1;
@@ -538,7 +538,7 @@ class RandomForest {
                                                n_rows,
                                                labels,
                                                &selected_rows,
-                                               n_unique_labels,
+                                               n_outputs,
                                                this->rf_params.tree_params,
                                                this->rf_params.seed,
                                                quantiles,

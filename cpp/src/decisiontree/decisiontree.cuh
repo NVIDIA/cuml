@@ -126,7 +126,7 @@ std::string get_node_json(const std::string& prefix, const TreeMetaDataNode<T, L
 
 template <class T, class L>
 tl::Tree<T, T> build_treelite_tree(const DT::TreeMetaDataNode<T, L>& rf_tree,
-                                   unsigned int num_class)
+                                   unsigned int leaf_vector_size)
 {
   // First index refers to the cuml node id
   // Second refers to the tl node id
@@ -178,14 +178,14 @@ tl::Tree<T, T> build_treelite_tree(const DT::TreeMetaDataNode<T, L>& rf_tree,
 
       } else {
         auto leaf_begin = rf_tree.vector_leaf.begin() + cuml_node_id * rf_tree.num_outputs;
-        if (num_class == 1) {
+        if (leaf_vector_size == 1) {
           tl_tree.SetLeaf(tl_node_id, *leaf_begin);
         } else {
-          // if rf_tree.num_outputs < num_class, fill the remainder with zero
+          // If rf_tree.num_outputs < leaf_vector_size, fill the remainder with zero.
           // Most likely this happens when a binary classifier is fit with all-0 labels
-          ASSERT(static_cast<unsigned int>(rf_tree.num_outputs) <= num_class,
-                 "num_class too small");
-          std::vector<T> leaf_vector(num_class, T(0));
+          ASSERT(static_cast<unsigned int>(rf_tree.num_outputs) <= leaf_vector_size,
+                 "leaf_vector_size too small");
+          std::vector<T> leaf_vector(leaf_vector_size, T(0));
           std::copy(leaf_begin, leaf_begin + rf_tree.num_outputs, leaf_vector.begin());
           tl_tree.SetLeafVector(tl_node_id, leaf_vector);
         }
@@ -308,13 +308,13 @@ class DecisionTree {
 
 // Class specializations
 template tl::Tree<float, float> build_treelite_tree<float, int>(
-  const DT::TreeMetaDataNode<float, int>& rf_tree, unsigned int num_class);
+  const DT::TreeMetaDataNode<float, int>& rf_tree, unsigned int leaf_vector_size);
 template tl::Tree<double, double> build_treelite_tree<double, int>(
-  const DT::TreeMetaDataNode<double, int>& rf_tree, unsigned int num_class);
+  const DT::TreeMetaDataNode<double, int>& rf_tree, unsigned int leaf_vector_size);
 template tl::Tree<float, float> build_treelite_tree<float, float>(
-  const DT::TreeMetaDataNode<float, float>& rf_tree, unsigned int num_class);
+  const DT::TreeMetaDataNode<float, float>& rf_tree, unsigned int leaf_vector_size);
 template tl::Tree<double, double> build_treelite_tree<double, double>(
-  const DT::TreeMetaDataNode<double, double>& rf_tree, unsigned int num_class);
+  const DT::TreeMetaDataNode<double, double>& rf_tree, unsigned int leaf_vector_size);
 }  // End namespace DT
 
 }  // End namespace ML

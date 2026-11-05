@@ -391,9 +391,8 @@ CUML_KERNEL void buildHistogramsKernel(typename ObjectiveT::BinT* histograms,
   }
 
   for (auto i = range_start + tid; i < end; i += stride) {
-    auto row   = dataset.row_ids[i];
-    auto data  = dataset.value(row, col);
-    auto label = dataset.labels[row];
+    auto row  = dataset.row_ids[i];
+    auto data = dataset.value(row, col);
 
     // Search bin indices so lower_bound uses 32-bit distance and advance arithmetic.
     auto bin_begin = cuda::counting_iterator<int, int>(0);
@@ -403,7 +402,7 @@ CUML_KERNEL void buildHistogramsKernel(typename ObjectiveT::BinT* histograms,
         return quantiles_for_split[bin] < value;
       });
     auto bin = bin_it == bin_end ? n_bins - 1 : *bin_it;
-    objective.IncrementHistogram(histogram, n_bins, bin, label, dataset, row);
+    objective.IncrementHistogram(histogram, n_bins, bin, dataset, row);
   }
 
   if (!use_global_memory_histogram) {
@@ -442,14 +441,13 @@ CUML_KERNEL void findBestSplitsKernel(typename ObjectiveT::BinT* histograms,
   auto* histogram           = histograms + histograms_offset;
   auto* quantiles_for_split = quantiles.quantiles_array + std::size_t(max_n_bins) * col;
 
-  std::int64_t global_sample_count = 0;
   for (std::int64_t c = 0; c < n_classes; ++c) {
-    global_sample_count +=
-      static_cast<std::int64_t>(pdf_to_cdf<BinT, TPB>(histogram + n_bins * c, n_bins).Count());
+    pdf_to_cdf<BinT, TPB>(histogram + n_bins * c, n_bins);
   }
 
   __syncthreads();
 
+  auto global_sample_count = objective.NumSamples(histogram, n_bins);
   Split<DataT> sp =
     objective.Gain(histogram, quantiles_for_split, col, global_sample_count, n_bins);
 
@@ -499,8 +497,26 @@ void launchFindBestSplitsKernel(typename ObjectiveT::BinT* histograms,
                                 dim3 split_grid,
                                 cudaStream_t builder_stream)
 {
-  findBestSplitsKernel<DataT, LabelT, TPB, ObjectiveT><<<split_grid, TPB, 0, builder_stream>>>(
-    histograms, max_n_bins, dataset, quantiles, colStart, column_samples, mutex, splits, objective);
+  auto launch = [&](auto const& split_objective) {
+    findBestSplitsKernel<DataT, LabelT, TPB>
+      <<<split_grid, TPB, 0, builder_stream>>>(histograms,
+                                               max_n_bins,
+                                               dataset,
+                                               quantiles,
+                                               colStart,
+                                               column_samples,
+                                               mutex,
+                                               splits,
+                                               split_objective);
+  };
+  if constexpr (requires { objective.AsSingleOutput(); }) {
+    // A constant target count removes the target loop and division from every split score.
+    if (dataset.num_outputs == 1) {
+      launch(objective.AsSingleOutput());
+      return;
+    }
+  }
+  launch(objective);
 }
 
 }  // namespace DT

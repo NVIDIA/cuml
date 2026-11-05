@@ -148,9 +148,13 @@ def make_classification_dataset(datatype, nrows, ncols, n_info, n_classes):
     return X_train, y_train, X_test
 
 
-def make_dataset(datatype, nrows, ncols, n_info):
+def make_dataset(datatype, nrows, ncols, n_info, n_targets=1):
     X, y = make_regression(
-        n_samples=nrows, n_features=ncols, n_informative=n_info, random_state=0
+        n_samples=nrows,
+        n_features=ncols,
+        n_informative=n_info,
+        n_targets=n_targets,
+        random_state=0,
     )
     X = X.astype(datatype)
     y = y.astype(datatype)
@@ -171,20 +175,23 @@ def test_cupy_pickle_roundtrip_order():
 
 
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
-@pytest.mark.parametrize("key", rf_models.keys())
+@pytest.mark.parametrize(
+    "key,n_targets",
+    [(key, 1) for key in rf_models] + [("RandomForestRegressor", 3)],
+)
 @pytest.mark.parametrize("nrows", [unit_param(500)])
 @pytest.mark.parametrize("ncols", [unit_param(16)])
 @pytest.mark.parametrize("n_info", [unit_param(7)])
 @pytest.mark.parametrize("n_classes", [unit_param(2), unit_param(5)])
 def test_rf_regression_pickle(
-    tmpdir, datatype, nrows, ncols, n_info, n_classes, key
+    tmpdir, datatype, nrows, ncols, n_info, n_classes, key, n_targets
 ):
     result = {}
 
     def create_mod():
         if key == "RandomForestRegressor":
             X_train, y_train, X_test = make_dataset(
-                datatype, nrows, ncols, n_info
+                datatype, nrows, ncols, n_info, n_targets=n_targets
             )
         else:
             X_train, y_train, X_test = make_classification_dataset(
@@ -198,11 +205,14 @@ def test_rf_regression_pickle(
         return model, X_test
 
     def assert_model(pickled_model, X_test):
+        assert pickled_model.predict(X_test).shape == result["rf_res"].shape
         assert array_equal(result["rf_res"], pickled_model.predict(X_test))
+        if key == "RandomForestRegressor":
+            assert pickled_model.n_outputs_ == n_targets
         if key != "IsolationForest":
             # Confirm no crash from score. IsolationForest is an outlier
             # detector and has no `score`, as in sklearn.
-            pickled_model.score(X_test, np.zeros(X_test.shape[0]))
+            pickled_model.score(X_test, np.zeros(result["rf_res"].shape))
 
     pickle_save_load(tmpdir, create_mod, assert_model)
 

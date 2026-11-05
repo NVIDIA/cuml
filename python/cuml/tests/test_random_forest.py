@@ -37,7 +37,13 @@ from cuml.ensemble import RandomForestClassifier as curfc
 from cuml.ensemble import RandomForestRegressor as curfr
 from cuml.ensemble.randomforest_common import compute_max_features
 from cuml.metrics import r2_score
-from cuml.testing.utils import quality_param, stress_param, unit_param
+from cuml.testing.utils import (
+    array_equal,
+    as_numpy,
+    quality_param,
+    stress_param,
+    unit_param,
+)
 
 
 @pytest.fixture(
@@ -1122,18 +1128,17 @@ def test_multiple_fits_regression(column_info, nrows, n_estimators, n_bins):
         n_samples=nrows,
         n_features=ncols,
         n_informative=n_info,
+        n_targets=3,
         random_state=123,
     )
     X = X.astype(datatype)
     y = y.astype(np.int32)
     cuml_model = curfr(n_bins=n_bins, n_estimators=n_estimators, max_depth=10)
 
-    # Calling multiple fits
-    cuml_model.fit(X, y)
-
-    cuml_model.fit(X, y)
-
-    cuml_model.fit(X, y)
+    for targets in (y[:, 0], y, y[:, 0]):
+        cuml_model.fit(X, targets)
+        assert cuml_model.n_outputs_ == (1 if targets.ndim == 1 else 3)
+        assert cuml_model.predict(X).shape == targets.shape
 
     # Check if params are still intact
     params = cuml_model.get_params()
@@ -1224,19 +1229,45 @@ def test_rf_regression_with_identical_labels():
     }
 
 
-def test_rf_regressor_gtil_integration(tmpdir):
-    X, y = make_regression(n_samples=10000, random_state=0)
-    X, y = X.astype(np.float32), y.astype(np.float32)
-    clf = curfr(max_depth=3, random_state=0, n_estimators=10)
-    clf.fit(X, y)
-    expected_pred = clf.predict(X).reshape((-1, 1, 1))
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize("n_targets", [1, 3])
+@pytest.mark.parametrize(
+    "min_samples_leaf,max_leaf_nodes",
+    [(4, None), (1, None), (1, 4)],
+    ids=["root-only", "unlimited", "greedy"],
+)
+def test_rf_regressor_gtil_integration(
+    tmpdir, dtype, n_targets, min_samples_leaf, max_leaf_nodes
+):
+    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=dtype)
+    # A constant target and two targets requiring different splits.
+    y = np.array([[1, 1, 1], [1, 1, 7], [1, 5, 1], [1, 5, 7]], dtype=dtype)
+    if n_targets == 1:
+        y = y[:, 1]
+    clf = curfr(
+        max_depth=2,
+        min_samples_leaf=min_samples_leaf,
+        max_leaf_nodes=max_leaf_nodes,
+        n_estimators=1,
+        n_bins=4,
+        bootstrap=False,
+        n_streams=1,
+    ).fit(X, y)
+    expected = (
+        np.broadcast_to(y.mean(axis=0), y.shape)
+        if min_samples_leaf == len(y)
+        else y
+    )
+    assert clf.n_outputs_ == n_targets
+    assert clf.predict(X).shape == y.shape
+    assert array_equal(clf.predict(X), expected)
+    assert clf.score(X, y) == pytest.approx(sk_r2_score(y, expected))
 
     checkpoint_path = os.path.join(tmpdir, "checkpoint.tl")
     clf.as_treelite().serialize(checkpoint_path)
-
     tl_model = treelite.Model.deserialize(checkpoint_path)
     out_pred = treelite.gtil.predict(tl_model, X)
-    np.testing.assert_almost_equal(out_pred, expected_pred, decimal=4)
+    assert array_equal(out_pred, expected.reshape(len(X), n_targets, 1))
 
 
 def test_rf_binary_classifier_gtil_integration(tmpdir):
@@ -1594,34 +1625,34 @@ def test_rf_oob_score_classifier(datatype):
 
 
 @pytest.mark.parametrize("datatype", [np.float32, np.float64])
-def test_rf_oob_score_regressor(datatype):
-    """Test OOB score computation for RandomForestRegressor"""
+@pytest.mark.parametrize("n_targets", [1, 3])
+@pytest.mark.parametrize("weighted", [False, True])
+def test_rf_oob_score_regressor(datatype, n_targets, weighted):
+    """OOB R² averages the scores of individual targets, regardless of scale."""
     X, y = make_regression(
-        n_samples=500, n_features=20, n_informative=15, random_state=42
+        n_samples=500,
+        n_features=20,
+        n_informative=15,
+        n_targets=n_targets,
+        random_state=42,
     )
-    X = X.astype(datatype)
-    y = y.astype(datatype)
-
-    # Train with OOB score
+    X, y = X.astype(datatype), y.astype(datatype)
+    if n_targets > 1:
+        y *= np.array([0.1, 10, 100], dtype=datatype)
+    weights = np.arange(len(X), dtype=np.float64) % 5 if weighted else None
     reg = curfr(
         n_estimators=50,
         oob_score=True,
         bootstrap=True,
         max_samples=0.8,
         random_state=42,
+        n_streams=1,
+    ).fit(X, y, sample_weight=weights)
+    assert reg.oob_prediction_.shape == y.shape
+    assert reg.oob_score_ == pytest.approx(
+        sk_r2_score(y, as_numpy(reg.oob_prediction_)), abs=1e-6
     )
-    reg.fit(X, y)
-
-    # Check OOB attributes exist
-    assert hasattr(reg, "oob_score_")
-    assert hasattr(reg, "oob_prediction_")
-
-    # Check OOB score is reasonable (R² score, typically between -1 and 1, but for good models > 0)
-    assert -1.0 <= reg.oob_score_ <= 1.0
     assert reg.oob_score_ > 0
-
-    # Check OOB prediction shape
-    assert reg.oob_prediction_.shape == (len(X),)
 
 
 def test_rf_oob_score_disabled():

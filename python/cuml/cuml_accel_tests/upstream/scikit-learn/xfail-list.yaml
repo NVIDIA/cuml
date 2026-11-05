@@ -763,10 +763,14 @@
   - "sklearn.neighbors.tests.test_neighbors::test_neighbors_metrics[42-float64-canberra]"
   - "sklearn.neighbors.tests.test_neighbors::test_neighbors_metrics[42-float64-haversine]"
   - "sklearn.neighbors.tests.test_neighbors::test_neighbors_metrics[42-float64-minkowski]"
-- reason: Multi-output targets not supported
+- reason: Multi-output classification targets not supported
   marker: cuml_accel_rf_multioutput_targets_not_supported
   tests:
   - "sklearn.ensemble.tests.test_forest::test_forest_classifier_oob[True-X3-y3-0.18-array-RandomForestClassifier]"
+- reason: sklearn uses numpy global RNG
+  marker: cuml_accel_rf_oob_sampling
+  tests:
+  - "sklearn.ensemble.tests.test_forest::test_forest_multioutput_integral_regression_target[RandomForestRegressor]"
 - reason: OOB score accuracy slightly below sklearn
   marker: cuml_accel_rf_oob_score_accuracy
   strict: false

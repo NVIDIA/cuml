@@ -135,19 +135,19 @@ void fit(const raft::handle_t& user_handle,
  * @param[in] input_row_major Whether input is row-major instead of column-major.
  */
 template <typename T, typename L>
-void fit_treelite(const raft::handle_t& user_handle,
-                  TreeliteModelHandle* model,
-                  T* input,
-                  int n_rows,
-                  int n_cols,
-                  L* labels,
-                  int n_unique_labels,
-                  RF_params rf_params,
-                  bool* bootstrap_masks,
-                  T* feature_importances,
-                  rapids_logger::level_enum verbosity,
-                  const double* sample_weight = nullptr,
-                  bool input_row_major        = false);
+void fit_rf_classifier(const raft::handle_t& user_handle,
+                       TreeliteModelHandle* model,
+                       T* input,
+                       int n_rows,
+                       int n_cols,
+                       L* labels,
+                       int n_unique_labels,
+                       RF_params rf_params,
+                       bool* bootstrap_masks,
+                       T* feature_importances,
+                       rapids_logger::level_enum verbosity,
+                       const double* sample_weight = nullptr,
+                       bool input_row_major        = false);
 
 RF_params set_rf_params(int max_depth,
                         int max_leaves,
@@ -175,6 +175,7 @@ void fit(const raft::handle_t& user_handle,
          int n_rows,
          int n_cols,
          float* labels,
+         int n_outputs,
          RF_params rf_params,
          rapids_logger::level_enum verbosity = rapids_logger::level_enum::info,
          bool* bootstrap_masks               = nullptr,
@@ -186,6 +187,7 @@ void fit(const raft::handle_t& user_handle,
          int n_rows,
          int n_cols,
          double* labels,
+         int n_outputs,
          RF_params rf_params,
          rapids_logger::level_enum verbosity = rapids_logger::level_enum::info,
          bool* bootstrap_masks               = nullptr,
@@ -201,7 +203,8 @@ void fit(const raft::handle_t& user_handle,
  *   input_row_major is true.
  * @param[in] n_rows Number of rows in input.
  * @param[in] n_cols Number of columns in input.
- * @param[in] labels Training labels.
+ * @param[in] labels Column-major training targets of shape (n_rows, n_outputs).
+ * @param[in] n_outputs Number of regression targets, at least one.
  * @param[in] rf_params Random forest training parameters.
  * @param[in] bootstrap_masks Optional bootstrap masks.
  * @param[out] feature_importances Output feature importances.
@@ -210,16 +213,17 @@ void fit(const raft::handle_t& user_handle,
  * @param[in] input_row_major Whether input is row-major instead of column-major.
  */
 template <typename T, typename L>
-void fit_treelite(const raft::handle_t& user_handle,
-                  TreeliteModelHandle* model,
-                  T* input,
-                  int n_rows,
-                  int n_cols,
-                  L* labels,
-                  RF_params rf_params,
-                  bool* bootstrap_masks,
-                  T* feature_importances,
-                  rapids_logger::level_enum verbosity,
-                  const double* sample_weight = nullptr,
-                  bool input_row_major        = false);
+void fit_rf_regressor(const raft::handle_t& user_handle,
+                      TreeliteModelHandle* model,
+                      T* input,
+                      int n_rows,
+                      int n_cols,
+                      L* labels,
+                      int n_outputs,
+                      RF_params rf_params,
+                      bool* bootstrap_masks,
+                      T* feature_importances,
+                      rapids_logger::level_enum verbosity,
+                      const double* sample_weight = nullptr,
+                      bool input_row_major        = false);
 };  // namespace CUML_EXPORT ML

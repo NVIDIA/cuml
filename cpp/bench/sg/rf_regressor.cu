@@ -54,6 +54,7 @@ class RFRegressor : public RegressionFixture<D> {
           this->params.nrows,
           this->params.ncols,
           this->data.y.data(),
+          1,
           rfParams,
           rapids_logger::level_enum::info,
           nullptr,

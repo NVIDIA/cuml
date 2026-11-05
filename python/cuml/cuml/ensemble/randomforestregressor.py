@@ -1,5 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import cupy as cp
+
 import cuml.internals.nvtx as nvtx
 from cuml.common.doc_utils import generate_docstring, insert_into_docstring
 from cuml.ensemble.randomforest_common import BaseRandomForestModel
@@ -146,6 +148,9 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
 
     Attributes
     ----------
+    n_outputs_ : int
+        Number of regression targets.
+
     oob_score_ : float
         Score of the training dataset obtained using an out-of-bag estimate.
         This attribute exists only when ``oob_score`` is True.
@@ -215,11 +220,16 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             output_type=output_type,
         )
 
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags.target_tags.multi_output = True
+        return tags
+
     @nvtx.annotate(
         message="fit RF-Regressor @randomforestregressor.py",
         domain="cuml_python",
     )
-    @generate_docstring()
+    @generate_docstring(y_shape="(n_samples,) or (n_samples, n_outputs)")
     @mlfunc(set_input_type=True)
     def fit(self, X, y, sample_weight=None) -> "RandomForestRegressor":
         """
@@ -233,7 +243,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         sample_weight_allow_all_zero = (
             hasattr(self, "_distributed_n_rows") and self.bootstrap
         )
-        return check_inputs(
+        X, y, sample_weight = check_inputs(
             self,
             X,
             y,
@@ -242,8 +252,11 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             order="A",
             sample_weight_dtype="float64",
             sample_weight_allow_all_zero=sample_weight_allow_all_zero,
+            accept_multi_output=True,
             reset=True,
         )
+        # Regression targets are column-major independently of the feature layout.
+        return X, cp.asfortranarray(y), sample_weight
 
     @nvtx.annotate(
         message="predict RF-Regressor @randomforestregressor.py",
@@ -251,7 +264,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
     )
     @insert_into_docstring(
         parameters=[("dense", "(n_samples, n_features)")],
-        return_values=[("dense", "(n_samples, 1)")],
+        return_values=[("dense", "(n_samples,) or (n_samples, n_outputs)")],
     )
     @mlfunc(preserve_index=True)
     def predict(
@@ -312,7 +325,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
     @insert_into_docstring(
         parameters=[
             ("dense", "(n_samples, n_features)"),
-            ("dense", "(n_samples, 1)"),
+            ("dense", "(n_samples,) or (n_samples, n_outputs)"),
         ]
     )
     @mlfunc(convert_output=False)

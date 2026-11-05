@@ -54,6 +54,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <random>
 #include <tuple>
 #include <type_traits>
@@ -411,6 +412,7 @@ auto TrainScore(const raft::handle_t& handle,
         params.n_rows,
         params.n_cols,
         y,
+        1,
         rf_params,
         rapids_logger::level_enum::info,
         nullptr,
@@ -836,7 +838,7 @@ TEST(RfTests, IntegerOverflow)
   raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
   RF_params rf_params =
     set_rf_params(3, 100, 1.0, 256, 1, 2, 0.0, false, 1, 1.0, 0, CRITERION::MSE, 4, 128);
-  fit(handle, forest_ptr, X.data().get(), m, n, y.data().get(), rf_params);
+  fit(handle, forest_ptr, X.data().get(), m, n, y.data().get(), 1, rf_params);
 
   // Check we have actually learned something
   EXPECT_GT(forest->trees[0]->leaf_counter, 1);
@@ -883,7 +885,7 @@ TEST(RfTests, EmptyGlobalRowsRejected)
   RF_params rf_params =
     set_rf_params(3, 100, 1.0, 16, 1, 2, 0.0, false, 1, 1.0, 0, CRITERION::MSE, 1, 128);
 
-  EXPECT_THROW(fit(handle, forest_ptr, X.data().get(), 0, 1, y.data().get(), rf_params),
+  EXPECT_THROW(fit(handle, forest_ptr, X.data().get(), 0, 1, y.data().get(), 1, rf_params),
                raft::exception);
 }
 
@@ -1590,34 +1592,41 @@ TEST(RfTest, EquivalentSplitRangeUsesMiddleThreshold)
 TEST(RfTest, GreedyGrowthSplitsLeafWithLargestImprovement)
 {
   thrust::device_vector<float> X = std::vector<float>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-  thrust::device_vector<float> y =
-    std::vector<float>{0, 4, 100, 100, 100, 100, 100, 102, 102, 102, 102, 102};
+  const std::vector<float> y_host{0, 4, 100, 100, 100, 100, 100, 102, 102, 102, 102, 102};
   auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(1);
   raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
 
-  // The root separates the first two rows. Left improvement is 4 * 2/12;
-  // right improvement is 1 * 10/12. Both policies can grow the full four-leaf tree,
-  // but batched growth expands the left child first and greedy expands the right.
-  for (auto [max_leaves, max_batch_size] : {std::pair{-1, 1}, {-1, 128}, {4, 1}, {4, 128}}) {
-    SCOPED_TRACE(max_leaves);
-    SCOPED_TRACE(max_batch_size);
-    auto params =
-      set_rf_params(8, max_leaves, 1.0, 12, 1, 2, 0.0, false, 1, 1.0, 0, MSE, 1, max_batch_size);
-    RandomForestMetaData<float, float> forest;
-    fit(handle, &forest, X.data().get(), y.size(), 1, y.data().get(), params);
+  for (int n_targets : {1, 2}) {
+    auto targets = y_host;
+    // Adding a constant target halves gains without changing split ordering.
+    if (n_targets == 2) { targets.insert(targets.end(), y_host.size(), 1.0f); }
+    thrust::device_vector<float> y = targets;
+    // The root separates the first two rows. With one target, left improvement is
+    // 4 * 2/12 and right improvement is 1 * 10/12. Both policies grow four leaves,
+    // but batched growth expands the left child first and greedy expands the right.
+    for (auto [max_leaves, max_batch_size] : {std::pair{-1, 1}, {-1, 128}, {4, 1}, {4, 128}}) {
+      SCOPED_TRACE(max_leaves);
+      SCOPED_TRACE(max_batch_size);
+      auto params =
+        set_rf_params(8, max_leaves, 1.0, 12, 1, 2, 0.0, false, 1, 1.0, 0, MSE, 1, max_batch_size);
+      RandomForestMetaData<float, float> forest;
+      fit(handle, &forest, X.data().get(), X.size(), 1, y.data().get(), n_targets, params);
 
-    const auto& tree = forest.trees[0]->sparsetree;
-    ASSERT_EQ(tree.size(), 7);
-    ASSERT_EQ(tree[0].QueryValue(), 1.0f);
-    const auto& left  = tree[tree[0].LeftChildId()];
-    const auto& right = tree[tree[0].RightChildId()];
-    ASSERT_FALSE(left.IsLeaf());
-    ASSERT_FALSE(right.IsLeaf());
-    // Children are appended when a node splits, so their IDs record expansion order.
-    if (max_leaves == -1) {
-      EXPECT_LT(left.LeftChildId(), right.LeftChildId());
-    } else {
-      EXPECT_GT(left.LeftChildId(), right.LeftChildId());
+      const auto& tree = forest.trees[0]->sparsetree;
+      ASSERT_EQ(tree.size(), 7);
+      ASSERT_EQ(tree[0].QueryValue(), 1.0f);
+      const auto& left  = tree[tree[0].LeftChildId()];
+      const auto& right = tree[tree[0].RightChildId()];
+      ASSERT_FALSE(left.IsLeaf());
+      ASSERT_FALSE(right.IsLeaf());
+      EXPECT_NEAR(left.WeightedImpurityDecrease(), 4.0 * (2.0 / 12) / n_targets, 1e-5);
+      EXPECT_NEAR(right.WeightedImpurityDecrease(), 1.0 * (10.0 / 12) / n_targets, 1e-5);
+      // Children are appended when a node splits, so their IDs record expansion order.
+      if (max_leaves == -1) {
+        EXPECT_LT(left.LeftChildId(), right.LeftChildId());
+      } else {
+        EXPECT_GT(left.LeftChildId(), right.LeftChildId());
+      }
     }
   }
 }
@@ -1702,35 +1711,44 @@ TEST(RfWeightedTest, ClassificationRootLeafUsesWeights)
 TEST(RfWeightedTest, RegressionRootLeafUsesWeights)
 {
   RF_params rf_params = set_rf_params(0, -1, 1.0, 4, 1, 2, 0.0, false, 1, 1.0, 0, MSE, 1, 128);
-  auto forest         = std::make_shared<RandomForestMetaData<float, float>>();
 
   std::vector<float> X_host             = {0.0f, 1.0f, 2.0f};
   thrust::device_vector<float> X        = X_host;
-  std::vector<float> y_host             = {0.0f, 10.0f, 10.0f};
-  thrust::device_vector<float> y        = y_host;
   std::vector<double> weight_host       = {1.0f, 0.0f, 3.0f};
   thrust::device_vector<double> weights = weight_host;
   auto stream_pool                      = std::make_shared<rmm::cuda_stream_pool>(1);
   raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
 
-  fit(handle,
-      forest.get(),
-      X.data().get(),
-      y.size(),
-      1,
-      y.data().get(),
-      rf_params,
-      rapids_logger::level_enum::info,
-      nullptr,
-      weights.data().get());
+  for (int n_targets : {1, 4097}) {
+    auto forest = std::make_shared<RandomForestMetaData<float, float>>();
+    // Shift each target's weighted mean; the large case exercises leaf tiling.
+    std::vector<float> y_host;
+    for (int target = 0; target < n_targets; ++target) {
+      y_host.insert(y_host.end(), {float(target), target + 10.0f, target + 10.0f});
+    }
+    thrust::device_vector<float> y = y_host;
+    fit(handle,
+        forest.get(),
+        X.data().get(),
+        X.size(),
+        1,
+        y.data().get(),
+        n_targets,
+        rf_params,
+        rapids_logger::level_enum::info,
+        nullptr,
+        weights.data().get());
 
-  ASSERT_EQ(forest->trees.size(), 1);
-  const auto& tree = *forest->trees[0];
-  ASSERT_EQ(tree.sparsetree.size(), 1);
-  EXPECT_TRUE(tree.sparsetree[0].IsLeaf());
-  EXPECT_EQ(tree.sparsetree[0].InstanceCount(), 2);
-  ASSERT_EQ(tree.vector_leaf.size(), 1);
-  EXPECT_NEAR(tree.vector_leaf[0], 7.5f, 1e-6f);
+    ASSERT_EQ(forest->trees.size(), 1);
+    const auto& tree = *forest->trees[0];
+    ASSERT_EQ(tree.sparsetree.size(), 1);
+    EXPECT_TRUE(tree.sparsetree[0].IsLeaf());
+    EXPECT_EQ(tree.sparsetree[0].InstanceCount(), 2);
+    ASSERT_EQ(tree.vector_leaf.size(), n_targets);
+    for (int target = 0; target < n_targets; ++target) {
+      EXPECT_NEAR(tree.vector_leaf[target], target + 7.5f, 1e-6f);
+    }
+  }
 }
 
 TEST(RfWeightedTest, MinSamplesLeafUsesCountsNotWeights)
@@ -1833,6 +1851,7 @@ TEST(RfWeightedTest, BootstrapDuplicatesContributePerOccurrence)
         n_rows,
         1,
         y.data().get(),
+        1,
         rf_params,
         rapids_logger::level_enum::info,
         bootstrap_masks.data(),
@@ -2374,6 +2393,24 @@ class ObjectiveTest : public ::testing::TestWithParam<ObjectiveTestParameters> {
     if (!std::isnan(ground_truth_gain) || !std::isnan(hypothesis_gain)) {
       ASSERT_NEAR(ground_truth_gain, hypothesis_gain, params.tolerance);
     }
+
+    if constexpr (!is_classification) {
+      // Vector gain is the mean of the gains for two independently drawn targets.
+      auto second_target            = GenRandomData();
+      auto [second_cdf, second_pdf] = GenHist(second_target, sample_weights);
+      cdf_hist.insert(cdf_hist.end(), second_cdf.begin(), second_cdf.end());
+      auto expected = 0.5 * ground_truth_gain +
+                      0.5 * GroundTruthGain(second_target, sample_weights, split_bin_index);
+      ObjectiveT vector_objective(
+        2,
+        params.min_samples_leaf,
+        ObjectiveConfig::splitCriteria,
+        std::accumulate(sample_weights.begin(), sample_weights.end(), 0.0));
+      EXPECT_NEAR(vector_objective.GainPerSplit(
+                    cdf_hist.data(), split_bin_index, params.max_n_bins, len, nLeft, len - nLeft),
+                  expected,
+                  params.tolerance);
+    }
   }
 };
 
@@ -2392,15 +2429,20 @@ TEST(WeightedObjectiveEdgeCases, ClassificationRejectsZeroWeightChild)
 
 TEST(WeightedObjectiveEdgeCases, RegressionRejectsZeroWeightChild)
 {
-  using ObjectiveT = RegressionObjectiveFunction<double, double, true>;
-  WeightedRegressionBin hist[]{{0.0, 1, 0.0}, {2.0, 2, 1.0}};
+  using ObjectiveT     = RegressionObjectiveFunction<double, double, true>;
   CRITERION criteria[] = {
     CRITERION::MSE, CRITERION::POISSON, CRITERION::GAMMA, CRITERION::INVERSE_GAUSSIAN};
 
-  for (auto criterion : criteria) {
-    ObjectiveT objective(1, 1, criterion, 1.0);
-    auto gain = objective.GainPerSplit(hist, 0, 2, 2, 1, 1);
-    EXPECT_EQ(gain, -std::numeric_limits<double>::max());
+  for (int n_outputs : {1, 3}) {
+    std::vector<WeightedRegressionBin> hist;
+    for (int target = 0; target < n_outputs; ++target) {
+      hist.insert(hist.end(), {{0.0, 1, 0.0}, {2.0, 2, 1.0}});
+    }
+    for (auto criterion : criteria) {
+      ObjectiveT objective(n_outputs, 1, criterion, 1.0);
+      auto gain = objective.GainPerSplit(hist.data(), 0, 2, 2, 1, 1);
+      EXPECT_EQ(gain, -std::numeric_limits<double>::max());
+    }
   }
 }
 
