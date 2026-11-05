@@ -497,6 +497,11 @@ def _normalize_ivf_params(algo, params, n_rows=None):
         )
 
     out = {**defaults, **params}
+    # cuVS receives this value as a double. Promote NumPy scalars before
+    # multiplying by the row count so float16 cannot overflow first.
+    out["kmeans_trainset_fraction"] = float(
+        out["kmeans_trainset_fraction"]
+    )
 
     if n_rows is not None and "n_lists" not in params:
         # The cuVS default targets large datasets. For smaller inputs, scale
@@ -530,8 +535,19 @@ def _normalize_ivf_params(algo, params, n_rows=None):
 
 def _ivfpq_training_rows(n_rows, n_lists, train_fraction):
     """Match the integer subsampling ratio used by cuVS IVF-PQ training."""
-    trainset_size = max(int(n_rows * train_fraction), n_lists)
+    trainset_size = max(int(n_rows * float(train_fraction)), n_lists)
     return n_rows // max(1, n_rows // trainset_size)
+
+
+def _ivfpq_required_training_rows(n_lists, pq_bits, pq_dim, codebook_kind):
+    """Lower bound for the selected cuVS PQ codebook training layout."""
+    book_size = 1 << pq_bits
+    if codebook_kind == "subspace":
+        return max(n_lists, book_size)
+    if pq_dim > 0:
+        return max(n_lists, n_lists * math.ceil(book_size / pq_dim))
+    # cuVS chooses pq_dim heuristically when zero is supplied.
+    return n_lists
 
 
 cdef class ApproxIndex:
@@ -591,6 +607,11 @@ cdef class ApproxIndex:
             "internal_distance_dtype",
             ("float32", "float16"),
         )
+        if out.lut_dtype == 0 and out.internal_distance_dtype == 1:
+            raise ValueError(
+                "internal_distance_dtype='float16' cannot be used with "
+                "lut_dtype='float32'"
+            )
         out.coarse_search_dtype = _ivfpq_dtype_code(
             params["coarse_search_dtype"],
             "coarse_search_dtype",
@@ -598,16 +619,18 @@ cdef class ApproxIndex:
         )
         out.max_internal_batch_size = params["max_internal_batch_size"]
 
-        # cuVS subsamples the coarse training set, then trains a PQ codebook
-        # with 2**pq_bits centers. Both that codebook and the inverted lists
-        # need enough training rows. Match cuVS's integer subsampling ratio.
+        # cuVS subsamples the coarse training set. Subspace codebooks train
+        # on whole sampled rows; cluster codebooks train on pq_dim sub-vectors
+        # from each row in each list. Match cuVS's integer subsampling ratio.
         if out.nlist > 0 and 4 <= out.n_bits <= 8:
             train_rows = _ivfpq_training_rows(
                 n_rows,
                 out.nlist,
                 params["kmeans_trainset_fraction"],
             )
-            required_rows = max(out.nlist, 1 << out.n_bits)
+            required_rows = _ivfpq_required_training_rows(
+                out.nlist, out.n_bits, out.M, kind
+            )
             if train_rows < required_rows:
                 raise ValueError(
                     f"X has {n_rows} rows, but algorithm='ivfpq' with "
@@ -1293,7 +1316,8 @@ class NearestNeighbors(NeighborsBase):
             - lut_dtype: (dtype, default=float32) lookup-table dtype; valid
               values are float32, float16, and uint8
             - internal_distance_dtype: (dtype, default=float32) internal
-              distance dtype; valid values are float32 and float16
+              distance dtype; valid values are float32 and float16. float16
+              cannot be paired with a float32 lookup table
             - coarse_search_dtype: (dtype, default=float32) coarse-search
               dtype; valid values are float32, float16, and int8
             - max_internal_batch_size: (int, default=4096) internal search
@@ -1307,11 +1331,13 @@ class NearestNeighbors(NeighborsBase):
             deprecated in 26.12 and will be removed in 27.02; it is ignored
             because cuVS IVF-PQ has no equivalent option.
 
-        IVF-PQ needs at least ``2**pq_bits`` training rows, as well as at
-        least ``n_lists`` training rows. With the default ``pq_bits=8`` and
-        training fraction of 0.5, at least 512 input rows are typically
-        needed. Increasing ``kmeans_trainset_fraction`` can reduce that
-        input-row minimum.
+        Subspace IVF-PQ codebooks need at least ``2**pq_bits`` training
+        rows, as well as at least ``n_lists`` training rows. With the
+        default ``pq_bits=8`` and training fraction of 0.5, at least 512
+        input rows are typically needed. Cluster codebooks train on
+        ``pq_dim`` sub-vectors per sampled row in each list, so their
+        minimum depends on both ``pq_dim`` and ``n_lists``. Increasing
+        ``kmeans_trainset_fraction`` can reduce the input-row minimum.
     metric_params : dict, optional (default = None)
         Additional keyword arguments for the metric function.
     n_jobs : int (default = None)

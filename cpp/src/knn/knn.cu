@@ -45,9 +45,6 @@ struct knnIndexImpl {
   int pq_internal_distance_dtype      = 0;
   int pq_coarse_search_dtype          = 0;
   uint32_t pq_max_internal_batch_size = 4096;
-
-  std::unique_ptr<rmm::device_uvector<float>> corr_norms;
-  std::unique_ptr<rmm::device_uvector<float>> corr_means;
 };
 
 auto ivfpq_dtype_from_code(int code) -> cudaDataType_t
@@ -266,33 +263,41 @@ void approx_knn_build_index(raft::handle_t& handle,
   auto ivf_pq_pams = dynamic_cast<IVFPQParam*>(params);
   auto stream      = raft::resource::get_cuda_stream(handle).get();
 
-  // For correlation: preprocess (center + normalize), use InnerProduct, then revert
+  // For correlation, center and normalize a copy so failed builds never
+  // leave the caller's input modified.
+  std::unique_ptr<rmm::device_uvector<float>> correlation_data;
+  std::unique_ptr<rmm::device_uvector<float>> corr_means;
+  std::unique_ptr<rmm::device_uvector<float>> corr_norms;
+  float* build_array = index_array;
   if (metric == ML::distance::DistanceType::CorrelationExpanded) {
-    index->pimpl->corr_means = std::make_unique<rmm::device_uvector<float>>(n, stream);
-    index->pimpl->corr_norms = std::make_unique<rmm::device_uvector<float>>(n, stream);
+    correlation_data = std::make_unique<rmm::device_uvector<float>>(size_t(n) * size_t(D), stream);
+    RAFT_CUDA_TRY(cudaMemcpyAsync(correlation_data->data(),
+                                  index_array,
+                                  size_t(n) * size_t(D) * sizeof(float),
+                                  cudaMemcpyDeviceToDevice,
+                                  stream));
+    build_array = correlation_data->data();
+    corr_means  = std::make_unique<rmm::device_uvector<float>>(n, stream);
+    corr_norms  = std::make_unique<rmm::device_uvector<float>>(n, stream);
 
     // Compute means and center data
     float normalizer = 1.0f / static_cast<float>(D);
-    raft::linalg::reduce<false, true>(
-      index->pimpl->corr_means->data(), index_array, D, n, 0.0f, stream);
-    raft::linalg::unaryOp(index->pimpl->corr_means->data(),
-                          index->pimpl->corr_means->data(),
-                          n,
-                          raft::mul_const_op<float>(normalizer),
-                          stream);
+    raft::linalg::reduce<false, true>(corr_means->data(), build_array, D, n, 0.0f, stream);
+    raft::linalg::unaryOp(
+      corr_means->data(), corr_means->data(), n, raft::mul_const_op<float>(normalizer), stream);
     raft::stats::meanCenter<false, false>(
-      index_array, index_array, index->pimpl->corr_means->data(), D, n, stream);
+      build_array, build_array, corr_means->data(), D, n, stream);
 
     // Compute norms and normalize
     raft::linalg::rowNorm<raft::linalg::L2Norm, false>(
-      index->pimpl->corr_norms->data(), index_array, D, n, stream, raft::sqrt_op{});
+      corr_norms->data(), build_array, D, n, stream, raft::sqrt_op{});
     raft::linalg::matrixVectorOp<false, false>(
-      index_array, index_array, index->pimpl->corr_norms->data(), D, n, raft::div_op{}, stream);
+      build_array, build_array, corr_norms->data(), D, n, raft::div_op{}, stream);
 
     metric = ML::distance::DistanceType::InnerProduct;
   }
 
-  auto index_view = raft::make_device_matrix_view<const float, int64_t>(index_array, n, D);
+  auto index_view = raft::make_device_matrix_view<const float, int64_t>(build_array, n, D);
 
   if (ivf_ft_pams) {
     index->nprobe = ivf_ft_pams->nprobe;
@@ -339,14 +344,6 @@ void approx_knn_build_index(raft::handle_t& handle,
   } else {
     RAFT_FAIL("Unrecognized index type.");
   }
-
-  // Revert user data for correlation
-  if (index->metric == ML::distance::DistanceType::CorrelationExpanded) {
-    raft::linalg::matrixVectorOp<false, false>(
-      index_array, index_array, index->pimpl->corr_norms->data(), D, n, raft::mul_op{}, stream);
-    raft::stats::meanAdd<false, false>(
-      index_array, index_array, index->pimpl->corr_means->data(), D, n, stream);
-  }
 }
 
 void approx_knn_search(raft::handle_t& handle,
@@ -365,23 +362,32 @@ void approx_knn_search(raft::handle_t& handle,
   // Temporary storage for correlation query preprocessing
   std::unique_ptr<rmm::device_uvector<float>> query_means;
   std::unique_ptr<rmm::device_uvector<float>> query_norms;
+  std::unique_ptr<rmm::device_uvector<float>> query_copy;
+  float* search_array = query_array;
 
-  // Preprocess queries for correlation
+  // Preprocess a copy for correlation, including when search throws.
   if (index->metric == ML::distance::DistanceType::CorrelationExpanded) {
-    query_means = std::make_unique<rmm::device_uvector<float>>(n, stream);
-    query_norms = std::make_unique<rmm::device_uvector<float>>(n, stream);
+    query_copy = std::make_unique<rmm::device_uvector<float>>(size_t(n) * size_t(D), stream);
+    RAFT_CUDA_TRY(cudaMemcpyAsync(query_copy->data(),
+                                  query_array,
+                                  size_t(n) * size_t(D) * sizeof(float),
+                                  cudaMemcpyDeviceToDevice,
+                                  stream));
+    search_array = query_copy->data();
+    query_means  = std::make_unique<rmm::device_uvector<float>>(n, stream);
+    query_norms  = std::make_unique<rmm::device_uvector<float>>(n, stream);
 
     float normalizer = 1.0f / static_cast<float>(D);
-    raft::linalg::reduce<false, true>(query_means->data(), query_array, D, n, 0.0f, stream);
+    raft::linalg::reduce<false, true>(query_means->data(), search_array, D, n, 0.0f, stream);
     raft::linalg::unaryOp(
       query_means->data(), query_means->data(), n, raft::mul_const_op<float>(normalizer), stream);
     raft::stats::meanCenter<false, false>(
-      query_array, query_array, query_means->data(), D, n, stream);
+      search_array, search_array, query_means->data(), D, n, stream);
 
     raft::linalg::rowNorm<raft::linalg::L2Norm, false>(
-      query_norms->data(), query_array, D, n, stream, raft::sqrt_op{});
+      query_norms->data(), search_array, D, n, stream, raft::sqrt_op{});
     raft::linalg::matrixVectorOp<false, false>(
-      query_array, query_array, query_norms->data(), D, n, raft::div_op{}, stream);
+      search_array, search_array, query_norms->data(), D, n, raft::div_op{}, stream);
   }
 
   auto indices_view   = raft::make_device_matrix_view<int64_t, int64_t>(indices, n, k);
@@ -389,7 +395,7 @@ void approx_knn_search(raft::handle_t& handle,
 
   if (index->pimpl->ivf_flat) {
     auto query_view = raft::make_device_matrix_view<const float, int64_t>(
-      query_array, n, index->pimpl->ivf_flat->dim());
+      search_array, n, index->pimpl->ivf_flat->dim());
     cuvs::neighbors::ivf_flat::search_params params;
     params.n_probes = ML::narrow_cast<uint32_t>(index->nprobe);
 
@@ -397,7 +403,7 @@ void approx_knn_search(raft::handle_t& handle,
       handle, params, *index->pimpl->ivf_flat, query_view, indices_view, distances_view);
   } else if (index->pimpl->ivf_pq) {
     auto query_view = raft::make_device_matrix_view<const float, int64_t>(
-      query_array, n, index->pimpl->ivf_pq->dim());
+      search_array, n, index->pimpl->ivf_pq->dim());
     cuvs::neighbors::ivf_pq::search_params params;
     params.n_probes  = ML::narrow_cast<uint32_t>(index->nprobe);
     params.lut_dtype = ivfpq_dtype_from_code(index->pimpl->pq_lut_dtype);
@@ -410,13 +416,6 @@ void approx_knn_search(raft::handle_t& handle,
       handle, params, *(index->pimpl->ivf_pq), query_view, indices_view, distances_view);
   } else {
     RAFT_FAIL("The model is not trained");
-  }
-
-  // Revert query data for correlation
-  if (index->metric == ML::distance::DistanceType::CorrelationExpanded) {
-    raft::linalg::matrixVectorOp<false, false>(
-      query_array, query_array, query_norms->data(), D, n, raft::mul_op{}, stream);
-    raft::stats::meanAdd<false, false>(query_array, query_array, query_means->data(), D, n, stream);
   }
 
   // perform post-processing to show the real distances

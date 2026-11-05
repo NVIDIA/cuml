@@ -245,12 +245,48 @@ def test_ivf_cuvs_defaults_for_small_dataset(algorithm):
         (256, 8, 1.0, 256),
         (1000, 8, 0.25, 250),
         (255, 200, 0.5, 255),
+        (200000, 8, np.float16(0.5), 100000),
     ],
 )
 def test_ivfpq_training_rows(n_rows, n_lists, train_fraction, expected):
     from cuml.neighbors.nearest_neighbors import _ivfpq_training_rows
 
     assert _ivfpq_training_rows(n_rows, n_lists, train_fraction) == expected
+
+
+@pytest.mark.parametrize(
+    "n_lists,pq_bits,pq_dim,codebook_kind,expected",
+    [
+        (1, 8, 32, "cluster", 8),
+        (8, 8, 8, "cluster", 256),
+        (1, 8, 32, "subspace", 256),
+        (8, 8, 0, "cluster", 8),
+    ],
+)
+def test_ivfpq_required_training_rows(
+    n_lists, pq_bits, pq_dim, codebook_kind, expected
+):
+    from cuml.neighbors.nearest_neighbors import (
+        _ivfpq_required_training_rows,
+    )
+
+    assert (
+        _ivfpq_required_training_rows(n_lists, pq_bits, pq_dim, codebook_kind)
+        == expected
+    )
+
+
+@pytest.mark.parametrize("algorithm", ["ivfflat", "ivfpq"])
+def test_ivf_numpy_training_fraction(algorithm):
+    from cuml.neighbors.nearest_neighbors import _normalize_ivf_params
+
+    params = _normalize_ivf_params(
+        algorithm,
+        {"kmeans_trainset_fraction": np.float16(0.5)},
+        n_rows=200000,
+    )
+    assert params["kmeans_trainset_fraction"] == 0.5
+    assert params["n_lists"] == math.isqrt(200000)
 
 
 @pytest.mark.parametrize(
@@ -337,6 +373,20 @@ def test_ivfpq_invalid_encoding_size():
         ).fit(X)
 
 
+def test_ivfpq_rejects_unsupported_search_dtypes():
+    X, _ = make_blobs(n_samples=512, n_features=32, random_state=0)
+    with pytest.raises(ValueError, match="internal_distance_dtype"):
+        cuKNN(
+            algorithm="ivfpq",
+            algo_params={
+                "n_lists": 8,
+                "pq_dim": 8,
+                "internal_distance_dtype": cp.float16,
+                "lut_dtype": cp.float32,
+            },
+        ).fit(X)
+
+
 @pytest.mark.parametrize("pq_bits", [0, 3, 9])
 def test_ivfpq_invalid_pq_bits(pq_bits):
     X, _ = make_blobs(n_samples=32, n_features=8, random_state=0)
@@ -364,7 +414,9 @@ def test_ivfpq_negative_pq_dim():
 def test_ivfpq_flat_codes_layout_rejected():
     X, _ = make_blobs(n_samples=32, n_features=8, random_state=0)
 
-    with pytest.raises(ValueError, match="codes_layout='flat' is not supported"):
+    with pytest.raises(
+        ValueError, match="codes_layout='flat' is not supported"
+    ):
         cuKNN(
             algorithm="ivfpq",
             algo_params={"codes_layout": "flat"},
@@ -386,7 +438,9 @@ def test_cuvs_ivfpq_flat_layout_search_unsupported():
     try:
         index = ivf_pq.build(params, X)
     except Exception as exc:
-        raise AssertionError("cuVS could not build a flat-layout index") from exc
+        raise AssertionError(
+            "cuVS could not build a flat-layout index"
+        ) from exc
 
     try:
         ivf_pq.search(ivf_pq.SearchParams(n_probes=8), index, X[:4], 4)
@@ -396,8 +450,12 @@ def test_cuvs_ivfpq_flat_layout_search_unsupported():
             "FLAT layout is not supported for GPU search."
         )
         if expected not in str(exc):
-            raise AssertionError("cuVS rejected search for another reason") from exc
-        raise RuntimeError("cuVS flat-layout GPU search is unsupported") from exc
+            raise AssertionError(
+                "cuVS rejected search for another reason"
+            ) from exc
+        raise RuntimeError(
+            "cuVS flat-layout GPU search is unsupported"
+        ) from exc
     except Exception as exc:
         raise AssertionError("cuVS search failed for another reason") from exc
 
@@ -608,6 +666,39 @@ def test_ivfpq_minimum_samples(nrows, n_lists, pq_bits, fraction):
     assert distances.shape == indices.shape == (1, 1)
     assert cp.isfinite(distances).all()
     assert ((indices >= 0) & (indices < nrows)).all()
+
+
+def test_ivfpq_cluster_codebook_small_dataset():
+    X, _ = make_blobs(n_samples=32, n_features=32, centers=1, random_state=42)
+    model = cuKNN(
+        algorithm="ivfpq",
+        algo_params={
+            "n_lists": 1,
+            "n_probes": 1,
+            "pq_dim": 32,
+            "pq_bits": 8,
+            "codebook_kind": "cluster",
+        },
+    )
+    model.fit(X)
+    distances, indices = model.kneighbors(X[:4], n_neighbors=2)
+    assert distances.shape == indices.shape == (4, 2)
+    assert cp.isfinite(distances).all()
+
+
+def test_correlation_query_preserved_after_ivfpq_search_error():
+    X, _ = make_blobs(n_samples=512, n_features=32, random_state=42)
+    model = cuKNN(algorithm="ivfpq", metric="correlation")
+    model.fit(X)
+    query = cp.ascontiguousarray(X[:4])
+    original = query.copy()
+
+    # Call the index directly to reach cuVS's k validation after preprocessing.
+    with pytest.raises(
+        Exception, match=r"parameter `k` in top-k must be positive"
+    ):
+        model._index.kneighbors(query, 0)
+    cp.testing.assert_array_equal(query, original)
 
 
 @pytest.mark.parametrize(
