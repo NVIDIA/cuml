@@ -319,6 +319,37 @@ def test_estimator_benchmark_coverage():
     } == expected
 
 
+@pytest.mark.parametrize(
+    "tags",
+    [[], ["balanced"], ["wide", "diagnostic"], ["thin", "wide"], ["", " "]],
+)
+def test_case_tags_are_metadata(tags):
+    case = resolve_case(_request(tags=tags), PROFILE)
+    assert case.tags == tuple(tags)
+    assert (
+        case.workload_id() == resolve_case(_request(), PROFILE).workload_id()
+    )
+    result = _benchmark(case)
+    assert result["extensions"][harness.EXTENSION]["tags"] == tags
+
+
+def test_tags_preserved_on_failure_and_across_profiles():
+    request = _request(tags=["balanced"])
+    case = resolve_case(request, PROFILE)
+    failed = harness._base_result(_suite(case), case, PACKAGE)
+    assert failed["outcome"]["status"] == "failed"
+    assert failed["extensions"][harness.EXTENSION]["tags"] == ["balanced"]
+    smoke = resolve_case(request, {**PROFILE, "size_scale": 0.01})
+    assert smoke.tags == case.tags
+    assert resolve_case(_request(), PROFILE).tags == ()
+
+
+@pytest.mark.parametrize("tags", [["thin", "thin"], ["", ""], [" ", " "]])
+def test_duplicate_case_tags(tags):
+    with pytest.raises(SuiteError, match="duplicate tags"):
+        resolve_case(_request(tags=tags), PROFILE)
+
+
 def test_packaged_suites_are_valid_and_roundtrip():
     for path in sorted(SUITES.glob("*.yaml")):
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -1163,6 +1194,7 @@ def test_cli_artifact_checkpoint_and_resume(registered_suite, monkeypatch):
         "schema",
         "methodology",
         "plan",
+        "tags",
         "provider",
         "software",
         "system",
@@ -1184,6 +1216,10 @@ def test_resume_rejects_incompatible_artifact(registered_suite, change):
         artifact["run"]["extensions"][harness.EXTENSION]["execution_plan"][0][
             "repetitions"
         ] += 1
+    elif change == "tags":
+        artifact["run"]["extensions"][harness.EXTENSION]["execution_plan"][0][
+            "tags"
+        ] = ["wide"]
     elif change == "provider":
         artifact["run"]["extensions"][harness.EXTENSION][change] = "changed"
     elif change == "unknown_id":
