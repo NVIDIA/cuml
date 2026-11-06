@@ -56,9 +56,13 @@ python -m cuml.benchmark -k '(PCA or UMAP) and dtype=float32' --collect-only
 ```
 
 Terms match case-insensitive substrings of estimator names, operations, dataset
-generators, workload IDs, and profile-scaled `rows=N`, `features=N`, and
+generators, workload IDs, and resolved `rows=N`, `features=N`, and
 `dtype=TYPE` attributes. Combine terms with lowercase `not`, `and`, `or`, and
 parentheses.
+
+Selection uses measured row counts after profile scaling: `rows: 200` with
+`size_scale: 0.5` matches `rows=100`. Measured row counts are rounded and clamped
+to at least 32; feature counts are unchanged.
 
 Invalid expressions or no matches exit nonzero. The `--collect-only` option
 reports counts by provider. Resuming requires the same selected cases as the
