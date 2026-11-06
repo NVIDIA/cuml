@@ -1,5 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import warnings
+
 import cupy as cp
 import numpy as np
 import pytest
@@ -9,6 +11,7 @@ from hypothesis import assume, example, given
 from hypothesis import strategies as st
 from hypothesis import target
 from sklearn.linear_model import LinearRegression as skLinearRegression
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 import cuml
@@ -29,7 +32,7 @@ from cuml.testing.utils import array_difference, array_equal
 
 @given(
     datatype=dataset_dtypes(),
-    algorithm=st.sampled_from(["eig", "svd", "lsmr"]),
+    algorithm=st.sampled_from(["eig", "svd", "lu", "lsmr"]),
     nrows=st.integers(min_value=1000, max_value=5000),
     column_info=st.sampled_from([[20, 10], [100, 50]]),
     ntargets=st.integers(min_value=1, max_value=2),
@@ -50,6 +53,13 @@ from cuml.testing.utils import array_difference, array_equal
 )
 @example(
     datatype=np.float32,
+    algorithm="lu",
+    nrows=3000,
+    column_info=[50, 20],
+    ntargets=3,
+)
+@example(
+    datatype=np.float32,
     algorithm="lsmr",
     nrows=3000,
     column_info=[50, 20],
@@ -58,7 +68,7 @@ from cuml.testing.utils import array_difference, array_equal
 def test_linear_regression_model(
     datatype, algorithm, nrows, column_info, ntargets
 ):
-    assume(ntargets == 1 or algorithm in ("svd", "lsmr"))
+    assume(ntargets == 1 or algorithm in ("lu", "svd", "lsmr"))
 
     ncols, n_info = column_info
     X_train, X_test, y_train, y_test = make_regression_dataset(
@@ -84,7 +94,7 @@ def test_linear_regression_model(
 @given(
     ntargets=st.integers(min_value=1, max_value=2),
     datatype=dataset_dtypes(),
-    algorithm=st.sampled_from(["eig", "svd", "qr", "svd-qr", "lsmr"]),
+    algorithm=st.sampled_from(["eig", "svd", "qr", "svd-qr", "lu", "lsmr"]),
     fit_intercept=st.booleans(),
     distribution=st.sampled_from(["lognormal", "exponential", "uniform"]),
 )
@@ -105,6 +115,13 @@ def test_linear_regression_model(
 @example(
     ntargets=2,
     datatype=np.float32,
+    algorithm="lu",
+    fit_intercept=True,
+    distribution="exponential",
+)
+@example(
+    ntargets=2,
+    datatype=np.float32,
     algorithm="lsmr",
     fit_intercept=True,
     distribution="uniform",
@@ -116,7 +133,7 @@ def test_weighted_linear_regression(
     max_weight = 10
     noise = 20
 
-    assume(ntargets == 1 or algorithm in ("svd", "lsmr"))
+    assume(ntargets == 1 or algorithm in ("svd", "lu", "lsmr"))
 
     X_train, X_test, y_train, y_test = make_regression_dataset(
         datatype, nrows, ncols, n_info, noise=noise, n_targets=ntargets
@@ -154,6 +171,35 @@ def test_weighted_linear_regression(
     sk_score = skols.score(X_test, y_test, sample_weight=wt_test)
     cu_score = cuols.score(X_test, y_test, sample_weight=wt_test)
     np.testing.assert_almost_equal(cu_score, sk_score)
+
+
+@pytest.mark.parametrize("algorithm", ["lu", "lsmr", "svd", "eig"])
+def test_linear_regression_short_wide(algorithm):
+    X, y = make_regression(n_samples=80, n_features=200, random_state=42)
+
+    sk_model = sklearn.linear_model.LinearRegression().fit(X, y)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", category=UserWarning, module="cuml.*")
+        cu_model = cuml.LinearRegression(algorithm="lu").fit(X, y)
+
+    sk_pred = sk_model.predict(X)
+    cu_pred = cu_model.predict(X)
+    np.testing.assert_allclose(sk_pred, cu_pred, atol=1e-2)
+
+
+def test_linear_regression_lu_singular_matrix():
+    X, y = make_regression(n_samples=2000, n_features=100, random_state=42)
+    # Some colinear features
+    X[:, ::10] = X[:, 0:1]
+
+    sk_model = sklearn.linear_model.LinearRegression().fit(X, y)
+    with pytest.warns(UserWarning, match="Singular matrix encountered"):
+        cu_model = cuml.LinearRegression(algorithm="lu").fit(X, y)
+
+    sk_pred = sk_model.predict(X)
+    cu_pred = cu_model.predict(X)
+
+    assert r2_score(sk_pred, cu_pred) >= 0.98
 
 
 def test_linear_regression_single_column():
@@ -253,7 +299,7 @@ def test_linreg_predict_mixed_dtypes(train_dtype, test_dtype):
 
 @pytest.mark.filterwarnings("ignore:Changing solver.*:UserWarning")
 @given(
-    algo=st.sampled_from(["eig", "qr", "svd", "svd-qr", "lsmr"]),
+    algo=st.sampled_from(["eig", "qr", "svd", "svd-qr", "lu", "lsmr"]),
     n_targets=st.integers(min_value=1, max_value=2),
     fit_intercept=st.booleans(),
     weighted=st.booleans(),
@@ -263,6 +309,8 @@ def test_linreg_predict_mixed_dtypes(train_dtype, test_dtype):
 @example(algo="svd-qr", n_targets=1, fit_intercept=True, weighted=False)
 @example(algo="svd", n_targets=1, fit_intercept=True, weighted=False)
 @example(algo="svd", n_targets=2, fit_intercept=False, weighted=True)
+@example(algo="lu", n_targets=1, fit_intercept=True, weighted=False)
+@example(algo="lu", n_targets=2, fit_intercept=False, weighted=True)
 @example(algo="lsmr", n_targets=1, fit_intercept=True, weighted=False)
 @example(algo="lsmr", n_targets=2, fit_intercept=False, weighted=False)
 def test_linear_regression_input_mutation(
@@ -275,7 +323,7 @@ def test_linear_regression_input_mutation(
     # Only "svd" and "lsmr" support n_targets > 1. While we do fallback
     # automatically (with a warning), there's no need to have hypothesis
     # explore those cases.
-    assume(n_targets == 1 or algo in ("lsmr", "svd"))
+    assume(n_targets == 1 or algo in ("lu", "lsmr", "svd"))
 
     X, y = make_regression(n_targets=n_targets, random_state=42)
     if weighted:
@@ -318,7 +366,7 @@ def test_linear_regression_input_mutation(
         # `eig` sometimes mutates and sometimes doesn't, the others always do
         if algo != "eig":
             assert not cp.array_equal(X, X_orig)
-    elif algo in ("svd", "lsmr") and (fit_intercept or weighted):
+    elif algo in ("lu", "svd", "lsmr") and (fit_intercept or weighted):
         # The cupy solvers also mutates in this case
         assert not cp.array_equal(X, X_orig)
     else:
@@ -326,13 +374,16 @@ def test_linear_regression_input_mutation(
         cp.testing.assert_array_equal(X, X_orig)
 
 
+@pytest.mark.parametrize(
+    "algorithm, fit_intercept",
+    [("lsmr", True), ("lsmr", False), ("lu", False)],
+)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-@pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("weighted", [True, False])
 @pytest.mark.parametrize("n_targets", [0, 1, 3])
 @pytest.mark.parametrize("format", ["coo", "csr", "csc"])
 def test_linear_regression_sparse(
-    dtype, fit_intercept, weighted, n_targets, format
+    algorithm, fit_intercept, dtype, weighted, n_targets, format
 ):
     n_samples, n_features = 3000, 500
     rng = np.random.default_rng(42)
@@ -356,7 +407,9 @@ def test_linear_regression_sparse(
     else:
         sample_weight = None
 
-    cu_model = cuml.LinearRegression(fit_intercept=fit_intercept)
+    cu_model = cuml.LinearRegression(
+        algorithm=algorithm, fit_intercept=fit_intercept
+    )
     cu_model.fit(X, y, sample_weight=sample_weight)
     cu_pred = cu_model.predict(X)
 
