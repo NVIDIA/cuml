@@ -84,7 +84,7 @@ A suite brings together:
   representation. Generator parameters are separate from estimator parameters.
 - **Input selection:** arguments passed to the operation (`X`, `y`, or both).
   Inference cases also specify training rows and inputs for the initial fit.
-- **Tags:** optional labels for describing and grouping workloads. The exact
+- **Tags:** optional labels for describing and grouping cases. The exact
   meaning is suite-dependent. Tags are preserved in result artifacts without
   affecting workload IDs.
 
