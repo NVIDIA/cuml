@@ -808,7 +808,7 @@ def test_rf_data_count(client, max_depth, n_estimators):
         min_samples_leaf=2,
         random_state=23707,
         n_estimators=n_estimators,
-        max_leaves=-1,
+        max_leaf_nodes=None,
         max_depth=max_depth,
     )
     y = y.astype(np.int32)
@@ -878,7 +878,7 @@ def test_rf_get_model_right_after_fit(client, estimator_type):
             max_samples=1.0,
             n_bins=16,
             n_estimators=n_estimators,
-            max_leaves=-1,
+            max_leaf_nodes=None,
             max_depth=max_depth,
         )
         y = y.astype(np.int32)
@@ -888,7 +888,7 @@ def test_rf_get_model_right_after_fit(client, estimator_type):
             max_samples=1.0,
             n_bins=16,
             n_estimators=n_estimators,
-            max_leaves=-1,
+            max_leaf_nodes=None,
             max_depth=max_depth,
         )
         y = y.astype(np.float32)
