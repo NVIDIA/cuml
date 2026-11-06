@@ -890,42 +890,34 @@ TEST(RfTests, EmptyGlobalRowsRejected)
                raft::exception);
 }
 
-TEST(RfTests, HighClassCountSplitHistogramFallsBackToGlobalMemory)
+TEST(RfTests, HighClassCountHistograms)
 {
-  constexpr std::size_t n_rows = 640;
-  constexpr std::size_t n_cols = 4;
-  constexpr int n_classes      = 80;
-  constexpr int max_n_bins     = 256;
-
-  auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(1);
-  raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
-  thrust::device_vector<float> X(n_rows * n_cols);
-  thrust::device_vector<int> y(n_rows);
-
-  Datasets::make_blobs(handle,
-                       X.data().get(),
-                       y.data().get(),
-                       n_rows,
-                       n_cols,
-                       n_classes,
-                       false,
-                       nullptr,
-                       nullptr,
-                       5.0,
-                       false,
-                       -10.0f,
-                       10.0f,
-                       1234);
-
-  auto forest = std::make_shared<RandomForestMetaData<float, int>>();
-  auto rf_params =
-    set_rf_params(2, -1, 1.0f, max_n_bins, 1, 2, 0.0f, false, 1, 1.0f, 1234, CRITERION::GINI, 1, 4);
-  auto forest_ptr = forest.get();
-
+  auto n_classes = 8194, n_rows = 8194;  // n_classes == n_rows makes y easy to construct
+  raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread},
+                        std::make_shared<rmm::cuda_stream_pool>(1));
+  thrust::device_vector<float> X(thrust::make_counting_iterator(0),
+                                 thrust::make_counting_iterator(n_rows));
+  thrust::device_vector<int> y(thrust::make_counting_iterator(0),
+                               thrust::make_counting_iterator(n_classes));
+  RandomForestClassifierF forest;
+  // Two bins force the split histogram into global memory; 8194 classes require leaf tiling.
+  auto params = set_rf_params(1, -1, 1.0, 2, 1, 2, 0.0, false, 1, 1.0, 0, GINI, 1, 4);
   ASSERT_NO_THROW(
-    fit(handle, forest_ptr, X.data().get(), n_rows, n_cols, y.data().get(), n_classes, rf_params));
-  ASSERT_EQ(forest->trees.size(), 1);
-  EXPECT_GT(forest->trees.front()->depth_counter, 0);
+    fit(handle, &forest, X.data().get(), n_rows, 1, y.data().get(), n_classes, params));
+  ASSERT_EQ(forest.trees.size(), 1);
+  const auto& tree = *forest.trees.front();
+  ASSERT_EQ(tree.sparsetree.size(), 3);
+  ASSERT_EQ(tree.vector_leaf.size(), 3 * n_rows);
+  const auto& root = tree.sparsetree.front();
+  for (auto node : {root.LeftChildId(), root.RightChildId()}) {
+    const auto& leaf = tree.sparsetree.at(node);
+    EXPECT_TRUE(leaf.IsLeaf());
+    for (int label = 0; label < n_classes; ++label) {
+      bool in_leaf = (label <= root.QueryValue()) == (node == root.LeftChildId());
+      EXPECT_FLOAT_EQ(tree.vector_leaf[node * n_classes + label],
+                      in_leaf ? 1.0f / leaf.InstanceCount() : 0.0f);
+    }
+  }
 }
 
 TEST(RfTests, InvalidSampleWeightThrows)
