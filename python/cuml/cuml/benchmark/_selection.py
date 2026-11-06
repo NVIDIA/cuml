@@ -7,9 +7,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
-from typing import Callable
+from typing import Callable, Literal, NoReturn
 
 from .suite import ResolvedCase, SuiteError, SuitePlan
+
+type Node = (
+    tuple[Literal["term"], str]
+    | tuple[Literal["not"], Node]
+    | tuple[Literal["and", "or"], list[Node]]
+)
 
 
 def case_keywords(case: ResolvedCase) -> tuple[str, ...]:
@@ -33,10 +39,10 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
     tokens = re.findall(r"\(|\)|[^\s()]+", expression)
     position = 0
 
-    def peek():
+    def peek() -> str | None:
         return tokens[position] if position < len(tokens) else None
 
-    def fail():
+    def fail() -> NoReturn:
         token = peek()
         raise SuiteError(
             f"invalid -k expression {expression!r} at token {position + 1}: "
@@ -47,7 +53,7 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
             )
         )
 
-    def atom():
+    def atom() -> Node:
         nonlocal position
         token = peek()
         if token == "(":
@@ -62,7 +68,7 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
         position += 1
         return ("term", token.casefold())
 
-    def negation():
+    def negation() -> Node:
         nonlocal position
         # Iterative to support repeated negation without recursive nesting.
         count = 0
@@ -72,7 +78,7 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
         node = atom()
         return ("not", node) if count % 2 else node
 
-    def conjunction():
+    def conjunction() -> Node:
         nonlocal position
         nodes = [negation()]
         while peek() == "and":
@@ -80,7 +86,7 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
             nodes.append(negation())
         return ("and", nodes)
 
-    def disjunction():
+    def disjunction() -> Node:
         nonlocal position
         nodes = [conjunction()]
         while peek() == "or":
@@ -97,16 +103,15 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
     if peek() is not None:
         fail()
 
-    def evaluate(node, keywords):
-        kind, value = node
-        if kind == "term":
-            return any(value in keyword for keyword in keywords)
-        if kind == "not":
-            return not evaluate(value, keywords)
-        values = (evaluate(child, keywords) for child in value)
-        return all(values) if kind == "and" else any(values)
+    def evaluate(node: Node, keywords: tuple[str, ...]) -> bool:
+        if node[0] == "term":
+            return any(node[1] in keyword for keyword in keywords)
+        if node[0] == "not":
+            return not evaluate(node[1], keywords)
+        values = (evaluate(child, keywords) for child in node[1])
+        return all(values) if node[0] == "and" else any(values)
 
-    def matches(case):
+    def matches(case: ResolvedCase) -> bool:
         return evaluate(tree, tuple(k.casefold() for k in case_keywords(case)))
 
     return matches
