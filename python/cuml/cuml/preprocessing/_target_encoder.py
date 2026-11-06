@@ -7,6 +7,7 @@ import warnings
 import cudf
 import cupy as cp
 import numpy as np
+import pandas as pd
 from sklearn.utils import ClassifierTags
 
 from cuml.internals.base import Base
@@ -465,6 +466,7 @@ class TargetEncoder(InteropMixin, Base):
         self._encodings_per_feature = []
         self.encode_all = []
         result_cols = []
+        merged = False
 
         for i, col in enumerate(x_cols):
             out_col_i = f"out_{i}"
@@ -473,9 +475,21 @@ class TargetEncoder(InteropMixin, Base):
                 encode_all_i = self._compute_single_feature_encoding_median(
                     df, col
                 )
+                # Merge encoding into df for this feature
+                df = df.merge(
+                    encode_all_i.rename(columns={"out": out_col_i}),
+                    on=col,
+                    how="left",
+                )
+                df[out_col_i] = df[out_col_i].nans_to_nulls()
+                df[out_col_i] = df[out_col_i].fillna(self.y_stat_val)
+                merged = True
             else:
-                encode_all_i = self._compute_single_feature_encoding(
-                    df, col, out_col_i
+                encode_all_i, encoded = self._encode_single_feature(df, col)
+                # A category with no non-null targets encodes as NaN when
+                # smooth=0; impute it as the merge path does
+                df[out_col_i] = cp.where(
+                    cp.isnan(encoded), self.y_stat_val, encoded
                 )
 
             self.encode_all.append(encode_all_i)
@@ -486,42 +500,65 @@ class TargetEncoder(InteropMixin, Base):
                     encode_all_i, col, self.categories_[i]
                 )
             )
-
-            # Merge encoding into df for this feature
-            df = df.merge(
-                encode_all_i.rename(columns={"out": out_col_i}),
-                on=col,
-                how="left",
-            )
-            df[out_col_i] = df[out_col_i].nans_to_nulls()
-            df[out_col_i] = df[out_col_i].fillna(self.y_stat_val)
             result_cols.append(out_col_i)
 
-        # Sort by original index and return results
-        df = df.sort_values("id").reset_index(drop=True)
+        if merged:
+            # Merges do not preserve row order; restore the original order
+            df = df.sort_values("id").reset_index(drop=True)
+        else:
+            # `df` is stored as `self.train`. A frame only modified in place
+            # keeps the column metadata it was constructed with, which under
+            # cudf.pandas holds proxied pandas objects that cannot be
+            # pickled; the merge path happened to rebuild it. Reassigning
+            # the labels normalizes the metadata (0.8 ms at 195k rows).
+            df.columns = list(df.columns)
         res = df[result_cols].to_cupy()
         return res, df
 
-    def _compute_single_feature_encoding(self, train, col, out_col):
-        """Compute target encoding for a single feature column."""
-        # Group by single feature and compute stats
-        df_count = train.groupby(col, as_index=False, dropna=False).agg(
-            {"y": "count"}
-        )
-        df_count.columns = [col, "y_count"]
+    def _encode_single_feature(self, train, col):
+        """Smoothed mean encoding of one feature, by factorizing it.
 
-        df_sum = train.groupby(col, as_index=False, dropna=False).agg(
-            {"y": "sum"}
-        )
-        df_sum.columns = [col, "y_sum"]
+        Returns the per-category table (``col``, ``out``), with a null row
+        for a missing category if one is present, and the per-row encodings
+        aligned with ``train``.
 
-        df = df_sum.merge(df_count, on=col, how="left")
+        This replaces two groupbys and two merges per column with a
+        factorize, two ``bincount`` calls and a gather. The cudf operations
+        each cost tens of milliseconds of fixed overhead regardless of row
+        count, which dominated ``fit_transform`` on wide inputs.
+        """
+        codes, uniques = train[col].factorize()
+        codes = cp.asarray(codes)
+        n_cats = len(uniques)
+        has_null = bool((codes < 0).any())
+        if has_null:
+            codes = cp.where(codes < 0, n_cats, codes)
+        n_buckets = n_cats + int(has_null)
 
-        # Apply smoothing
+        y = train["y"].to_cupy(na_value=np.nan)
+        if train["y"].has_nulls:
+            # Match the groupby semantics: null targets count for nothing
+            valid = ~cp.isnan(y)
+            counts = cp.bincount(codes[valid], minlength=n_buckets)
+            sums = cp.bincount(
+                codes[valid], weights=y[valid], minlength=n_buckets
+            )
+        else:
+            counts = cp.bincount(codes, minlength=n_buckets)
+            sums = cp.bincount(codes, weights=y, minlength=n_buckets)
+
         smooth = self.smooth
-        df["out"] = (df.y_sum + smooth * self.mean) / (df.y_count + smooth)
+        mean = float(self.mean)
+        out = (sums + smooth * mean) / (counts.astype(sums.dtype) + smooth)
 
-        return df[[col, "out"]]
+        keys = cudf.Series(uniques)
+        if has_null:
+            keys = cudf.concat(
+                [keys, cudf.Series([None], dtype=keys.dtype)],
+                ignore_index=True,
+            )
+        encode_all = cudf.DataFrame({col: keys, "out": out})
+        return encode_all, out[codes]
 
     def _compute_single_feature_encoding_median(self, train, col):
         """Compute median target encoding for a single feature column."""
@@ -534,22 +571,36 @@ class TargetEncoder(InteropMixin, Base):
     def _category_encodings(self, encode_all, col, categories):
         """Encodings of `categories` in order, falling back to the mean.
 
-        Uses a merge rather than comparing values so that a missing
-        category matches the missing key in `encode_all`.
+        `encode_all` has one row per category, so this is a small table.
+        It is resolved on the host: a cudf merge plus sort here costs tens
+        of milliseconds of fixed overhead per column, which dominated
+        ``fit_transform`` on wide inputs. A missing category (NaN/None) is
+        matched to the null key in `encode_all` explicitly, since NaN does
+        not compare equal to itself.
         """
-        # A missing category has to be null to match the null key in
-        # `encode_all`. `_cats_to_series` hardcodes `nan_as_null=True`
-        # (cudf's default) so the behavior doesn't switch when cudf.pandas
-        # is active.
-        cats = cudf.DataFrame(
-            {
-                col: _cats_to_series(categories),
-                "pos": cp.arange(len(categories)),
-            }
+        enc = encode_all[[col, "out"]].to_pandas()
+        keys = enc[col]
+        vals = enc["out"].to_numpy(dtype="float64", na_value=np.nan)
+        key_missing = keys.isna().to_numpy()
+        lut = dict(
+            zip(keys[~key_missing].tolist(), vals[~key_missing].tolist())
         )
-        cats = cats.merge(encode_all[[col, "out"]], on=col, how="left")
-        out = cats.sort_values("pos")["out"].fillna(float(self.mean))
-        return out.to_numpy()
+        mean = float(self.mean)
+
+        cats = np.asarray(categories)
+        cat_missing = np.asarray(pd.isna(cats), dtype=bool)
+        out = np.array(
+            [
+                mean if missing else lut.get(cat, mean)
+                for cat, missing in zip(cats.tolist(), cat_missing)
+            ],
+            dtype="float64",
+        )
+        if cat_missing.any() and key_missing.any():
+            out[cat_missing] = vals[key_missing][0]
+        # `out` of an empty group can be NaN for some statistics; the merge
+        # path filled those with the mean as well.
+        return np.where(np.isnan(out), mean, out)
 
     def _make_fold_column(self, n_samples, fold_ids):
         """

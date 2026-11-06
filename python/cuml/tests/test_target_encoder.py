@@ -556,3 +556,20 @@ def test_as_sklearn_missing_category_matches_cuml(multi_feature_mode):
     np.testing.assert_allclose(
         sklearn_model.transform(X_new), encoder.transform(X_new), rtol=1e-5
     )
+
+
+def test_independent_fit_transform_all_null_target_category():
+    """With smooth=0 a category whose targets are all null has no encoding
+    of its own; its training rows fall back to `y_stat_val`, not NaN."""
+    X = np.array(["a", "a", "c", "b", "b"], dtype=object)[:, None]
+    y = np.array([1.0, 1.0, 4.0, np.nan, np.nan])
+
+    encoder = TargetEncoder(
+        smooth=0, multi_feature_mode="independent", output_type="numpy"
+    )
+    train_encoded = encoder.fit_transform(X, y)
+
+    assert encoder.y_stat_val == 2.0
+    np.testing.assert_allclose(
+        train_encoded, np.array([1.0, 1.0, 4.0, 2.0, 2.0])[:, None]
+    )
