@@ -55,16 +55,19 @@ class MPIEnvironment : public ::testing::Environment {
     int local_rank, local_size;
     get_node_local_rank_size(local_rank, local_size);
 
-    int nGpus;
-    RAFT_CUDA_TRY(cudaGetDeviceCount(&nGpus));
+    int nGpus                             = 0;
+    cudaError_t const device_count_status = cudaGetDeviceCount(&nGpus);
 
     // A rank that leaves SetUp while the others enter a collective leaves the whole job
-    // hanging, so every rank has to agree on whether the topology can be used.
-    int insufficient_local_gpus = nGpus < local_size ? 1 : 0;
-    int insufficient_gpus       = 0;
+    // hanging, so every rank has to agree on whether the topology can be used. A failed
+    // device query counts as unusable too, and is only raised after the reduction.
+    int insufficient_local_gpus =
+      (device_count_status != cudaSuccess || nGpus < local_size) ? 1 : 0;
+    int insufficient_gpus = 0;
     MPI_Allreduce(
       &insufficient_local_gpus, &insufficient_gpus, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
+    RAFT_CUDA_TRY(device_count_status);
     ASSERT(!insufficient_gpus,
            "Number of GPUs are lesser than local MPI ranks! ngpus=%d, local_ranks=%d",
            nGpus,
