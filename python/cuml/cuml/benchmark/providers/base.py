@@ -31,9 +31,9 @@ class Provider:
 
     def convert_data(
         self,
-        estimator: str,
         value: Any,
         *,
+        estimator: str,
         role: Literal["X", "y"],
         representation: InputRepresentation,
     ) -> Any:

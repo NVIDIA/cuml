@@ -71,9 +71,9 @@ class DaskProvider(Provider):
 
     def convert_data(
         self,
-        estimator: str,
         value: Any,
         *,
+        estimator: str,
         role: Literal["X", "y"],
         representation: InputRepresentation,
     ) -> Any:
@@ -83,7 +83,10 @@ class DaskProvider(Provider):
         if estimator == "LabelEncoder" and role == "y":
             representation = "series"
         return super().convert_data(
-            estimator, value, role=role, representation=representation
+            value,
+            estimator=estimator,
+            role=role,
+            representation=representation,
         )
 
 

@@ -2565,10 +2565,10 @@ def test_dask_input_conversion(estimator):
     y = np.arange(64, dtype=np.int64) % 3
     provider = get_provider("cuml.dask")
     converted_X = provider.convert_data(
-        estimator, X, role="X", representation="array"
+        X, estimator=estimator, role="X", representation="array"
     )
     converted_y = provider.convert_data(
-        estimator, y, role="y", representation="array"
+        y, estimator=estimator, role="y", representation="array"
     )
     assert isinstance(converted_X._meta, cp.ndarray)
     cp.testing.assert_array_equal(converted_X.compute(), cp.asarray(X))
@@ -3144,7 +3144,7 @@ def test_harness_converts_selected_host_partitions(monkeypatch, inference):
     calls = []
 
     class RecordingProvider(Provider):
-        def convert_data(self, estimator, value, *, role, representation):
+        def convert_data(self, value, *, estimator, role, representation):
             assert estimator == case.estimator
             assert representation == "array"
             calls.append((role, value))
@@ -3197,7 +3197,7 @@ def test_provider_conversion_policy(
 
     monkeypatch.setattr(provider.backend, "convert_data", convert)
     result = provider.convert_data(
-        estimator, value, role=role, representation="array"
+        value, estimator=estimator, role=role, representation="array"
     )
     if provider_name == "cuml.dask" and estimator == "DBSCAN":
         assert result is value

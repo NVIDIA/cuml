@@ -170,8 +170,8 @@ def _prepare_case(
     operation_data = train if is_fit else measured
     operation_args = tuple(
         provider.convert_data(
-            case.estimator,
             operation_data[name],
+            estimator=case.estimator,
             role=name,
             representation=representations[name],
         )
@@ -182,8 +182,8 @@ def _prepare_case(
         if is_fit
         else tuple(
             provider.convert_data(
-                case.estimator,
                 train[name],
+                estimator=case.estimator,
                 role=name,
                 representation=representations[name],
             )
