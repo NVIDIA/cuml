@@ -104,8 +104,8 @@ class Backend:
 
         Conversion has no knowledge of estimator roles, dataset generators, or
         workloads. Dtype and row order are preserved. Materialization belongs
-        to prepare_inputs(), not this hook. Providers requiring unchanged host
-        inputs bypass this hook in the harness.
+        to prepare_inputs(), not this hook. Providers adapt estimator-specific
+        requirements before delegating here, or bypass conversion entirely.
         """
         if representation == "array":
             return importlib.import_module("numpy").asarray(value)

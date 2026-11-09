@@ -3,14 +3,19 @@
 
 """Define the provider for distributed cuML estimators."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Literal
+
 from ..backends import get_backend
 from .base import EstimatorSpec, Provider
 
+if TYPE_CHECKING:
+    from ..backends.base import InputRepresentation
+
 CATALOG = {
     "KMeans": EstimatorSpec("cuml.dask.cluster", "KMeans", "cuml"),
-    "DBSCAN": EstimatorSpec(
-        "cuml.dask.cluster", "DBSCAN", "cuml", input_placement="host"
-    ),
+    "DBSCAN": EstimatorSpec("cuml.dask.cluster", "DBSCAN", "cuml"),
     "PCA": EstimatorSpec("cuml.dask.decomposition", "PCA", "cuml"),
     "TruncatedSVD": EstimatorSpec(
         "cuml.dask.decomposition", "TruncatedSVD", "cuml"
@@ -54,11 +59,32 @@ CATALOG = {
         "cuml.dask.preprocessing",
         "LabelEncoder",
         "cuml",
-        target_representation="series",
     ),
     "LabelBinarizer": EstimatorSpec(
         "cuml.dask.preprocessing", "LabelBinarizer", "cuml"
     ),
 }
 
-PROVIDER = Provider(get_backend("cuml.dask"), CATALOG)
+
+class DaskProvider(Provider):
+    """Adapt inputs to distributed estimators' individual requirements."""
+
+    def convert_data(
+        self,
+        estimator: str,
+        value: Any,
+        *,
+        role: Literal["X", "y"],
+        representation: InputRepresentation,
+    ) -> Any:
+        if estimator == "DBSCAN":
+            # Distributed DBSCAN accepts local inputs, not Dask collections.
+            return value
+        if estimator == "LabelEncoder" and role == "y":
+            representation = "series"
+        return super().convert_data(
+            estimator, value, role=role, representation=representation
+        )
+
+
+PROVIDER = DaskProvider(get_backend("cuml.dask"), CATALOG)

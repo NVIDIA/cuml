@@ -164,14 +164,16 @@ def _prepare_case(
         else "dataframe"
         if case.dataset == "categorical"
         else "array",
-        "y": spec.target_representation,
+        "y": "array",
     }
+    provider = suite.provider_spec
     operation_data = train if is_fit else measured
     operation_args = tuple(
-        operation_data[name]
-        if spec.input_placement == "host"
-        else backend.convert_data(
-            operation_data[name], representation=representations[name]
+        provider.convert_data(
+            case.estimator,
+            operation_data[name],
+            role=name,
+            representation=representations[name],
         )
         for name in case.input_selection
     )
@@ -179,10 +181,11 @@ def _prepare_case(
         ()
         if is_fit
         else tuple(
-            train[name]
-            if spec.input_placement == "host"
-            else backend.convert_data(
-                train[name], representation=representations[name]
+            provider.convert_data(
+                case.estimator,
+                train[name],
+                role=name,
+                representation=representations[name],
             )
             for name in case.fit_input_selection
         )

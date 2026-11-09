@@ -2563,11 +2563,12 @@ def test_dask_input_conversion(estimator):
     pytest.importorskip("dask_cudf")
     X = np.arange(512, dtype=np.float32).reshape(64, 8)
     y = np.arange(64, dtype=np.int64) % 3
-    backend = get_backend("cuml.dask")
-    spec = get_provider("cuml.dask").estimator_spec(estimator)
-    converted_X = backend.convert_data(X, representation="array")
-    converted_y = backend.convert_data(
-        y, representation=spec.target_representation
+    provider = get_provider("cuml.dask")
+    converted_X = provider.convert_data(
+        estimator, X, role="X", representation="array"
+    )
+    converted_y = provider.convert_data(
+        estimator, y, role="y", representation="array"
     )
     assert isinstance(converted_X._meta, cp.ndarray)
     cp.testing.assert_array_equal(converted_X.compute(), cp.asarray(X))
@@ -2612,7 +2613,6 @@ def test_dask_dbscan_uses_local_input(monkeypatch):
     X = np.zeros((64, 8), dtype=np.float32)
     y = np.zeros(64, dtype=np.int64)
     spec = get_provider("cuml.dask").estimator_spec(case.estimator)
-    assert spec.input_placement == "host"
     backend = get_backend("cuml.dask")
     monkeypatch.setattr(harness, "generate_data", lambda case: (X, y))
     monkeypatch.setattr(
@@ -3130,6 +3130,88 @@ def test_run_worker_diagnostic_failures_continue(
         assert all(
             process.status() == psutil.STATUS_ZOMBIE for process in alive
         )
+
+
+@pytest.mark.parametrize("inference", [False, True])
+def test_harness_converts_selected_host_partitions(monkeypatch, inference):
+    request = _request()
+    if inference:
+        request.update(operation="predict", fit_input_selection=["X", "y"])
+        request["dataset"]["shape"]["train_rows"] = 32
+    case = resolve_case(request, PROFILE)
+    X = np.arange(case.generated_rows * 8).reshape(-1, 8)
+    y = np.arange(case.generated_rows)
+    calls = []
+
+    class RecordingProvider(Provider):
+        def convert_data(self, estimator, value, *, role, representation):
+            assert estimator == case.estimator
+            assert representation == "array"
+            calls.append((role, value))
+            return value + 1
+
+    provider = get_provider("scikit-learn")
+    monkeypatch.setitem(
+        PROVIDERS,
+        "scikit-learn",
+        RecordingProvider(provider.backend, provider.catalog),
+    )
+    monkeypatch.setattr(harness, "generate_data", lambda case: (X, y))
+    monkeypatch.setattr(
+        provider.backend, "load_estimator", lambda spec: object
+    )
+    prepared = harness._prepare_case(
+        provider.backend, _suite(case), case, provider.estimator_spec("PCA")
+    )
+    assert [role for role, _ in calls] == (
+        ["X", "X", "y"] if inference else ["X"]
+    )
+    measured_X = X[32:] if inference else X
+    np.testing.assert_array_equal(calls[0][1], measured_X)
+    np.testing.assert_array_equal(prepared.operation_args[0], measured_X + 1)
+    if inference:
+        np.testing.assert_array_equal(calls[1][1], X[:32])
+        np.testing.assert_array_equal(calls[2][1], y[:32])
+        np.testing.assert_array_equal(prepared.fit_args[0], X[:32] + 1)
+        np.testing.assert_array_equal(prepared.fit_args[1], y[:32] + 1)
+    else:
+        assert prepared.fit_args is None
+
+
+@pytest.mark.parametrize(
+    "provider_name", ["scikit-learn", "cuml", "cuml.dask"]
+)
+@pytest.mark.parametrize("estimator", ["PCA", "LabelEncoder", "DBSCAN"])
+@pytest.mark.parametrize("role", ["X", "y"])
+def test_provider_conversion_policy(
+    monkeypatch, provider_name, estimator, role
+):
+    provider = get_provider(provider_name)
+    value = object()
+    converted = object()
+    calls = []
+
+    def convert(value, *, representation):
+        calls.append((value, representation))
+        return converted
+
+    monkeypatch.setattr(provider.backend, "convert_data", convert)
+    result = provider.convert_data(
+        estimator, value, role=role, representation="array"
+    )
+    if provider_name == "cuml.dask" and estimator == "DBSCAN":
+        assert result is value
+        assert calls == []
+    else:
+        representation = (
+            "series"
+            if provider_name == "cuml.dask"
+            and estimator == "LabelEncoder"
+            and role == "y"
+            else "array"
+        )
+        assert result is converted
+        assert calls == [(value, representation)]
 
 
 @pytest.mark.parametrize(
