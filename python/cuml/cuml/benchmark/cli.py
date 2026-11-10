@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import json
 import logging
 import re
 import sys
@@ -47,7 +48,8 @@ def _parser(
     parser = argparse.ArgumentParser(
         prog=" ".join(_entrypoint())
         if __package__ == "benchmark"
-        else "python -m cuml.benchmark"
+        else "python -m cuml.benchmark",
+        epilog="Use 'compare FILE FILE ...' to compare recorded quality metrics.",
     )
     parser.add_argument(
         "--suite",
@@ -211,6 +213,43 @@ def _collect(plan, selected, expression: str) -> None:
     )
 
 
+def _compare_main(argv: list[str]) -> int:
+    """Compare saved artifacts without loading suites or preparing providers."""
+    from .comparison import compare, render_table
+
+    parser = argparse.ArgumentParser(prog=" ".join(_entrypoint()) + " compare")
+    parser.add_argument(
+        "artifacts",
+        nargs="+",
+        help="provider artifact JSON files (at least two)",
+    )
+    parser.add_argument("--format", choices=["table", "json"], default="table")
+    parser.add_argument(
+        "-k",
+        default="",
+        metavar="EXPRESSION",
+        help="filter recorded workloads using benchmark keyword expressions",
+    )
+    args = parser.parse_args(argv)
+    if len(args.artifacts) < 2:
+        parser.error("compare requires at least two artifact files")
+    try:
+        report = compare(args.artifacts, keyword_expression=args.k)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.format == "json":
+        print(json.dumps(report, indent=2, allow_nan=False))
+    else:
+        from rich.console import Console
+
+        Console().print(render_table(report))
+    if not report["comparable_metrics"]:
+        print("No comparable quality metrics found.", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the benchmark command and return its exit status.
 
@@ -220,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         Command arguments; defaults to sys.argv[1:].
     """
     argument_values = sys.argv[1:] if argv is None else argv
+    if argument_values and argument_values[0] == "compare":
+        return _compare_main(argument_values[1:])
     parser = _suite_aware_parser(argument_values)
     args = parser.parse_args(argument_values)
     if args.collect_only and (args.resume or args._worker):

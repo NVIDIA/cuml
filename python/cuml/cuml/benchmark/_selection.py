@@ -35,6 +35,14 @@ def case_keywords(case: ResolvedCase) -> tuple[str, ...]:
 
 
 def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
+    """Compile a keyword expression for resolved benchmark cases."""
+    matches = compile_keyword_expression(expression)
+    return lambda case: matches(case_keywords(case))
+
+
+def compile_keyword_expression(
+    expression: str,
+) -> Callable[[tuple[str, ...]], bool]:
     """Parse substring terms, parentheses, and lowercase not/and/or operators."""
     tokens = re.findall(r"\(|\)|[^\s()]+", expression)
     position = 0
@@ -95,7 +103,7 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
         return ("or", nodes)
 
     if not tokens:
-        return lambda case: True
+        return lambda keywords: True
     try:
         tree = disjunction()
     except RecursionError as exc:
@@ -111,8 +119,8 @@ def compile_expression(expression: str) -> Callable[[ResolvedCase], bool]:
         values = (evaluate(child, keywords) for child in node[1])
         return all(values) if node[0] == "and" else any(values)
 
-    def matches(case: ResolvedCase) -> bool:
-        return evaluate(tree, tuple(k.casefold() for k in case_keywords(case)))
+    def matches(keywords: tuple[str, ...]) -> bool:
+        return evaluate(tree, tuple(k.casefold() for k in keywords))
 
     return matches
 
