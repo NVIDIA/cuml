@@ -126,20 +126,6 @@ class _PreparedCase:
     fit_args: tuple[Any, ...] | None
 
 
-def _prepare_input_groups(
-    backend: Backend,
-    *groups: tuple[Any, ...],
-    runtime: Any = None,
-) -> tuple[tuple[Any, ...], ...]:
-    """Prepare inputs in one backend call, preserving their logical groups."""
-    prepared = iter(
-        backend.prepare_inputs(
-            tuple(value for group in groups for value in group), runtime
-        )
-    )
-    return tuple(tuple(next(prepared) for _ in group) for group in groups)
-
-
 def _prepare_case(
     backend: Backend,
     suite: Suite,
@@ -149,54 +135,48 @@ def _prepare_case(
 ) -> _PreparedCase:
     """Partition host data, then convert and materialize only required inputs."""
     estimator_class = backend.load_estimator(spec)
+    provider = suite.provider_spec
+
+    # Generate and partition host data.
     X, y = generate_data(case)
     is_fit = case.lifecycle == "fit"
-    if not is_fit:
+    if is_fit:
+        measured = {"X": X, "y": y}
+    else:
         split = case.training_rows
         train = {"X": X[:split], "y": y[:split]}
         measured = {"X": X[split:], "y": y[split:]}
-    else:
-        train = measured = {"X": X, "y": y}
 
-    representations = {
-        "X": "csr"
+    # Convert only selected inputs, applying provider-specific requirements.
+    x_representation = (
+        "csr"
         if case.input_format == "csr"
         else "dataframe"
         if case.dataset == "categorical"
-        else "array",
-        "y": "array",
-    }
-    provider = suite.provider_spec
-    operation_data = train if is_fit else measured
-    operation_args = tuple(
-        provider.convert_data(
-            operation_data[name],
-            estimator=case.estimator,
-            role=name,
-            representation=representations[name],
-        )
-        for name in case.input_selection
+        else "array"
     )
-    fit_args = (
-        ()
-        if is_fit
-        else tuple(
+
+    def convert(inputs, selection):
+        return tuple(
             provider.convert_data(
-                train[name],
+                inputs[name],
                 estimator=case.estimator,
                 role=name,
-                representation=representations[name],
+                representation=x_representation if name == "X" else "array",
             )
-            for name in case.fit_input_selection
+            for name in selection
         )
-    )
-    operation_args, fit_args = _prepare_input_groups(
-        backend, operation_args, fit_args, runtime=client
-    )
+
+    operation_args = convert(measured, case.input_selection)
+    fit_args = () if is_fit else convert(train, case.fit_input_selection)
+
+    # Materialize both groups together, then restore their boundary.
+    prepared = backend.prepare_inputs(operation_args + fit_args, client)
+    boundary = len(operation_args)
     return _PreparedCase(
         estimator_class=estimator_class,
-        operation_args=operation_args,
-        fit_args=None if is_fit else fit_args,
+        operation_args=prepared[:boundary],
+        fit_args=None if is_fit else prepared[boundary:],
     )
 
 

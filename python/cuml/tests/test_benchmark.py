@@ -3151,6 +3151,15 @@ def test_harness_converts_selected_host_partitions(monkeypatch, inference):
             return value + 1
 
     provider = get_provider("scikit-learn")
+    preparation_calls = []
+    client = object()
+
+    def prepare_inputs(inputs, runtime):
+        assert runtime is client
+        preparation_calls.append(inputs)
+        return tuple(value + 10 for value in inputs)
+
+    monkeypatch.setattr(provider.backend, "prepare_inputs", prepare_inputs)
     monkeypatch.setitem(
         PROVIDERS,
         "scikit-learn",
@@ -3161,19 +3170,28 @@ def test_harness_converts_selected_host_partitions(monkeypatch, inference):
         provider.backend, "load_estimator", lambda spec: object
     )
     prepared = harness._prepare_case(
-        provider.backend, _suite(case), case, provider.estimator_spec("PCA")
+        provider.backend,
+        _suite(case),
+        case,
+        provider.estimator_spec("PCA"),
+        client,
     )
+    assert prepared.estimator_class is object
+    assert len(preparation_calls) == 1
+    assert len(preparation_calls[0]) == (3 if inference else 1)
+    for actual, (_, original) in zip(preparation_calls[0], calls, strict=True):
+        np.testing.assert_array_equal(actual, original + 1)
     assert [role for role, _ in calls] == (
         ["X", "X", "y"] if inference else ["X"]
     )
     measured_X = X[32:] if inference else X
     np.testing.assert_array_equal(calls[0][1], measured_X)
-    np.testing.assert_array_equal(prepared.operation_args[0], measured_X + 1)
+    np.testing.assert_array_equal(prepared.operation_args[0], measured_X + 11)
     if inference:
         np.testing.assert_array_equal(calls[1][1], X[:32])
         np.testing.assert_array_equal(calls[2][1], y[:32])
-        np.testing.assert_array_equal(prepared.fit_args[0], X[:32] + 1)
-        np.testing.assert_array_equal(prepared.fit_args[1], y[:32] + 1)
+        np.testing.assert_array_equal(prepared.fit_args[0], X[:32] + 11)
+        np.testing.assert_array_equal(prepared.fit_args[1], y[:32] + 11)
     else:
         assert prepared.fit_args is None
 
@@ -3212,28 +3230,6 @@ def test_provider_conversion_policy(
         )
         assert result is converted
         assert calls == [(value, representation)]
-
-
-@pytest.mark.parametrize(
-    "groups", [(), ((),), ((1, 2), (), (3,)), ((), (1,), ())]
-)
-def test_prepare_input_groups_preserves_structure(groups):
-    calls = []
-    runtime = object()
-
-    class Backend:
-        def prepare_inputs(self, inputs, client):
-            assert client is runtime
-            calls.append(inputs)
-            return tuple(value * 10 for value in inputs)
-
-    prepared = harness._prepare_input_groups(
-        Backend(), *groups, runtime=runtime
-    )
-    assert calls == [tuple(value for group in groups for value in group)]
-    assert prepared == tuple(
-        tuple(value * 10 for value in group) for group in groups
-    )
 
 
 @pytest.mark.parametrize("shape", [(64, 8), (64,)])
