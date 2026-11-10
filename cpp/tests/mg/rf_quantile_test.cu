@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -11,6 +11,8 @@
 
 #include <rmm/cuda_stream_pool.hpp>
 #include <rmm/device_uvector.hpp>
+
+#include <cuda/stream>
 
 #include <decisiontree/batched-levelalgo/quantiles.cuh>
 #include <gtest/gtest.h>
@@ -117,7 +119,7 @@ class RfMgQuantileTest : public ::testing::Test {
     RAFT_CUDA_TRY(cudaSetDevice(local_rank));
 
     auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(1);
-    raft::handle_t handle(rmm::cuda_stream_per_thread, stream_pool);
+    raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
     raft::comms::initialize_mpi_comms(&handle, MPI_COMM_WORLD);
 
     constexpr int n_cols         = 3;
@@ -157,7 +159,7 @@ class RfMgQuantileTest : public ::testing::Test {
     std::vector<T> h_reference_quantiles(static_cast<std::size_t>(n_cols) * max_n_bins);
 
     if (rank == 0) {
-      raft::handle_t reference_handle(rmm::cuda_stream_per_thread, stream_pool);
+      raft::handle_t reference_handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
       rmm::device_uvector<T> reference_data(h_global_data.size(), reference_handle.get_stream());
       raft::update_device(reference_data.data(),
                           h_global_data.data(),

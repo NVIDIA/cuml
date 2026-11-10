@@ -78,10 +78,6 @@ model's output properties will be cuDF objects. You can always
 override this behavior and select a default datatype with
 :func:`cuml.set_global_output_type`.
 
-The `RAPIDS Configurable Input and Output Types
-<https://medium.com/@dantegd/e719d72c135b>`_ blog post goes into much
-more detail explaining this approach.
-
 GPU-Accelerated Performance
 ---------------------------
 
@@ -108,10 +104,6 @@ Performance gains vary by algorithm and dataset size:
    enough data to keep the GPU busy. Expect larger performance gains as dataset
    size grows.
 
-The :doc:`cuml.benchmark <api/cuml.benchmark>` module provides an easy interface
-to benchmark your own hardware.
-
-
 What's Next
 ===========
 
@@ -119,8 +111,7 @@ Here are some suggestions on what to explore next:
 
 1. **Try the examples**: Walk through the `Introductory Notebook
    <estimator_intro.ipynb>`__ for hands-on learning
-2. **Explore the API**: Browse the `API Reference <api>`_ for specific algorithms
+2. **Explore the API**: Browse the :doc:`API Reference <api/index>` for specific algorithms
 3. **Check out notebooks**: Try examples in the `notebooks <https://github.com/NVIDIA/cuml/tree/main/notebooks>`_ directory
-4. **Learn advanced topics**: Read the `cuML blogs <cuml_blogs.rst>`_ for deeper insights
-5. **Get help**: Visit our `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_
+4. **Get help**: Visit our `GitHub Issues <https://github.com/NVIDIA/cuml/issues>`_
    or join the `CUDA-X Data Science Community <https://developer.nvidia.com/topics/ai/data-science/cuda-x-for-data-science#join-the-community>`_

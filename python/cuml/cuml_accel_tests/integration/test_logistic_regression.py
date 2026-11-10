@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import pytest
@@ -11,6 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
 SKLEARN_18 = Version(sklearn.__version__) >= Version("1.8.0.dev0")
+SKLEARN_110 = Version(sklearn.__version__) >= Version("1.10.0.dev0")
 
 
 @pytest.fixture(scope="module")
@@ -25,6 +26,12 @@ def classification_data():
     return X, y
 
 
+# TODO: Once sklearn <1.10 is no longer supported, remove this legacy penalty test,
+# test_logistic_regression_l1_ratio_alpha covers it.
+@pytest.mark.skipif(SKLEARN_110, reason="penalty removed in sklearn 1.10")
+@pytest.mark.filterwarnings(
+    "ignore:The solver 'liblinear' was deprecated in version 1.10.*:FutureWarning"
+)
 @pytest.mark.parametrize(
     "penalty, solver",
     [
@@ -39,6 +46,9 @@ def classification_data():
         (None, "saga"),
     ],
 )
+@pytest.mark.filterwarnings(
+    "ignore:'penalty' was deprecated in version 1.8.*:FutureWarning"
+)
 def test_logistic_regression_penalty(classification_data, penalty, solver):
     X, y = classification_data
     kwargs = {"penalty": penalty, "solver": solver, "max_iter": 200}
@@ -49,18 +59,44 @@ def test_logistic_regression_penalty(classification_data, penalty, solver):
     accuracy_score(y, y_pred)
 
 
+@pytest.mark.skipif(not SKLEARN_110, reason="alpha added in sklearn 1.10")
+@pytest.mark.parametrize(
+    "kwargs, solver, expected_penalty",
+    [
+        ({"l1_ratio": 1.0}, "saga", "l1"),
+        ({"l1_ratio": 0.0}, "lbfgs", "l2"),
+        ({"l1_ratio": 0.0}, "sag", "l2"),
+        ({"l1_ratio": 0.0}, "saga", "l2"),
+        ({"l1_ratio": 0.5}, "saga", "elasticnet"),
+        ({"alpha": 0.0}, "lbfgs", None),
+        ({"alpha": 0.0}, "saga", None),
+    ],
+)
+def test_logistic_regression_l1_ratio_alpha(
+    classification_data, kwargs, solver, expected_penalty
+):
+    X, y = classification_data
+    clf = LogisticRegression(**kwargs, solver=solver, max_iter=200).fit(X, y)
+    assert clf._gpu is not None
+    assert clf._gpu.penalty == expected_penalty
+    y_pred = clf.predict(X)
+    accuracy_score(y, y_pred)
+
+
+# TODO: Once sklearn <1.12 is no longer supported, remove this legacy dual test.
+@pytest.mark.filterwarnings(
+    "ignore:The solver 'liblinear' was deprecated in version 1.10.*:FutureWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:The parameter 'dual' was deprecated in version 1.10.*:FutureWarning"
+)
 @pytest.mark.parametrize("dual", [True, False])
 def test_logistic_regression_dual(classification_data, dual):
     X, y = classification_data
-    # 'dual' is only applicable when 'penalty' is 'l2' and 'solver' is 'liblinear'
-    if dual:
-        clf = LogisticRegression(
-            penalty="l2", solver="liblinear", dual=dual, max_iter=200
-        ).fit(X, y)
-    else:
-        clf = LogisticRegression(
-            penalty="l2", solver="liblinear", dual=dual, max_iter=200
-        ).fit(X, y)
+    # dual=True is only supported with L2 regularization and solver='liblinear'.
+    clf = LogisticRegression(solver="liblinear", dual=dual, max_iter=200).fit(
+        X, y
+    )
     y_pred = clf.predict(X)
     accuracy_score(y, y_pred)
 
@@ -73,12 +109,20 @@ def test_logistic_regression_tol(classification_data, tol):
     accuracy_score(y, y_pred)
 
 
-@pytest.mark.parametrize("C", [0.01, 0.1, 1.0, 10.0, 100.0])
-def test_logistic_regression_C(classification_data, C):
+@pytest.mark.parametrize("strength", [0.0, 0.01, 0.1, 1.0, 10.0, 100.0])
+def test_logistic_regression_regularization(classification_data, strength):
     X, y = classification_data
-    clf = LogisticRegression(C=C, max_iter=200).fit(X, y)
-    y_pred = clf.predict(X)
-    accuracy_score(y, y_pred)
+    C = float("inf") if strength == 0 else 1.0 / strength
+    # TODO: Once sklearn <1.10 is no longer supported, pass alpha directly.
+    kwargs = {"alpha": strength} if SKLEARN_110 else {"C": C}
+    model = LogisticRegression(**kwargs, max_iter=200).fit(X, y)
+    assert model._gpu is not None
+    # sklearn >=1.8 has no explicit penalty, no regularization imports as None
+    if strength == 0 and SKLEARN_18:
+        assert model._gpu.penalty is None
+    else:
+        assert model._gpu.C == C
+    assert model.predict(X).shape == y.shape
 
 
 @pytest.mark.parametrize("fit_intercept", [True, False])
@@ -91,6 +135,13 @@ def test_logistic_regression_fit_intercept(classification_data, fit_intercept):
     accuracy_score(y, y_pred)
 
 
+# TODO: Once sklearn <1.12 is no longer supported, remove this legacy scaling test.
+@pytest.mark.filterwarnings(
+    "ignore:The solver 'liblinear' was deprecated in version 1.10.*:FutureWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:The parameter 'intercept_scaling' was deprecated in version 1.10.*:FutureWarning"
+)
 @pytest.mark.parametrize("intercept_scaling", [0.5, 1.0, 2.0])
 def test_logistic_regression_intercept_scaling(intercept_scaling):
     # Cannot use multi-class data for this test as using the liblinear solver
@@ -104,8 +155,17 @@ def test_logistic_regression_intercept_scaling(intercept_scaling):
         intercept_scaling=intercept_scaling,
         max_iter=200,
     ).fit(X, y)
+    assert (clf._gpu is not None) == (intercept_scaling == 1.0)
+    assert hasattr(clf._cpu, "coef_") == (intercept_scaling != 1.0)
     y_pred = clf.predict(X)
     accuracy_score(y, y_pred)
+
+
+def test_logistic_regression_default_intercept_scaling_uses_gpu():
+    X, y = make_classification(random_state=42)
+    model = LogisticRegression().fit(X, y)
+    assert model._gpu is not None
+    assert not hasattr(model._cpu, "coef_")
 
 
 @pytest.mark.parametrize("class_weight", [None, "balanced"])
@@ -126,6 +186,11 @@ def test_logistic_regression_class_weight_custom(classification_data):
     accuracy_score(y, y_pred)
 
 
+# TODO: Once sklearn <1.12 is no longer supported, remove the liblinear case
+# and filter.
+@pytest.mark.filterwarnings(
+    "ignore:The solver 'liblinear' was deprecated in version 1.10.*:FutureWarning"
+)
 @pytest.mark.parametrize(
     "solver", ["newton-cg", "lbfgs", "liblinear", "sag", "saga"]
 )
@@ -144,6 +209,8 @@ def test_logistic_regression_max_iter(classification_data, max_iter):
     accuracy_score(y, y_pred)
 
 
+# TODO: Once sklearn <1.8 is no longer supported, remove this entire multi_class test
+# together with its warning filters, xfail, and skip guard.
 @pytest.mark.filterwarnings(
     "ignore:.*multi_class.*was deprecated.*:FutureWarning"
 )
@@ -151,6 +218,7 @@ def test_logistic_regression_max_iter(classification_data, max_iter):
 # with the L-BFGS-B method. sklearn passes deprecated 'disp' and 'iprint' parameters
 # to scipy, which is not in our control. This filter can be removed once the minimum
 # supported sklearn version is 1.7.1+ (where this was fixed).
+# TODO: Once sklearn <1.7.1 is no longer supported, remove this SciPy warning filter.
 @pytest.mark.filterwarnings(
     "ignore:scipy.optimize.*disp.*iprint.*:DeprecationWarning"
 )
@@ -196,6 +264,7 @@ def test_logistic_regression_multi_class(
 # with the L-BFGS-B method (default solver). sklearn passes deprecated 'disp' and
 # 'iprint' parameters to scipy, which is not in our control. This filter can be
 # removed once the minimum supported sklearn version is 1.7.1+ (where this was fixed).
+# TODO: Once sklearn <1.7.1 is no longer supported, remove this SciPy warning filter.
 @pytest.mark.filterwarnings(
     "ignore:scipy.optimize.*disp.*iprint.*:DeprecationWarning"
 )
@@ -210,8 +279,21 @@ def test_logistic_regression_warm_start(classification_data, warm_start):
 @pytest.mark.parametrize("l1_ratio", [0.0, 0.5, 1.0])
 def test_logistic_regression_l1_ratio(classification_data, l1_ratio):
     X, y = classification_data
+    # TODO: Once sklearn <1.8 is no longer supported, remove kwargs and pass l1_ratio
+    # directly without the legacy penalty parameter.
+    kwargs = {} if SKLEARN_18 else {"penalty": "elasticnet"}
     clf = LogisticRegression(
-        penalty="elasticnet", solver="saga", l1_ratio=l1_ratio, max_iter=200
+        **kwargs, solver="saga", l1_ratio=l1_ratio, max_iter=200
     ).fit(X, y)
     y_pred = clf.predict(X)
     accuracy_score(y, y_pred)
+
+
+# TODO: Once sklearn <1.10 is no longer supported, remove the alpha availability guard.
+# Once sklearn <1.14 is no longer supported, remove this entire C/alpha conflict test.
+@pytest.mark.skipif(not SKLEARN_110, reason="alpha added in sklearn 1.10")
+def test_logistic_regression_C_and_alpha(classification_data):
+    # Falls back to CPU so that sklearn raises its error
+    X, y = classification_data
+    with pytest.raises(ValueError, match="not both"):
+        LogisticRegression(C=2.0, alpha=0.5).fit(X, y)

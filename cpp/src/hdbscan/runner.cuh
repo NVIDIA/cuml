@@ -61,7 +61,6 @@ void build_linkage(const raft::handle_t& handle,
                    value_t* core_dists,
                    Common::robust_single_linkage_output<value_idx, value_t>& out)
 {
-  auto stream    = handle.get_stream();
   size_t n_edges = m - 1;
   cuvs::cluster::agglomerative::helpers::linkage_graph_params::mutual_reachability_params
     linkage_params;
@@ -160,11 +159,11 @@ void _fit_hdbscan(const raft::handle_t& handle,
                   value_t* core_dists,
                   Common::hdbscan_output<value_idx, value_t>& out)
 {
-  auto stream      = handle.get_stream();
   auto exec_policy = handle.get_thrust_policy();
 
   int min_cluster_size = params.min_cluster_size;
 
+  RAFT_EXPECTS(min_cluster_size > 1, "min_cluster_size must be greater than one");
   RAFT_EXPECTS(params.min_samples <= m, "min_samples must be at most the number of samples in X");
 
   build_linkage(handle, X, m, n, metric, params, core_dists, out);

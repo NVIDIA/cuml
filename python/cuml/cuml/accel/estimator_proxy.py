@@ -383,10 +383,8 @@ class ProxyBase(BaseEstimator, metaclass=ProxyBaseMeta):
         from cuml.common.sparse import is_sparse
 
         if (
-            args
-            and is_sparse(args[0])
-            and "sparse" not in self._gpu.__sklearn_tags__().X_types_gpu
-        ):
+            (args and is_sparse(args[0])) or is_sparse(kwargs.get("X"))
+        ) and "sparse" not in self._gpu.__sklearn_tags__().X_types_gpu:
             raise UnsupportedOnGPU("Sparse inputs are not supported")
 
         if getattr(self._cpu, "_skl_callbacks", ()) and method in (

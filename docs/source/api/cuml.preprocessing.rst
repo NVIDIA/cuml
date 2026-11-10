@@ -21,6 +21,7 @@ cuml.preprocessing
    MissingIndicator
    Normalizer
    OneHotEncoder
+   OrdinalEncoder
    PolynomialFeatures
    PowerTransformer
    QuantileTransformer

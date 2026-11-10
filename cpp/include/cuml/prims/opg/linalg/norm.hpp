@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 #pragma once
@@ -17,7 +17,7 @@ namespace LinAlg {
 namespace opg {
 
 /**
- * @brief performs MNMG Least squares calculation.
+ * @brief performs MNMG column-wise L2 norm calculation.
  */
 void colNorm2(const raft::handle_t& handle,
               Matrix::Data<double>& out,

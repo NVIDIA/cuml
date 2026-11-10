@@ -503,15 +503,14 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
     Recursively merges the pair of clusters that minimally increases a
     given linkage distance.
 
-    Note that while the algorithm is generally deterministic and should
-    provide matching results between RAPIDS and the Scikit-learn Contrib
-    versions, the construction of the k-nearest neighbors graph and
-    minimum spanning tree can introduce differences between the two
-    algorithms, especially when several nearest neighbors around a
-    point might have the same distance. While the differences in
-    the minimum spanning trees alone might be subtle, they can
-    (and often will) lead to some points being assigned different
-    cluster labels between the two implementations.
+    Note that while the algorithm is generally deterministic and should provide
+    similar results with the Scikit-learn Contrib version, the construction of
+    the k-nearest neighbors graph and minimum spanning tree can introduce
+    differences between the two algorithms, especially when several nearest
+    neighbors around a point might have the same distance. While the
+    differences in the minimum spanning trees alone might be subtle, they can
+    (and often will) lead to some points being assigned different cluster
+    labels between the two implementations.
 
     Parameters
     ----------
@@ -525,12 +524,18 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
     min_cluster_size : int, optional (default = 5)
         The minimum number of samples in a group for that group to be
         considered a cluster; groupings smaller than this size will be left
-        as noise.
+        as noise. Must be greater than one.
 
     min_samples : int, optional (default=None)
-        The number of samples in a neighborhood for a point
-        to be considered as a core point. This includes the point itself.
-        If 'None', it defaults to the min_cluster_size.
+        The number of nearest neighbors, excluding the point itself, used to
+        determine a point's core distance. This follows the effective
+        convention implemented by ``hdbscan.HDBSCAN`` from
+        scikit-learn-contrib. It differs from
+        ``sklearn.cluster.HDBSCAN``, where ``min_samples`` includes the point
+        itself. For ``k >= 2``, to match
+        ``sklearn.cluster.HDBSCAN(min_samples=k)``, use
+        ``cuml.cluster.HDBSCAN(min_samples=k - 1)``. The ``k = 1`` case is not
+        supported by cuML. If 'None', it defaults to the min_cluster_size.
 
     cluster_selection_epsilon : float, optional (default=0.0)
         A distance threshold. Clusters below this value will be merged.
@@ -949,6 +954,8 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
         self._raw_data_cpu = None
 
         # Validate and prepare hyperparameters
+        if self.min_cluster_size <= 1:
+            raise ValueError("min_cluster_size must be greater than one")
         if (min_samples := self.min_samples) is None:
             min_samples = self.min_cluster_size
         if not (1 <= min_samples <= 1023):

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "dataset.h"  // for Dataset
 #include "kernels/builder_kernels.cuh"
 
 #include <common/Timer.h>
@@ -20,31 +21,53 @@
 #include <raft/util/cuda_utils.cuh>
 
 #include <rmm/device_uvector.hpp>
+#include <rmm/exec_policy.hpp>
 
-#include <cub/cub.cuh>
+#include <cub/block/block_scan.cuh>
+#include <cuda/std/functional>
+#include <thrust/transform_reduce.h>
 
 #include <algorithm>
+#include <concepts>  // for floating_point
 #include <cstdint>
-#include <deque>
 #include <memory>
-#include <type_traits>
+#include <queue>
 #include <utility>
 #include <vector>
 
 namespace ML {
 namespace DT {
-
 /**
  * Structure that manages the iterative batched-level training and building of nodes
  * in the host.
  */
-template <typename DataT, typename LabelT>
+template <std::floating_point DataT, typename LabelT>
 class NodeQueue {
-  using NodeT = SparseTreeNode<DataT, LabelT>;
-  const DecisionTreeParams params;
+  using NodeT  = SparseTreeNode<DataT, LabelT>;
+  using SplitT = Split<DataT>;
+
+  struct Entry {
+    NodeWorkItem item;
+    SplitT split;
+  };
+
+  struct CompareEntries {
+    bool greedy;
+
+    bool operator()(Entry const& lhs, Entry const& rhs) const
+    {
+      if (greedy && lhs.split.weighted_impurity_decrease != rhs.split.weighted_impurity_decrease) {
+        return lhs.split.weighted_impurity_decrease < rhs.split.weighted_impurity_decrease;
+      }
+      // Nodes are appended in ID order, preserving FIFO batching and gain ties.
+      return lhs.item.idx > rhs.item.idx;
+    }
+  };
+
+  DecisionTreeParams const params;
   std::shared_ptr<DT::TreeMetaDataNode<DataT, LabelT>> tree;
   std::vector<InstanceRange> node_instances_;
-  std::deque<NodeWorkItem> work_items_;
+  std::priority_queue<Entry, std::vector<Entry>, CompareEntries> work_items_;
 
  public:
   NodeQueue(DecisionTreeParams params,
@@ -52,7 +75,9 @@ class NodeQueue {
             size_t local_sampled_rows,
             std::int64_t global_sampled_rows,
             int num_outputs)
-    : params(params), tree(std::make_shared<DT::TreeMetaDataNode<DataT, LabelT>>())
+    : params(params),
+      tree(std::make_shared<DT::TreeMetaDataNode<DataT, LabelT>>()),
+      work_items_(CompareEntries{params.isGreedy()})
   {
     tree->num_outputs = num_outputs;
     tree->sparsetree.reserve(max_nodes);
@@ -61,47 +86,64 @@ class NodeQueue {
     tree->depth_counter = 0;
     node_instances_.reserve(max_nodes);
     node_instances_.emplace_back(InstanceRange{0, local_sampled_rows});
-    if (this->IsExpandable(tree->sparsetree.back(), 0)) {
-      work_items_.emplace_back(NodeWorkItem{0, 0, node_instances_.back()});
-    }
   }
 
   std::shared_ptr<DT::TreeMetaDataNode<DataT, LabelT>> GetTree() { return tree; }
   const std::vector<InstanceRange>& GetInstanceRanges() { return node_instances_; }
 
-  bool HasWork() { return work_items_.size() > 0; }
-
-  auto Pop()
+  std::vector<NodeWorkItem> GetRootWorkItems() const
   {
-    std::vector<NodeWorkItem> result;
-    result.reserve(std::min(size_t(params.max_batch_size), work_items_.size()));
-    while (work_items_.size() > 0 && result.size() < std::size_t(params.max_batch_size)) {
-      result.emplace_back(work_items_.front());
-      work_items_.pop_front();
+    // Root items haven't be evaluated yet. Pop() returns *evaluated* candidates.
+    if (!IsExpandable(tree->sparsetree.front(), 0)) { return {}; }
+    return {{0, 0, node_instances_.front()}};
+  }
+
+  void Push(std::vector<NodeWorkItem> const& items, std::vector<SplitT> const& splits)
+  {
+    for (std::size_t i = 0; i < items.size(); ++i) {
+      if (splits[i].IsValid()) { work_items_.push({items[i], splits[i]}); }
     }
-    return result;
+  }
+
+  std::pair<std::vector<NodeWorkItem>, std::vector<SplitT>> Pop()
+  {
+    if (params.isGreedy() && tree->leaf_counter >= params.max_leaves) { return {}; }
+    auto batch_size = params.isGreedy() ? std::size_t{1} : std::size_t(params.max_batch_size);
+    batch_size      = std::min(batch_size, work_items_.size());
+    std::vector<NodeWorkItem> items;
+    std::vector<SplitT> splits;
+    items.reserve(batch_size);
+    splits.reserve(batch_size);
+    // Preserve FIFO order across depth boundaries for depthwise growth.
+    while (items.size() < batch_size) {
+      items.push_back(work_items_.top().item);
+      splits.push_back(work_items_.top().split);
+      work_items_.pop();
+    }
+    return {std::move(items), std::move(splits)};
   }
 
   // This node is allowed to be expanded further (if its split gain is high enough)
-  bool IsExpandable(const NodeT& n, int depth)
+  bool IsExpandable(NodeT const& n, int depth) const
   {
     if (depth >= params.max_depth) return false;
     if (n.InstanceCount() < params.min_samples_split) return false;
-    if (params.max_leaves != -1 && tree->leaf_counter >= params.max_leaves) return false;
+    if (params.isGreedy() && tree->leaf_counter >= params.max_leaves) return false;
     return true;
   }
 
-  template <typename SplitT>
-  void Push(const std::vector<NodeWorkItem>& work_items, SplitT* h_splits)
+  std::vector<NodeWorkItem> ApplySplits(std::vector<NodeWorkItem> const& work_items,
+                                        SplitT const* h_splits)
   {
-    // Update node queue based on splits
+    std::vector<NodeWorkItem> children;
+    // Commit splits and collect eligible children for evaluation.
     for (std::size_t i = 0; i < work_items.size(); i++) {
       auto split        = h_splits[i];
       auto item         = work_items[i];
       auto parent_range = node_instances_.at(item.idx);
       if (!split.IsValid()) { continue; }
 
-      if (params.max_leaves != -1 && tree->leaf_counter >= params.max_leaves) break;
+      if (params.isGreedy() && tree->leaf_counter >= params.max_leaves) { break; }
 
       using NodeCountT            = decltype(std::declval<NodeT>().InstanceCount());
       auto const parent_count     = tree->sparsetree.at(item.idx).InstanceCount();
@@ -121,7 +163,7 @@ class NodeQueue {
 
       // Do not add a work item if this child is definitely a leaf
       if (this->IsExpandable(tree->sparsetree.back(), item.depth + 1)) {
-        work_items_.emplace_back(
+        children.push_back(
           NodeWorkItem{tree->sparsetree.size() - 1, item.depth + 1, node_instances_.back()});
       }
 
@@ -134,13 +176,14 @@ class NodeQueue {
 
       // Do not add a work item if this child is definitely a leaf
       if (this->IsExpandable(tree->sparsetree.back(), item.depth + 1)) {
-        work_items_.emplace_back(
+        children.push_back(
           NodeWorkItem{tree->sparsetree.size() - 1, item.depth + 1, node_instances_.back()});
       }
 
       // update depth
       tree->depth_counter = max(tree->depth_counter, item.depth + 1);
     }
+    return children;
   }
 };
 
@@ -178,8 +221,6 @@ struct Builder {
   std::int64_t treeid;
   /** Seed used for randomization */
   uint64_t seed;
-  /** number of nodes created in the current batch */
-  std::int64_t* n_nodes;
   /** buffer of segmented histograms*/
   BinT* histograms;
   /** mutex array used for atomically updating best split */
@@ -188,6 +229,8 @@ struct Builder {
   SplitT* splits;
   /** current batch of nodes */
   NodeWorkItem* d_work_items;
+  /** pinned staging buffer for work-item uploads */
+  NodeWorkItem* h_work_items;
   /** device AOS to map CTA blocks along dimx to nodes of a batch */
   WorkloadInfo* workload_info;
   /** host AOS to map CTA blocks along dimx to nodes of a batch */
@@ -199,7 +242,7 @@ struct Builder {
   /** packed histogram buffer used by distributed all-reduce */
   void* packed_histograms;
   /** number of blocks used to parallelize column-wise computations */
-  int n_blks_for_cols = 10;
+  static constexpr int n_blks_for_cols = 10;
   /** Memory alignment value */
   const size_t align_value = 512;
   std::int64_t* column_samples;
@@ -316,7 +359,6 @@ struct Builder {
     auto partition_row_ids_bytes =
       ML::checked_mul<std::size_t>(sizeof(std::int64_t), dataset.n_sampled_rows);
 
-    d_wsize += calculateAlignedBytes(sizeof(std::int64_t));     // n_nodes
     d_wsize += calculateAlignedBytes(histograms_bytes);         // histograms
     d_wsize += calculateAlignedBytes(mutex_bytes);              // mutex
     d_wsize += calculateAlignedBytes(splits_bytes);             // splits
@@ -329,6 +371,7 @@ struct Builder {
     // all nodes in the tree
     h_wsize += calculateAlignedBytes(workload_info_bytes);  // h_workload_info
     h_wsize += calculateAlignedBytes(splits_bytes);         // splits
+    h_wsize += calculateAlignedBytes(work_items_bytes);     // h_work_items
 
     return std::make_pair(d_wsize, h_wsize);
   }
@@ -357,8 +400,6 @@ struct Builder {
     auto partition_row_ids_bytes =
       ML::checked_mul<std::size_t>(sizeof(std::int64_t), dataset.n_sampled_rows);
     // device
-    n_nodes = reinterpret_cast<std::int64_t*>(d_wspace);
-    d_wspace += calculateAlignedBytes(sizeof(std::int64_t));
     histograms = reinterpret_cast<BinT*>(d_wspace);
     d_wspace += calculateAlignedBytes(histograms_bytes);
     mutex = reinterpret_cast<int*>(d_wspace);
@@ -383,6 +424,8 @@ struct Builder {
     h_wspace += calculateAlignedBytes(workload_info_bytes);
     h_splits = reinterpret_cast<SplitT*>(h_wspace);
     h_wspace += calculateAlignedBytes(splits_bytes);
+    h_work_items = reinterpret_cast<NodeWorkItem*>(h_wspace);
+    h_wspace += calculateAlignedBytes(work_items_bytes);
   }
 
   /**
@@ -394,18 +437,45 @@ struct Builder {
   {
     raft::common::nvtx::range fun_scope("Builder::train @builder.cuh [batched-levelalgo]");
     MLCommon::TimerCPU timer;
-    NodeQueue<DataT, LabelT> queue(params,
-                                   this->maxNodes(),
-                                   dataset.n_sampled_rows,
-                                   this->globalSampledRows(),
-                                   dataset.num_outputs);
-    while (queue.HasWork()) {
-      auto work_items                      = queue.Pop();
-      auto [splits_host_ptr, splits_count] = doSplit(work_items);
-      queue.Push(work_items, splits_host_ptr);
+    auto global_sampled_rows = globalSum(dataset.n_sampled_rows);
+    // Total training weight across all ranks for this tree.
+    auto root_weight = static_cast<double>(global_sampled_rows);
+    if constexpr (ObjectiveT::weighted) {
+      auto weights      = dataset.sample_weight;
+      auto local_weight = thrust::transform_reduce(
+        rmm::exec_policy(builder_stream),
+        dataset.row_ids,
+        dataset.row_ids + dataset.n_sampled_rows,
+        [weights] __device__(std::int64_t row) -> double { return weights[row]; },
+        0.0,
+        cuda::std::plus{});
+      root_weight = globalSum(local_weight);
+    }
+
+    NodeQueue<DataT, LabelT> queue(
+      params, this->maxNodes(), dataset.n_sampled_rows, global_sampled_rows, dataset.num_outputs);
+    auto evaluate_and_enqueue = [&](std::vector<NodeWorkItem> const& children) {
+      // Greedy commits one split at a time, creating at most two children to evaluate.
+      ASSERT(!params.isGreedy() || children.size() <= 2,
+             "Greedy evaluation batches must contain at most two nodes.");
+      // Evaluate all new children before selecting another split, including when the
+      // batch size is one. Children can outrank candidates already in the queue.
+      for (std::size_t offset = 0; offset < children.size();) {
+        auto batch_size = std::min(std::size_t(params.max_batch_size), children.size() - offset);
+        std::vector<NodeWorkItem> items(children.begin() + offset,
+                                        children.begin() + offset + batch_size);
+        queue.Push(items, evaluateSplits(items, root_weight));
+        offset += batch_size;
+      }
+    };
+    evaluate_and_enqueue(queue.GetRootWorkItems());
+    for (auto expand_set = queue.Pop(); !expand_set.first.empty(); expand_set = queue.Pop()) {
+      auto& [work_items, selected_splits] = expand_set;
+      partition(work_items, selected_splits);
+      evaluate_and_enqueue(queue.ApplySplits(work_items, h_splits));
     }
     auto tree = queue.GetTree();
-    this->SetLeafPredictions(tree, queue.GetInstanceRanges());
+    this->SetLeafPredictions(tree, queue.GetInstanceRanges(), root_weight);
     tree->train_time = timer.getElapsedMilliseconds();
     return tree;
   }
@@ -431,28 +501,27 @@ struct Builder {
     return n_blocks_dimx;
   }
 
-  std::int64_t globalSampledRows()
+  template <typename T>
+  T globalSum(T local_value)
   {
-    auto global_sampled_rows = static_cast<std::int64_t>(dataset.n_sampled_rows);
-    if (!distributed) { return global_sampled_rows; }
+    if (!distributed) { return local_value; }
 
-    rmm::device_uvector<std::int64_t> d_sampled_rows(1, builder_stream);
-    raft::update_device(d_sampled_rows.data(), &global_sampled_rows, 1, builder_stream);
+    rmm::device_uvector<T> d_value(1, builder_stream);
+    raft::update_device(d_value.data(), &local_value, 1, builder_stream);
     handle.get_comms().allreduce(
-      d_sampled_rows.data(), d_sampled_rows.data(), 1, raft::comms::op_t::SUM, builder_stream);
+      d_value.data(), d_value.data(), 1, raft::comms::op_t::SUM, builder_stream);
     ASSERT(handle.get_comms().sync_stream(builder_stream) == raft::comms::status_t::SUCCESS,
-           "An error occurred in the distributed RF sampled-row-count all-reduce.");
-    raft::update_host(&global_sampled_rows, d_sampled_rows.data(), 1, builder_stream);
+           "An error occurred in the distributed RF root statistics all-reduce.");
+    T global_value;
+    raft::update_host(&global_value, d_value.data(), 1, builder_stream);
     handle.sync_stream(builder_stream);
-    return global_sampled_rows;
+    return global_value;
   }
 
-  auto doSplit(const std::vector<NodeWorkItem>& work_items)
+  std::vector<SplitT> evaluateSplits(const std::vector<NodeWorkItem>& work_items,
+                                     double root_weight)
   {
-    raft::common::nvtx::range fun_scope("Builder::doSplit @builder.cuh [batched-levelalgo]");
-    // start fresh on the number of *new* nodes created in this batch
-    RAFT_CUDA_TRY(cudaMemsetAsync(n_nodes, 0, sizeof(std::int64_t), builder_stream));
-
+    raft::common::nvtx::range fun_scope("Builder::evaluateSplits @builder.cuh [batched-levelalgo]");
     const std::int64_t original_n_sampled_cols = dataset.n_sampled_cols;
     ASSERT(original_n_sampled_cols > 0 && original_n_sampled_cols <= dataset.n_cols,
            "n_sampled_cols must be in [1, n_cols]");
@@ -481,7 +550,7 @@ struct Builder {
                                                          original_n_sampled_cols);
       dataset.n_sampled_cols = std::min(
         original_n_sampled_cols, ML::checked_sub<std::int64_t>(dataset.n_cols, sample_offset));
-      computeBestSplits(active_items, seed, sample_offset);
+      computeBestSplits(active_items, seed, sample_offset, root_weight);
 
       std::vector<NodeWorkItem> retry_items;
       std::vector<std::size_t> retry_to_original;
@@ -499,13 +568,19 @@ struct Builder {
       active_to_original = std::move(retry_to_original);
     }
     dataset.n_sampled_cols = original_n_sampled_cols;
+    return final_splits;
+  }
 
+  void partition(const std::vector<NodeWorkItem>& work_items,
+                 const std::vector<SplitT>& final_splits)
+  {
     // Partition samples once, using the valid split found for each node. Nodes
     // still without a valid split after all features have been visited remain leaves.
-    auto split_copy_bytes = ML::checked_mul<std::size_t>(sizeof(SplitT), work_items.size());
-    RAFT_CUDA_TRY(cudaMemcpyAsync(
-      splits, final_splits.data(), split_copy_bytes, cudaMemcpyHostToDevice, builder_stream));
-    raft::update_device(d_work_items, work_items.data(), work_items.size(), builder_stream);
+    // The stream sync below makes these pinned buffers safe to reuse on the next call.
+    std::copy(final_splits.begin(), final_splits.end(), h_splits);
+    raft::update_device(splits, h_splits, final_splits.size(), builder_stream);
+    std::copy(work_items.begin(), work_items.end(), h_work_items);
+    raft::update_device(d_work_items, h_work_items, work_items.size(), builder_stream);
     const auto n_partition_blocks = this->updateWorkloadInfo(work_items);
     raft::common::nvtx::push_range("nodeSplitKernel @builder.cuh [batched-levelalgo]");
     launchNodeSplitKernel<DataT, LabelT, TPB_DEFAULT>(dataset,
@@ -520,24 +595,25 @@ struct Builder {
     raft::common::nvtx::pop_range();
     raft::update_host(h_splits, splits, work_items.size(), builder_stream);
     handle.sync_stream(builder_stream);
-    return std::make_tuple(h_splits, work_items.size());
   }
 
   void computeBestSplits(const std::vector<NodeWorkItem>& work_items,
                          uint64_t sampling_seed,
-                         std::int64_t sample_offset)
+                         std::int64_t sample_offset,
+                         double root_weight)
   {
     initSplit<DataT, TPB_DEFAULT>(splits, work_items.size(), builder_stream);
     auto mutex_bytes = ML::checked_mul<std::size_t>(sizeof(int), params.max_batch_size);
     RAFT_CUDA_TRY(cudaMemsetAsync(mutex, 0, mutex_bytes, builder_stream));
-    raft::update_device(d_work_items, work_items.data(), work_items.size(), builder_stream);
+    std::copy(work_items.begin(), work_items.end(), h_work_items);
+    raft::update_device(d_work_items, h_work_items, work_items.size(), builder_stream);
     auto n_blocks_dimx     = this->updateWorkloadInfo(work_items);
     auto split_smem_config = computeSharedMemoryConfig();
 
     sampleFeatures(work_items, sampling_seed, sample_offset);
 
     for (std::int64_t c = 0; c < dataset.n_sampled_cols; c += n_blks_for_cols) {
-      computeSplit(c, n_blocks_dimx, work_items.size(), split_smem_config);
+      computeSplit(c, n_blocks_dimx, work_items.size(), split_smem_config, root_weight);
       RAFT_CUDA_TRY(cudaPeekAtLastError());
     }
     raft::update_host(h_splits, splits, work_items.size(), builder_stream);
@@ -612,7 +688,8 @@ struct Builder {
   void computeSplit(std::int64_t col,
                     size_t n_blocks_dimx,
                     size_t n_work_items,
-                    const SharedMemoryConfig& split_smem_config)
+                    const SharedMemoryConfig& split_smem_config,
+                    double root_weight)
   {
     // if no instances to split, return
     if (n_blocks_dimx == 0) return;
@@ -639,6 +716,7 @@ struct Builder {
     ObjectiveT objective(dataset.num_outputs,
                          params.min_samples_leaf,
                          params.split_criterion,
+                         root_weight,
                          params.min_impurity_decrease);
     raft::common::nvtx::range kernel_scope("computeSplitKernels @builder.cuh [batched-levelalgo]");
     launchBuildHistogramsKernel<DataT, LabelT, TPB_DEFAULT, ObjectiveT>(histograms,
@@ -674,7 +752,8 @@ struct Builder {
 
   // Set the leaf value predictions in batch
   void SetLeafPredictions(std::shared_ptr<DT::TreeMetaDataNode<DataT, LabelT>> tree,
-                          const std::vector<InstanceRange>& instance_ranges)
+                          const std::vector<InstanceRange>& instance_ranges,
+                          double root_weight)
   {
     auto vector_leaf_size =
       ML::checked_mul<std::size_t>(tree->sparsetree.size(), dataset.num_outputs);
@@ -692,7 +771,8 @@ struct Builder {
     rmm::device_uvector<InstanceRange> d_instance_ranges(max_batch_size, builder_stream);
     rmm::device_uvector<DataT> d_leaves(max_leaf_values, builder_stream);
 
-    ObjectiveT objective(dataset.num_outputs, params.min_samples_leaf, params.split_criterion);
+    ObjectiveT objective(
+      dataset.num_outputs, params.min_samples_leaf, params.split_criterion, root_weight);
     for (std::size_t batch_begin = 0; batch_begin < tree->sparsetree.size();
          batch_begin += max_batch_size) {
       std::size_t batch_size = min(max_batch_size, tree->sparsetree.size() - batch_begin);
@@ -705,14 +785,12 @@ struct Builder {
       auto leaf_histogram_bytes = ML::checked_mul<std::size_t>(sizeof(BinT), leaf_histogram_count);
       auto leaf_batch_size      = ML::narrow_cast<int>(batch_size);
       RAFT_CUDA_TRY(cudaMemsetAsync(histograms, 0, leaf_histogram_bytes, builder_stream));
-      size_t smem_size = ML::checked_mul<std::size_t>(sizeof(BinT), dataset.num_outputs);
       launchBuildLeafHistogramsKernel(objective,
                                       dataset,
                                       d_tree.data(),
                                       d_instance_ranges.data(),
                                       histograms,
                                       leaf_batch_size,
-                                      smem_size,
                                       builder_stream);
       RAFT_CUDA_TRY(cudaPeekAtLastError());
 

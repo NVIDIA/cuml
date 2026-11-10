@@ -1,0 +1,68 @@
+name: Link check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * 1"
+
+permissions: {}
+
+jobs:
+  check-links:
+    if: ${{ github.repository == 'NVIDIA/cuml' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: List published docs pages
+        run: python3 ci/utils/list_docs_urls.py --pages lychee/pages.txt --redirects lychee/redirects.md
+
+      - name: Check links
+        id: first-pass
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress --files-from lychee/pages.txt -- lychee/redirects.md README.md BUILD.md CONTRIBUTING.md notebooks/README.md
+          output: lychee/first-pass.md
+          fail: false
+          failIfEmpty: true
+
+      - name: Wait before confirming failures
+        if: ${{ steps.first-pass.outputs.exit_code != 0 }}
+        run: sleep 300
+
+      - name: Confirm failures
+        id: lychee
+        if: ${{ steps.first-pass.outputs.exit_code != 0 }}
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress --files-from lychee/pages.txt -- lychee/redirects.md README.md BUILD.md CONTRIBUTING.md notebooks/README.md
+          fail: false
+          failIfEmpty: true
+
+      - name: Report broken links
+        if: ${{ steps.first-pass.outputs.exit_code != 0 && steps.lychee.outputs.exit_code != 0 }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number="$(gh issue list --repo "${GITHUB_REPOSITORY}" --label lychee --state open --limit 1 --json number --jq '.[0].number // empty')"
+          {
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            # Issue bodies and comments are limited to 65536 characters
+            head -c 60000 lychee/out.md
+          } > "${RUNNER_TEMP}/report.md"
+          if [ -n "${number}" ]; then
+            gh issue comment "${number}" --repo "${GITHUB_REPOSITORY}" --body-file "${RUNNER_TEMP}/report.md"
+          else
+            gh issue create --repo "${GITHUB_REPOSITORY}" --title "Broken links found by lychee" --label lychee --body-file "${RUNNER_TEMP}/report.md"
+          fi
+
+      - name: Fail on broken links
+        if: ${{ steps.first-pass.outputs.exit_code != 0 && steps.lychee.outputs.exit_code != 0 }}
+        run: exit 1

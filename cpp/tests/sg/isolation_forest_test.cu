@@ -28,6 +28,7 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
 
+#include <cuda/stream>
 #include <thrust/copy.h>
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
@@ -103,8 +104,8 @@ class IsolationForestTest : public ::testing::Test {
   void SetUp() override
   {
     stream_pool = std::make_shared<rmm::cuda_stream_pool>(4);
-    handle      = std::make_unique<raft::handle_t>(rmm::cuda_stream_per_thread, stream_pool);
-    stream      = handle->get_stream();
+    handle = std::make_unique<raft::handle_t>(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
+    stream = handle->get_stream().get();
   }
 
   void TearDown() override
@@ -479,6 +480,128 @@ TEST_F(IsolationForestTest, MaxFeaturesFitStoresOriginalFeatureIds)
   params.max_features = n_features;
   fit(*handle, &model, X_colmajor.data().get(), n_samples, n_features, params);
   EXPECT_EQ(model.global_feature_indices.size(), 0);
+}
+
+TEST_F(IsolationForestTest, FitTreeliteReturnsSampledFeatureIds)
+{
+  const int n_samples    = 128;
+  const int n_features   = 8;
+  const int n_estimators = 5;
+  const int max_features = 3;
+
+  thrust::device_vector<float> X_rowmajor(n_samples * n_features);
+  thrust::device_vector<float> X_colmajor(n_samples * n_features);
+  raft::random::Rng rng(42);
+  rng.normal(X_rowmajor.data().get(), X_rowmajor.size(), 0.0f, 1.0f, stream);
+  handle->sync_stream(stream);
+  transpose_data(X_rowmajor, X_colmajor, n_samples, n_features);
+
+  IF_params params;
+  params.n_estimators = n_estimators;
+  params.max_samples  = 64;
+  params.max_features = max_features;
+  params.seed         = 42;
+
+  std::vector<int> feature_indices(static_cast<size_t>(n_estimators) * max_features);
+  TreeliteModelHandle tl_handle = nullptr;
+  double c_normalization        = 0.0;
+  fit_treelite(*handle,
+               &tl_handle,
+               X_colmajor.data().get(),
+               n_samples,
+               n_features,
+               params,
+               &c_normalization,
+               feature_indices.data(),
+               feature_indices.size());
+  ASSERT_NE(tl_handle, nullptr);
+  delete static_cast<tl::Model*>(tl_handle);
+
+  for (int tree = 0; tree < n_estimators; ++tree) {
+    auto first = feature_indices.begin() + static_cast<size_t>(tree) * max_features;
+    auto last  = first + max_features;
+    for (auto it = first; it != last; ++it) {
+      EXPECT_GE(*it, 0);
+      EXPECT_LT(*it, n_features);
+    }
+    std::vector<int> sorted(first, last);
+    std::sort(sorted.begin(), sorted.end());
+    EXPECT_EQ(std::unique(sorted.begin(), sorted.end()), sorted.end());
+  }
+}
+
+TEST_F(IsolationForestTest, FitTreeliteValidatesFeatureBufferSize)
+{
+  const int n_samples  = 32;
+  const int n_features = 4;
+
+  thrust::device_vector<float> X_rowmajor(n_samples * n_features);
+  thrust::device_vector<float> X_colmajor(n_samples * n_features);
+  raft::random::Rng rng(42);
+  rng.normal(X_rowmajor.data().get(), X_rowmajor.size(), 0.0f, 1.0f, stream);
+  handle->sync_stream(stream);
+  transpose_data(X_rowmajor, X_colmajor, n_samples, n_features);
+
+  IF_params params;
+  params.n_estimators = 2;
+  params.max_samples  = 16;
+  params.max_features = 2;
+
+  std::vector<int> feature_indices(3);
+  TreeliteModelHandle tl_handle = nullptr;
+  double c_normalization        = 0.0;
+  EXPECT_THROW(fit_treelite(*handle,
+                            &tl_handle,
+                            X_colmajor.data().get(),
+                            n_samples,
+                            n_features,
+                            params,
+                            &c_normalization,
+                            feature_indices.data(),
+                            feature_indices.size()),
+               raft::exception);
+  EXPECT_EQ(tl_handle, nullptr);
+}
+
+TEST_F(IsolationForestTest, FitTreeliteReturnsFullFeatureRange)
+{
+  const int n_samples    = 32;
+  const int n_features   = 4;
+  const int n_estimators = 2;
+
+  thrust::device_vector<float> X_rowmajor(n_samples * n_features);
+  thrust::device_vector<float> X_colmajor(n_samples * n_features);
+  raft::random::Rng rng(42);
+  rng.normal(X_rowmajor.data().get(), X_rowmajor.size(), 0.0f, 1.0f, stream);
+  handle->sync_stream(stream);
+  transpose_data(X_rowmajor, X_colmajor, n_samples, n_features);
+
+  IF_params params;
+  params.n_estimators = n_estimators;
+  params.max_samples  = 16;
+  params.max_features = n_features;
+  params.seed         = 42;
+
+  std::vector<int> feature_indices(static_cast<size_t>(n_estimators) * n_features);
+  TreeliteModelHandle tl_handle = nullptr;
+  double c_normalization        = 0.0;
+  fit_treelite(*handle,
+               &tl_handle,
+               X_colmajor.data().get(),
+               n_samples,
+               n_features,
+               params,
+               &c_normalization,
+               feature_indices.data(),
+               feature_indices.size());
+  ASSERT_NE(tl_handle, nullptr);
+  delete static_cast<tl::Model*>(tl_handle);
+
+  for (int tree = 0; tree < n_estimators; ++tree) {
+    for (int feature = 0; feature < n_features; ++feature) {
+      EXPECT_EQ(feature_indices[static_cast<size_t>(tree) * n_features + feature], feature);
+    }
+  }
 }
 
 TEST_F(IsolationForestTest, ConstantFeaturesDoNotStopSplitting)
@@ -972,9 +1095,8 @@ TEST_F(IsolationForestTest, PredictThreshold)
 /**
  * @brief Test: Export trained Isolation Forest model to Treelite.
  *
- * The exported Treelite model is a regressor whose prediction is the average
- * path length across isolation trees. The anomaly-score transform is applied
- * outside Treelite by higher-level callers.
+ * The exported Treelite model applies the standard Isolation Forest anomaly
+ * score transform.
  */
 TEST_F(IsolationForestTest, TreeliteExportMetadata)
 {
@@ -1004,8 +1126,9 @@ TEST_F(IsolationForestTest, TreeliteExportMetadata)
   std::unique_ptr<tl::Model> tl_model(static_cast<tl::Model*>(tl_handle));
   auto& model_preset = std::get<tl::ModelPreset<float, float>>(tl_model->variant_);
 
-  EXPECT_EQ(tl_model->task_type, tl::TaskType::kRegressor);
-  EXPECT_EQ(tl_model->postprocessor, "identity");
+  EXPECT_EQ(tl_model->task_type, tl::TaskType::kIsolationForest);
+  EXPECT_EQ(tl_model->postprocessor, "exponential_standard_ratio");
+  EXPECT_FLOAT_EQ(tl_model->ratio_c, static_cast<float>(model.c_normalization));
   EXPECT_EQ(tl_model->num_target, 1);
   ASSERT_EQ(tl_model->num_class.Size(), 1);
   EXPECT_EQ(tl_model->num_class[0], 1);
@@ -1017,6 +1140,10 @@ TEST_F(IsolationForestTest, TreeliteExportMetadata)
   ASSERT_EQ(model_preset.trees.size(), static_cast<std::size_t>(n_estimators));
   for (const auto& tree : model_preset.trees) {
     EXPECT_GT(tree.num_nodes, 0);
+    for (int node_id = 0; node_id < tree.num_nodes; ++node_id) {
+      EXPECT_TRUE(tree.HasDataCount(node_id));
+      EXPECT_GT(tree.DataCount(node_id), 0);
+    }
   }
 }
 
@@ -1053,7 +1180,7 @@ TEST_F(IsolationForestTest, TreeliteExportGlobalMemoryStorage)
   std::unique_ptr<tl::Model> tl_model(static_cast<tl::Model*>(tl_handle));
   auto& model_preset = std::get<tl::ModelPreset<float, float>>(tl_model->variant_);
 
-  EXPECT_EQ(tl_model->task_type, tl::TaskType::kRegressor);
+  EXPECT_EQ(tl_model->task_type, tl::TaskType::kIsolationForest);
   EXPECT_EQ(tl_model->num_feature, n_features);
   EXPECT_TRUE(tl_model->average_tree_output);
   ASSERT_EQ(model_preset.trees.size(), static_cast<std::size_t>(n_estimators));

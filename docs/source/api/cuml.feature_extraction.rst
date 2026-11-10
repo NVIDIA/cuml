@@ -15,4 +15,5 @@ From text
 
    CountVectorizer
    HashingVectorizer
+   TfidfTransformer
    TfidfVectorizer

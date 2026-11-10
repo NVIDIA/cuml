@@ -1,10 +1,12 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <raft/random/rng.cuh>
 #include <raft/util/cudart_utils.hpp>
+
+#include <cuda/stream>
 
 #include <gtest/gtest.h>
 #include <selection/kselection.cuh>
@@ -72,7 +74,8 @@ template <typename TypeV, typename TypeK, bool Greater>
   for (int rIndex = 0; rIndex < rows; rIndex++) {
     // input data
     TypeV* h_arr = new TypeV[N];
-    raft::update_host(h_arr, d_arr + rIndex * N, N, rmm::cuda_stream_default);
+    raft::update_host(
+      h_arr, d_arr + rIndex * N, N, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
     KVPair<TypeV, TypeK>* topk = new KVPair<TypeV, TypeK>[N];
     for (int j = 0; j < N; j++) {
       topk[j].val = h_arr[j];
@@ -80,21 +83,19 @@ template <typename TypeV, typename TypeK, bool Greater>
     }
     // result reference
     TypeV* h_outv = new TypeV[k];
-    raft::update_host(h_outv, d_outv + rIndex * k, k, rmm::cuda_stream_default);
+    raft::update_host(
+      h_outv, d_outv + rIndex * k, k, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
     TypeK* h_outk = new TypeK[k];
-    raft::update_host(h_outk, d_outk + rIndex * k, k, rmm::cuda_stream_default);
+    raft::update_host(
+      h_outk, d_outk + rIndex * k, k, cuda::stream_ref{cudaStream_t{cudaStreamDefault}});
     // calculate the result
     partSortKVPair<TypeV, TypeK, Greater>(topk, N, k);
 
     // check result
     for (int j = 0; j < k; j++) {
-      // std::cout<<"Get value at ("<<rIndex<<" "<<j<<") Cpu "
-      //  <<topk[j].val<<" "<<topk[j].key<<" Gpu "<<h_outv[j]<<" "
-      //<<h_outk[j] <<std::endl<<std::endl;
-
       if (abs(h_outv[j] - topk[j].val) > tolerance) {
         return ::testing::AssertionFailure()
-               << "actual=" << topk[j].val << " != expected=" << h_outv[j];
+               << "actual=" << h_outv[j] << " != expected=" << topk[j].val;
       }
     }
     // delete resource

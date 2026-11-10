@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -26,6 +26,7 @@ namespace linkage {
  *            dense pairwise distances API.
  * @param[out] children: the output dendrogram, shape=(n_rows - 1, 2), C contiguous
  * @param[out] labels: the output labels, shape=(n_rows,)
+ * @param[out] distances: optional output of distances between nodes, shape=(n_rows - 1,)
  * @param[in] use_knn: whether to construct a knn graph instead of the full
  *            n^2 pairwise distance matrix. This can be faster for very large
  *            datasets or in cases where lower memory usage is required.
@@ -40,8 +41,9 @@ void single_linkage(const raft::handle_t& handle,
                     ML::distance::DistanceType metric,
                     int* children,
                     int* labels,
-                    bool use_knn = false,
-                    int c        = 15);
+                    float* distances = nullptr,
+                    bool use_knn     = false,
+                    int c            = 15);
 
 };  // namespace linkage
 };  // namespace CUML_EXPORT ML

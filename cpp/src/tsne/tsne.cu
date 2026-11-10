@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -40,7 +40,7 @@ void TSNE_fit(const raft::handle_t& handle,
          "Wrong input args");
 
   manifold_dense_inputs_t<float> input(X, Y, n, p);
-  knn_graph<int64_t, float> k_graph(n, params.n_neighbors, knn_indices, knn_dists);
+  auto k_graph = make_tsne_knn_graph<int64_t, float>(n, knn_indices, knn_dists, params);
 
   auto stats = _fit<manifold_dense_inputs_t<float>, knn_indices_dense_t, float>(
     handle, input, k_graph, params);
@@ -68,7 +68,7 @@ void TSNE_fit_sparse(const raft::handle_t& handle,
          "Wrong input args");
 
   manifold_sparse_inputs_t<int, float> input(indptr, indices, data, Y, nnz, n, p);
-  knn_graph<int, float> k_graph(n, params.n_neighbors, knn_indices, knn_dists);
+  auto k_graph = make_tsne_knn_graph<int, float>(n, knn_indices, knn_dists, params);
 
   auto stats = _fit<manifold_sparse_inputs_t<int, float>, knn_indices_sparse_t, float>(
     handle, input, k_graph, params);

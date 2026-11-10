@@ -13,6 +13,13 @@ and GPU execution may reduce the overall speedup. The
 :doc:`logging and profiling tools <logging-and-profiling>` show which operations
 ran on the GPU, which fell back to the CPU, and why.
 
+.. note::
+   ``cuml.accel`` is part of cuML, so it requires a working cuML installation.
+   See :ref:`install-cuml` for instructions and system requirements.
+
+For a hands-on walkthrough, see the
+:doc:`getting started example notebook <examples/getting_started>`.
+
 .. _activation-methods:
 
 Activation Methods
@@ -30,6 +37,11 @@ In Jupyter or IPython, load the extension before other imports:
 .. code-block:: ipython
 
    %load_ext cuml.accel
+
+In JupyterLab, you can instead enable ``cuml.accel`` from the GPU accelerator
+toggle without loading the extension or changing the notebook. See
+:ref:`Enable from the JupyterLab toolbar <cuml-accel-jupyterlab-toggle>` for
+requirements and steps.
 
 .. _cuml-accel-env-var:
 

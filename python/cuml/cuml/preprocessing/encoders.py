@@ -7,12 +7,12 @@ import cudf
 import cupy as cp
 import cupyx.scipy.sparse as cp_sp
 import numpy as np
+from cudf.api.types import is_string_dtype
 from sklearn.base import OneToOneFeatureMixin
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
-from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import (
     check_array,
@@ -122,8 +122,8 @@ def _compute_categories(
             # This is cheaper than doing `nans_to_nulls` on the full input first.
             if Xi.dtype.kind == "f":
                 Xi = Xi.nans_to_nulls().drop_duplicates()
-            # cudf's object dtype uses None for NA, we want NaN everywhere
-            if Xi.dtype == "object":
+            # Some string dtypes use None or pd.NA for NA, we want NaN everywhere
+            if is_string_dtype(Xi.dtype):
                 Xi = Xi.astype(str)
             cats = Xi.sort_values().to_numpy()
         else:
@@ -173,7 +173,53 @@ def _compute_categories(
     return out
 
 
-class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
+def _fallback_on_unsupported_category_values(categories):
+    """Shared utility to fallback to CPU if categories contains a bytes dtype"""
+    if not (isinstance(categories, str) and categories == "auto"):
+        for i, c in enumerate(categories):
+            if getattr(getattr(c, "dtype", None), "kind", "O") not in "OS":
+                continue
+            try:
+                check_cudf(c, ensure_ndim=1)
+            except TypeError as exc:
+                exc_str = str(exc)
+                if exc_str.startswith("An object dtype input"):
+                    invalid = "mixed"
+                elif exc_str.startswith("Input with bytes dtype"):
+                    invalid = "bytes"
+                else:
+                    # probably invalid categories, ignore, will re-raise later
+                    continue
+                raise UnsupportedOnGPU(
+                    f"Category {i} with {invalid} dtype is not supported"
+                ) from None
+            except Exception:
+                # probably invalid categories, ignore, will re-raise later
+                continue
+
+
+class _EncoderInteropMixin(InteropMixin):
+    def as_sklearn(self):
+        """
+        Convert this estimator into an equivalent scikit-learn estimator.
+
+        Returns
+        -------
+        estimator : sklearn.base.BaseEstimator
+            A scikit-learn compatible estimator instance that mirrors the trained
+            state of the current estimator.
+
+        Notes
+        -----
+        cuML's ``OneHotEncoder`` and ``OrdinalEncoder`` treat ``None`` and
+        ``NaN`` as equivalent. If the original encoder was trained on ``None``
+        values, those will have been normalized to ``NaN``, and the converted
+        sklearn encoder will handle ``None`` as an unknown value.
+        """
+        return super().as_sklearn()
+
+
+class OneHotEncoder(_EncoderInteropMixin, Base):
     """
     Encode categorical features as a one-hot numeric array.
 
@@ -335,24 +381,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
             raise UnsupportedOnGPU("`feature_name_combiner` is not supported")
 
         categories = model.categories
-        # Fallback if input categories contain bytes dtypes
-        if not (isinstance(categories, str) and categories == "auto"):
-            for i, c in enumerate(model.categories):
-                if getattr(getattr(c, "dtype", None), "kind", "O") not in "OS":
-                    continue
-                try:
-                    check_cudf(c, ensure_ndim=1)
-                except TypeError as exc:
-                    exc_str = str(exc)
-                    if exc_str.startswith("An object dtype input"):
-                        invalid = "mixed"
-                    elif exc_str.startswith("Input with bytes dtype"):
-                        invalid = "bytes"
-                    else:
-                        raise
-                    raise UnsupportedOnGPU(
-                        f"Category {i} with {invalid} dtype is not supported"
-                    ) from None
+        _fallback_on_unsupported_category_values(categories)
 
         return {
             "categories": categories,
@@ -380,6 +409,11 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
         }
 
     def _attrs_from_cpu(self, model):
+        for cats in model.categories_:
+            if cats.dtype.kind == "O" and None in cats:
+                raise UnsupportedOnGPU(
+                    "`None` is not supported as a category value"
+                )
         return {
             "categories_": model.categories_,
             "drop_idx_": model.drop_idx_,
@@ -695,7 +729,7 @@ class OneHotEncoder(DeprecatedGetFeatureNamesMixin, InteropMixin, Base):
         return np.array(out, dtype=object)
 
 
-class OrdinalEncoder(OneToOneFeatureMixin, Base):
+class OrdinalEncoder(OneToOneFeatureMixin, _EncoderInteropMixin, Base):
     """Encode categorical features as an integer array.
 
     The input to this transformer should be an array-like of integers or
@@ -764,6 +798,8 @@ class OrdinalEncoder(OneToOneFeatureMixin, Base):
            ['apple', 2]], dtype=object)
     """
 
+    _cpu_class_path = "sklearn.preprocessing.OrdinalEncoder"
+
     def __init__(
         self,
         *,
@@ -792,6 +828,72 @@ class OrdinalEncoder(OneToOneFeatureMixin, Base):
         tags.input_tags.categorical = True
         tags.input_tags.allow_nan = True
         return tags
+
+    @classmethod
+    def _params_from_cpu(cls, model):
+        if (handle_unknown := model.handle_unknown) == "use_encoded_value":
+            if not _safe_is_nan(model.unknown_value):
+                raise UnsupportedOnGPU(
+                    "`handle_unknown='use_encoded_value'` with "
+                    f"`unknown_value={model.unknown_value!r}` is not supported"
+                )
+            handle_unknown = "ignore"
+        if not _safe_is_nan(model.encoded_missing_value):
+            raise UnsupportedOnGPU(
+                f"`encoded_missing_value={model.encoded_missing_value!r}` "
+                "is not supported"
+            )
+        if model.min_frequency is not None:
+            raise UnsupportedOnGPU("`min_frequency` is not supported")
+        if model.max_categories is not None:
+            raise UnsupportedOnGPU("`max_categories` is not supported")
+
+        categories = model.categories
+        _fallback_on_unsupported_category_values(categories)
+
+        return {
+            "categories": categories,
+            "dtype": model.dtype,
+            "handle_unknown": handle_unknown,
+        }
+
+    def _params_to_cpu(self):
+        categories = self.categories
+        if not (isinstance(categories, str) and categories == "auto"):
+            categories = [_as_numpy(c) for c in categories]
+
+        handle_unknown = self.handle_unknown
+        unknown_value = None
+        if self.handle_unknown == "ignore":
+            handle_unknown = "use_encoded_value"
+            unknown_value = np.nan
+
+        return {
+            "categories": categories,
+            "dtype": self.dtype,
+            "handle_unknown": handle_unknown,
+            "unknown_value": unknown_value,
+        }
+
+    def _attrs_from_cpu(self, model):
+        for cats in model.categories_:
+            if cats.dtype.kind == "O" and None in cats:
+                raise UnsupportedOnGPU(
+                    "`None` is not supported as a category value"
+                )
+        return {
+            "categories_": model.categories_,
+            "_missing_indices": model._missing_indices,
+            **super()._attrs_from_cpu(model),
+        }
+
+    def _attrs_to_cpu(self, model):
+        return {
+            "categories_": self.categories_,
+            "_missing_indices": self._missing_indices,
+            "_infrequent_enabled": False,
+            **super()._attrs_to_cpu(model),
+        }
 
     @mlfunc(set_input_type=True)
     @generate_docstring(y=None)

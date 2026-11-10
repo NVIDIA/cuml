@@ -23,6 +23,9 @@ project(
   LANGUAGES ${language_list}
 )
 
+# Find C++ libraries from RAPIDS wheels in site-packages.
+set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS TRUE)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -106,7 +109,6 @@ add_subdirectory(cuml/metrics/cluster)
 add_subdirectory(cuml/neighbors)
 add_subdirectory(cuml/solvers)
 add_subdirectory(cuml/svm)
-add_subdirectory(cuml/tsa)
 
 # Include the pth file in the built wheel
 install(FILES "_zz_cuml_accel.pth" DESTINATION ".")

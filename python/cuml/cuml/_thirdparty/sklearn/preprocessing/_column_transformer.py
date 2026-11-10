@@ -25,7 +25,6 @@ from itertools import chain, compress
 import cudf
 import cupy as np
 import numpy as cpu_np
-import numba
 import pandas as pd
 import scipy.sparse as sp_sparse
 from cupyx.scipy import sparse as cu_sparse
@@ -36,7 +35,6 @@ from sklearn.utils import Bunch
 
 import cuml
 from cuml.internals.global_settings import _global_settings_data
-from cuml.internals.mixins import DeprecatedGetFeatureNamesMixin
 from cuml.internals.validation import (
     check_is_fitted,
     check_features,
@@ -262,14 +260,20 @@ def _safe_indexing(X, indices, *, axis=0):
 
 def _array_indexing(array, key, key_dtype, axis):
     """Index an array or a sparse array"""
+    array = check_array(
+        array,
+        order=None,
+        mem_type=None,
+        accept_sparse=True,
+        ensure_all_finite=False,
+        ensure_2d=False,
+    )
     if issparse(array):
         # check if we have an boolean array-likes to make the proper indexing
         if key_dtype == 'bool':
             key = np.asarray(key)
     if isinstance(key, tuple):
         key = list(key)
-    if numba.cuda.is_cuda_array(array):
-        array = np.asarray(array)
     return array[key] if axis == 0 else array[:, key]
 
 
@@ -428,12 +432,7 @@ def _message_with_time(source, message, time):
     return "%s%s%s" % (start_message, dots_len * '.', end_message)
 
 
-class ColumnTransformer(
-    DeprecatedGetFeatureNamesMixin,
-    TransformerMixin,
-    BaseComposition,
-    BaseEstimator,
-):
+class ColumnTransformer(TransformerMixin, BaseComposition, BaseEstimator):
     """Applies transformers to columns of an array or dataframe.
 
     This estimator allows different columns or column subsets of the input

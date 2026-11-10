@@ -89,7 +89,6 @@ message(VERBOSE
         "CUML_CPP: Enabling detection of conda environment for dependencies: ${DETECT_CONDA_ENV}"
 )
 message(VERBOSE "CUML_CPP: Disabling OpenMP: ${DISABLE_OPENMP}")
-message(VERBOSE "CUML_CPP: Enabling kernel resource usage info: ${KERNEL_INFO}")
 message(VERBOSE "CUML_CPP: Enabling kernelinfo in nvcc: ${CUDA_ENABLE_KERNEL_INFO}")
 message(VERBOSE "CUML_CPP: Enabling lineinfo in nvcc: ${CUDA_ENABLE_LINE_INFO}")
 message(VERBOSE "CUML_CPP: Enabling nvtx markers: ${NVTX}")
@@ -156,6 +155,16 @@ if(DETECT_CONDA_ENV)
     )
     set(CMAKE_INSTALL_PREFIX "$ENV{CONDA_PREFIX}")
   endif()
+endif()
+
+# ##################################################################################################
+# * find C++ libraries from wheels in site-packages --------------------------------------
+find_package(Python COMPONENTS Interpreter)
+if(Python_FOUND)
+  include(${rapids-cmake-dir}/cython-core/find_prefix_paths.cmake)
+  rapids_cython_find_prefix_paths("${Python_EXECUTABLE}" wheel_prefix_paths)
+  set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS TRUE)
+  list(APPEND CMAKE_PREFIX_PATH ${wheel_prefix_paths})
 endif()
 
 # ##################################################################################################
@@ -335,18 +344,8 @@ if(BUILD_CUML_CPP_LIBRARY)
     target_compile_definitions(cuml_objs PUBLIC CUML_ENABLE_GPU)
   endif()
 
-  if(all_algo OR arima_algo)
-    target_sources(
-      cuml_objs PRIVATE src/arima/arima_common.cu src/arima/batched_arima.cu
-                        src/arima/batched_kalman.cu
-    )
-  endif()
-
   if(all_algo OR datasets_algo)
-    target_sources(
-      cuml_objs PRIVATE src/datasets/make_arima.cu src/datasets/make_blobs.cu
-                        src/datasets/make_regression.cu
-    )
+    target_sources(cuml_objs PRIVATE src/datasets/make_blobs.cu src/datasets/make_regression.cu)
   endif()
 
   if(all_algo OR dbscan_algo)
@@ -387,14 +386,10 @@ if(BUILD_CUML_CPP_LIBRARY)
     target_sources(cuml_objs PRIVATE src/glm/glm.cu)
   endif()
 
-  if(all_algo OR genetic_algo)
-    target_sources(cuml_objs PRIVATE src/genetic/genetic.cu src/genetic/node.cu)
-  endif()
-
   if(all_algo OR hdbscan_algo)
     target_sources(
-      cuml_objs PRIVATE src/genetic/program.cu src/genetic/node.cu src/hdbscan/hdbscan.cu
-                        src/hdbscan/condensed_hierarchy.cu src/hdbscan/prediction_data.cu
+      cuml_objs PRIVATE src/hdbscan/hdbscan.cu src/hdbscan/condensed_hierarchy.cu
+                        src/hdbscan/prediction_data.cu
     )
 
     # When using GCC 13, some maybe-uninitialized warnings appear from CCCL and are treated as
@@ -414,10 +409,6 @@ if(BUILD_CUML_CPP_LIBRARY)
       APPEND_STRING
       PROPERTY COMPILE_FLAGS " -Xcompiler=-Wno-maybe-uninitialized"
     )
-  endif()
-
-  if(all_algo OR holtwinters_algo)
-    target_sources(cuml_objs PRIVATE src/holtwinters/holtwinters.cu)
   endif()
 
   if(all_algo OR kmeans_algo)
@@ -484,10 +475,6 @@ if(BUILD_CUML_CPP_LIBRARY)
 
   if(all_algo OR svm_algo)
     target_sources(cuml_objs PRIVATE src/svm/svc.cu src/svm/svr.cu src/svm/linear.cu)
-  endif()
-
-  if(all_algo OR autoarima_algo)
-    target_sources(cuml_objs PRIVATE src/tsa/auto_arima.cu src/tsa/stationarity.cu)
   endif()
 
   if(all_algo OR tsne_algo)

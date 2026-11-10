@@ -6,7 +6,6 @@
 #pragma once
 
 #include "bins.cuh"
-#include "dataset.h"
 #include "split.cuh"
 
 #include <cuml/tree/algo_helper.h>
@@ -24,12 +23,16 @@ class ClassificationObjectiveFunction {
   using LabelT = LabelT_;
   using BinT   = std::conditional_t<weighted_, WeightedClassificationBin, ClassificationBin>;
   static constexpr bool weighted = weighted_;
+  // Used to handle leaf histogram shared memory allocation.
+  static constexpr int default_shmem_kib          = 48;
+  static constexpr int max_leaf_outputs_per_block = default_shmem_kib * 1024 / sizeof(BinT);
 
  private:
   std::int64_t nclasses;
   std::int64_t min_samples_leaf;
   CRITERION criterion;
   DataT min_impurity_decrease;
+  double root_weight;
 
   HDI double WeightAt(BinT const* hist, std::int64_t i, std::int64_t n_bins) const
   {
@@ -146,11 +149,13 @@ class ClassificationObjectiveFunction {
   HDI ClassificationObjectiveFunction(std::int64_t nclasses,
                                       std::int64_t min_samples_leaf,
                                       CRITERION criterion,
+                                      double root_weight,
                                       DataT min_impurity_decrease = DataT{0})
     : nclasses(nclasses),
       min_samples_leaf(min_samples_leaf),
       criterion(criterion),
-      min_impurity_decrease(min_impurity_decrease)
+      min_impurity_decrease(min_impurity_decrease),
+      root_weight(root_weight)
   {
   }
 
@@ -171,6 +176,21 @@ class ClassificationObjectiveFunction {
     BinT::IncrementHistogram(histogram, n_bins, bin, label, weight);
   }
 
+  template <bool single_tile, typename DatasetT>
+  DI void IncrementLeafHistogram(BinT* histogram,
+                                 int output_begin,
+                                 int output_count,
+                                 const DatasetT& dataset,
+                                 std::int64_t row) const
+  {
+    auto label = dataset.labels[row];
+    if constexpr (single_tile) {
+      IncrementHistogram(histogram, 1, 0, label, dataset, row);
+    } else if (label >= output_begin && label - output_begin < output_count) {
+      IncrementHistogram(histogram, 1, 0, label - output_begin, dataset, row);
+    }
+  }
+
   DI Split<DataT> Gain(BinT const* shist,
                        DataT const* squantiles,
                        std::int64_t col,
@@ -178,13 +198,18 @@ class ClassificationObjectiveFunction {
                        std::int64_t n_bins) const
   {
     Split<DataT> sp;
+    auto weight_fraction = WeightAt(shist, n_bins - 1, n_bins) / root_weight;
     for (std::int64_t i = threadIdx.x; i < n_bins; i += blockDim.x) {
       auto nLeft  = detail::CountLeft(shist, i, n_bins, nclasses);
       auto nRight = len - nLeft;
       if (nLeft >= static_cast<std::int64_t>(min_samples_leaf) &&
           nRight >= static_cast<std::int64_t>(min_samples_leaf)) {
         auto gain = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
-        if (gain > min_impurity_decrease) { sp.update(squantiles[i], col, gain, nLeft, i); }
+        // Use weighted gain for the threshold; store local gain.
+        auto weighted_impurity_decrease = gain * weight_fraction;
+        if (weighted_impurity_decrease > min_impurity_decrease) {
+          sp.update(squantiles[i], col, gain, weighted_impurity_decrease, nLeft, i);
+        }
       }
     }
     return sp;
@@ -215,12 +240,14 @@ class RegressionObjectiveFunction {
   using DataT  = DataT_;
   using LabelT = LabelT_;
   using BinT   = std::conditional_t<weighted_, WeightedRegressionBin, RegressionBin>;
-  static constexpr bool weighted = weighted_;
+  static constexpr bool weighted                  = weighted_;
+  static constexpr int max_leaf_outputs_per_block = 1;
 
  private:
   std::int64_t min_samples_leaf;
   CRITERION criterion;
   DataT min_impurity_decrease;
+  double root_weight;
   static constexpr auto eps_ = 10 * std::numeric_limits<DataT>::epsilon();
 
   HDI DataT MSEGain(BinT const* hist,
@@ -245,7 +272,7 @@ class RegressionObjectiveFunction {
     DataT right_label_sum = label_sum - left_label_sum;
     DataT right_obj       = -(right_label_sum * right_label_sum) / DataT(right_weight);
     DataT gain            = parent_obj - (left_obj + right_obj);
-    gain *= DataT(0.5) * invLen;
+    gain *= invLen;
 
     return gain;
   }
@@ -370,10 +397,12 @@ class RegressionObjectiveFunction {
   HDI RegressionObjectiveFunction(std::int64_t,
                                   std::int64_t min_samples_leaf,
                                   CRITERION criterion,
+                                  double root_weight,
                                   DataT min_impurity_decrease = DataT{0})
     : min_samples_leaf(min_samples_leaf),
       criterion(criterion),
-      min_impurity_decrease(min_impurity_decrease)
+      min_impurity_decrease(min_impurity_decrease),
+      root_weight(root_weight)
   {
   }
 
@@ -394,6 +423,15 @@ class RegressionObjectiveFunction {
     BinT::IncrementHistogram(histogram, n_bins, bin, label, weight);
   }
 
+  template <bool single_tile, typename DatasetT>
+  DI void IncrementLeafHistogram(
+    BinT* histogram, int output_begin, int, const DatasetT& dataset, std::int64_t row) const
+  {
+    // Every row contributes its label to the leaf's regression statistics.
+    auto label = dataset.labels[row + std::int64_t(output_begin) * dataset.n_rows];
+    IncrementHistogram(histogram, 1, 0, label, dataset, row);
+  }
+
   DI Split<DataT> Gain(BinT const* shist,
                        DataT const* squantiles,
                        std::int64_t col,
@@ -401,13 +439,18 @@ class RegressionObjectiveFunction {
                        std::int64_t n_bins) const
   {
     Split<DataT> sp;
+    auto weight_fraction = shist[n_bins - 1].Weight() / root_weight;
     for (std::int64_t i = threadIdx.x; i < n_bins; i += blockDim.x) {
       auto nLeft  = detail::CountLeft(shist, i, n_bins, std::int64_t{1});
       auto nRight = len - nLeft;
       if (nLeft >= static_cast<std::int64_t>(min_samples_leaf) &&
           nRight >= static_cast<std::int64_t>(min_samples_leaf)) {
         auto gain = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
-        if (gain > min_impurity_decrease) { sp.update(squantiles[i], col, gain, nLeft, i); }
+        // Use weighted gain for the threshold; store local gain.
+        auto weighted_impurity_decrease = gain * weight_fraction;
+        if (weighted_impurity_decrease > min_impurity_decrease) {
+          sp.update(squantiles[i], col, gain, weighted_impurity_decrease, nLeft, i);
+        }
       }
     }
     return sp;

@@ -5,10 +5,12 @@
 
 #include "isolation_forest.cuh"
 
+#include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/ensemble/isolation_forest.hpp>
 
 #include <raft/core/error.hpp>
 #include <raft/core/handle.hpp>
+#include <raft/util/cudart_utils.hpp>
 
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
@@ -82,7 +84,9 @@ tl::Tree<T, T> build_treelite_if_tree(const CompactIFForest<T>& compact, int tre
       stack.push_back(if_node.left_child);
     }
 
-    tl_tree.SetDataCount(tl_node_id, 0);
+    ASSERT(if_node.n_node_samples > 0, "Isolation tree node has no training samples.");
+    tl_tree.SetDataCount(tl_node_id, static_cast<std::uint64_t>(if_node.n_node_samples));
+    tl_tree.SetSumHess(tl_node_id, static_cast<double>(if_node.n_node_samples));
   }
 
   return tl_tree;
@@ -107,8 +111,9 @@ void build_treelite_isolation_forest(TreeliteModelHandle* model_handle,
   auto model                          = tl::Model::Create<T, T>();
   tl::ModelPreset<T, T>& model_preset = std::get<tl::ModelPreset<T, T>>(model->variant_);
 
-  model->task_type           = tl::TaskType::kRegressor;
-  model->postprocessor       = "identity";
+  model->task_type           = tl::TaskType::kIsolationForest;
+  model->postprocessor       = "exponential_standard_ratio";
+  model->ratio_c             = forest->c_normalization;
   model->num_target          = 1;
   model->num_class           = std::vector<std::int32_t>{1};
   model->leaf_vector_shape   = std::vector<std::int32_t>{1, 1};
@@ -117,6 +122,7 @@ void build_treelite_isolation_forest(TreeliteModelHandle* model_handle,
   model->num_feature         = forest->n_features;
   model->average_tree_output = true;
   model->base_scores         = std::vector<double>{0.0};
+  model->attributes          = "{}";
   model->SetTreeLimit(forest->params.n_estimators);
 
 #pragma omp parallel for
@@ -161,6 +167,8 @@ void fit_treelite(const raft::handle_t& handle,
                   int n_cols,
                   const IF_params& params,
                   double* c_normalization,
+                  int* feature_indices,
+                  size_t feature_indices_size,
                   rapids_logger::level_enum verbosity)
 {
   ASSERT(c_normalization != nullptr, "Normalization output pointer cannot be null.");
@@ -168,6 +176,34 @@ void fit_treelite(const raft::handle_t& handle,
   IsolationForestModel<T> forest;
   fit(handle, &forest, input, n_rows, n_cols, params, verbosity);
   *c_normalization = forest.c_normalization;
+
+  size_t expected_feature_indices =
+    ML::checked_mul<std::size_t>(forest.params.n_estimators, forest.n_features_per_tree);
+  ASSERT(feature_indices != nullptr || expected_feature_indices == 0,
+         "Feature indices output buffer cannot be null.");
+  ASSERT(feature_indices_size == expected_feature_indices,
+         "Expected feature indices output buffer of size %zu, got %zu.",
+         expected_feature_indices,
+         feature_indices_size);
+
+  if (forest.global_feature_indices.size() == 0) {
+    for (int tree = 0; tree < forest.params.n_estimators; ++tree) {
+      // Bounded by expected_feature_indices (validated above), so the per-row
+      // base offset is computed once rather than checked on every write.
+      size_t row_offset = static_cast<size_t>(tree) * forest.n_features_per_tree;
+      for (int feature = 0; feature < forest.n_features_per_tree; ++feature) {
+        feature_indices[row_offset + feature] = feature;
+      }
+    }
+  } else {
+    auto stream = handle.get_stream();
+    raft::copy(feature_indices,
+               static_cast<const int*>(forest.global_feature_indices.data()),
+               expected_feature_indices,
+               stream);
+    handle.sync_stream(stream);
+  }
+
   build_treelite_isolation_forest<T>(model_handle, handle, &forest);
 }
 
@@ -219,7 +255,7 @@ void predict(const raft::handle_t& handle,
              rapids_logger::level_enum verbosity)
 {
   ML::default_logger().set_level(verbosity);
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // First compute anomaly scores
   rmm::device_uvector<float> scores(n_rows, stream);
@@ -245,7 +281,7 @@ void predict(const raft::handle_t& handle,
              rapids_logger::level_enum verbosity)
 {
   ML::default_logger().set_level(verbosity);
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   // First compute anomaly scores
   rmm::device_uvector<double> scores(n_rows, stream);
@@ -273,6 +309,8 @@ template CUML_EXPORT void fit_treelite<float>(const raft::handle_t&,
                                               int,
                                               const IF_params&,
                                               double*,
+                                              int*,
+                                              size_t,
                                               rapids_logger::level_enum);
 template CUML_EXPORT void fit_treelite<double>(const raft::handle_t&,
                                                TreeliteModelHandle*,
@@ -281,6 +319,8 @@ template CUML_EXPORT void fit_treelite<double>(const raft::handle_t&,
                                                int,
                                                const IF_params&,
                                                double*,
+                                               int*,
+                                               size_t,
                                                rapids_logger::level_enum);
 
 }  // namespace ML

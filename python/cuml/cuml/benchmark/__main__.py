@@ -1,12 +1,8 @@
-#
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-#
-"""Entry point for python -m cuml.benchmark (full mode, requires cuML)."""
 
-import sys
+"""Run the benchmark command-line entry point."""
 
-from cuml.benchmark.run_benchmarks import main
+from .cli import main
 
-if __name__ == "__main__":
-    sys.exit(main())
+raise SystemExit(main())

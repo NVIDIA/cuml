@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -63,11 +63,6 @@ def test_tfidf_transformer(data, norm, use_idf, smooth_idf, sublinear_tf):
 @pytest.mark.parametrize("smooth_idf", [True, False])
 @pytest.mark.parametrize("sublinear_tf", [True, False])
 def test_tfidf_transformer_copy(norm, use_idf, smooth_idf, sublinear_tf):
-    if use_idf:
-        pytest.xfail(
-            "cupyx.scipy.sparse.csr does not support inplace multiply."
-        )
-
     data_gpu = cupyx.scipy.sparse.csr_matrix(
         cp.array([[0, 1, 1, 1], [0, 2, 0, 1]], dtype=cp.float64, order="F")
     )

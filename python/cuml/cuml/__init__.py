@@ -22,7 +22,6 @@ from cuml.cluster.hdbscan import HDBSCAN
 from cuml.cluster.kmeans import KMeans
 from cuml.covariance.empirical_covariance import EmpiricalCovariance
 from cuml.covariance.ledoit_wolf import LedoitWolf
-from cuml.datasets.arima import make_arima
 from cuml.datasets.blobs import make_blobs
 from cuml.datasets.classification import make_classification
 from cuml.datasets.regression import make_regression
@@ -58,6 +57,7 @@ from cuml.naive_bayes.naive_bayes import MultinomialNB
 from cuml.neighbors.kernel_density import KernelDensity
 from cuml.neighbors.kneighbors_classifier import KNeighborsClassifier
 from cuml.neighbors.kneighbors_regressor import KNeighborsRegressor
+from cuml.neighbors.local_outlier_factor import LocalOutlierFactor
 from cuml.neighbors.nearest_neighbors import NearestNeighbors
 from cuml.preprocessing._label import LabelEncoder
 from cuml.random_projection.random_projection import (
@@ -69,10 +69,6 @@ from cuml.solvers.cd import CD
 from cuml.solvers.qn import QN
 from cuml.solvers.sgd import SGD
 from cuml.svm import SVC, SVR, LinearSVC, LinearSVR
-from cuml.tsa import stationarity
-from cuml.tsa.arima import ARIMA
-from cuml.tsa.auto_arima import AutoARIMA
-from cuml.tsa.holtwinters import ExponentialSmoothing
 
 
 def _setup_cupy():
@@ -121,14 +117,11 @@ __all__ = [
     "explainer",
     # Classes
     "AgglomerativeClustering",
-    "ARIMA",
-    "AutoARIMA",
     "Base",
     "CD",
     "DBSCAN",
     "ElasticNet",
     "EmpiricalCovariance",
-    "ExponentialSmoothing",
     "GaussianRandomProjection",
     "Handle",
     "HDBSCAN",
@@ -146,6 +139,7 @@ __all__ = [
     "LinearRegression",
     "LinearSVC",
     "LinearSVR",
+    "LocalOutlierFactor",
     "LogisticRegression",
     "MBSGDClassifier",
     "MBSGDRegressor",
@@ -166,9 +160,7 @@ __all__ = [
     "UMAP",
     # Functions
     "johnson_lindenstrauss_min_dim",
-    "make_arima",
     "make_blobs",
     "make_classification",
     "make_regression",
-    "stationarity",
 ]

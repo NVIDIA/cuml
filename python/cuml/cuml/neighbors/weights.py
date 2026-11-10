@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import cupy as cp
@@ -56,7 +56,9 @@ def compute_weights(distances, weights):
         return raw_weights
     elif callable(weights):
         # Custom callable weights (raw, not normalized)
-        raw_weights = cp.asarray(weights(distances), dtype=cp.float32)
+        raw_weights = cp.asarray(
+            weights(distances), dtype="float32", order="C"
+        )
         # Return raw weights - normalization will be done in C++ kernel
         return raw_weights
     else:

@@ -18,7 +18,7 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
 
-#include <cub/cub.cuh>
+#include <cub/device/device_segmented_reduce.cuh>
 #include <thrust/execution_policy.h>
 #include <thrust/fill.h>
 #include <thrust/for_each.h>
@@ -42,7 +42,7 @@ void get_probabilities(const raft::handle_t& handle,
                        const value_idx* labels,
                        value_t* probabilities)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   auto parents    = condensed_tree.get_parents();

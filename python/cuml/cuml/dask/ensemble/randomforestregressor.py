@@ -2,7 +2,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-import dask.array
 
 from cuml.dask.common.base import BaseEstimator, DelayedPredictionMixin
 from cuml.dask.ensemble.base import BaseRandomForestModel
@@ -17,30 +16,13 @@ class RandomForestRegressor(
     regressors in an ensemble. This uses Dask to partition data over multiple
     GPUs (possibly on different nodes).
 
-    This implementation makes the following assumptions:
-     * The set of Dask workers used between instantiation, fit,
-       and predict are all consistent
-     * Training data comes in the form of cuDF dataframes or Dask Arrays
-       distributed so that each worker has at least one partition.
-
-    The distributed algorithm uses an *embarrassingly-parallel*
-    approach. For a forest with `N` trees being built on `w` workers, each
-    worker simply builds `N/w` trees on the data it has available
-    locally. In many cases, partitioning the data so that each worker
-    builds trees on a subset of the total dataset works well, but
-    it generally requires the data to be well-shuffled in advance.
-    Alternatively, callers can replicate all of the data across
-    workers so that ``rf.fit`` receives `w` partitions, each containing the
-    same data. This would produce results approximately identical to
-    single-GPU fitting.
-
-    Please check the single-GPU implementation of Random Forest
-    regressor for more information about the underlying algorithm.
+    During fitting, all workers that hold training rows collectively build the
+    same forest from the complete distributed dataset.
 
     Parameters
     ----------
     n_estimators : int (default = 100)
-        total number of trees in the forest (not per-worker)
+        total number of trees in the forest
     split_criterion : int or string (default = ``2`` (``'mse'``))
         The criterion used to split nodes.\n
          * ``0`` or ``'gini'`` for gini impurity
@@ -53,9 +35,12 @@ class RandomForestRegressor(
         ``0``, ``'gini'``, ``1``, ``'entropy'`` not valid for regression
     bootstrap : boolean (default = True)
         Control bootstrapping.\n
-         * If ``True``, each tree in the forest is built on a bootstrapped
-           sample with replacement.
-         * If ``False``, the whole dataset is used to build each tree.
+        * If ``True``, each tree in the forest is built on a bootstrapped
+          sample with replacement.
+        * If ``False``, the whole dataset is used to build each tree.
+
+        With weights, rows are sampled with probabilities proportional to
+        their weights across the complete distributed dataset.
     max_samples : float (default = 1.0)
         Ratio of dataset rows used while fitting each tree.
     max_depth : int or None (default = None)
@@ -65,8 +50,22 @@ class RandomForestRegressor(
         .. rapids-pre-commit-hooks: disable-next-line
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
+    max_leaf_nodes : int or None (default = None)
+        Maximum leaf nodes per tree. Must be at least 2 or ``None``.
+        A finite limit grows the tree greedily,
+        splitting the leaf with the largest weighted impurity decrease first.
+        If ``None``, use unlimited batched growth.
+
+        .. versionadded:: 26.12
+
     max_leaves : int (default = -1)
-        Maximum leaf nodes per tree. Soft constraint. Unlimited, If ``-1``.
+        Deprecated alias for ``max_leaf_nodes``. When set to ``-1`` (default), the leaf
+        limit is determined by ``max_leaf_nodes``.
+
+        .. deprecated:: 26.12
+
+            ``max_leaves`` will be removed in 27.02. Use ``max_leaf_nodes`` instead.
+
     max_features : float (default = 'auto')
         Ratio of number of features (columns) to consider
         per node split.\n
@@ -93,20 +92,11 @@ class RandomForestRegressor(
          * If type ``float``, then ``min_samples_split`` represents a fraction
            and ``ceil(min_samples_split * n_rows)`` is the minimum number of
            samples for each split.
-    n_streams : int (default = 4 )
-        Number of parallel streams used for forest building
     workers : optional, list of strings
         Dask addresses of workers to use for computation.
         If None, all available Dask workers will be used.
     random_state : int (default = None)
         Seed for the random number generator. Unseeded by default.
-
-    ignore_empty_partitions: Boolean (default = False)
-        Specify behavior when a worker does not hold any data
-        while splitting. When True, it returns the results from workers
-        with data (the number of trained estimators will be less than
-        n_estimators) When False, throws a RuntimeError.
-
     """
 
     def __init__(
@@ -117,7 +107,6 @@ class RandomForestRegressor(
         verbose=False,
         n_estimators=100,
         random_state=None,
-        ignore_empty_partitions=False,
         **kwargs,
     ):
         super().__init__(client=client, verbose=verbose, **kwargs)
@@ -128,7 +117,6 @@ class RandomForestRegressor(
             workers=workers,
             n_estimators=n_estimators,
             base_seed=random_state,
-            ignore_empty_partitions=ignore_empty_partitions,
             **kwargs,
         )
 
@@ -138,12 +126,11 @@ class RandomForestRegressor(
             n_estimators=n_estimators, random_state=random_state, **kwargs
         )
 
-    def fit(self, X, y, broadcast_data=False):
+    def fit(self, X, y, sample_weight=None):
         """
         Fit the input data with a Random Forest regression model
 
-        IMPORTANT: X is expected to be partitioned with at least one partition
-        on each Dask worker being used by the forest (self.workers).
+        Only workers holding one or more training rows participate in fitting.
 
         When persisting data, you can use
         `cuml.dask.common.utils.persist_across_workers` to simplify this:
@@ -175,16 +162,25 @@ class RandomForestRegressor(
         y : Dask cuDF DataFrame or CuPy backed Dask Array (n_rows, 1)
             Labels of training examples.
             **y must be partitioned the same way as X**
-        broadcast_data : bool, optional (default = False)
-            When set to True, the whole dataset is broadcasted
-            to train the workers, otherwise each worker
-            is trained on its partition
+        sample_weight : Dask cuDF Series or CuPy backed Dask Array, optional
+            Non-negative weights of training examples, partitioned the same
+            way as X and y. With ``bootstrap=True``, weights determine
+            sampling probabilities. Otherwise, weights are used in the
+            impurity calculation.
         """
+        if sample_weight is not None and (
+            sample_weight.npartitions != X.npartitions
+            or sample_weight.npartitions != y.npartitions
+        ):
+            raise ValueError(
+                "X, y, and sample_weight must have the same number of "
+                "partitions"
+            )
+
         self.internal_model = None
         self._fit(
             model=self.rfs,
-            dataset=(X, y),
-            broadcast_data=broadcast_data,
+            dataset=(X, y) if sample_weight is None else (X, y, sample_weight),
         )
         return self
 
@@ -195,7 +191,6 @@ class RandomForestRegressor(
         default_chunk_size=None,
         align_bytes=None,
         delayed=True,
-        broadcast_data=False,
     ):
         """
         Predicts the regressor outputs for X.
@@ -206,7 +201,7 @@ class RandomForestRegressor(
             Distributed dense matrix (floats or doubles) of shape
             (n_samples, n_features).
         layout : string (default = 'depth_first')
-            Specifies the in-memory layout of nodes in FIL forests. Options:
+            Specifies the in-memory layout of nodes in nvForest models. Options:
             'depth_first', 'layered', 'breadth_first'.
         default_chunk_size : int, optional (default = None)
             Determines how batches are further subdivided for parallel processing.
@@ -220,47 +215,18 @@ class RandomForestRegressor(
         delayed : bool (default = True)
             Whether to do a lazy prediction (and return Delayed objects) or an
             eagerly executed one.
-        broadcast_data : bool (default = False)
-            If False, the trees are merged in a single model before the workers
-            perform inference on their share of the prediction workload.
-            When True, trees aren't merged. Instead each worker infers on the
-            whole prediction workload using its available trees. The results are
-            reduced on the client. May be advantageous when the model is larger
-            than the data used for inference.
 
         Returns
         -------
         y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
         """
-        if broadcast_data:
-            return self.partial_inference(
-                X,
-                layout=layout,
-                default_chunk_size=default_chunk_size,
-                align_bytes=align_bytes,
-                delayed=delayed,
-            )
-        return self._predict_using_fil(
+        return self._predict_using_nvforest(
             X,
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,
             delayed=delayed,
         )
-
-    def partial_inference(self, X, delayed, **kwargs):
-        partial_infs = self._partial_inference(
-            X=X, op_type="regression", delayed=delayed, **kwargs
-        )
-        workers_weights = self._get_workers_weights()
-        merged_regressions = dask.array.average(
-            partial_infs, axis=1, weights=workers_weights
-        )
-
-        if delayed:
-            return merged_regressions
-        else:
-            return merged_regressions.persist()
 
     def get_params(self, deep=True):
         """
@@ -283,4 +249,12 @@ class RandomForestRegressor(
         ----------
         params : dict of new params.
         """
-        return self._set_params(**params)
+        self._set_params(**params)
+        self.kwargs.update(params)
+        return self
+
+    @property
+    def oob_prediction_(self):
+        raise NotImplementedError(
+            "oob_prediction_ is not yet supported in Dask RandomForestRegressor"
+        )

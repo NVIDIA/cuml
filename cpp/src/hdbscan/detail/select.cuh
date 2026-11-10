@@ -18,7 +18,6 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
 
-#include <cub/cub.cuh>
 #include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <thrust/copy.h>
@@ -63,7 +62,7 @@ void perform_bfs(const raft::handle_t& handle,
                  int n_clusters,
                  Bfs_Kernel bfs_kernel)
 {
-  auto stream        = handle.get_stream();
+  auto stream        = handle.get_stream().get();
   auto thrust_policy = handle.get_thrust_policy();
 
   rmm::device_uvector<int> next_frontier(n_clusters, stream);
@@ -105,7 +104,7 @@ void parent_csr(const raft::handle_t& handle,
                 Common::CondensedHierarchy<value_idx, value_t>& cluster_tree,
                 value_idx* indptr)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   auto parents            = cluster_tree.get_parents();
   auto children           = cluster_tree.get_children();
@@ -307,7 +306,7 @@ void cluster_epsilon_search(const raft::handle_t& handle,
                             const bool allow_single_cluster,
                             const int n_selected_clusters)
 {
-  auto stream             = handle.get_stream();
+  auto stream             = handle.get_stream().get();
   auto thrust_policy      = handle.get_thrust_policy();
   auto parents            = cluster_tree.get_parents();
   auto children           = cluster_tree.get_children();

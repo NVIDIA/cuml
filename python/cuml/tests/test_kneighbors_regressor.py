@@ -174,6 +174,40 @@ def test_weights_predict(weights, n_neighbors):
     np.testing.assert_allclose(pred_cu, pred_sk, rtol=1e-4, atol=1e-4)
 
 
+def test_callable_weights_non_c_contiguous_cupy_view():
+    X, y = make_regression(
+        n_samples=64,
+        n_features=6,
+        n_informative=4,
+        random_state=42,
+    )
+    X = X.astype(np.float32)
+    y = y.astype(np.float32)
+
+    X_train, X_test = X[:48], X[48:]
+    y_train = y[:48]
+
+    def non_c_contiguous_weights(distances):
+        xp = cp if isinstance(distances, cp.ndarray) else np
+        weights = xp.asarray(1.0 / (1.0 + distances), dtype=xp.float32)
+        base = xp.empty((weights.shape[1], weights.shape[0]), dtype=xp.float32)
+        base[...] = weights.T
+        result = base.T
+        assert result.dtype == xp.float32
+        assert not result.flags.c_contiguous
+        return result
+
+    knn_cu = cuKNN(n_neighbors=5, weights=non_c_contiguous_weights)
+    knn_cu.fit(X_train, y_train)
+    pred_cu = knn_cu.predict(cp.asarray(X_test))
+
+    knn_sk = skKNN(n_neighbors=5, weights=non_c_contiguous_weights)
+    knn_sk.fit(X_train, y_train)
+    pred_sk = knn_sk.predict(X_test)
+
+    cp.testing.assert_allclose(pred_cu, pred_sk, rtol=1e-4, atol=1e-4)
+
+
 @pytest.mark.parametrize("weights", ["uniform", "distance"])
 def test_weights_multioutput(weights):
     """Test weights parameter with multioutput regression."""

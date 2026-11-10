@@ -25,7 +25,12 @@ from cuml.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
 )
-from cuml.feature_extraction.text import TfidfTransformer
+from cuml.feature_extraction.text import (
+    CountVectorizer,
+    HashingVectorizer,
+    TfidfTransformer,
+    TfidfVectorizer,
+)
 from cuml.kernel_ridge import KernelRidge
 from cuml.linear_model import (
     ElasticNet,
@@ -50,6 +55,7 @@ from cuml.neighbors import (
     KernelDensity,
     KNeighborsClassifier,
     KNeighborsRegressor,
+    LocalOutlierFactor,
     NearestNeighbors,
 )
 from cuml.preprocessing import (
@@ -99,6 +105,7 @@ ESTIMATORS = [
     MultinomialNB(),
     UMAP(n_neighbors=5),
     TSNE(),
+    SpectralEmbedding(),
     TruncatedSVD(),
     IncrementalPCA(),
     PCA(),
@@ -110,6 +117,8 @@ ESTIMATORS = [
     KNeighborsRegressor(),
     KNeighborsClassifier(),
     KernelDensity(),
+    LocalOutlierFactor(),
+    LocalOutlierFactor(novelty=True),
     EmpiricalCovariance(),
     LedoitWolf(),
     Lars(),
@@ -117,6 +126,8 @@ ESTIMATORS = [
     ElasticNet(),
     Lasso(),
     LinearRegression(),
+    MBSGDClassifier(),
+    MBSGDRegressor(),
     IsolationForest(),
     RandomForestClassifier(),
     RandomForestRegressor(),
@@ -126,6 +137,15 @@ ESTIMATORS = [
     StandardScaler(),
     OneHotEncoder(),
     OrdinalEncoder(),
+    CountVectorizer(),
+    HashingVectorizer(),
+    TfidfVectorizer(),
+    TfidfTransformer(),
+    LabelEncoder(),
+    LabelBinarizer(),
+    TargetEncoder(multi_feature_mode="independent"),
+    OneVsRestClassifier(GaussianNB()),
+    OneVsOneClassifier(GaussianNB()),
 ]
 
 
@@ -133,7 +153,6 @@ _MODULE_TO_IGNORE = {
     "dask",
     "accel",
     "solvers",
-    "tsa",
     "explainer",
     "fil",
     "experimental",
@@ -156,20 +175,6 @@ def _all_cuml_estimators():
 
 
 EXCLUDED = {
-    # Linear model
-    MBSGDClassifier: "Not yet tested for sklearn compat",
-    MBSGDRegressor: "Not yet tested for sklearn compat",
-    # Meta-estimators
-    OneVsRestClassifier: "Meta-estimator, requires an inner estimator",
-    OneVsOneClassifier: "Meta-estimator, requires an inner estimator",
-    # Manifold
-    SpectralEmbedding: "Not yet tested for sklearn compat",
-    # Feature extraction
-    TfidfTransformer: "Not yet tested for sklearn compat",
-    # Preprocessing (cuml-native)
-    LabelEncoder: "Not yet tested for sklearn compat",
-    TargetEncoder: "Not yet tested for sklearn compat",
-    LabelBinarizer: "Not yet tested for sklearn compat",
     # Preprocessing (vendored sklearn)
     MinMaxScaler: "Vendored sklearn preprocessing, not yet tested",
     MaxAbsScaler: "Vendored sklearn preprocessing, not yet tested",
@@ -242,6 +247,12 @@ XFAILS = {
         "check_methods_subset_invariance": "UMAP results depend on data subset",
         "check_transformer_preserve_dtypes": "UMAP returns float32 embeddings",
     },
+    LocalOutlierFactor: {
+        "check_outliers_train": "LocalOutlierFactor returns float32 scores",
+        "check_outliers_train(readonly_memmap=True)": (
+            "LocalOutlierFactor returns float32 scores"
+        ),
+    },
     Lasso: {
         "check_sample_weight_equivalence_on_sparse_data": "Sample weights not equal to repeating data",
     },
@@ -251,6 +262,9 @@ XFAILS = {
     StandardScaler: {
         "check_no_attributes_set_in_init": "Vendored __init__ sets copy/with_mean/with_std as attributes",
         "check_do_not_raise_errors_in_init_or_set_params": "StandardScaler(**params) raises an exception",
+    },
+    TargetEncoder: {
+        "check_dont_overwrite_parameters": "Fitted attributes without a leading/trailing `_` used",
     },
 }
 
@@ -281,16 +295,30 @@ if missing := set(XFAILS).difference((type(est) for est in ESTIMATORS)):
 )
 @pytest.mark.filterwarnings("ignore:Changing solver to 'svd'.*:UserWarning")
 @pytest.mark.filterwarnings("ignore:The number of bins.*:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:n_neighbors.*is greater than the total number of samples.*:UserWarning"
+)
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 def test_sklearn_compatible_estimator(estimator, check):
+    check_name = estimator_checks._get_check_estimator_ids(check)
+
     if isinstance(estimator, RandomForestRegressor) and (
-        estimator_checks._get_check_estimator_ids(check)
-        == "check_regressor_data_not_an_array"
+        check_name == "check_regressor_data_not_an_array"
     ):
         pytest.skip(
             "Predictions from repeated fits are nondeterministic; see "
             "https://github.com/NVIDIA/cuml/issues/8457"
         )
+
+    if (
+        isinstance(estimator, SpectralEmbedding)
+        and check_name == "check_f_contiguous_array_estimator"
+    ):
+        pytest.skip(
+            "SpectralEmbedding may fail on the input used in this test; "
+            "see https://github.com/NVIDIA/cuml/issues/8782"
+        )
+
     check(estimator)
 
 
@@ -338,7 +366,7 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     MinMaxScaler(),
     Normalizer(),
     PowerTransformer(),
-    QuantileTransformer(n_quantiles=10),
+    QuantileTransformer(n_quantiles=10, subsample=10_000),
     RobustScaler(),
     StandardScaler(),
     OneHotEncoder(),
@@ -349,6 +377,9 @@ GET_FEATURE_NAMES_OUT_ESTIMATORS = [
     SimpleImputer(),
     MissingIndicator(),
     TargetEncoder(multi_feature_mode="independent"),
+    CountVectorizer(),
+    TfidfVectorizer(),
+    TfidfTransformer(),
 ]
 
 GET_FEATURE_NAMES_OUT_XFAILS = {}
@@ -407,7 +438,15 @@ def test_sklearn_get_feature_names_out_all_estimators_covered():
 
 @pytest.mark.parametrize(
     "transformer",
-    GET_FEATURE_NAMES_OUT_ESTIMATORS,
+    [
+        est
+        for est in GET_FEATURE_NAMES_OUT_ESTIMATORS
+        # These estimators only return sparse data, and so can
+        # never have index/column names attached to their output
+        if not isinstance(
+            est, (CountVectorizer, TfidfVectorizer, TfidfTransformer)
+        )
+    ],
     ids=lambda est: type(est).__name__,
 )
 def test_transform_inverse_transform_set_index_and_column_names(transformer):

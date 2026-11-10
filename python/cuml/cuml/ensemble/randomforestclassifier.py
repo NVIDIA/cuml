@@ -14,8 +14,7 @@ from cuml.internals.validation import check_inputs
 
 
 class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
-    """
-    Implements a Random Forest classifier model which fits multiple decision
+    """Implements a Random Forest classifier model which fits multiple decision
     tree classifiers in an ensemble.
 
     .. note:: Note that the underlying algorithm for tree node splits differs
@@ -26,7 +25,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
 
     .. note:: You can export cuML Random Forest models and run predictions
       with them on machines without an NVIDIA GPUs. See
-      https://docs.rapids.ai/api/cuml/nightly/pickling_cuml_models.html
+      https://docs.nvidia.com/cuml/latest/pickling_cuml_models/
       for more details.
 
     Examples
@@ -72,9 +71,22 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         .. rapids-pre-commit-hooks: disable-next-line
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
+    max_leaf_nodes : int or None (default = None)
+        Maximum leaf nodes per tree. Must be at least 2 or ``None``.
+        A finite limit grows the tree greedily,
+        splitting the leaf with the largest weighted impurity decrease first.
+        If ``None``, use unlimited batched growth.
+
+        .. versionadded:: 26.12
+
     max_leaves : int (default = -1)
-        Maximum leaf nodes per tree. Soft constraint. Unlimited,
-        If ``-1``.
+        Deprecated alias for ``max_leaf_nodes``. When set to ``-1`` (default), the leaf
+        limit is determined by ``max_leaf_nodes``.
+
+        .. deprecated:: 26.12
+
+            ``max_leaves`` will be removed in 27.02. Use ``max_leaf_nodes`` instead.
+
     max_features : {'sqrt', 'log2', None}, int or float (default = 'sqrt')
         The number of features to consider per node split:
 
@@ -108,8 +120,16 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
            and ``max(2, ceil(min_samples_split * n_rows))`` is the minimum
            number of samples for each split.
     min_impurity_decrease : float (default = 0.0)
-        Minimum decrease in impurity required for
-        node to be split.
+        A node will be split if this split induces a decrease of the weighted impurity
+        greater than this value.
+
+        .. versionchanged:: 26.12
+
+            Impurity decrease is now weighted by the node's fraction of the
+            tree's total training weight. Positive thresholds may produce
+            smaller trees and different predictions. The default ``0.0``
+            needs no adjustment.
+
     max_batch_size : int (default = 4096)
         Maximum number of nodes that can be processed in a given batch.
     random_state : int (default = None)
@@ -158,6 +178,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
     When converting to sklearn using `as_sklearn()`, the `feature_importances_` attribute will return
     NaN values. If you need feature importances, save them before conversion:
     `importances = cuml_model.feature_importances_`
+
     """
 
     oob_decision_function_ = ReflectedAttr()
@@ -214,6 +235,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         bootstrap=True,
         max_samples=1.0,
         max_depth=None,
+        max_leaf_nodes=None,
         max_leaves=-1,
         max_features="sqrt",
         n_bins=128,
@@ -234,6 +256,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
             bootstrap=bootstrap,
             max_samples=max_samples,
             max_depth=max_depth,
+            max_leaf_nodes=max_leaf_nodes,
             max_leaves=max_leaves,
             max_features=max_features,
             n_bins=n_bins,
@@ -250,7 +273,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         self.class_weight = class_weight
 
     @nvtx.annotate(
-        message="fit RF-Classifier @randomforestclassifier.pyx",
+        message="fit RF-Classifier @randomforestclassifier.py",
         domain="cuml_python",
     )
     @generate_docstring(y="dense_intdtype")
@@ -259,6 +282,14 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         """
         Perform Random Forest Classification on the input data
         """
+        return self._fit(X, y, sample_weight=sample_weight)
+
+    def _prepare_fit_inputs(self, X, y, sample_weight=None):
+        classes = getattr(self, "_distributed_classes", True)
+        # In distributed setting, some partitions may have sample weights that are all zeros
+        sample_weight_allow_all_zero = (
+            hasattr(self, "_distributed_n_rows") and self.bootstrap
+        )
         X, y, sample_weight, classes = check_inputs(
             self,
             X,
@@ -268,22 +299,31 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
             order="A",
             y_dtype="int32",
             sample_weight_dtype="float64",
-            return_classes=True,
+            sample_weight_allow_all_zero=sample_weight_allow_all_zero,
+            return_classes=classes,
             reset=True,
         )
         self.classes_ = classes
         self.n_classes_ = len(classes)
+        class_weight = self.class_weight
+        class_counts = getattr(self, "_distributed_class_counts", None)
+        if class_weight == "balanced" and class_counts is not None:
+            class_counts = np.asarray(class_counts)
+            balanced_weights = class_counts.sum() / (
+                self.n_classes_ * class_counts
+            )
+            class_weight = dict(zip(classes, balanced_weights, strict=True))
         _, sample_weight = process_class_weight(
             classes,
             y,
-            class_weight=self.class_weight,
+            class_weight=class_weight,
             sample_weight=sample_weight,
             dtype=np.float64,
         )
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return X, y, sample_weight
 
     @nvtx.annotate(
-        message="predict RF-Classifier @randomforestclassifier.pyx",
+        message="predict RF-Classifier @randomforestclassifier.py",
         domain="cuml_python",
     )
     @insert_into_docstring(
@@ -433,7 +473,7 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         return out
 
     @nvtx.annotate(
-        message="score RF-Classifier @randomforestclassifier.pyx",
+        message="score RF-Classifier @randomforestclassifier.py",
         domain="cuml_python",
     )
     @insert_into_docstring(

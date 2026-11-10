@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import numpy as np
@@ -86,7 +86,7 @@ def test_heatmap(explainer, exact_shap_regression_dataset):
 
 
 def test_summary(explainer, exact_shap_regression_dataset):
-    """Check that the bar plot is unchanged."""
+    """Check that the summary plot is unchanged."""
     shap = pytest.importorskip("shap")
     shap_values, _ = get_shap_values(
         explainer=explainer,
@@ -101,7 +101,7 @@ def test_summary(explainer, exact_shap_regression_dataset):
 
 
 def test_violin(explainer, exact_shap_regression_dataset):
-    """Check that the bar plot is unchanged."""
+    """Check that the violin plot is unchanged."""
     shap = pytest.importorskip("shap")
     shap_values, _ = get_shap_values(
         explainer=explainer,
@@ -114,7 +114,7 @@ def test_violin(explainer, exact_shap_regression_dataset):
 
 
 def test_waterfall(explainer, exact_shap_regression_dataset):
-    """Check that the bar plot is unchanged."""
+    """Check that the waterfall plot is unchanged."""
     shap = pytest.importorskip("shap")
     shap_values, _ = get_shap_values(
         explainer=explainer,

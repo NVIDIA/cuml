@@ -15,7 +15,7 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
 
-#include <cub/cub.cuh>
+#include <cub/device/device_segmented_reduce.cuh>
 #include <cuda/std/tuple>
 #include <thrust/copy.h>
 #include <thrust/count.h>
@@ -96,7 +96,7 @@ void generate_prediction_data(const raft::handle_t& handle,
                               int n_selected_clusters,
                               PredictionData<int64_t, float>& prediction_data)
 {
-  auto stream      = handle.get_stream();
+  auto stream      = handle.get_stream().get();
   auto exec_policy = handle.get_thrust_policy();
 
   auto counting = thrust::make_counting_iterator<int>(0);

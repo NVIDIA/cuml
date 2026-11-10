@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -14,7 +14,6 @@
 #include <rmm/device_uvector.hpp>
 #include <rmm/exec_policy.hpp>
 
-#include <cub/cub.cuh>
 #include <cuda/functional>
 #include <cuda/std/tuple>
 #include <thrust/copy.h>
@@ -43,7 +42,7 @@ struct TupleComp {
     if (cuda::std::get<1>(t1) < cuda::std::get<1>(t2)) return true;
     if (cuda::std::get<1>(t1) > cuda::std::get<1>(t2)) return false;
 
-    // then sort by value in descending order
+    // then sort by value in ascending order
     return cuda::std::get<2>(t1) < cuda::std::get<2>(t2);
   }
 };
@@ -84,7 +83,7 @@ CondensedHierarchy<value_idx, value_t>::CondensedHierarchy(const raft::handle_t&
   auto parents_ptr = thrust::device_pointer_cast(parents.data());
 
   auto parents_min_max = thrust::minmax_element(
-    thrust::cuda::par.on(handle.get_stream()), parents_ptr, parents_ptr + n_edges);
+    thrust::cuda::par.on(handle.get_stream().get()), parents_ptr, parents_ptr + n_edges);
   auto min_cluster = *parents_min_max.first;
   auto max_cluster = *parents_min_max.second;
 
@@ -94,7 +93,7 @@ CondensedHierarchy<value_idx, value_t>::CondensedHierarchy(const raft::handle_t&
     cuda::std::make_tuple(parents.begin(), children.begin(), sizes.begin()));
   auto sort_values = thrust::make_zip_iterator(cuda::std::make_tuple(lambdas.begin()));
 
-  thrust::sort_by_key(thrust::cuda::par.on(handle.get_stream()),
+  thrust::sort_by_key(thrust::cuda::par.on(handle.get_stream().get()),
                       sort_keys,
                       sort_keys + n_edges,
                       sort_values,
@@ -137,7 +136,7 @@ void CondensedHierarchy<value_idx, value_t>::condense(value_idx* full_parents,
                                                       value_idx* full_sizes,
                                                       value_idx size)
 {
-  auto stream = handle.get_stream();
+  auto stream = handle.get_stream().get();
 
   if (size == -1) size = 4 * (n_leaves - 1) + 2;
 

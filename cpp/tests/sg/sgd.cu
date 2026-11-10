@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -32,7 +32,7 @@ class SgdTest : public ::testing::TestWithParam<SgdInputs<T>> {
  public:
   SgdTest()
     : params(::testing::TestWithParam<SgdInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       coef(params.n_col, stream),
       coef_ref(params.n_col, stream),
       coef2(params.n_col, stream),

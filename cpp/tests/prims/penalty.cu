@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -25,7 +25,7 @@ class PenaltyTest : public ::testing::TestWithParam<PenaltyInputs<T>> {
  public:
   PenaltyTest()
     : params(::testing::TestWithParam<PenaltyInputs<T>>::GetParam()),
-      stream(handle.get_stream()),
+      stream(handle.get_stream().get()),
       in(params.len, stream),
       out_lasso(1, stream),
       out_ridge(1, stream),

@@ -118,11 +118,6 @@ if(BUILD_CUML_TESTS
   ConfigureTest(PREFIX SG NAME RIDGE_TEST sg/ridge.cu ML_INCLUDE)
 endif()
 
-if(BUILD_CUML_TESTS AND (all_algo OR genetic_algo))
-  ConfigureTest(PREFIX SG NAME GENETIC_NODE_TEST sg/genetic/node_test.cpp ML_INCLUDE)
-  ConfigureTest(PREFIX SG NAME GENETIC_PARAM_TEST sg/genetic/param_test.cu ML_INCLUDE)
-endif()
-
 if(BUILD_CUML_TESTS AND (all_algo OR hdbscan_algo))
   ConfigureTest(PREFIX SG NAME HDBSCAN_TEST sg/hdbscan_test.cu ML_INCLUDE)
   # When using GCC 13, some maybe-uninitialized warnings appear from CCCL and are treated as errors.
@@ -132,10 +127,6 @@ if(BUILD_CUML_TESTS AND (all_algo OR hdbscan_algo))
     APPEND_STRING
     PROPERTY COMPILE_FLAGS " -Xcompiler=-Wno-maybe-uninitialized"
   )
-endif()
-
-if(BUILD_CUML_TESTS AND (all_algo OR holtwinters_algo))
-  ConfigureTest(PREFIX SG NAME HOLTWINTERS_TEST sg/holtwinters_test.cu ML_INCLUDE)
 endif()
 
 if(BUILD_CUML_TESTS AND (all_algo OR knn_algo))
@@ -227,7 +218,11 @@ if(BUILD_CUML_MG_TESTS)
       PREFIX MG NAME PCA_TEST mg/pca.cu mg/main.cu MPI RAFT_DISTRIBUTED ML_INCLUDE NO_GTEST_MAIN
     )
     ConfigureTest(
-      PREFIX MG NAME RF_QUANTILE_TEST mg/rf_quantile_test.cu MPI RAFT_DISTRIBUTED ML_INCLUDE
+      PREFIX MG NAME RF_QUANTILE_TEST mg/rf_quantile_test.cu mg/main.cu MPI RAFT_DISTRIBUTED
+                                      ML_INCLUDE NO_GTEST_MAIN
+    )
+    ConfigureTest(
+      PREFIX MG NAME RF_ROW_SAMPLER_TEST mg/rf_row_sampler.cu MPI RAFT_DISTRIBUTED ML_INCLUDE
     )
     ConfigureTest(PREFIX MG NAME RF_TEST mg/rf_test.cu MPI RAFT_DISTRIBUTED ML_INCLUDE)
   else(MPI_CXX_FOUND)
@@ -250,10 +245,8 @@ if(BUILD_PRIMS_TESTS)
   ConfigureTest(PREFIX PRIMS NAME DEVICE_UTILS_TEST prims/device_utils.cu)
   ConfigureTest(PREFIX PRIMS NAME ELTWISE2D_TEST prims/eltwise2d.cu)
   ConfigureTest(PREFIX PRIMS NAME FAST_INT_DIV_TEST prims/fast_int_div.cu)
-  ConfigureTest(PREFIX PRIMS NAME FILLNA_TEST prims/fillna.cu)
   ConfigureTest(PREFIX PRIMS NAME GRID_SYNC_TEST prims/grid_sync.cu)
   ConfigureTest(PREFIX PRIMS NAME HINGE_TEST prims/hinge.cu)
-  ConfigureTest(PREFIX PRIMS NAME JONES_TRANSFORM_TEST prims/jones_transform.cu)
   ConfigureTest(PREFIX PRIMS NAME KNN_CLASSIFY_TEST prims/knn_classify.cu)
   ConfigureTest(PREFIX PRIMS NAME KNN_REGRESSION_TEST prims/knn_regression.cu)
   ConfigureTest(PREFIX PRIMS NAME KSELECTION_TEST prims/kselection.cu)
@@ -261,7 +254,6 @@ if(BUILD_PRIMS_TESTS)
   ConfigureTest(PREFIX PRIMS NAME LINEARREG_TEST prims/linearReg.cu)
   ConfigureTest(PREFIX PRIMS NAME LOG_TEST prims/log.cu)
   ConfigureTest(PREFIX PRIMS NAME LOGISTICREG_TEST prims/logisticReg.cu)
-  ConfigureTest(PREFIX PRIMS NAME MAKE_ARIMA_TEST prims/make_arima.cu)
   ConfigureTest(PREFIX PRIMS NAME PENALTY_TEST prims/penalty.cu)
   ConfigureTest(PREFIX PRIMS NAME SIGMOID_TEST prims/sigmoid.cu)
 

@@ -1,13 +1,14 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
+import numpy as np
 import pytest
 from sklearn import cluster
+from sklearn.datasets import make_blobs
 
 from cuml.cluster import AgglomerativeClustering
-from cuml.datasets import make_blobs
-from cuml.metrics import adjusted_rand_score
+from cuml.metrics import adjusted_rand_score, pairwise_distances
 
 
 @pytest.mark.parametrize("connectivity", ["knn", "pairwise"])
@@ -31,41 +32,61 @@ def test_duplicate_distances(connectivity):
     assert adjusted_rand_score(cuml_agg.labels_, sk_agg.labels_) == 1.0
 
 
-@pytest.mark.parametrize("nrows", [100, 1000])
-@pytest.mark.parametrize("ncols", [25, 50])
-@pytest.mark.parametrize("nclusters", [1, 2, 10, 50])
+@pytest.mark.parametrize("n_samples", [100, 1000])
+@pytest.mark.parametrize("n_features", [25, 50])
+@pytest.mark.parametrize("n_clusters", [1, 2, 10, 50])
 @pytest.mark.parametrize("c", [3, 5, 15])
 @pytest.mark.parametrize("connectivity", ["knn", "pairwise"])
+@pytest.mark.parametrize("compute_distances", [True, False])
 def test_single_linkage_sklearn_compare(
-    nrows, ncols, nclusters, c, connectivity
+    n_samples,
+    n_features,
+    n_clusters,
+    c,
+    connectivity,
+    compute_distances,
 ):
     X, y = make_blobs(
-        int(nrows), ncols, nclusters, cluster_std=1.0, shuffle=False
+        n_samples=n_samples,
+        n_features=n_features,
+        centers=n_clusters,
+        cluster_std=1.0,
+        random_state=42,
     )
 
-    cuml_agg = AgglomerativeClustering(
-        n_clusters=nclusters,
-        metric="euclidean",
-        linkage="single",
-        c=c,
-        connectivity=connectivity,
-    )
+    common = {
+        "n_clusters": n_clusters,
+        "compute_distances": compute_distances,
+        "metric": "euclidean",
+        "linkage": "single",
+    }
 
-    cuml_agg.fit(X)
-
-    sk_agg = cluster.AgglomerativeClustering(
-        n_clusters=nclusters, metric="euclidean", linkage="single"
-    )
-    sk_agg.fit(cp.asnumpy(X))
+    cu_model = AgglomerativeClustering(
+        c=c, connectivity=connectivity, **common
+    ).fit(X)
+    sk_model = cluster.AgglomerativeClustering(**common).fit(X)
 
     # Cluster assignments should be exact, even though the actual
     # labels may differ
-    assert adjusted_rand_score(cuml_agg.labels_, sk_agg.labels_) == 1.0
-    assert cuml_agg.n_connected_components_ == sk_agg.n_connected_components_
-    assert cuml_agg.n_leaves_ == sk_agg.n_leaves_
-    assert cuml_agg.n_clusters_ == sk_agg.n_clusters_
+    assert adjusted_rand_score(cu_model.labels_, sk_model.labels_) == 1.0
+    assert cu_model.n_connected_components_ == sk_model.n_connected_components_
+    assert cu_model.n_leaves_ == sk_model.n_leaves_
+    assert cu_model.n_clusters_ == sk_model.n_clusters_
     # The children in the tree may differ, just compare shapes
-    assert cuml_agg.children_.shape == sk_agg.children_.shape
+    assert cu_model.children_.shape == sk_model.children_.shape
+
+    if compute_distances:
+        # Since children_ may differ, we compare:
+        # - the expected shape
+        # - distances between leaf nodes
+        assert cu_model.distances_.shape == (n_samples - 1,)
+        left, right = cu_model.children_.T
+        mask = (left < n_samples) & (right < n_samples)
+        res = cu_model.distances_[mask]
+        sol = pairwise_distances(X)[left[mask], right[mask]]
+        np.testing.assert_allclose(res, sol, atol=1e-3)
+    else:
+        assert not hasattr(cu_model, "distances_")
 
 
 def test_invalid_inputs():

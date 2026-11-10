@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include "../dataset.h"  // for Dataset
 #include "builder_kernels.cuh"
 
 #include <common/grid_sync.cuh>
@@ -16,7 +17,8 @@
 
 #include <rmm/exec_policy.hpp>
 
-#include <cub/cub.cuh>
+#include <cub/block/block_reduce.cuh>
+#include <cub/block/block_scan.cuh>
 #include <cuda/iterator>
 #include <cuda/std/algorithm>
 #include <thrust/binary_search.h>
@@ -27,6 +29,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/scan.h>
 
+#include <algorithm>  // for min
 #include <cstdint>
 #include <cstdio>
 
@@ -169,7 +172,7 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
   // Each slot corresponds to one thread lane in the tiled workload_info layout.
   // workload_info is grouped by node, so scan-by-key resets ranks at node boundaries.
   const auto n_slots = n_blocks_dimx * TPB;
-  auto exec_policy   = rmm::exec_policy(builder_stream);
+  auto exec_policy   = rmm::exec_policy_nosync(builder_stream);
   auto slots_begin   = thrust::make_counting_iterator<std::size_t>(0);
 
   auto node_key = [workload_info] __host__ __device__(std::size_t slot) {
@@ -213,33 +216,38 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
     dataset, work_items, splits, workload_info, partition_row_ids);
 }
 
-template <typename DatasetT, typename NodeT, typename ObjectiveT>
+template <bool kSingleTile, typename DatasetT, typename NodeT, typename ObjectiveT>
 CUML_KERNEL void buildLeafHistogramsKernel(ObjectiveT objective,
                                            DatasetT dataset,
                                            const NodeT* tree,
                                            const InstanceRange* instance_ranges,
-                                           typename ObjectiveT::BinT* leaf_histograms)
+                                           typename ObjectiveT::BinT* leaf_histograms,
+                                           int outputs_per_block,
+                                           int tiles_per_node)
 {
   using BinT = typename ObjectiveT::BinT;
   extern __shared__ char shared_memory[];
   auto histogram = reinterpret_cast<BinT*>(shared_memory);
-  auto node_id   = blockIdx.x;
+  auto node_id   = kSingleTile ? blockIdx.x : blockIdx.x / tiles_per_node;
   auto& node     = tree[node_id];
   auto range     = instance_ranges[node_id];
   if (!node.IsLeaf()) return;
-  auto tid = threadIdx.x;
-  for (int i = tid; i < dataset.num_outputs; i += blockDim.x) {
+  auto output_begin = kSingleTile ? 0 : (blockIdx.x % tiles_per_node) * outputs_per_block;
+  auto output_count = kSingleTile ? dataset.num_outputs
+                                  : min(outputs_per_block, dataset.num_outputs - int(output_begin));
+  auto tid          = threadIdx.x;
+  for (int i = tid; i < output_count; i += blockDim.x) {
     histogram[i] = BinT();
   }
   __syncthreads();
   for (auto i = range.begin + tid; i < range.begin + range.count; i += blockDim.x) {
-    auto row   = dataset.row_ids[i];
-    auto label = dataset.labels[row];
-    objective.IncrementHistogram(histogram, 1, 0, label, dataset, row);
+    auto row = dataset.row_ids[i];
+    objective.template IncrementLeafHistogram<kSingleTile>(
+      histogram, output_begin, output_count, dataset, row);
   }
   __syncthreads();
-  for (int i = tid; i < dataset.num_outputs; i += blockDim.x) {
-    leaf_histograms[dataset.num_outputs * node_id + i] = histogram[i];
+  for (int i = tid; i < output_count; i += blockDim.x) {
+    leaf_histograms[std::size_t(dataset.num_outputs) * node_id + output_begin + i] = histogram[i];
   }
 }
 
@@ -250,12 +258,34 @@ void launchBuildLeafHistogramsKernel(ObjectiveT objective,
                                      const InstanceRange* instance_ranges,
                                      typename ObjectiveT::BinT* leaf_histograms,
                                      int batch_size,
-                                     size_t smem_size,
                                      cudaStream_t builder_stream)
 {
-  auto num_blocks = ML::narrow_cast<ML::cuda_launch_t>(batch_size);
-  buildLeafHistogramsKernel<<<num_blocks, TPB_DEFAULT, smem_size, builder_stream>>>(
-    objective, dataset, tree, instance_ranges, leaf_histograms);
+  auto outputs_per_block = std::min(dataset.num_outputs, ObjectiveT::max_leaf_outputs_per_block);
+  auto tiles_per_node    = raft::ceildiv(dataset.num_outputs, outputs_per_block);
+  auto smem_size         = sizeof(typename ObjectiveT::BinT) * outputs_per_block;
+  // Flatten the grid so neither the node count nor the target count is limited by grid.y.
+  auto num_blocks =
+    ML::narrow_cast<ML::cuda_launch_t>(ML::checked_mul<std::size_t>(batch_size, tiles_per_node));
+  if (tiles_per_node == 1) {
+    // Preserve the original kernel's work for ordinary class counts and scalar regression.
+    buildLeafHistogramsKernel<true>
+      <<<num_blocks, TPB_DEFAULT, smem_size, builder_stream>>>(objective,
+                                                               dataset,
+                                                               tree,
+                                                               instance_ranges,
+                                                               leaf_histograms,
+                                                               outputs_per_block,
+                                                               tiles_per_node);
+  } else {
+    buildLeafHistogramsKernel<false>
+      <<<num_blocks, TPB_DEFAULT, smem_size, builder_stream>>>(objective,
+                                                               dataset,
+                                                               tree,
+                                                               instance_ranges,
+                                                               leaf_histograms,
+                                                               outputs_per_block,
+                                                               tiles_per_node);
+  }
 }
 
 template <typename ObjectiveT, typename DataT>

@@ -247,7 +247,7 @@ void approx_knn_build_index(raft::handle_t& handle,
 
   auto ivf_ft_pams = dynamic_cast<IVFFlatParam*>(params);
   auto ivf_pq_pams = dynamic_cast<IVFPQParam*>(params);
-  auto stream      = raft::resource::get_cuda_stream(handle);
+  auto stream      = raft::resource::get_cuda_stream(handle).get();
 
   // For correlation: preprocess (center + normalize), use InnerProduct, then revert
   if (metric == ML::distance::DistanceType::CorrelationExpanded) {
@@ -319,7 +319,7 @@ void approx_knn_search(raft::handle_t& handle,
                        float* query_array,
                        int n)
 {
-  auto stream = raft::resource::get_cuda_stream(handle);
+  auto stream = raft::resource::get_cuda_stream(handle).get();
 
   // Get dimension from index
   int D = index->pimpl->ivf_flat ? index->pimpl->ivf_flat->dim() : index->pimpl->ivf_pq->dim();
@@ -386,7 +386,7 @@ void approx_knn_search(raft::handle_t& handle,
                                  distances,
                                  n * k,
                                  raft::pow_const_op<float>(p),
-                                 raft::resource::get_cuda_stream(handle));
+                                 raft::resource::get_cuda_stream(handle).get());
   }
 
   // Post-process correlation: convert inner product to correlation distance
@@ -405,7 +405,7 @@ void knn_classify(raft::handle_t& handle,
                   int k,
                   float* sample_weight)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   std::vector<rmm::device_uvector<int>> uniq_labels_v;
   std::vector<int*> uniq_labels(y.size());
@@ -464,7 +464,7 @@ void knn_class_proba(raft::handle_t& handle,
                      int k,
                      float* sample_weight)
 {
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
 
   std::vector<rmm::device_uvector<int>> uniq_labels_v;
   std::vector<int*> uniq_labels(y.size());

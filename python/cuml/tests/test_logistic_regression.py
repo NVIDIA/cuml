@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import cudf
 import cupy as cp
@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy
+import sklearn
 from hypothesis import assume, example, given
 from hypothesis import strategies as st
 from hypothesis import target
@@ -26,6 +27,8 @@ from cuml.testing.datasets import (
 )
 from cuml.testing.strategies import dataset_dtypes
 from cuml.testing.utils import array_equal
+
+SKLEARN_110 = Version(sklearn.__version__) >= Version("1.10.0.dev0")
 
 
 def _filter_scipy_lbfgsb_deprecation(func):
@@ -98,7 +101,8 @@ def test_logistic_regression(
     sklog = skLog(
         solver="saga",
         l1_ratio=l1_ratio,
-        C=C,
+        # `C` was deprecated in sklearn 1.10 and will be removed in 1.14
+        **({"alpha": 1 / C} if SKLEARN_110 else {"C": C}),
         fit_intercept=fit_intercept,
     )
 

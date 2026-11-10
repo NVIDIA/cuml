@@ -13,4 +13,3 @@ cuml.datasets
    make_blobs
    make_classification
    make_regression
-   make_arima

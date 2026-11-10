@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2024, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -14,12 +14,12 @@ namespace Metrics {
 
 float r2_score_py(const raft::handle_t& handle, float* y, float* y_hat, int n)
 {
-  return raft::stats::r2_score(y, y_hat, n, handle.get_stream());
+  return raft::stats::r2_score(y, y_hat, n, handle.get_stream().get());
 }
 
 double r2_score_py(const raft::handle_t& handle, double* y, double* y_hat, int n)
 {
-  return raft::stats::r2_score(y, y_hat, n, handle.get_stream());
+  return raft::stats::r2_score(y, y_hat, n, handle.get_stream().get());
 }
 
 }  // namespace Metrics

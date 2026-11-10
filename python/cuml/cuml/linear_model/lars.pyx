@@ -121,7 +121,7 @@ class Lars(RegressorMixin, Base):
     ----------
     .. [1] `B. Efron, T. Hastie, I. Johnstone, R Tibshirani, Least Angle
        Regression The Annals of Statistics (2004) Vol 32, No 2, 407-499
-       <http://statweb.stanford.edu/~tibs/ftp/lars.pdf>`_
+       <https://projecteuclid.org/journals/annals-of-statistics/volume-32/issue-2/Least-angle-regression/10.1214/009053604000000067.pdf>`_
 
     """
 

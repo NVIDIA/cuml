@@ -18,6 +18,7 @@ import cupy as cp
 import numpy as np
 import nvforest
 import treelite
+from cuda.core import Stream
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
@@ -30,7 +31,7 @@ from cuml.internals.validation import (
     check_random_seed,
 )
 
-from libc.stddef cimport size_t
+from cuda.bindings.cyruntime cimport cudaStream_t
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
@@ -62,112 +63,54 @@ cdef extern from "cuml/ensemble/isolation_forest.hpp" namespace "ML" nogil:
         int n_cols,
         const IF_params& params,
         double* c_normalization,
+        int* feature_indices,
+        size_t feature_indices_size,
         level_enum verbosity
     ) except +
 
 
-_SAMPLE_COUNT_ATOL = 1e-4
-
-
-def _invert_average_path_length(value):
-    """Recovers the integer sample count ``n`` with ``average_path_length(n)``
-    equal to ``value``.
-
-    The Treelite export of an isolation forest does not carry per-node sample
-    counts, but every leaf value is ``depth + average_path_length(n_samples)``,
-    so the count is recoverable because it is an integer. The average path
-    length is strictly increasing in ``n``, with adjacent values separated by
-    roughly ``2 / n``: recovery is exact for realistic ``max_samples`` and
-    fails loudly once the separation approaches the tolerance rather than
-    silently selecting a nearby count.
-    """
-    from sklearn.ensemble._iforest import _average_path_length
-
-    def apl(n):
-        return float(_average_path_length(np.asarray([n]))[0])
-
-    if value < -_SAMPLE_COUNT_ATOL:
-        raise ValueError(
-            "Cannot recover a leaf sample count from negative average path "
-            f"length {value!r}."
-        )
-    if value <= _SAMPLE_COUNT_ATOL:
-        return 1
-    # Bracket the value: apl is strictly increasing for n >= 2.
-    hi = 2
-    while apl(hi) < value:
-        hi *= 2
-    lo = hi // 2
-    while hi - lo > 1:
-        mid = (lo + hi) // 2
-        if apl(mid) < value:
-            lo = mid
-        else:
-            hi = mid
-    # The count is lo or hi; accept exactly one candidate within tolerance.
-    matches = [n for n in (lo, hi) if abs(apl(n) - value) <= _SAMPLE_COUNT_ATOL]
-    if len(matches) != 1:
-        raise ValueError(
-            f"Cannot recover a leaf sample count from average path length "
-            f"{value!r}: {'no' if not matches else 'more than one'} integer "
-            f"count matches within tolerance {_SAMPLE_COUNT_ATOL}. The "
-            "Treelite export does not carry sample counts and the leaf values "
-            "no longer identify them unambiguously."
-        )
-    return matches[0]
-
-
-def _recover_node_sample_counts(tree, n_samples):
-    """Recovers ``n_node_samples`` for every node of one exported isolation
-    tree.
-
-    Leaf counts come from inverting the leaf values; internal counts are
-    bottom-up sums. The root count must equal ``n_samples`` (the per-tree
-    sample count), which validates every inversion in the tree at once.
-    """
-    children_left = tree.children_left
-    children_right = tree.children_right
-    # Node depths are 1-based; leaf values encode the 0-based depth.
-    depths = tree.compute_node_depths()
-    values = tree.value.reshape(-1)
-    counts = np.zeros(tree.node_count, dtype=np.int64)
-    # Children are strictly deeper than their parent, so descending depth
-    # order processes every child before its parent.
-    for node in np.argsort(depths)[::-1]:
-        if children_left[node] == -1:
-            counts[node] = _invert_average_path_length(
-                values[node] - (depths[node] - 1)
-            )
-        else:
-            counts[node] = (
-                counts[children_left[node]] + counts[children_right[node]]
-            )
-    if counts[0] != n_samples:
-        raise ValueError(
-            f"Recovered leaf sample counts sum to {counts[0]} at the root, "
-            f"expected {n_samples}. The exported leaf values do not identify "
-            "the per-node sample counts."
-        )
-    return counts
-
-
-def _isolation_tree_to_sklearn(exported_tree, n_features, n_samples, max_depth):
+def _isolation_tree_to_sklearn(exported_tree, feature_indices, max_depth):
     """Rebuilds one fitted sklearn ``ExtraTreeRegressor`` from one tree of the
-    Treelite export, restoring the per-node sample counts that isolation
-    forest scoring requires."""
+    Treelite export, remapping global feature ids to the sampled subset used by
+    sklearn's bagging representation.
+    """
+    import sklearn
+    from packaging.version import Version
     from sklearn.tree import ExtraTreeRegressor
 
-    counts = _recover_node_sample_counts(exported_tree.tree_, n_samples)
     state = exported_tree.tree_.__getstate__()
     nodes = state["nodes"].copy()
-    nodes["n_node_samples"] = counts
-    nodes["weighted_n_node_samples"] = counts.astype(np.float64)
-    rebuilt = ExtraTreeRegressor(max_features=1.0, max_depth=max_depth)
+
+    feature_indices = np.asarray(feature_indices, dtype=np.int64)
+    inverse = {
+        int(global_feature): local_feature
+        for local_feature, global_feature in enumerate(feature_indices)
+    }
+    split_nodes = nodes["feature"] >= 0
+    # Preserve native ``<`` splits with sklearn's ``<=`` tree traversal.
+    nodes["threshold"][split_nodes] = np.nextafter(
+        nodes["threshold"][split_nodes], -np.inf
+    )
+    try:
+        nodes["feature"][split_nodes] = [
+            inverse[int(feature)] for feature in nodes["feature"][split_nodes]
+        ]
+    except KeyError as exc:
+        raise ValueError(
+            f"Exported tree uses feature {exc.args[0]}, which is not present "
+            "in its recorded sampled feature subset."
+        ) from None
+
+    n_features = len(feature_indices)
+    rebuilt = ExtraTreeRegressor(max_features=1, max_depth=max_depth)
     rebuilt.n_features_in_ = n_features
     rebuilt.n_outputs_ = 1
-    tree = type(exported_tree.tree_)(
-        n_features, np.asarray([1], dtype=np.intp), 1
-    )
+    tree_args = (n_features, np.asarray([1], dtype=np.intp), 1)
+    if Version(sklearn.__version__) >= Version("1.10.dev0"):
+        n_categories = np.full(n_features, -1, dtype=np.intp)
+        tree_args += (n_categories,)
+        rebuilt.is_categorical_ = None
+    tree = type(exported_tree.tree_)(*tree_args)
     tree.__setstate__({**state, "nodes": nodes})
     rebuilt.tree_ = tree
     return rebuilt
@@ -219,6 +162,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         The number of isolation trees in the ensemble.
     max_samples : int, float or "auto", default="auto"
         The number of samples to draw from X to train each isolation tree.
+
         - If int, then draw `max_samples` samples.
         - If float, then draw `max_samples * n_samples` samples.
         - If "auto", then `max_samples=min(256, n_samples)`.
@@ -226,8 +170,9 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         Maximum depth of each isolation tree. If None, depth is set to
         `ceil(log2(max_samples))`, which is the theoretical maximum depth
         needed to isolate any sample.
-    max_features : float, default=1.0
+    max_features : float or int, default=1.0
         The number of features to draw from X to train each isolation tree.
+
         - If int, draw exactly ``max_features`` features.
         - If float, draw ``max_features * n_features`` features.
     bootstrap : bool, default=False
@@ -240,6 +185,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     contamination : float or "auto", default="auto"
         The proportion of outliers in the data set, used to define the offset
         for ``decision_function`` and ``predict``.
+
         - If ``"auto"``, the offset is set to -0.5.
         - If float, must be in the range (0, 0.5] and the offset is set to
           the corresponding training-score quantile.
@@ -272,6 +218,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     The anomaly score is computed as: s(x) = 2^(-E[h(x)] / c(n))
 
     where:
+
     - h(x) is the path length of sample x in an isolation tree
     - E[h(x)] is the average path length over all trees
     - c(n) is the average path length in an unsuccessful search in a BST
@@ -312,6 +259,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         self.bootstrap = bootstrap
         self.random_state = random_state
         self.contamination = contamination
+        self._feature_indices = None
 
     @classmethod
     def _get_param_names(cls):
@@ -360,38 +308,51 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
     def _attrs_to_cpu(self, model):
         """Converts fitted state to sklearn attributes.
 
-        The tree structure comes from the Treelite export; the per-node sample
-        counts that isolation forest scoring requires are recovered from the
-        leaf values (see ``_invert_average_path_length``). ``_seeds`` is not
-        transferable because cuML does not record per-tree sample indices, so
-        ``estimators_samples_`` is unavailable on the converted model.
+        A fresh tree snapshot is built for every conversion so mutations of
+        native inspection attributes never leak into converted models.
+        ``_seeds`` is not transferable because cuML does not record per-tree
+        sample indices, so ``estimators_samples_`` remains unavailable.
         """
         from sklearn.ensemble._iforest import _average_path_length
         from sklearn.tree import ExtraTreeRegressor
 
+        check_is_fitted(self)
         tl_model = treelite.Model.deserialize_bytes(self._treelite_model_bytes)
         exported = treelite.sklearn.export_model(tl_model)
-        n_features = self.n_features_in_
         n_samples = int(self.max_samples_)
         if self.max_depth is None:
             max_depth = int(np.ceil(np.log2(max(n_samples, 2))))
         else:
             max_depth = int(self.max_depth)
+
+        feature_indices = np.asarray(self._feature_indices, dtype=np.int64)
+        if (
+            feature_indices.ndim != 2
+            or feature_indices.shape[0] != len(exported.estimators_)
+            or feature_indices.shape[1] != self._max_features
+        ):
+            raise ValueError(
+                "Stored feature indices do not match the fitted forest shape."
+            )
         estimators = [
-            _isolation_tree_to_sklearn(tree, n_features, n_samples, max_depth)
-            for tree in exported.estimators_
+            _isolation_tree_to_sklearn(tree, features, max_depth)
+            for tree, features in zip(
+                exported.estimators_, feature_indices, strict=True
+            )
         ]
         return {
-            "estimator_": ExtraTreeRegressor(max_features=1.0),
+            "estimator_": ExtraTreeRegressor(
+                max_features=1,
+                max_depth=max_depth,
+                random_state=self.random_state,
+            ),
             "estimators_": estimators,
             "estimators_features_": [
-                np.arange(n_features, dtype=np.int64) for _ in estimators
+                features.copy() for features in feature_indices
             ],
             "max_samples_": n_samples,
             "offset_": float(self.offset_),
-            # The exported trees reference features globally, so scoring uses
-            # the full feature set for every tree.
-            "_max_features": n_features,
+            "_max_features": self._max_features,
             "_max_samples": n_samples,
             "_sample_weight": None,
             "_average_path_length_per_tree": tuple(
@@ -556,6 +517,12 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         params.bootstrap = self.bootstrap
         params.seed = seed
 
+        feature_indices = np.empty(
+            (self.n_estimators, actual_max_features), dtype=np.int32
+        )
+        cdef uintptr_t feature_indices_ptr = <uintptr_t>feature_indices.ctypes.data
+        cdef size_t feature_indices_size = feature_indices.size
+
         # Get handle and verbosity
         handle = get_handle()
         cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
@@ -579,6 +546,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                         n_cols,
                         params,
                         &c_normalization,
+                        <int*>feature_indices_ptr,
+                        feature_indices_size,
                         verbose,
                     )
                 else:
@@ -590,6 +559,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
                         n_cols,
                         params,
                         &c_normalization,
+                        <int*>feature_indices_ptr,
+                        feature_indices_size,
                         verbose,
                     )
 
@@ -613,13 +584,19 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
 
         self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
         self._normalization_constant = c_normalization
+        self._max_features = actual_max_features
+        self._feature_indices = feature_indices
         # Load the inference model here rather than on first use, so that
         # `predict` and friends don't mutate the estimator. The lazy path in
         # `_get_inference_nvforest_model` then only covers unpickled models.
         self._nvforest_model = self.as_nvforest()
 
         if use_contamination_quantile:
-            training_scores = self.score_samples(X_m)
+            # Score the already validated training data directly. Calling the
+            # public method would validate again after fit has recorded
+            # feature_names_in_, causing a spurious warning for DataFrame input
+            # because X_m no longer carries those names.
+            training_scores = self._score_samples(X_m)
             self.offset_ = float(
                 cp.percentile(
                     training_scores, 100.0 * contamination_fraction
@@ -634,8 +611,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         """
         Converts this estimator to a Treelite model.
 
-        The exported Treelite model predicts average path length across the
-        isolation trees.
+        The exported Treelite model predicts anomaly scores using the standard
+        Isolation Forest ratio.
 
         Returns
         -------
@@ -654,9 +631,13 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         Returns
         -------
         nvforest_model : nvforest.ForestInference
-            A forest inference model that predicts average path length.
+            A forest inference model that predicts anomaly scores.
         """
         check_is_fitted(self)
+
+        handle = get_handle()
+        cdef handle_t* handle_ = <handle_t*> <uintptr_t> handle.getHandle()
+        cdef cudaStream_t stream = handle_.get_stream().get()
 
         return nvforest.load_from_treelite_model(
             tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
@@ -664,7 +645,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,
-            handle=get_handle(),
+            stream=Stream.from_handle(<uintptr_t>stream),
         )
 
     def _get_inference_nvforest_model(self):
@@ -672,52 +653,25 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             self._nvforest_model = nvforest_model = self.as_nvforest()
         return nvforest_model
 
-    def _score_samples(self, X):
-        """
-        Compute anomaly scores through nvForest inference.
+    def _score_samples(self, X_m):
+        """Compute anomaly scores from validated device input.
 
-        Shared by ``score_samples``, ``decision_function`` and ``predict`` so
-        that input validation runs exactly once per public call.
+        This helper intentionally excludes input validation so ``fit`` can
+        score its already validated training data while computing a non-auto
+        contamination threshold. Public inference validates in ``score_samples``.
         """
         nvforest_model = self._get_inference_nvforest_model()
         dtype = nvforest_model.forest.get_dtype()
 
-        # Convert input to a row-major device array for inference.
-        X_m = check_inputs(
-            self,
-            X,
-            dtype=dtype,
-            order="C",
-        )
-
-        # Each exported leaf holds ``depth + c(n_node_samples)`` and the model
-        # averages leaf values across trees, so this is E[h(x)].
-        avg_path_lengths = cp.asarray(
+        if self._normalization_constant <= 0:
+            # The standard-ratio postprocessor is undefined when c(n) is 0.
+            return cp.full(X_m.shape[0], -0.5, dtype=dtype)
+        anomaly_scores = cp.asarray(
             nvforest_model.predict(X_m), dtype=dtype
         ).reshape(-1)
-
-        # Transform from original paper convention to sklearn convention:
-        #
-        # Original paper (Liu et al. 2008):
-        #   s(x) = 2^(-E[h(x)] / c(n))
-        #   - Anomalies: s ≈ 1 (short paths, easy to isolate)
-        #   - Normal:    s ≈ 0.5 (average path length)
-        #   - Very normal: s ≈ 0 (long paths, hard to isolate)
-        #
-        # sklearn convention:
-        #   - score_samples returns the opposite of the paper score
-        #   - decision_function = score_samples - offset_
-        #
-        # Transformation: sklearn_score = -paper_score
-        #   - paper_score=1.0 (anomaly) → sklearn_score=-1.0
-        #   - paper_score=0.5 (normal threshold) → sklearn_score=-0.5
-        #   - paper_score=0.0 (v.normal) → sklearn_score=0.0
-        #
-        if self._normalization_constant <= 0:
-            # c(n) is 0 for a single training sample per tree, leaving every
-            # sample at the neutral score.
-            return cp.full(avg_path_lengths.shape, -0.5, dtype=dtype)
-        return -cp.exp2(-avg_path_lengths / self._normalization_constant)
+        # Treelite returns the paper's positive anomaly score; sklearn exposes
+        # its negative from score_samples().
+        return -anomaly_scores
 
     @mlfunc(preserve_index=True)
     def score_samples(self, X):
@@ -741,8 +695,14 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
             ``offset_`` are predicted as anomalies.
         """
         check_is_fitted(self)
-
-        return self._score_samples(X)
+        nvforest_model = self._get_inference_nvforest_model()
+        X_m = check_inputs(
+            self,
+            X,
+            dtype=nvforest_model.forest.get_dtype(),
+            order="C",
+        )
+        return self._score_samples(X_m)
 
     @mlfunc(preserve_index=True)
     def decision_function(self, X):
@@ -762,9 +722,7 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         scores : ndarray of shape (n_samples,)
             The decision function. Negative values indicate anomalies.
         """
-        check_is_fitted(self)
-
-        return self._score_samples(X) - self.offset_
+        return self.score_samples(X) - self.offset_
 
     @mlfunc(preserve_index=True)
     def predict(self, X):
@@ -783,10 +741,8 @@ class IsolationForest(InteropMixin, CMajorInputTagMixin, Base):
         labels : ndarray of shape (n_samples,)
             1 for inliers, -1 for outliers.
         """
-        check_is_fitted(self)
-
         # ``decision_function(X) < 0`` rearranged to avoid materializing it.
-        return cp.where(self._score_samples(X) < self.offset_, -1, 1)
+        return cp.where(self.score_samples(X) < self.offset_, -1, 1)
 
     @mlfunc(preserve_index=True)
     def fit_predict(self, X, y=None):

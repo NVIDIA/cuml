@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "../dataset.h"  // for Dataset
 #include "builder_kernels_impl.cuh"
 
 namespace ML {

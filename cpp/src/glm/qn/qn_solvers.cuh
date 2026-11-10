@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2018-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -358,7 +358,7 @@ inline OPT_RETCODE min_owlqn(const LBFGSParam<T>& param,
       param, f_wrap, fx, x, grad, pseudo, step, drt, xp, l1_penalty, dev_scalar, stream);
     gnorm = f.gradNorm(grad, dev_scalar, stream);
 
-    if (update_and_check("QWL-QN",
+    if (update_and_check("OWL-QN",
                          param,
                          *k,
                          lsret,
@@ -395,7 +395,7 @@ inline OPT_RETCODE min_owlqn(const LBFGSParam<T>& param,
     // step = 1.0 as initial guess
     step = T(1.0);
   }
-  CUML_LOG_WARN("QWL-QN: max iterations reached");
+  CUML_LOG_WARN("OWL-QN: max iterations reached");
   *k = param.max_iterations;
   return OPT_MAX_ITERS_REACHED;
 }
@@ -413,7 +413,7 @@ inline int qn_minimize(const raft::handle_t& handle,
                        const rapids_logger::level_enum verbosity = 0)
 {
   // TODO should the worksapce allocation happen outside?
-  cudaStream_t stream = handle.get_stream();
+  cudaStream_t stream = handle.get_stream().get();
   OPT_RETCODE ret;
   if (l1 == 0.0) {
     rmm::device_uvector<T> tmp(lbfgs_workspace_size(opt_param, x.len), stream);

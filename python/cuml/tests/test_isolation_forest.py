@@ -13,6 +13,7 @@ These tests are designed to be:
 """
 
 import pickle
+import warnings
 
 import cupy as cp
 import numpy as np
@@ -284,6 +285,29 @@ def test_max_features_parameter(blobs_data, max_features, expected_features):
     assert predictions.shape[0] == blobs_data.shape[0]
 
 
+def test_split_feature_selection_ignores_column_order():
+    """Splits should pick uniformly among the non-constant features.
+
+    The two informative columns are separated by a run of constant columns,
+    so a selection that depends on column order favours one of them.
+    """
+    rng = np.random.RandomState(0)
+    X = np.zeros((256, 10), dtype=np.float32)
+    X[:, 0] = rng.randn(256)
+    X[:, 9] = rng.randn(256)
+    clf = cuIsolationForest(n_estimators=1000, random_state=42).fit(X)
+    tl_model = clf.as_treelite()
+    roots = np.array(
+        [
+            tl_model.get_tree_accessor(tree_id).get_field("split_index")[0]
+            for tree_id in range(tl_model.num_tree)
+        ]
+    )
+    assert set(roots.tolist()) == {0, 9}
+    # Uniform selection gives 0.5
+    assert 0.4 < np.mean(roots == 0) < 0.6
+
+
 @pytest.mark.parametrize("max_features", [0, -1, 1.1, "invalid", True])
 def test_invalid_max_features_raises(blobs_data, max_features):
     """Invalid max_features values should raise during fit."""
@@ -381,28 +405,43 @@ def test_as_sklearn_scoring_parity(anomaly_data, params):
 
 
 def test_as_sklearn_float64_parity(anomaly_data):
-    """Conversion of a float64 fit matches to float64 precision."""
+    """Conversion of a float64 fit matches within Treelite ratio precision."""
     X = anomaly_data.astype(np.float64)
     cu_model = cuIsolationForest(n_estimators=20, random_state=1).fit(X)
     sk_model = cu_model.as_sklearn()
     cu_scores = np.asarray(cu_model.score_samples(X), dtype=np.float64)
     np.testing.assert_allclose(
-        sk_model.score_samples(X), cu_scores, rtol=0, atol=1e-10
+        sk_model.score_samples(X), cu_scores, rtol=0, atol=1e-8
     )
 
 
 def test_as_sklearn_populates_fitted_attributes(blobs_data):
     """The converted model carries the attributes a sklearn fit would set."""
     cu_model = cuIsolationForest(
-        n_estimators=10, max_samples=64, random_state=0
+        n_estimators=10,
+        max_samples=64,
+        max_features=0.5,
+        random_state=0,
     ).fit(blobs_data)
     sk_model = cu_model.as_sklearn()
 
     assert sk_model.max_samples_ == 64
     assert sk_model.offset_ == pytest.approx(float(cu_model.offset_))
     assert sk_model.n_features_in_ == blobs_data.shape[1]
+    assert sk_model.estimator_.max_features == 1
     assert len(sk_model.estimators_) == 10
     assert len(sk_model.estimators_features_) == 10
+    np.testing.assert_array_equal(
+        np.stack(sk_model.estimators_features_), cu_model._feature_indices
+    )
+    for features, tree in zip(
+        sk_model.estimators_features_, sk_model.estimators_, strict=True
+    ):
+        assert features.shape == (2,)
+        assert len(np.unique(features)) == len(features)
+        assert np.all((features >= 0) & (features < blobs_data.shape[1]))
+        split_features = tree.tree_.feature[tree.tree_.feature >= 0]
+        assert np.all(split_features < len(features))
     # The private fit caches sklearn scoring reads must exist and align.
     assert isinstance(sk_model._average_path_length_per_tree, tuple)
     assert isinstance(sk_model._decision_path_lengths, tuple)
@@ -419,6 +458,27 @@ def test_as_sklearn_populates_fitted_attributes(blobs_data):
         sk_model.estimators_samples_
 
 
+def test_feature_indices_survive_native_pickle(blobs_data):
+    """Native pickles retain metadata needed for sklearn conversion."""
+    model = cuIsolationForest(
+        n_estimators=5, max_features=0.5, random_state=0
+    ).fit(blobs_data)
+    restored = pickle.loads(pickle.dumps(model))
+
+    np.testing.assert_array_equal(
+        restored._feature_indices, model._feature_indices
+    )
+    converted = restored.as_sklearn()
+    np.testing.assert_array_equal(
+        np.stack(converted.estimators_features_), model._feature_indices
+    )
+    np.testing.assert_allclose(
+        converted.score_samples(blobs_data),
+        np.asarray(model.score_samples(blobs_data)),
+        atol=1e-5,
+    )
+
+
 def test_as_sklearn_pickle_roundtrip(blobs_data):
     """The converted model survives pickling with identical behavior."""
     cu_model = cuIsolationForest(n_estimators=10, random_state=0).fit(
@@ -431,6 +491,24 @@ def test_as_sklearn_pickle_roundtrip(blobs_data):
     )
     np.testing.assert_array_equal(
         restored.predict(blobs_data), sk_model.predict(blobs_data)
+    )
+
+
+def test_as_sklearn_preserves_strict_split_semantics():
+    X = np.arange(5, dtype=np.float32)[:, None]
+    cu_model = cuIsolationForest(
+        n_estimators=1, max_depth=1, random_state=0
+    ).fit(X)
+    sk_model = cu_model.as_sklearn()
+    threshold = (
+        treelite.sklearn.export_model(cu_model.as_treelite())
+        .estimators_[0]
+        .tree_.threshold[0]
+    )
+    X_equal = np.array([[threshold]], dtype=np.float32)
+
+    np.testing.assert_array_equal(
+        sk_model.predict(X_equal), np.asarray(cu_model.predict(X_equal))
     )
 
 
@@ -464,32 +542,20 @@ def test_sync_attrs_to_cpu_populates_target(blobs_data):
     )
 
 
-def test_invert_average_path_length_roundtrip():
-    """Recovered counts invert sklearn's average path length exactly."""
-    from sklearn.ensemble._iforest import _average_path_length
+def test_contamination_float_preserves_feature_names():
+    """Computing the training quantile must retain input feature metadata."""
+    pd = pytest.importorskip("pandas")
+    X = pd.DataFrame(
+        np.random.RandomState(0).normal(size=(20, 2)), columns=["a", "b"]
+    )
 
-    from cuml.ensemble.isolation_forest import _invert_average_path_length
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        model = cuIsolationForest(
+            n_estimators=5, contamination=0.05, random_state=0
+        ).fit(X)
 
-    for n in (1, 2, 3, 10, 256, 5000):
-        value = float(_average_path_length(np.asarray([n]))[0])
-        assert _invert_average_path_length(value) == n
-
-
-def test_invert_average_path_length_fails_loudly():
-    """Values matching no count, or more than one, raise a clear error."""
-    from sklearn.ensemble._iforest import _average_path_length
-
-    from cuml.ensemble.isolation_forest import _invert_average_path_length
-
-    with pytest.raises(ValueError, match="negative"):
-        _invert_average_path_length(-0.5)
-    # Between apl(4) and apl(5), far from both: no candidate matches.
-    with pytest.raises(ValueError, match="no integer count"):
-        _invert_average_path_length(1.95)
-    # At large counts adjacent values collapse within tolerance: ambiguous.
-    midpoint = float(_average_path_length(np.asarray([50000, 50001])).mean())
-    with pytest.raises(ValueError, match="more than one"):
-        _invert_average_path_length(midpoint)
+    np.testing.assert_array_equal(model.feature_names_in_, X.columns)
 
 
 def test_contamination_float_sets_score_quantile_offset(blobs_data):
@@ -740,11 +806,11 @@ def test_as_nvforest_loads(blobs_data):
     clf.fit(X)
 
     nvforest_model = clf.as_nvforest()
-    avg_path_lengths = cp.asarray(nvforest_model.predict(X))
+    anomaly_scores = cp.asarray(nvforest_model.predict(X))
 
     assert "ForestInferenceRegressor" in type(nvforest_model).__name__
-    assert avg_path_lengths.shape[0] == X.shape[0]
-    assert bool(cp.all(cp.isfinite(avg_path_lengths)))
+    assert anomaly_scores.shape[0] == X.shape[0]
+    assert bool(cp.all(cp.isfinite(anomaly_scores)))
 
 
 def test_score_samples_single_sample():

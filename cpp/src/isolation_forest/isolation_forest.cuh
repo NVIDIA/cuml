@@ -140,7 +140,7 @@ class IsolationForest {
                             T* avg_path_lengths) const
   {
     raft::common::nvtx::range fun_scope("IF::compute_path_lengths @isolation_forest.cuh");
-    cudaStream_t stream = handle.get_stream();
+    cudaStream_t stream = handle.get_stream().get();
 
     int threads   = 256;
     size_t blocks = (n_rows + threads - 1) / threads;
@@ -161,7 +161,7 @@ class IsolationForest {
                               size_t n_rows,
                               T* scores) const
   {
-    cudaStream_t stream = handle.get_stream();
+    cudaStream_t stream = handle.get_stream().get();
     T c_n               = static_cast<T>(model->c_normalization);
 
     if (c_n <= T(0)) {

@@ -27,8 +27,8 @@ jobs:
       - conda-python-cuml-accel-upstream-tests
       - conda-notebook-tests
       - docs-build
+      - docs-build-matrix
       - publish-api-docs
-      - telemetry-setup
       - wheel-build-libcuml
       - wheel-build-cuml
       - wheel-tests-cuml
@@ -45,17 +45,6 @@ jobs:
     if: always()
     with:
       needs: ${{ toJSON(needs) }}
-  telemetry-setup:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents: read
-    env:
-      OTEL_SERVICE_NAME: "pr-cuml"
-    steps:
-      - name: Telemetry setup
-        if: ${{ vars.TELEMETRY_ENABLED == 'true' }}
-        uses: rapidsai/shared-actions/telemetry-dispatch-stash-base-env-vars@main
   build-details:
     uses: rapidsai/shared-workflows/.github/workflows/compute-build-details.yaml@main
   check-nightly-ci:
@@ -78,7 +67,6 @@ jobs:
           target-branch: ${{ fromJSON(steps.get-pr-info.outputs.pr-info).base.ref }}
           max-days-without-success: 14
   changed-files:
-    needs: telemetry-setup
     permissions:
       actions: read
       contents: read
@@ -159,7 +147,6 @@ jobs:
           - '!notebooks/**'
           - '!python/**'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
         test_notebooks:
           - '**'
           - '!**/*/agents.md'
@@ -197,7 +184,6 @@ jobs:
           - '!cpp/README.md'
           - '!cpp/header.html'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
         test_python_conda:
           - '**'
           - '!**/*/agents.md'
@@ -240,7 +226,6 @@ jobs:
           - '!img/**'
           - '!notebooks/**'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
         test_python_wheels:
           - '**'
           - '!**/*/agents.md'
@@ -287,9 +272,7 @@ jobs:
           - '!img/**'
           - '!notebooks/**'
           - '!thirdparty/LICENSES/**'
-          - '!wiki/**'
   checks:
-    needs: telemetry-setup
     permissions:
       actions: read
       contents: read
@@ -300,8 +283,9 @@ jobs:
     uses: rapidsai/shared-workflows/.github/workflows/checks.yaml@main
     with:
       enable_check_generated_files: false
-      ignored_pr_jobs: >-
-        telemetry-summarize
+      # Main builds seed this cache. PR merge refs can restore it but should not create
+      # duplicate archives that are inaccessible to other PRs.
+      pre-commit-cache-read-only: true
   clang-tidy:
     needs: checks
     permissions:
@@ -316,7 +300,7 @@ jobs:
       build_type: pull-request
       node_type: "cpu8"
       arch: "amd64"
-      container_image: "rapidsai/ci-conda:26.10-latest"
+      container_image: "rapidsai/ci-conda:26.12-latest"
       script: "ci/run_clang_tidy.sh"
   conda-cpp-build:
     needs: [build-details, checks]
@@ -333,6 +317,7 @@ jobs:
       build-datetime: ${{ needs.build-details.outputs.build-datetime }}
       node_type: cpu16
       script: ci/build_cpp.sh
+      matrix_type: pull-request
   conda-cpp-tests:
     needs: [conda-cpp-build, changed-files]
     permissions:
@@ -347,6 +332,7 @@ jobs:
     with:
       build_type: pull-request
       script: ci/test_cpp.sh
+      matrix_type: pull-request
   conda-cpp-checks:
     needs: conda-cpp-build
     permissions:
@@ -376,6 +362,7 @@ jobs:
       script: ci/build_python.sh
       # Build a conda package for each CUDA x ARCH x minimum supported Python version
       matrix_filter: group_by({CUDA_VER, ARCH}) | map(min_by(.PY_VER | split(".") | map(tonumber)))
+      matrix_type: pull-request
   conda-python-tests-singlegpu:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -390,6 +377,7 @@ jobs:
     with:
       build_type: pull-request
       script: "ci/test_python_singlegpu.sh"
+      matrix_type: pull-request
   conda-python-tests-cudf-pandas-integration:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -406,6 +394,7 @@ jobs:
       matrix_filter: map(select(.ARCH=="amd64")) | [max_by([.CUDA_VER,.PY_VER]|map(split(".")|map(tonumber)))]
       build_type: pull-request
       script: "ci/test_python_integration.sh"
+      matrix_type: pull-request
   conda-python-tests-dask:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -420,6 +409,7 @@ jobs:
     with:
       build_type: pull-request
       script: "ci/test_python_dask.sh"
+      matrix_type: pull-request
   conda-python-scikit-learn-accel-tests:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -447,6 +437,7 @@ jobs:
           | sort_by(.PY_VER)
           | map(.DEPENDENCIES = "intermediate")
         )
+      matrix_type: pull-request
   conda-python-cuml-accel-upstream-tests:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -463,6 +454,7 @@ jobs:
       script: "ci/test_python_cuml_accel_upstream.sh"
       # One run for each dependencies config on amd64, breaking ties by highest Python version
       matrix_filter: map(select(.ARCH == "amd64")) | sort_by(.PY_VER) | unique_by(.DEPENDENCIES)
+      matrix_type: pull-request
   conda-notebook-tests:
     needs: [conda-python-build, changed-files]
     permissions:
@@ -476,12 +468,20 @@ jobs:
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_notebooks
     with:
       build_type: pull-request
-      node_type: "gpu-l4-latest-1"
+      node_type: "gpu-rtxpro6000-latest-1"
       arch: "amd64"
-      container_image: "rapidsai/ci-conda:26.10-latest"
+      container_image: "rapidsai/ci-conda:26.12-latest"
       script: "ci/test_notebooks.sh"
+  docs-build-matrix:
+    permissions:
+      contents: read
+    uses: rapidsai/shared-workflows/.github/workflows/compute-matrix.yaml@main
+    with:
+      build_type: pull-request
+      matrix_name: docs-build
+      matrix_type: pull-request
   docs-build:
-    needs: [conda-python-build, changed-files]
+    needs: [docs-build-matrix, conda-python-build, changed-files]
     permissions:
       actions: read
       contents: read
@@ -490,12 +490,15 @@ jobs:
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
     uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@main
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.docs-build-matrix.outputs.matrix) }}
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).build_docs
     with:
       build_type: pull-request
-      node_type: "gpu-l4-latest-1"
-      arch: "amd64"
-      container_image: "rapidsai/ci-conda:26.10-latest"
+      node_type: "gpu-${{ matrix.GPU }}-${{ matrix.DRIVER }}-1"
+      arch: "${{ matrix.arch }}"
+      container_image: "rapidsai/ci-conda:26.12-cuda${{ matrix.CUDA_VER }}-${{ matrix.LINUX_VER }}-py${{ matrix.PY_VER }}"
       script: "ci/build_docs.sh"
   publish-api-docs:
     needs: [docs-build]
@@ -511,12 +514,12 @@ jobs:
       target-aws-access-key-id: ${{ secrets.NVIDIA_DOCS_AWS_ACCESS_KEY_ID }}
       target-aws-region: ${{ secrets.NVIDIA_DOCS_AWS_REGION }}
       target-aws-secret-access-key: ${{ secrets.NVIDIA_DOCS_AWS_SECRET_ACCESS_KEY }}
+      target-archive-s3-bucket: ${{ secrets.NVIDIA_DOCS_ARCHIVE_S3_BUCKET }}
       target-s3-bucket: ${{ secrets.NVIDIA_DOCS_S3_BUCKET }}
     uses: rapidsai/shared-workflows/.github/workflows/publish-api-docs.yaml@main
     with:
-      docs-projects: cuml,libcuml
+      docs-projects: cuml
       dry-run: true
-      version-map: ${{ vars.VERSION_MAP }}
   wheel-build-libcuml:
     needs: [build-details, checks]
     permissions:
@@ -539,6 +542,7 @@ jobs:
       matrix_filter: 'group_by([.ARCH, (.CUDA_VER|split(".")|map(tonumber)|.[0])]) | map(max_by(.PY_VER|split(".")|map(tonumber)))'
       package-name: libcuml
       package-type: cpp
+      matrix_type: pull-request
   wheel-build-cuml:
     needs: [build-details, checks, wheel-build-libcuml]
     permissions:
@@ -558,6 +562,7 @@ jobs:
       package-type: python
       # Build a wheel for each CUDA x ARCH x minimum supported Python version
       matrix_filter: group_by({CUDA_VER, ARCH}) | map(min_by(.PY_VER | split(".") | map(tonumber)))
+      matrix_type: pull-request
   wheel-tests-cuml:
     needs: [wheel-build-cuml, changed-files]
     permissions:
@@ -572,6 +577,7 @@ jobs:
     with:
       build_type: pull-request
       script: ci/test_wheel.sh
+      matrix_type: pull-request
   wheel-tests-cuml-dask:
     needs: [wheel-build-cuml, changed-files]
     permissions:
@@ -586,8 +592,8 @@ jobs:
     with:
       build_type: pull-request
       script: ci/test_wheel_dask.sh
+      matrix_type: pull-request
   devcontainer:
-    needs: telemetry-setup
     permissions:
       actions: read
       contents: read
@@ -598,7 +604,7 @@ jobs:
     uses: rapidsai/shared-workflows/.github/workflows/build-in-devcontainer.yaml@main
     with:
       arch: '["amd64", "arm64"]'
-      cuda: '["13.3"]'
+      cuda: '["13.4"]'
       node_type: "cpu8"
       env: |
         SCCACHE_DIST_MAX_RETRIES=inf
@@ -606,18 +612,5 @@ jobs:
         SCCACHE_DIST_FALLBACK_TO_LOCAL_COMPILE=false
       build_command: |
         sccache --zero-stats;
-        build-all -j0 --verbose -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=ON 2>&1 | tee telemetry-artifacts/build.log;
-        sccache --show-adv-stats | tee telemetry-artifacts/sccache-stats.txt;
-  telemetry-summarize:
-    # This job must use a self-hosted runner to record telemetry traces.
-    runs-on: linux-amd64-cpu4
-    needs: pr-builder
-    if: ${{ vars.TELEMETRY_ENABLED == 'true' && !cancelled() }}
-    continue-on-error: true
-    permissions:
-      actions: write
-    steps:
-      - name: Telemetry summarize
-        uses: rapidsai/shared-actions/telemetry-dispatch-summarize@main
-    env:
-      GH_TOKEN: ${{ github.token }}
+        build-all -j0 --verbose -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=ON;
+        sccache --show-adv-stats;

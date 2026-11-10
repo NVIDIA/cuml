@@ -810,10 +810,12 @@ class KMeans(
             labels, inertia = _kmeans_predict_host_chunked(
                 handle_[0], params, X, sample_weight, centers,
                 device_buffer_samples,
+                normalize_weights=False,
             )
         else:
             labels, inertia = _kmeans_predict(
                 handle_[0], params, X, sample_weight, centers,
+                normalize_weights=False,
             )
         handle.sync()
 
@@ -1053,7 +1055,8 @@ class KMeans(
             params,
             X,
             sample_weight,
-            self.cluster_centers_
+            self.cluster_centers_,
+            normalize_weights=False,
         )
         handle.sync()
         return labels, inertia
@@ -1116,6 +1119,7 @@ class KMeans(
         cdef handle_t* handle_ = <handle_t*><size_t>handle.getHandle()
         cdef lib.KMeansParams params
         _kmeans_init_params(self, params)
+        params.metric = DistanceType.L2SqrtExpanded
 
         cdef bool values_f32 = X.dtype == cp.float32
         cdef bool indices_i32 = _kmeans_indices_i32(n_rows, n_cols)

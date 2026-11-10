@@ -17,12 +17,23 @@ from cuml.dask.common.base import (
     mnmg_import,
 )
 from cuml.dask.common.input_utils import DistributedDataHandler
+from cuml.dask.common.part_utils import flatten_grouped_results
 from cuml.dask.common.utils import wait_and_raise_from_futures
 from cuml.internals.validation import check_random_seed
 
 
-def _get_inertia_and_n_samples(estimator):
-    return (estimator.inertia_, len(estimator.labels_))
+def _get_inertia(estimator):
+    return estimator.inertia_
+
+
+def _get_label_parts(estimator, partition_sizes):
+    parts = []
+    start = 0
+    for size in partition_sizes:
+        stop = start + size
+        parts.append(estimator.labels_[start:stop])
+        start = stop
+    return parts
 
 
 def _validate_n_clusters(n_clusters):
@@ -132,14 +143,6 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
         ret = model.score(data, sample_weight=sample_weight)
         return ret
 
-    @staticmethod
-    def _check_normalize_sample_weight(sample_weight):
-        if sample_weight is not None:
-            n_samples = len(sample_weight)
-            scale = n_samples / sample_weight.sum()
-            sample_weight *= scale
-        return sample_weight
-
     def fit(self, X, sample_weight=None):
         """
         Fit a multi-node multi-GPU KMeans model
@@ -158,8 +161,6 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
             ndarray, cuda array interface compliant array like CuPy
 
         """
-
-        sample_weight = self._check_normalize_sample_weight(sample_weight)
 
         inputs = X if sample_weight is None else (X, sample_weight)
 
@@ -234,28 +235,46 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
         workers = list(data.worker_to_parts.keys())
 
         # Compute and store the total inertia_
-        inertia_and_lengths = self.client.gather(
+        inertias = self.client.gather(
             [
-                self.client.submit(_get_inertia_and_n_samples, f, workers=[w])
-                for f, w in zip(kmeans_fit, workers)
+                self.client.submit(_get_inertia, f, workers=[w])
+                for f, w in zip(kmeans_fit, workers, strict=True)
             ]
         )
-        self.inertia_ = sum(inertia for inertia, _ in inertia_and_lengths)
+        self.inertia_ = sum(inertias)
 
         # Store labels_ as a distributed dask array. This attribute scales with
         # n_samples, and shouldn't be pulled back to a local node.
-        labels_meta = cp.zeros(0, dtype=first.labels_.dtype)
-        labels = [
-            self.client.submit(getattr, f, "labels_", workers=[w])
-            for f, w in zip(kmeans_fit, workers)
-        ]
+        labels_by_worker = {
+            worker: self.client.submit(
+                _get_label_parts,
+                model,
+                data._worker_sizes[worker][0],
+                workers=[worker],
+            )
+            for model, worker in zip(kmeans_fit, workers, strict=True)
+        }
+        labels = flatten_grouped_results(
+            self.client,
+            data.gpu_futures,
+            labels_by_worker,
+        )
+
+        worker_partition_indices = {}
+        label_lengths = []
+        for worker, _ in data.gpu_futures:
+            index = worker_partition_indices.get(worker, 0)
+            label_lengths.append(data._worker_sizes[worker][0][index])
+            worker_partition_indices[worker] = index + 1
+
         if self.datatype == "cudf":
             self.labels_ = dd.from_delayed(labels)
         else:
+            labels_meta = cp.zeros(0, dtype=first.labels_.dtype)
             self.labels_ = da.concatenate(
                 [
                     da.from_delayed(f, shape=(length,), meta=labels_meta)
-                    for f, (_, length) in zip(labels, inertia_and_lengths)
+                    for f, length in zip(labels, label_lengths, strict=True)
                 ]
             )
 
@@ -345,16 +364,19 @@ class KMeans(BaseEstimator, DelayedPredictionMixin, DelayedTransformMixin):
 
         Parameters
         ----------
-        X : dask_cudf.Dataframe
-            Dataframe to compute score
+        X : Dask cuDF DataFrame or Dask Array
+            Data to score.
+
+        sample_weight : Dask cuDF DataFrame or Series, or Dask Array, \
+                shape = (n_samples,), default=None
+            The weight for each observation. It must have the same row
+            partitioning as ``X``.
 
         Returns
         -------
 
         Inertial score
         """
-
-        sample_weight = self._check_normalize_sample_weight(sample_weight)
 
         scores = self._run_parallel_func(
             KMeans._score,

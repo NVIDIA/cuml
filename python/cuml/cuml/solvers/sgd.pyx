@@ -175,14 +175,15 @@ def fit_sgd(
         dtype=("float32", "float64"),
         order="F",
         return_classes=return_classes,
+        ensure_min_samples=2,
         reset=True,
     )
     if return_classes:
         X, y, classes = out
         if len(classes) > 2:
             raise ValueError(
-                f"Only binary classification is currently supported, got "
-                f"{len(classes)} classes"
+                f"Only binary classification is supported, got "
+                f"{len(classes)} classes instead."
             )
     else:
         X, y = out

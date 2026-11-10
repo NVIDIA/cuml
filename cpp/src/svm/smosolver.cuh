@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -41,6 +41,14 @@
 
 namespace ML {
 namespace SVM {
+
+constexpr bool ShouldThrowNoProgressError(bool keep_going,
+                                          bool made_progress,
+                                          int n_train,
+                                          int n_ws)
+{
+  return keep_going && !made_progress && n_train <= n_ws;
+}
 
 template <typename math_t>
 void SmoSolver<math_t>::GetNonzeroDeltaAlpha(const math_t* vec,
@@ -177,7 +185,8 @@ void SmoSolver<math_t>::Solve(MatrixViewType matrix,
                          stream);
     RAFT_CUDA_TRY(cudaPeekAtLastError());
     // The following should be performed only for elements with nonzero delta_alpha
-    if (nnz_da > 0) {
+    bool made_progress = nnz_da > 0;
+    if (made_progress) {
       auto batch_descriptor = cache.InitFullTileBatching(nz_da_idx.data(), nnz_da);
 
       while (cache.getNextBatchKernel(batch_descriptor)) {
@@ -191,6 +200,8 @@ void SmoSolver<math_t>::Solve(MatrixViewType matrix,
                 batch_descriptor.kernel_data);
         RAFT_CUDA_TRY(cudaPeekAtLastError());
       }
+    } else {
+      cache.FinishWorkingSet();
     }
     handle.sync_stream(stream);
     raft::common::nvtx::pop_range();
@@ -202,6 +213,19 @@ void SmoSolver<math_t>::Solve(MatrixViewType matrix,
     n_outer_iter++;
     if ((max_iter != -1 && n_iter >= max_iter) || n_outer_iter >= max_outer_iter) {
       keep_going = false;
+    }
+    // A zero-update block only establishes solver-wide stagnation when the
+    // working set contains every dual variable. Otherwise, allow the next
+    // outer iteration to rotate part of the working set and try new variables.
+    if (ShouldThrowNoProgressError(keep_going, made_progress, n_train, n_ws)) {
+      const char* advice = std::is_same<math_t, float>::value
+                             ? " Try using float64 input or reducing the magnitude of the kernel "
+                               "values."
+                             : " Try rescaling the input data or adjusting the kernel parameters.";
+      THROW(
+        "SMO error: solver made no progress while the stopping criterion was not satisfied. "
+        "This can happen when kernel values are too large for the input precision.%s",
+        advice);
     }
 
     if (n_outer_iter % 500 == 0) {

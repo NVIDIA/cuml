@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2022, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,9 +10,9 @@
 namespace ML {
 
 /**
- * @brief Synchronize CUDA stream and push a named nvtx range
+ * @brief Push a named nvtx range
  * @param name range name
- * @param stream stream to synchronize
+ * @param stream unused
  */
 [[deprecated("Use new raft::common::nvtx::push_range from <raft/core/nvtx.hpp>")]] inline void
 PUSH_RANGE(const char* name, cudaStream_t stream)
@@ -21,8 +21,8 @@ PUSH_RANGE(const char* name, cudaStream_t stream)
 }
 
 /**
- * @brief Synchronize CUDA stream and pop the latest nvtx range
- * @param stream stream to synchronize
+ * @brief Pop the latest nvtx range
+ * @param stream unused
  */
 [[deprecated("Use new raft::common::nvtx::pop_range from <raft/core/nvtx.hpp>")]] inline void
 POP_RANGE(cudaStream_t stream)
