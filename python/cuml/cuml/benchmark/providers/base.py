@@ -37,11 +37,18 @@ class Provider:
         role: Literal["X", "y"],
         representation: InputRepresentation,
     ) -> Any:
-        """Adapt one selected input to this provider's estimator requirements.
+        """Convert a selected input for the provider's estimator.
 
-        Inputs are already partitioned on the host. Overrides may change the
-        requested representation or bypass backend conversion, but leave
-        materialization and synchronization to backend.prepare_inputs().
+        Parameters
+        ----------
+        value : Any
+            Host input data for the selected training or measurement partition.
+        estimator : str
+            Estimator name.
+        role : {"X", "y"}
+            Feature or target input.
+        representation : {"array", "csr", "dataframe", "series"}
+            Requested data representation.
         """
         return self.backend.convert_data(value, representation=representation)
 
