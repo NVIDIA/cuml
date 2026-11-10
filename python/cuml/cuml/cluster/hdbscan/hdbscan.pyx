@@ -535,7 +535,11 @@ class HDBSCAN(InteropMixin, ClusterMixin, CMajorInputTagMixin, Base):
         itself. For ``k >= 2``, to match
         ``sklearn.cluster.HDBSCAN(min_samples=k)``, use
         ``cuml.cluster.HDBSCAN(min_samples=k - 1)``. The ``k = 1`` case is not
-        supported by cuML. If 'None', it defaults to the min_cluster_size.
+        supported by cuML. If None, it defaults to ``min_cluster_size``, so
+        changing ``min_cluster_size`` also changes the core distances. Small
+        changes of ``min_samples`` can drop or merge selected clusters whose
+        size is close to ``min_cluster_size``; if particular clusters matter,
+        check a few nearby values.
 
     cluster_selection_epsilon : float, optional (default=0.0)
         A distance threshold. Clusters below this value will be merged.
