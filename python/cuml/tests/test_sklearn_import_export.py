@@ -256,6 +256,30 @@ def test_logistic_regression(random_state):
     assert_estimator_roundtrip(original, SkLogisticRegression, X, y)
 
 
+@_filter_scipy_lbfgsb_deprecation
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"penalty": "l2", "C": 5.0},
+        {"penalty": "l1", "C": 5.0},
+        {"penalty": "elasticnet", "l1_ratio": 0.5, "C": 5.0},
+        {"penalty": None},
+    ],
+    ids=["l2", "l1", "elasticnet", "none"],
+)
+def test_logistic_regression_penalty_roundtrip(random_state, params):
+    """Each of cuml's four `penalty` options survives a roundtrip.
+
+    sklearn >= 1.8 encodes the penalty with `l1_ratio` and `C`/`alpha`, so
+    the export has to translate it and the import has to translate it back.
+    """
+    X, y = make_classification(
+        n_samples=50, n_features=5, n_informative=3, random_state=random_state
+    )
+    original = LogisticRegression(**params, max_iter=500)
+    assert_estimator_roundtrip(original, SkLogisticRegression, X, y)
+
+
 @pytest.mark.skipif(not SKLEARN_110, reason="alpha added in sklearn 1.10")
 def test_logistic_regression_no_penalty_alpha(random_state):
     # The roundtrip test covers `alpha = 1 / C`, this covers `alpha == 0`
@@ -269,7 +293,8 @@ def test_logistic_regression_no_penalty_alpha(random_state):
     model = LogisticRegression.from_sklearn(
         SkLogisticRegression(alpha=0).fit(X, y)
     )
-    assert model.C == np.inf
+    assert model.penalty is None
+    assert model.C == 1.0
 
 
 def test_elasticnet(random_state):
@@ -716,6 +741,53 @@ def test_kneighbors_classifier(random_state, sparse, n_labels, weights):
     # Refit models have similar results
     np.testing.assert_array_equal(sk_model.predict(X), sk_model2.predict(X))
     np.testing.assert_array_equal(cu_model.predict(X), cu_model2.predict(X))
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+@pytest.mark.parametrize("novelty", [False, True])
+def test_local_outlier_factor(random_state, sparse, novelty):
+    X = np.random.default_rng(random_state).standard_normal(
+        (100, 20), dtype="float32"
+    )
+    if sparse:
+        X[X < -0.5] = 0
+        X = scipy.sparse.csr_matrix(X)
+
+    cu_model = cuml.LocalOutlierFactor(
+        n_neighbors=10, contamination=0.1, novelty=novelty
+    ).fit(X)
+    sk_model = sklearn.neighbors.LocalOutlierFactor(
+        n_neighbors=10, contamination=0.1, novelty=novelty
+    ).fit(X)
+
+    sk_model2 = cu_model.as_sklearn()
+    cu_model2 = cuml.LocalOutlierFactor.from_sklearn(sk_model)
+
+    # Ensure params/attrs roundtrip
+    assert_roundtrip_consistency(cu_model, cu_model2)
+
+    def assert_scores_close(m1, m2):
+        assert_allclose(
+            m1.negative_outlier_factor_, m2.negative_outlier_factor_, atol=1e-3
+        )
+        assert_allclose(m1.offset_, m2.offset_, atol=1e-3)
+        if novelty:
+            # Can infer on converted models
+            assert_allclose(
+                m1.score_samples(X), m2.score_samples(X), atol=1e-3
+            )
+            np.testing.assert_array_equal(m1.predict(X), m2.predict(X))
+
+    assert_scores_close(sk_model, sk_model2)
+    assert_scores_close(cu_model, cu_model2)
+
+    # Can refit on converted models
+    cu_model2.fit(X)
+    sk_model2.fit(X)
+
+    # Refit models have similar results
+    assert_scores_close(sk_model, sk_model2)
+    assert_scores_close(cu_model, cu_model2)
 
 
 def test_kneighbors_regressor_callable_weights_unsupported(random_state):

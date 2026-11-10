@@ -1095,9 +1095,8 @@ TEST_F(IsolationForestTest, PredictThreshold)
 /**
  * @brief Test: Export trained Isolation Forest model to Treelite.
  *
- * The exported Treelite model is a regressor whose prediction is the average
- * path length across isolation trees. The anomaly-score transform is applied
- * outside Treelite by higher-level callers.
+ * The exported Treelite model applies the standard Isolation Forest anomaly
+ * score transform.
  */
 TEST_F(IsolationForestTest, TreeliteExportMetadata)
 {
@@ -1127,8 +1126,9 @@ TEST_F(IsolationForestTest, TreeliteExportMetadata)
   std::unique_ptr<tl::Model> tl_model(static_cast<tl::Model*>(tl_handle));
   auto& model_preset = std::get<tl::ModelPreset<float, float>>(tl_model->variant_);
 
-  EXPECT_EQ(tl_model->task_type, tl::TaskType::kRegressor);
-  EXPECT_EQ(tl_model->postprocessor, "identity");
+  EXPECT_EQ(tl_model->task_type, tl::TaskType::kIsolationForest);
+  EXPECT_EQ(tl_model->postprocessor, "exponential_standard_ratio");
+  EXPECT_FLOAT_EQ(tl_model->ratio_c, static_cast<float>(model.c_normalization));
   EXPECT_EQ(tl_model->num_target, 1);
   ASSERT_EQ(tl_model->num_class.Size(), 1);
   EXPECT_EQ(tl_model->num_class[0], 1);
@@ -1140,6 +1140,10 @@ TEST_F(IsolationForestTest, TreeliteExportMetadata)
   ASSERT_EQ(model_preset.trees.size(), static_cast<std::size_t>(n_estimators));
   for (const auto& tree : model_preset.trees) {
     EXPECT_GT(tree.num_nodes, 0);
+    for (int node_id = 0; node_id < tree.num_nodes; ++node_id) {
+      EXPECT_TRUE(tree.HasDataCount(node_id));
+      EXPECT_GT(tree.DataCount(node_id), 0);
+    }
   }
 }
 
@@ -1176,7 +1180,7 @@ TEST_F(IsolationForestTest, TreeliteExportGlobalMemoryStorage)
   std::unique_ptr<tl::Model> tl_model(static_cast<tl::Model*>(tl_handle));
   auto& model_preset = std::get<tl::ModelPreset<float, float>>(tl_model->variant_);
 
-  EXPECT_EQ(tl_model->task_type, tl::TaskType::kRegressor);
+  EXPECT_EQ(tl_model->task_type, tl::TaskType::kIsolationForest);
   EXPECT_EQ(tl_model->num_feature, n_features);
   EXPECT_TRUE(tl_model->average_tree_output);
   ASSERT_EQ(model_preset.trees.size(), static_cast<std::size_t>(n_estimators));
