@@ -216,7 +216,7 @@ Each provider saves its results file after every case, including failures.
 The results JSON Schema is packaged at
 `cuml/benchmark/schemas/benchmark-result.schema.json`.
 
-## Optional quality scoring
+## Quality scoring
 
 Add a registered scorer to a case; omit `scoring` to collect timings only:
 
@@ -242,6 +242,13 @@ only when both workload IDs and scoring descriptors match.
 See `scoring.py` for registered scorers, `metrics.py` for metric implementations,
 and `suites/scoring.yaml` for examples. The built-in `estimators` manifest opts
 supported cases into scoring and leaves the others unscored.
+
+Compare saved scores with
+`python -m cuml.benchmark compare baseline/cuml.json candidate/cuml.json`;
+add `--format json` for machine-readable output. Comparison is read-only and
+reports score summaries and gaps to the best complete mean for compatible
+workloads. Use `-k 'PCA or UMAP'` to filter recorded workloads with the same
+keyword expressions used for benchmark selection.
 
 ## Resume a run
 
