@@ -100,12 +100,16 @@ class Backend:
         *,
         representation: InputRepresentation,
     ) -> Any:
-        """Convert one value to the requested backend-native structure.
+        """Convert a value to the requested backend-native representation.
 
-        Conversion has no knowledge of estimator roles, dataset generators, or
-        workloads. Dtype and row order are preserved. Materialization belongs
-        to prepare_inputs(), not this hook. Providers adapt estimator-specific
-        requirements before delegating here, or bypass conversion entirely.
+        Preserve the input dtype and row order.
+
+        Parameters
+        ----------
+        value : Any
+            Input data to convert.
+        representation : {"array", "csr", "dataframe", "series"}
+            Target data representation.
         """
         if representation == "array":
             return importlib.import_module("numpy").asarray(value)
