@@ -2608,6 +2608,30 @@ def test_distributed_effective_parameters_are_an_object(distributed):
     assert result["parameters"]["effective"] == expected
 
 
+def test_dask_dbscan_uses_local_input(monkeypatch):
+    case = resolve_case(_request(estimator="DBSCAN"), PROFILE)
+    X = np.zeros((64, 8), dtype=np.float32)
+    y = np.zeros(64, dtype=np.int64)
+    spec = get_provider("cuml.dask").estimator_spec(case.estimator)
+    backend = get_backend("cuml.dask")
+    monkeypatch.setattr(harness, "generate_data", lambda case: (X, y))
+    monkeypatch.setattr(
+        backend,
+        "convert_data",
+        lambda *args, **kwargs: pytest.fail(
+            "host inputs must bypass conversion"
+        ),
+    )
+    monkeypatch.setattr(
+        backend, "prepare_inputs", lambda inputs, client: inputs
+    )
+    monkeypatch.setattr(backend, "load_estimator", lambda spec: object)
+    prepared = harness._prepare_case(
+        backend, _suite(case, provider="cuml.dask"), case, spec
+    )
+    assert prepared.operation_args[0] is X
+
+
 @pytest.mark.parametrize("count", [0, 1])
 def test_dask_requires_multiple_gpus(monkeypatch, count):
     def import_module(name):
