@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -161,6 +162,38 @@ def resolve_dataset(
         if parameters["density"] > 1:
             raise ValueError("density must be in (0, 1]")
     return parameters
+
+
+@dataclass(frozen=True)
+class HostPartitions:
+    """Keep host populations separate from estimator argument selection.
+
+    Measured data aliases training data for fitting operations. For inference,
+    it contains the disjoint rows consumed by the timed operation.
+    """
+
+    training: dict[str, Any]
+    measured: dict[str, Any]
+    evaluation: dict[str, Any] | None = None
+
+
+def partition_data(case: ResolvedCase, X: Any, y: Any) -> HostPartitions:
+    """Partition generated host rows by contiguous slicing, without sampling."""
+    training = {"X": X, "y": y}
+    measured = training
+    if case.lifecycle == "inference":
+        split = case.training_rows
+        training = {"X": X[:split], "y": y[:split]}
+        measured = {"X": X[split:], "y": y[split:]}
+    evaluation = None
+    if case.scoring is not None:
+        if case.lifecycle == "fit":
+            split = case.training_rows
+            training = measured = {"X": X[:split], "y": y[:split]}
+            evaluation = {"X": X[split:], "y": y[split:]}
+        else:
+            evaluation = measured
+    return HostPartitions(training, measured, evaluation)
 
 
 def generate_data(case: ResolvedCase) -> tuple[Any, Any]:

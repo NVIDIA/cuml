@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Run with --suite path/to/scoring.yaml; this is an opt-in example suite.
+version: 2
+name: held-out-scoring
+providers: [cuml, scikit-learn, cuml.accel]
+profiles:
+  standard:
+    warmups: 1
+    repetitions: 3
+    size_scale: 1.0
+  smoke:
+    warmups: 1
+    repetitions: 2
+    size_scale: 0.1
+cases:
+  - estimator: LogisticRegression
+    dataset:
+      generator: classification
+      shape: {rows: 4096, features: 16}
+      dtype: float32
+    operation: fit
+    input_selection: [X, y]
+    parameters: {max_iter: 200}
+    scoring: {name: accuracy, evaluation_rows: 1024}
+  - estimator: LinearRegression
+    dataset:
+      generator: regression
+      shape: {rows: 4096, features: 16}
+      dtype: float32
+    operation: fit
+    input_selection: [X, y]
+    parameters: {}
+    scoring: {name: r2, evaluation_rows: 1024}
+  - estimator: KMeans
+    dataset:
+      generator: blobs
+      shape: {rows: 4096, features: 16}
+      dtype: float32
+      parameters: {centers: 5}
+    operation: fit_predict
+    input_selection: [X]
+    parameters: {n_clusters: 5, random_state: 42}
+    scoring: {name: adjusted_rand, evaluation_rows: 1024}

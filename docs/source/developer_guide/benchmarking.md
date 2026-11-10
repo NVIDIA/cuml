@@ -216,6 +216,33 @@ Each provider saves its results file after every case, including failures.
 The results JSON Schema is packaged at
 `cuml/benchmark/schemas/benchmark-result.schema.json`.
 
+## Optional quality scoring
+
+Add a registered scorer to a case; omit `scoring` to collect timings only:
+
+```yaml
+scoring:
+  name: r2
+  evaluation_rows: 1024
+  parameters: {force_finite: false}  # Optional scorer arguments.
+```
+
+Fitting cases require `evaluation_rows` for held-out evaluation, profile-scaled
+with a minimum of 32 rows. Training and evaluation data are generated together,
+so adding or resizing evaluation data can change training inputs and workload IDs.
+For `predict` cases, omit `evaluation_rows`: scoring uses the measured predictions
+and existing held-out population.
+
+Scoring runs after each measurement, outside timing and dispatch verification;
+warmups are not scored. Metrics are saved in each observation's `metrics` list.
+Exceptions or nonfinite scores fail the case while preserving its timing; low
+valid scores do not. Resume requires matching scoring settings. Compare scores
+only when both workload IDs and scoring descriptors match.
+
+See `scoring.py` for registered scorers, `metrics.py` for metric implementations,
+and `suites/scoring.yaml` for examples. The built-in `estimators` manifest opts
+supported cases into scoring and leaves the others unscored.
+
 ## Resume a run
 
 ```bash
