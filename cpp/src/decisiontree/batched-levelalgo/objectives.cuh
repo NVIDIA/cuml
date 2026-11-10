@@ -181,13 +181,14 @@ class ClassificationObjectiveFunction {
                                  int output_begin,
                                  int output_count,
                                  const DatasetT& dataset,
-                                 std::int64_t row) const
+                                 std::int64_t row,
+                                 std::size_t row_position) const
   {
     auto label = dataset.labels[row];
     if constexpr (single_tile) {
-      IncrementHistogram(histogram, 1, 0, label, dataset, row);
+      IncrementHistogram(histogram, 1, 0, label, dataset, row, row_position);
     } else if (label >= output_begin && label - output_begin < output_count) {
-      IncrementHistogram(histogram, 1, 0, label - output_begin, dataset, row);
+      IncrementHistogram(histogram, 1, 0, label - output_begin, dataset, row, row_position);
     }
   }
 
@@ -423,12 +424,16 @@ class RegressionObjectiveFunction {
   }
 
   template <bool single_tile, typename DatasetT>
-  DI void IncrementLeafHistogram(
-    BinT* histogram, int output_begin, int, const DatasetT& dataset, std::int64_t row) const
+  DI void IncrementLeafHistogram(BinT* histogram,
+                                 int output_begin,
+                                 int,
+                                 const DatasetT& dataset,
+                                 std::int64_t row,
+                                 std::size_t row_position) const
   {
     // Every row contributes its label to the leaf's regression statistics.
     auto label = dataset.labels[row + std::int64_t(output_begin) * dataset.n_rows];
-    IncrementHistogram(histogram, 1, 0, label, dataset, row);
+    IncrementHistogram(histogram, 1, 0, label, dataset, row, row_position);
   }
 
   DI Split<DataT> Gain(BinT const* shist,
