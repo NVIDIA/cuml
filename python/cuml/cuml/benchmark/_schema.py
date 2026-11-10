@@ -46,6 +46,14 @@ class DatasetManifest(msgspec.Struct, forbid_unknown_fields=True):
     format: Literal["dense", "csr"] = "dense"
 
 
+class ScoringManifest(msgspec.Struct, forbid_unknown_fields=True):
+    """Select a registered quality scorer and optional held-out fitting size."""
+
+    name: NonEmptyString
+    parameters: dict[str, Any] = msgspec.field(default_factory=dict)
+    evaluation_rows: PositiveCount | None = None
+
+
 class CaseManifest(msgspec.Struct, forbid_unknown_fields=True):
     """Specify an estimator operation and its dataset inputs."""
 
@@ -57,6 +65,7 @@ class CaseManifest(msgspec.Struct, forbid_unknown_fields=True):
     # Omission inherits the suite providers; a list narrows applicability.
     providers: Providers | None = None
     tags: list[str] = msgspec.field(default_factory=list)
+    scoring: ScoringManifest | None = None
     # Required for inference, forbidden for fitting (validated by the loader).
     fit_input_selection: InputSelection | None = None
     # Omission inherits the profile timeout; explicit null disables it.
