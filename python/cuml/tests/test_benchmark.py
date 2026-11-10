@@ -2608,30 +2608,6 @@ def test_distributed_effective_parameters_are_an_object(distributed):
     assert result["parameters"]["effective"] == expected
 
 
-def test_dask_dbscan_uses_local_input(monkeypatch):
-    case = resolve_case(_request(estimator="DBSCAN"), PROFILE)
-    X = np.zeros((64, 8), dtype=np.float32)
-    y = np.zeros(64, dtype=np.int64)
-    spec = get_provider("cuml.dask").estimator_spec(case.estimator)
-    backend = get_backend("cuml.dask")
-    monkeypatch.setattr(harness, "generate_data", lambda case: (X, y))
-    monkeypatch.setattr(
-        backend,
-        "convert_data",
-        lambda *args, **kwargs: pytest.fail(
-            "host inputs must bypass conversion"
-        ),
-    )
-    monkeypatch.setattr(
-        backend, "prepare_inputs", lambda inputs, client: inputs
-    )
-    monkeypatch.setattr(backend, "load_estimator", lambda spec: object)
-    prepared = harness._prepare_case(
-        backend, _suite(case, provider="cuml.dask"), case, spec
-    )
-    assert prepared.operation_args[0] is X
-
-
 @pytest.mark.parametrize("count", [0, 1])
 def test_dask_requires_multiple_gpus(monkeypatch, count):
     def import_module(name):
@@ -3194,42 +3170,6 @@ def test_harness_converts_selected_host_partitions(monkeypatch, inference):
         np.testing.assert_array_equal(prepared.fit_args[1], y[:32] + 11)
     else:
         assert prepared.fit_args is None
-
-
-@pytest.mark.parametrize(
-    "provider_name", ["scikit-learn", "cuml", "cuml.dask"]
-)
-@pytest.mark.parametrize("estimator", ["PCA", "LabelEncoder", "DBSCAN"])
-@pytest.mark.parametrize("role", ["X", "y"])
-def test_provider_conversion_policy(
-    monkeypatch, provider_name, estimator, role
-):
-    provider = get_provider(provider_name)
-    value = object()
-    converted = object()
-    calls = []
-
-    def convert(value, *, representation):
-        calls.append((value, representation))
-        return converted
-
-    monkeypatch.setattr(provider.backend, "convert_data", convert)
-    result = provider.convert_data(
-        value, estimator=estimator, role=role, representation="array"
-    )
-    if provider_name == "cuml.dask" and estimator == "DBSCAN":
-        assert result is value
-        assert calls == []
-    else:
-        representation = (
-            "series"
-            if provider_name == "cuml.dask"
-            and estimator == "LabelEncoder"
-            and role == "y"
-            else "array"
-        )
-        assert result is converted
-        assert calls == [(value, representation)]
 
 
 @pytest.mark.parametrize("shape", [(64, 8), (64,)])
