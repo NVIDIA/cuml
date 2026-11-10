@@ -3216,6 +3216,10 @@ def test_structural_conversion_contract(provider, representation):
         with pytest.raises(ValueError, match="CSR"):
             backend.convert_data(value, representation=representation)
         return
+    if provider == "cuml.dask":
+        pytest.importorskip(
+            "dask.array" if representation == "array" else "dask_cudf"
+        )
     converted = backend.convert_data(value, representation=representation)
     if hasattr(converted, "compute"):
         converted = converted.compute()
