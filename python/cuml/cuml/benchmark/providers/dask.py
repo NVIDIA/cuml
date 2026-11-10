@@ -8,7 +8,9 @@ from .base import EstimatorSpec, Provider
 
 CATALOG = {
     "KMeans": EstimatorSpec("cuml.dask.cluster", "KMeans", "cuml"),
-    "DBSCAN": EstimatorSpec("cuml.dask.cluster", "DBSCAN", "cuml"),
+    "DBSCAN": EstimatorSpec(
+        "cuml.dask.cluster", "DBSCAN", "cuml", input_placement="host"
+    ),
     "PCA": EstimatorSpec("cuml.dask.decomposition", "PCA", "cuml"),
     "TruncatedSVD": EstimatorSpec(
         "cuml.dask.decomposition", "TruncatedSVD", "cuml"
@@ -49,7 +51,10 @@ CATALOG = {
         "cuml.dask.preprocessing", "OrdinalEncoder", "cuml"
     ),
     "LabelEncoder": EstimatorSpec(
-        "cuml.dask.preprocessing", "LabelEncoder", "cuml"
+        "cuml.dask.preprocessing",
+        "LabelEncoder",
+        "cuml",
+        target_representation="series",
     ),
     "LabelBinarizer": EstimatorSpec(
         "cuml.dask.preprocessing", "LabelBinarizer", "cuml"

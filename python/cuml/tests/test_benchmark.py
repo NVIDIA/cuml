@@ -952,7 +952,7 @@ def test_estimator_lifecycle_and_inputs(
     case = resolve_case(request, {**PROFILE, "warmups": warmups})
     X = np.arange(case.generated_rows * 8).reshape(-1, 8)
     y = np.arange(case.generated_rows)
-    monkeypatch.setattr(harness, "_generate_data", lambda *args: (X, y))
+    monkeypatch.setattr(harness, "generate_data", lambda *args: (X, y))
     instances, calls = [], []
 
     class Estimator:
@@ -1031,7 +1031,7 @@ def test_only_synchronized_operation_is_timed(monkeypatch, operation):
         def score(self, *args):
             pytest.fail("must not score during benchmarking")
 
-    def generate(case, provider):
+    def generate(case):
         events.append("generate")
         return np.ones((case.generated_rows, case.features)), np.zeros(
             case.generated_rows
@@ -1039,7 +1039,7 @@ def test_only_synchronized_operation_is_timed(monkeypatch, operation):
 
     backend = get_backend("cpu")
     monkeypatch.setattr(backend, "load_estimator", lambda spec: Estimator)
-    monkeypatch.setattr(harness, "_generate_data", generate)
+    monkeypatch.setattr(harness, "generate_data", generate)
     monkeypatch.setattr(
         backend,
         "synchronize",
@@ -1101,12 +1101,13 @@ def test_gpu_synchronization_failure_fails_observation(
     monkeypatch.setattr(backend, "load_estimator", lambda spec: Estimator)
     monkeypatch.setattr(
         harness,
-        "_generate_data",
-        lambda case, backend: (np.ones((64, 8)), None),
+        "generate_data",
+        lambda case: (np.ones((64, 8)), None),
     )
     monkeypatch.setattr(
         backend, "prepare_inputs", lambda inputs, runtime: inputs
     )
+    monkeypatch.setattr(backend, "convert_data", lambda value, **kwargs: value)
     monkeypatch.setattr(
         backend,
         "instrumentation",
@@ -2250,7 +2251,15 @@ def test_native_device_preparation_and_output_contract(kind):
         request["dataset"]["format"] = "csr"
     case = resolve_case(request, PROFILE)
     X_host, y_host = generate_data(case)
-    X, y = backend.convert_data(case, X_host, y_host)
+    X = backend.convert_data(
+        X_host,
+        representation="csr"
+        if kind == "csr"
+        else "dataframe"
+        if kind == "categorical"
+        else "array",
+    )
+    y = backend.convert_data(y_host, representation="array")
     assert isinstance(y, cp.ndarray)
     if kind == "categorical":
         assert isinstance(X, cudf.DataFrame)
@@ -2308,12 +2317,11 @@ def test_native_preparation_precedes_initial_fit_and_timing(monkeypatch):
             events.append("predict")
             return X
 
-    def partition(case, selected_backend):
-        assert selected_backend is backend
+    def convert(value, *, representation):
         events.append("convert")
-        return X_device, y_device, X_device, y_device
+        return X_device if value.ndim == 2 else y_device
 
-    monkeypatch.setattr(harness, "_partition_data", partition)
+    monkeypatch.setattr(backend, "convert_data", convert)
     monkeypatch.setattr(backend, "load_estimator", lambda spec: Estimator)
     monkeypatch.setattr(
         backend, "synchronize", lambda value=None: events.append("sync")
@@ -2327,7 +2335,15 @@ def test_native_preparation_precedes_initial_fit_and_timing(monkeypatch):
     assert result["outcome"] == {"status": "success"}
     assert (
         events
-        == ["convert", "sync", "construct", "fit", "sync"]
+        == [
+            "convert",
+            "convert",
+            "convert",
+            "sync",
+            "construct",
+            "fit",
+            "sync",
+        ]
         + ["sync", "clock", "predict", "sync", "clock"] * 3
     )
 
@@ -2387,8 +2403,9 @@ def test_dask_inputs_are_persisted_before_execution(monkeypatch, inference):
     monkeypatch.setattr(backend, "load_estimator", lambda spec: Estimator)
     monkeypatch.setattr(backend, "synchronize", lambda value=None: None)
     monkeypatch.setattr(
-        harness, "_generate_data", lambda *args: (Input("X"), Input("y"))
+        harness, "generate_data", lambda *args: (Input("X"), Input("y"))
     )
+    monkeypatch.setattr(backend, "convert_data", lambda value, **kwargs: value)
     request = _request()
     if inference:
         request.update(operation="predict", fit_input_selection=["X", "y"])
@@ -2544,11 +2561,13 @@ def test_dask_synchronization_propagates_failure(
 def test_dask_input_conversion(estimator):
     cp = pytest.importorskip("cupy")
     pytest.importorskip("dask_cudf")
-    case = resolve_case(_request(estimator=estimator), PROFILE)
     X = np.arange(512, dtype=np.float32).reshape(64, 8)
     y = np.arange(64, dtype=np.int64) % 3
-    converted_X, converted_y = get_backend("cuml.dask").convert_data(
-        case, X, y
+    backend = get_backend("cuml.dask")
+    spec = get_provider("cuml.dask").estimator_spec(estimator)
+    converted_X = backend.convert_data(X, representation="array")
+    converted_y = backend.convert_data(
+        y, representation=spec.target_representation
     )
     assert isinstance(converted_X._meta, cp.ndarray)
     cp.testing.assert_array_equal(converted_X.compute(), cp.asarray(X))
@@ -2588,15 +2607,29 @@ def test_distributed_effective_parameters_are_an_object(distributed):
     assert result["parameters"]["effective"] == expected
 
 
-def test_dask_dbscan_uses_local_input():
+def test_dask_dbscan_uses_local_input(monkeypatch):
     case = resolve_case(_request(estimator="DBSCAN"), PROFILE)
     X = np.zeros((64, 8), dtype=np.float32)
     y = np.zeros(64, dtype=np.int64)
-    converted_X, converted_y = get_backend("cuml.dask").convert_data(
-        case, X, y
+    spec = get_provider("cuml.dask").estimator_spec(case.estimator)
+    assert spec.input_placement == "host"
+    backend = get_backend("cuml.dask")
+    monkeypatch.setattr(harness, "generate_data", lambda case: (X, y))
+    monkeypatch.setattr(
+        backend,
+        "convert_data",
+        lambda *args, **kwargs: pytest.fail(
+            "host inputs must bypass conversion"
+        ),
     )
-    assert converted_X is X
-    assert converted_y is y
+    monkeypatch.setattr(
+        backend, "prepare_inputs", lambda inputs, client: inputs
+    )
+    monkeypatch.setattr(backend, "load_estimator", lambda spec: object)
+    prepared = harness._prepare_case(
+        backend, _suite(case, provider="cuml.dask"), case, spec
+    )
+    assert prepared.operation_args[0] is X
 
 
 @pytest.mark.parametrize("count", [0, 1])
@@ -3097,3 +3130,65 @@ def test_run_worker_diagnostic_failures_continue(
         assert all(
             process.status() == psutil.STATUS_ZOMBIE for process in alive
         )
+
+
+@pytest.mark.parametrize(
+    "groups", [(), ((),), ((1, 2), (), (3,)), ((), (1,), ())]
+)
+def test_prepare_input_groups_preserves_structure(groups):
+    calls = []
+    runtime = object()
+
+    class Backend:
+        def prepare_inputs(self, inputs, client):
+            assert client is runtime
+            calls.append(inputs)
+            return tuple(value * 10 for value in inputs)
+
+    prepared = harness._prepare_input_groups(
+        Backend(), *groups, runtime=runtime
+    )
+    assert calls == [tuple(value for group in groups for value in group)]
+    assert prepared == tuple(
+        tuple(value * 10 for value in group) for group in groups
+    )
+
+
+@pytest.mark.parametrize("shape", [(64, 8), (64,)])
+def test_native_conversion_preserves_shape_and_values(shape):
+    host = np.ones(shape)
+    device = get_backend("cuml").convert_data(host, representation="array")
+    np.testing.assert_array_equal(host, device.get())
+
+
+@pytest.mark.parametrize("provider", ["scikit-learn", "cuml", "cuml.dask"])
+@pytest.mark.parametrize(
+    "representation", ["array", "csr", "dataframe", "series"]
+)
+def test_structural_conversion_contract(provider, representation):
+    backend = get_provider(provider).backend
+    value = np.arange(12, dtype=np.float32)
+    if representation in {"csr", "dataframe"}:
+        value = value.reshape(4, 3)
+    if provider == "cuml.dask" and representation == "csr":
+        with pytest.raises(ValueError, match="CSR"):
+            backend.convert_data(value, representation=representation)
+        return
+    converted = backend.convert_data(value, representation=representation)
+    if hasattr(converted, "compute"):
+        converted = converted.compute()
+    if hasattr(converted, "to_numpy"):
+        converted = converted.to_numpy()
+    elif hasattr(converted, "get"):
+        converted = converted.get()
+    if sparse.issparse(converted):
+        converted = converted.toarray()
+    np.testing.assert_array_equal(converted, value)
+    assert converted.dtype == value.dtype
+
+
+@pytest.mark.parametrize("provider", ["scikit-learn", "cuml", "cuml.dask"])
+def test_conversion_rejects_unknown_requirements(provider):
+    backend = get_provider(provider).backend
+    with pytest.raises(ValueError, match="representation"):
+        backend.convert_data(np.zeros(4), representation="unknown")

@@ -86,33 +86,6 @@ def _run_record(suite: Suite, argv: list[str]) -> dict[str, Any]:
     }
 
 
-def _generate_data(case: ResolvedCase, backend: Backend) -> tuple[Any, Any]:
-    """Generate case inputs and convert them for the backend."""
-    X, y = generate_data(case)
-    return backend.convert_data(case, X, y)
-
-
-def _partition_data(
-    case: ResolvedCase, backend: Backend
-) -> tuple[Any, Any, Any, Any]:
-    """Partition generated inputs into training and measurement data."""
-    # TODO: Split host inputs before backend conversion, or provide a backend
-    # row-slicing hook. Dask-cuDF does not support these positional slices,
-    # so categorical inference fails even when only y is selected.
-    X, y = _generate_data(case, backend)
-    if case.lifecycle == "fit":
-        return None, None, X, y
-    split = case.training_rows
-    return X[:split], y[:split], X[split:], y[split:]
-
-
-def _inputs(
-    selection: tuple[str, ...], inputs: dict[str, Any]
-) -> tuple[Any, ...]:
-    """Select ordered estimator arguments from named inputs."""
-    return tuple(inputs[name] for name in selection)
-
-
 def _base_result(
     suite: Suite,
     case: ResolvedCase,
@@ -153,6 +126,20 @@ class _PreparedCase:
     fit_args: tuple[Any, ...] | None
 
 
+def _prepare_input_groups(
+    backend: Backend,
+    *groups: tuple[Any, ...],
+    runtime: Any = None,
+) -> tuple[tuple[Any, ...], ...]:
+    """Prepare inputs in one backend call, preserving their logical groups."""
+    prepared = iter(
+        backend.prepare_inputs(
+            tuple(value for group in groups for value in group), runtime
+        )
+    )
+    return tuple(tuple(next(prepared) for _ in group) for group in groups)
+
+
 def _prepare_case(
     backend: Backend,
     suite: Suite,
@@ -160,23 +147,53 @@ def _prepare_case(
     spec: EstimatorSpec,
     client: Any = None,
 ) -> _PreparedCase:
-    """Load the estimator class and prepare partitioned case inputs."""
+    """Partition host data, then convert and materialize only required inputs."""
     estimator_class = backend.load_estimator(spec)
-    X_train, y_train, X, y = _partition_data(case, backend)
-    operation_args = _inputs(case.input_selection, {"X": X, "y": y})
+    X, y = generate_data(case)
+    is_fit = case.lifecycle == "fit"
+    if not is_fit:
+        split = case.training_rows
+        train = {"X": X[:split], "y": y[:split]}
+        measured = {"X": X[split:], "y": y[split:]}
+    else:
+        train = measured = {"X": X, "y": y}
+
+    representations = {
+        "X": "csr"
+        if case.input_format == "csr"
+        else "dataframe"
+        if case.dataset == "categorical"
+        else "array",
+        "y": spec.target_representation,
+    }
+    operation_data = train if is_fit else measured
+    operation_args = tuple(
+        operation_data[name]
+        if spec.input_placement == "host"
+        else backend.convert_data(
+            operation_data[name], representation=representations[name]
+        )
+        for name in case.input_selection
+    )
     fit_args = (
         ()
-        if case.lifecycle == "fit"
-        else _inputs(case.fit_input_selection, {"X": X_train, "y": y_train})
+        if is_fit
+        else tuple(
+            train[name]
+            if spec.input_placement == "host"
+            else backend.convert_data(
+                train[name], representation=representations[name]
+            )
+            for name in case.fit_input_selection
+        )
     )
-    # Keep materialized inputs alive in the prepared case across every warmup
-    # and measurement, rather than rerunning a lazy conversion graph.
-    prepared_inputs = backend.prepare_inputs(operation_args + fit_args, client)
-    split = len(operation_args)
+    operation_args, fit_args = _prepare_input_groups(
+        backend, operation_args, fit_args, runtime=client
+    )
     return _PreparedCase(
         estimator_class=estimator_class,
-        operation_args=prepared_inputs[:split],
-        fit_args=None if case.lifecycle == "fit" else prepared_inputs[split:],
+        operation_args=operation_args,
+        fit_args=None if is_fit else fit_args,
     )
 
 
