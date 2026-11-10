@@ -23,8 +23,8 @@ The build fails if a package is missing, listed more than once in
 pyproject.toml or the recipe, or if its pip and conda constraints differ
 (unless the entry sets ``allow_version_mismatch=True``).
 
-The same check runs as a pre-commit hook, so mismatches are reported without
-building the docs::
+The same check, including rendering the page, runs as a pre-commit hook, so
+errors are reported without building the docs::
 
     python docs/source/sphinxext/dependency_versions.py
 """
@@ -36,11 +36,13 @@ import sys
 import tomllib
 from dataclasses import dataclass
 
+import jinja2
 import yaml
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 
 TEMPLATED_DOCNAME = "supported_versions"
+TEMPLATE = os.path.join("docs", "source", f"{TEMPLATED_DOCNAME}.rst")
 
 PYPROJECT = os.path.join("python", "cuml", "pyproject.toml")
 RECIPE = os.path.join("conda", "recipes", "cuml", "recipe.yaml")
@@ -269,6 +271,14 @@ def render_versions(root):
     }
 
 
+def render_page(root, text):
+    """Render ``supported_versions.rst``; undefined variables raise."""
+    template = jinja2.Environment(
+        undefined=jinja2.StrictUndefined, keep_trailing_newline=True
+    ).from_string(text)
+    return template.render(deps=render_versions(root))
+
+
 def _repo_root(app):
     return os.path.abspath(os.path.join(app.confdir, "..", ".."))
 
@@ -276,18 +286,13 @@ def _repo_root(app):
 def _render_template(app, docname, source):
     if docname != TEMPLATED_DOCNAME:
         return
-    import jinja2
-
     root = _repo_root(app)
     # Rebuild the page on incremental builds when the inputs change
     for path in [PYPROJECT, RECIPE, RECIPE_CONFIG]:
         app.env.note_dependency(os.path.join(root, path))
     for path in glob.glob(os.path.join(root, CONDA_ENVIRONMENTS)):
         app.env.note_dependency(path)
-    template = jinja2.Environment(
-        undefined=jinja2.StrictUndefined, keep_trailing_newline=True
-    ).from_string(source[0])
-    source[0] = template.render(deps=render_versions(root))
+    source[0] = render_page(root, source[0])
 
 
 def setup(app):
@@ -296,17 +301,18 @@ def setup(app):
 
 
 def main():
-    """Check every package in ``PACKAGES``, for the pre-commit hook."""
+    """Render ``supported_versions.rst`` as the docs build does, for the
+    pre-commit hook."""
     root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), *[".."] * 3)
     )
     try:
-        render_versions(root)
-    except ValueError as e:
-        print(f"supported_versions.rst: {e}", file=sys.stderr)
-        return 1
-    return 0
+        with open(os.path.join(root, TEMPLATE)) as f:
+            render_page(root, f.read())
+    except (ValueError, jinja2.UndefinedError) as e:
+        # Prints the message to stderr and exits with status 1
+        sys.exit(f"supported_versions.rst: {e}")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

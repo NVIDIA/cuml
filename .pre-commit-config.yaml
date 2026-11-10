@@ -119,9 +119,10 @@ repos:
             python/cuml/pyproject[.]toml|
             conda/recipes/cuml/(recipe|conda_build_config)[.]yaml|
             conda/environments/all_cuda-.*[.]yaml|
-            docs/source/sphinxext/dependency_versions[.]py
+            docs/source/sphinxext/dependency_versions[.]py|
+            docs/source/supported_versions[.]rst
           )$
-        additional_dependencies: ['pyyaml>=6.0', 'packaging>=21.0']
+        additional_dependencies: ['jinja2>=3.0', 'pyyaml>=6.0', 'packaging>=21.0']
   - repo: https://github.com/rapidsai/pre-commit-hooks
     rev: v1.7.0
     hooks:
