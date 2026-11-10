@@ -108,6 +108,20 @@ repos:
         files: '.*xfail.*\.yaml$'
         args: ['format', '--cleanup']
         additional_dependencies: ['pyyaml>=6.0', 'packaging>=21.0']
+      - id: supported-versions
+        name: supported-versions
+        description: 'Check that docs/source/supported_versions.rst can be rendered: pip and conda constraints of documented packages must match'
+        entry: python docs/source/sphinxext/dependency_versions.py
+        language: python
+        pass_filenames: false
+        files: |
+          (?x)^(
+            python/cuml/pyproject[.]toml|
+            conda/recipes/cuml/(recipe|conda_build_config)[.]yaml|
+            conda/environments/all_cuda-.*[.]yaml|
+            docs/source/sphinxext/dependency_versions[.]py
+          )$
+        additional_dependencies: ['pyyaml>=6.0', 'packaging>=21.0']
   - repo: https://github.com/rapidsai/pre-commit-hooks
     rev: v1.7.0
     hooks:

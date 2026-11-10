@@ -60,6 +60,8 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_llm.txt",
+    # local extension in sphinxext/, renders supported_versions.rst
+    "dependency_versions",
 ]
 
 # configuration for 'sphinx-llm'
