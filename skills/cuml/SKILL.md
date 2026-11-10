@@ -19,7 +19,7 @@ recalling them.
 
 - Install from pypi.org: `pip install cuml-cu13` (CUDA 13 driver, >= 580) or `cuml-cu12`.
   No extra index URL is needed. `pip install cuml` installs an unrelated placeholder.
-- Check the [RAPIDS installation guide](https://docs.rapids.ai/install/) for supported
+- Check the [installation guide](https://docs.nvidia.com/datascience/install/) for supported
   GPUs, operating systems, Python versions, CUDA/driver requirements, and install commands.
   Linux only; on Windows use WSL2.
 - Google Colab GPU runtimes ship cuML preinstalled: check `pip list` before installing anything there.

@@ -54,11 +54,6 @@ umap_numba_regression = pytest.mark.xfail(
 @pytest.mark.parametrize("n_features", [8, 32])
 @pytest.mark.parametrize("n_neighbors", [8, 16])
 @pytest.mark.parametrize("precomputed_nearest_neighbors", [False, True])
-@pytest.mark.xfail(
-    reason="Fuzzy simplicial set graph mismatch (see #8796)",
-    raises=AssertionError,
-    strict=False,
-)
 def test_fuzzy_simplicial_set(
     n_rows, n_features, n_neighbors, precomputed_nearest_neighbors
 ):
@@ -102,6 +97,15 @@ def test_fuzzy_simplicial_set(
 
         knn_indices = knn_indices.get()
         knn_dists = knn_dists.get()
+        # umap-learn assumes exact self-distances and a self entry in column 0.
+        # Normalize its inputs without changing the arrays passed to cuML.
+        self_neighbors = knn_indices == np.arange(n_rows)[:, None]
+        knn_dists[self_neighbors] = 0.0
+        order = np.argsort(
+            np.where(self_neighbors, -1.0, knn_dists), axis=1, kind="stable"
+        )
+        knn_indices = np.take_along_axis(knn_indices, order, axis=1)
+        knn_dists = np.take_along_axis(knn_dists, order, axis=1)
         ref_fss_graph = ref_fuzzy_simplicial_set(
             X.get(),
             n_neighbors=n_neighbors,
@@ -130,6 +134,55 @@ def test_fuzzy_simplicial_set(
     assert correctness_sparse(
         ref_fss_graph, cu_fss_graph, atol=0.1, rtol=0.2, threshold=0.95
     )
+
+
+@pytest.mark.parametrize("self_distance", [1e-5, 0.02])
+@pytest.mark.parametrize("local_connectivity", [0.0, 0.5, 1.0, 1.5, 8.5])
+def test_fuzzy_simplicial_set_nonzero_self_distances(
+    self_distance, local_connectivity
+):
+    n_rows = n_neighbors = 8
+    X = cp.zeros((n_rows, 1), dtype=cp.float32)
+    indices = (
+        cp.arange(n_rows)[:, None] + cp.arange(n_neighbors)[None, :]
+    ) % n_rows
+    distances = cp.tile(
+        cp.array(
+            [0.0, 1e-4, 1e-3, 0.01, 0.03, 0.05, 0.08, 0.1],
+            dtype=cp.float32,
+        ),
+        (n_rows, 1),
+    )
+    # Include an all-zero neighborhood alongside small positive distances.
+    distances[0] = 0.0
+    expected = cu_fuzzy_simplicial_set(
+        X,
+        n_neighbors,
+        knn_indices=indices,
+        knn_dists=distances,
+        local_connectivity=local_connectivity,
+    )
+
+    rounded_distances = distances.copy()
+    rounded_distances[:, 0] = self_distance
+    order = cp.argsort(rounded_distances, axis=1)
+    rounded_indices = cp.take_along_axis(indices, order, axis=1)
+    rounded_distances = cp.take_along_axis(rounded_distances, order, axis=1)
+    indices_before = rounded_indices.copy()
+    distances_before = rounded_distances.copy()
+    actual = cu_fuzzy_simplicial_set(
+        X,
+        n_neighbors,
+        knn_indices=rounded_indices,
+        knn_dists=rounded_distances,
+        local_connectivity=local_connectivity,
+    )
+
+    cp.testing.assert_allclose(
+        actual.toarray(), expected.toarray(), rtol=1e-5, atol=1e-6
+    )
+    cp.testing.assert_array_equal(rounded_indices, indices_before)
+    cp.testing.assert_array_equal(rounded_distances, distances_before)
 
 
 @pytest.mark.parametrize("n_rows", [800, 5000])

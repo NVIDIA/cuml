@@ -579,7 +579,7 @@ def test_rf_classification(small_clf, datatype, max_samples, max_features):
         random_state=123,
         n_streams=1,
         n_estimators=40,
-        max_leaves=-1,
+        max_leaf_nodes=None,
     )
     cuml_model.fit(X_train, y_train)
 
@@ -627,7 +627,7 @@ def test_rf_classification_unorder(
         random_state=123,
         n_streams=1,
         n_estimators=40,
-        max_leaves=-1,
+        max_leaf_nodes=None,
     )
     cuml_model.fit(X_train, y_train)
 
@@ -689,7 +689,7 @@ def test_rf_regression(
         random_state=123,
         n_streams=1,
         n_estimators=50,
-        max_leaves=-1,
+        max_leaf_nodes=None,
     )
     cuml_model.fit(X_train, y_train)
     preds = cuml_model.predict(X_test)
@@ -838,7 +838,7 @@ def rf_classification(
         min_samples_leaf=2,
         random_state=999,
         n_estimators=40,
-        max_leaves=-1,
+        max_leaf_nodes=None,
         n_streams=1,
     )
     if array_type == "dataframe":
@@ -928,7 +928,7 @@ def test_rf_classification_sparse(small_clf, datatype, nvforest_layout):
         random_state=123,
         n_streams=1,
         n_estimators=num_trees,
-        max_leaves=-1,
+        max_leaf_nodes=None,
         max_depth=40,
     )
     cuml_model.fit(X_train, y_train)
@@ -989,7 +989,7 @@ def test_rf_regression_sparse(special_reg, datatype, nvforest_layout):
         random_state=123,
         n_streams=1,
         n_estimators=num_trees,
-        max_leaves=-1,
+        max_leaf_nodes=None,
         max_depth=40,
     )
     cuml_model.fit(X_train, y_train)
@@ -1162,6 +1162,37 @@ def test_rf_nbins_small(small_clf):
             "Changing `n_bins` to number of training samples."
         )
         assert any(expected_message in str(warning.message) for warning in w)
+
+
+def test_rf_greedy_growth_max_leaf_nodes():
+    X = np.arange(12, dtype=np.float32).reshape(-1, 1)
+    y = np.array([0, 4] + [100] * 5 + [102] * 5, dtype=np.float32)
+    params = {
+        "n_estimators": 1,
+        "bootstrap": False,
+        "max_features": 1.0,
+        "n_bins": 12,
+        "n_streams": 1,
+        "random_state": 0,
+    }
+    model = curfr(max_leaf_nodes=3, **params).fit(X, y)
+    tree = json.loads(model.as_treelite().dump_as_json())["trees"][0]
+    assert sum("leaf_value" in node for node in tree["nodes"]) == 3
+
+    # After separating the first two rows, greedy growth splits the right child, which
+    # has the larger weighted impurity decrease. The left child remains a leaf
+    # predicting the mean of 0 and 4.
+    expected = np.array([2, 2] + [100] * 5 + [102] * 5, dtype=np.float32)
+    np.testing.assert_allclose(model.predict(X), expected)
+
+    with pytest.warns(
+        FutureWarning, match="max_leaves.*deprecated.*max_leaf_nodes"
+    ):
+        legacy = curfr(max_leaves=3, **params).fit(X, y)
+    assert (
+        legacy.as_treelite().dump_as_json()
+        == model.as_treelite().dump_as_json()
+    )
 
 
 def test_rf_regression_with_identical_labels():
