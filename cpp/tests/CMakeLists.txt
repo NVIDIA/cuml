@@ -218,7 +218,8 @@ if(BUILD_CUML_MG_TESTS)
       PREFIX MG NAME PCA_TEST mg/pca.cu mg/main.cu MPI RAFT_DISTRIBUTED ML_INCLUDE NO_GTEST_MAIN
     )
     ConfigureTest(
-      PREFIX MG NAME RF_QUANTILE_TEST mg/rf_quantile_test.cu MPI RAFT_DISTRIBUTED ML_INCLUDE
+      PREFIX MG NAME RF_QUANTILE_TEST mg/rf_quantile_test.cu mg/main.cu MPI RAFT_DISTRIBUTED
+                                      ML_INCLUDE NO_GTEST_MAIN
     )
     ConfigureTest(
       PREFIX MG NAME RF_ROW_SAMPLER_TEST mg/rf_row_sampler.cu MPI RAFT_DISTRIBUTED ML_INCLUDE
