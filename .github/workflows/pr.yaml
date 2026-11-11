@@ -41,12 +41,12 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/pr-builder.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/pr-builder.yaml@main
     if: always()
     with:
       needs: ${{ toJSON(needs) }}
   build-details:
-    uses: rapidsai/shared-workflows/.github/workflows/compute-build-details.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/compute-build-details.yaml@main
   check-nightly-ci:
     runs-on: ubuntu-latest
     permissions:
@@ -74,7 +74,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/changed-files.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/changed-files.yaml@main
     with:
       files_yaml: |
         build_docs:
@@ -280,7 +280,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/checks.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/checks.yaml@main
     with:
       enable_check_generated_files: false
       # Main builds seed this cache. PR merge refs can restore it but should not create
@@ -295,7 +295,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@main
     with:
       build_type: pull-request
       node_type: "cpu8"
@@ -311,7 +311,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-cpp-build.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-cpp-build.yaml@main
     with:
       build_type: pull-request
       build-datetime: ${{ needs.build-details.outputs.build-datetime }}
@@ -327,7 +327,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-cpp-tests.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-cpp-tests.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_cpp
     with:
       build_type: pull-request
@@ -342,7 +342,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-cpp-post-build-checks.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-cpp-post-build-checks.yaml@main
     with:
       build_type: pull-request
       package_name: libcuml
@@ -355,7 +355,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-build.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-build.yaml@main
     with:
       build_type: pull-request
       build-datetime: ${{ needs.build-details.outputs.build-datetime }}
@@ -372,7 +372,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_conda
     with:
       build_type: pull-request
@@ -387,7 +387,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_conda
     with:
       # Select the amd64 entry with the highest CUDA and Python version
@@ -404,7 +404,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_conda
     with:
       build_type: pull-request
@@ -419,7 +419,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_conda
     with:
       build_type: pull-request
@@ -447,7 +447,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_conda
     with:
       build_type: pull-request
@@ -464,7 +464,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_notebooks
     with:
       build_type: pull-request
@@ -475,7 +475,7 @@ jobs:
   docs-build-matrix:
     permissions:
       contents: read
-    uses: rapidsai/shared-workflows/.github/workflows/compute-matrix.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/compute-matrix.yaml@main
     with:
       build_type: pull-request
       matrix_name: docs-build
@@ -489,7 +489,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@main
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.docs-build-matrix.outputs.matrix) }}
@@ -516,7 +516,7 @@ jobs:
       target-aws-secret-access-key: ${{ secrets.NVIDIA_DOCS_AWS_SECRET_ACCESS_KEY }}
       target-archive-s3-bucket: ${{ secrets.NVIDIA_DOCS_ARCHIVE_S3_BUCKET }}
       target-s3-bucket: ${{ secrets.NVIDIA_DOCS_S3_BUCKET }}
-    uses: rapidsai/shared-workflows/.github/workflows/publish-api-docs.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/publish-api-docs.yaml@main
     with:
       docs-projects: cuml
       dry-run: true
@@ -529,7 +529,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@main
     with:
       build_type: pull-request
       build-datetime: ${{ needs.build-details.outputs.build-datetime }}
@@ -552,7 +552,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@main
     with:
       build_type: pull-request
       build-datetime: ${{ needs.build-details.outputs.build-datetime }}
@@ -572,7 +572,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_wheels
     with:
       build_type: pull-request
@@ -587,7 +587,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@main
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_wheels
     with:
       build_type: pull-request
@@ -601,7 +601,7 @@ jobs:
       packages: read
       pull-requests: read
     secrets: inherit # zizmor: ignore[secrets-inherit]
-    uses: rapidsai/shared-workflows/.github/workflows/build-in-devcontainer.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/build-in-devcontainer.yaml@main
     with:
       arch: '["amd64", "arm64"]'
       cuda: '["13.4"]'

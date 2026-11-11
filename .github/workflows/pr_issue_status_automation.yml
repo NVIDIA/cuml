@@ -13,7 +13,7 @@ permissions: {}
 
 jobs:
   get-project-id:
-    uses: rapidsai/shared-workflows/.github/workflows/project-get-item-id.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/project-get-item-id.yaml@main
     if: github.event.pull_request.state == 'open'
     permissions:
       actions: read
@@ -28,7 +28,7 @@ jobs:
 
   update-status:
     # Set the PR's Status to In Progress on opening, edits, and pushes.
-    uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@release/26.12
+    uses: rapidsai/shared-workflows/.github/workflows/project-get-set-single-select-field.yaml@main
     if: ${{ github.event.pull_request.state == 'open' && (github.event.action == 'opened' || github.event.action == 'edited' || github.event.action == 'synchronize') && needs.get-project-id.outputs.ITEM_PROJECT_ID != '' }}
     needs: get-project-id
     permissions:
