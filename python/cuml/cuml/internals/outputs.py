@@ -472,8 +472,10 @@ def _cupy_to_numpy(obj):
     ):
         return obj.get(order="A")
     if not (obj.flags.c_contiguous or obj.flags.f_contiguous):
-        # `get(order="A")` would make the same device-side copy
-        obj = cp.ascontiguousarray(obj)
+        # `get(order="A")` would make the same device-side copy, on the
+        # array's own device
+        with obj.device:
+            obj = cp.ascontiguousarray(obj)
     order = (
         "F" if obj.flags.f_contiguous and not obj.flags.c_contiguous else "C"
     )

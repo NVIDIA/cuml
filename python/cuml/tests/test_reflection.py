@@ -318,7 +318,10 @@ def test_convert_arrays_numpy_pinned(monkeypatch, layout):
     """Outputs within the size limits are copied into pinned host memory"""
     import cuml.internals.outputs as outputs
 
+    # Set both limits, so that the test doesn't depend on the
+    # CUML_PINNED_OUTPUT_{MIN,MAX}_BYTES environment variables.
     monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MIN_BYTES", 0)
+    monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MAX_BYTES", 1 << 62)
     X = cp.random.default_rng(42).standard_normal((50, 8))
     if layout == "F":
         X = cp.asfortranarray(X)
