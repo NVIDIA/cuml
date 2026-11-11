@@ -56,8 +56,9 @@ endfunction()
 # To use a different RAFT locally, set the CMake variable
 # CPM_raft_SOURCE=/path/to/local/raft
 find_and_configure_raft(VERSION          ${CUML_MIN_VERSION_raft}
-      FORK             NVIDIA
-      PINNED_TAG       ${rapids-cmake-checkout-tag}
+      FORK             achirkin
+      # TEMPORARY (do not merge): raft branch of NVIDIA/raft#3204
+      PINNED_TAG       fea-nnls-solver
       EXCLUDE_FROM_ALL ${CUML_EXCLUDE_RAFT_FROM_ALL}
       # When PINNED_TAG above doesn't match cuml,
       # force local raft clone in build directory
