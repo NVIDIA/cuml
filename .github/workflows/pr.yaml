@@ -612,5 +612,7 @@ jobs:
         SCCACHE_DIST_FALLBACK_TO_LOCAL_COMPILE=false
       build_command: |
         sccache --zero-stats;
+        # TEMPORARY (do not merge): build against the raft branch of NVIDIA/raft#3204
+        clone-raft --branch fea-nnls-solver;
         build-all -j0 --verbose -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=ON;
         sccache --show-adv-stats;
