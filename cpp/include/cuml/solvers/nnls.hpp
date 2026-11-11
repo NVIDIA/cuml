@@ -61,8 +61,9 @@ struct NnlsBatchedParams {
  *                     null, meaning every column is active for every problem.
  * @param X            output solutions, column-major (n, n_problems).  Masked-out
  *                     rows are written as 0.
- * @param fitted       optional output A @ X, column-major (m, n_problems).  May
- *                     be null to skip the final gemm.
+ * @param rnorm        optional output, length n_problems: the residual norms
+ *                     ||A @ X[:, p] - B[:, p]||_2 (the second result of
+ *                     scipy.optimize.nnls).  May be null to skip them.
  * @param params       solver selection and per-backend knobs.
  */
 void nnlsBatched(raft::handle_t& handle,
@@ -73,7 +74,7 @@ void nnlsBatched(raft::handle_t& handle,
                  int n_problems,
                  const std::uint8_t* masks,
                  float* X,
-                 float* fitted,
+                 float* rnorm,
                  const NnlsBatchedParams& params);
 
 /** @copydoc nnlsBatched(raft::handle_t&, const float*, int, int, const float*, int,
@@ -86,7 +87,7 @@ void nnlsBatched(raft::handle_t& handle,
                  int n_problems,
                  const std::uint8_t* masks,
                  double* X,
-                 double* fitted,
+                 double* rnorm,
                  const NnlsBatchedParams& params);
 
 }  // namespace Solver

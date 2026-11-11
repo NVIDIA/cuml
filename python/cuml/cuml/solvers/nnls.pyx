@@ -45,7 +45,7 @@ cdef extern from "cuml/solvers/nnls.hpp" namespace "ML::Solver" nogil:
         int n_problems,
         const uint8_t* masks,
         float* X,
-        float* fitted,
+        float* rnorm,
         const NnlsBatchedParams& params,
     ) except +
 
@@ -58,7 +58,7 @@ cdef extern from "cuml/solvers/nnls.hpp" namespace "ML::Solver" nogil:
         int n_problems,
         const uint8_t* masks,
         double* X,
-        double* fitted,
+        double* rnorm,
         const NnlsBatchedParams& params,
     ) except +
 
@@ -77,7 +77,7 @@ def fit_nnls_batched(
     str solver="lawson",
     int max_iter=0,
     double tol=1e-6,
-    bint compute_fitted=True,
+    bint compute_rnorm=True,
 ):
     """Solve a batch of masked, shared-``A`` Non-Negative Least Squares
     problems in a single kernel launch.
@@ -109,15 +109,16 @@ def fit_nnls_batched(
         Iteration cap. ``0`` selects the active-set default (``3 * n + 1``).
     tol : double, default=1e-6
         Dual-feasibility (KKT) tolerance on the projected gradient.
-    compute_fitted : bool, default=True
-        Whether to also return ``fitted = A @ X``.
+    compute_rnorm : bool, default=True
+        Whether to also return the per-problem residual norms
+        ``rnorm[p] = || A @ X[:, p] - B[:, p] ||_2``.
 
     Returns
     -------
     X : cupy.ndarray, shape=(n, n_problems)
         Non-negative solutions (column-major), masked-out rows set to 0.
-    fitted : cupy.ndarray, shape=(m, n_problems) or None
-        ``A @ X`` when ``compute_fitted`` else ``None``.
+    rnorm : cupy.ndarray, shape=(n_problems,) or None
+        Residual norms when ``compute_rnorm`` else ``None``.
     """
     if solver not in _BATCHED_SOLVERS:
         raise ValueError(
@@ -188,11 +189,11 @@ def fit_nnls_batched(
 
     X = cp.zeros((n, n_problems), dtype=A.dtype, order="F")
 
-    fitted = None
-    cdef uintptr_t fitted_ptr = 0
-    if compute_fitted:
-        fitted = cp.zeros((m, n_problems), dtype=A.dtype, order="F")
-        fitted_ptr = fitted.data.ptr
+    rnorm = None
+    cdef uintptr_t rnorm_ptr = 0
+    if compute_rnorm:
+        rnorm = cp.zeros(n_problems, dtype=A.dtype)
+        rnorm_ptr = rnorm.data.ptr
 
     cdef NnlsBatchedParams params
     params.solver = _BATCHED_SOLVERS[solver]
@@ -216,7 +217,7 @@ def fit_nnls_batched(
                 n_problems,
                 <const uint8_t*>masks_ptr,
                 <float*>X_ptr,
-                <float*>fitted_ptr,
+                <float*>rnorm_ptr,
                 params,
             )
         else:
@@ -229,12 +230,12 @@ def fit_nnls_batched(
                 n_problems,
                 <const uint8_t*>masks_ptr,
                 <double*>X_ptr,
-                <double*>fitted_ptr,
+                <double*>rnorm_ptr,
                 params,
             )
     handle.sync()
 
-    return X, fitted
+    return X, rnorm
 
 
 def nnls(
@@ -270,9 +271,9 @@ def nnls(
         in double precision) where launch latency dominates.
     compute_rnorm : bool, default=True
         Whether to compute the residual 2-norm.  When ``False``, ``rnorm``
-        is returned as ``None`` and an extra matmul + reduction + device sync
-        per call is avoided.  Useful in tight loops where the caller does
-        not need the residual norm.
+        is returned as ``None`` and the extra residual evaluation and the
+        device-to-host copy of the scalar are avoided.  Useful in tight loops
+        where the caller does not need the residual norm.
     tol : float, optional
         Dual-feasibility (KKT) tolerance.  Defaults to ``1e-4``.
     check_every : int, default=10
@@ -343,7 +344,7 @@ def nnls(
             # parallel single-problem kernel.  max_iter of 0 selects the tight
             # active-set cap (3 * n_cols + 1) and the tolerance default is the
             # active-set gradient tolerance (1e-4).
-            X_batched, _ = fit_nnls_batched(
+            X_batched, rnorm_batched = fit_nnls_batched(
                 A_gpu,
                 b_gpu.reshape(-1, 1),
                 None,
@@ -351,21 +352,14 @@ def nnls(
                 solver=solver,
                 max_iter=(0 if maxiter is None else int(maxiter)),
                 tol=(1e-4 if tol is None else float(tol)),
-                compute_fitted=False,
+                compute_rnorm=compute_rnorm,
             )
             coef = cp.asarray(X_batched)[:, 0]
 
         x = cp.asarray(coef).ravel()
-        if compute_rnorm:
-            with nvtx.annotate(
-                message="nnls.compute_rnorm",
-                domain=_NVTX_DOMAIN,
-                category=_NVTX_CATEGORY,
-            ):
-                residual = A_gpu @ x - b_gpu
-                rnorm = float(cp.linalg.norm(residual))
-        else:
-            rnorm = None
+        # The residual norm comes from the solver (computed on the device from
+        # the active columns); only this scalar is copied to the host.
+        rnorm = float(rnorm_batched[0]) if compute_rnorm else None
 
         return x, rnorm
 
@@ -377,7 +371,7 @@ def nnls_batched(
     b_index=None,
     *,
     solver="lawson",
-    compute_fitted=True,
+    compute_rnorm=True,
     maxiter=None,
     tol=1e-6,
 ):
@@ -415,9 +409,9 @@ def nnls_batched(
         Defaults to the identity mapping (requires ``n_targets == n_problems``).
     solver : {'lawson'}, default='lawson'
         Backend to use.  Lawson-Hanson is the only backend currently available.
-    compute_fitted : bool, default=True
-        Whether to also return ``fitted = A @ X``.  When ``False``, ``fitted``
-        is ``None`` and the extra matmul is skipped.
+    compute_rnorm : bool, default=True
+        Whether to also return the per-problem residual norms.  When ``False``,
+        ``rnorm`` is ``None`` and the extra residual evaluation is skipped.
     maxiter : int, optional
         Iteration cap.  Defaults to the active-set default (selected by 0).
     tol : float, default=1e-6
@@ -427,8 +421,10 @@ def nnls_batched(
     -------
     X : cupy.ndarray, shape (n, n_problems)
         Non-negative solutions (column-major), masked-out rows set to 0.
-    fitted : cupy.ndarray, shape (m, n_problems) or None
-        ``A @ X`` per problem when ``compute_fitted``, else ``None``.
+    rnorm : cupy.ndarray, shape (n_problems,) or None
+        ``|| A[:, masks[:, j]] @ X[masks[:, j], j] - B[:, b_index[j]] ||_2``
+        per problem when ``compute_rnorm``, else ``None`` (the second result
+        of :func:`scipy.optimize.nnls`, for every problem).
     """
     if solver not in _VALID_SOLVERS:
         raise ValueError(
@@ -520,7 +516,7 @@ def nnls_batched(
             # The batched kernel consumes column-major (F) B.
             B_gpu = cp.asfortranarray(B_gpu)
 
-        X, fitted = fit_nnls_batched(
+        X, rnorm = fit_nnls_batched(
             A_gpu,
             B_gpu,
             masks_gpu,
@@ -528,9 +524,9 @@ def nnls_batched(
             solver=str(solver),
             max_iter=(0 if maxiter is None else int(maxiter)),
             tol=(1e-6 if tol is None else float(tol)),
-            compute_fitted=compute_fitted,
+            compute_rnorm=compute_rnorm,
         )
 
         X = cp.asarray(X)
-        fitted = cp.asarray(fitted) if fitted is not None else None
-        return X, fitted
+        rnorm = cp.asarray(rnorm) if rnorm is not None else None
+        return X, rnorm
