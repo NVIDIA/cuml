@@ -57,8 +57,7 @@ endfunction()
 # CPM_raft_SOURCE=/path/to/local/raft
 find_and_configure_raft(VERSION          ${CUML_MIN_VERSION_raft}
       FORK             NVIDIA
-      # TEMPORARY (do not merge): raft branch of NVIDIA/raft#3204
-      PINNED_TAG       fea-nnls-solver
+      PINNED_TAG       ${rapids-cmake-checkout-tag}
       EXCLUDE_FROM_ALL ${CUML_EXCLUDE_RAFT_FROM_ALL}
       # When PINNED_TAG above doesn't match cuml,
       # force local raft clone in build directory
