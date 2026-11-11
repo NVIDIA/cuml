@@ -217,7 +217,7 @@ def test_ridge_sparse(
     )
 
     # Check predictions are close
-    atol = 1e-1 if solver == "cholesky" and fit_intercept else 1e-2
+    atol = 1e-1 if n_features > n_samples else 1e-2
     np.testing.assert_allclose(cu_pred, sk_pred, atol=atol)
 
     # Check fit metadata
