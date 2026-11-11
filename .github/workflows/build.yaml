@@ -96,7 +96,7 @@ jobs:
       arch: "${{ matrix.arch }}"
       branch: ${{ inputs.branch }}
       build_type: ${{ inputs.build_type || 'branch' }}
-      container_image: "rapidsai/ci-conda:26.12-cuda${{ matrix.CUDA_VER }}-${{ matrix.LINUX_VER }}-py${{ matrix.PY_VER }}"
+      container_image: "rapidsai/ci-conda:27.02-cuda${{ matrix.CUDA_VER }}-${{ matrix.LINUX_VER }}-py${{ matrix.PY_VER }}"
       date: ${{ inputs.date }}
       node_type: "gpu-${{ matrix.GPU }}-${{ matrix.DRIVER }}-1"
       script: "ci/build_docs.sh"
