@@ -2279,3 +2279,80 @@ def test_host_to_device_reorders_in_blocks(
     out = validation._host_to_device(X, order=out_order)
     assert_contiguity(out, out_order)
     cp.testing.assert_array_equal(out, cp.asarray(X))
+
+
+def _spy_on_blocks(monkeypatch):
+    """Patch `cp.array` to record the size of every array it returns, and
+    how many of the arrays it returned earlier are alive at each call."""
+    import weakref
+
+    real = cp.array
+    refs, sizes, alive_at_call = [], [], []
+
+    def spy(*args, **kwargs):
+        alive_at_call.append(sum(r() is not None for r in refs))
+        out = real(*args, **kwargs)
+        refs.append(weakref.ref(out))
+        sizes.append(out.nbytes)
+        return out
+
+    monkeypatch.setattr(cp, "array", spy)
+    return sizes, alive_at_call
+
+
+def test_host_to_device_blocks_sized_by_converted_dtype(monkeypatch):
+    """Blocks are budgeted by their size after dtype conversion, not by the
+    size of the host input they came from."""
+    from cuml.internals import validation
+
+    monkeypatch.setattr(validation, "_H2D_BLOCK_BYTES", 64)
+    X = np.arange(40 * 8, dtype="uint8").reshape(40, 8)
+    sizes, _ = _spy_on_blocks(monkeypatch)
+    out = validation._host_to_device(X, dtype="float32", order="F")
+    monkeypatch.undo()
+
+    # Each uint8 row is 8 bytes on the host but 32 bytes as float32, so a
+    # 64 byte budget allows 2 rows per block, not 8.
+    assert len(sizes) == 20
+    assert max(sizes) <= 64
+    assert_contiguity(out, "F")
+    cp.testing.assert_array_equal(out, cp.asarray(X, dtype="float32"))
+
+
+def test_host_to_device_frees_each_block_before_the_next(monkeypatch):
+    """Only the output and one block are resident on the device at a time:
+    every earlier block has been freed when the next one is allocated."""
+    from cuml.internals import validation
+
+    monkeypatch.setattr(validation, "_H2D_BLOCK_BYTES", 64)
+    X = np.arange(40 * 8, dtype="float32").reshape(40, 8)
+    sizes, alive_at_call = _spy_on_blocks(monkeypatch)
+    out = validation._host_to_device(X, order="F")
+    monkeypatch.undo()
+
+    assert len(sizes) == 20
+    assert alive_at_call == [0] * 20
+    cp.testing.assert_array_equal(out, cp.asarray(X))
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+def test_check_array_reorders_on_the_device(monkeypatch, in_order, out_order):
+    """`check_array` sends an opposite-layout NumPy input to the device in
+    blocks in its own layout, rather than reordering it on the host first."""
+    from cuml.internals import validation
+
+    monkeypatch.setattr(validation, "_H2D_BLOCK_BYTES", 64)
+    # 40 slices of 8 float32 (32 bytes) along the input's contiguous axis,
+    # so a 64 byte budget gives 20 blocks of 2 slices.
+    shape = (40, 8) if in_order == "C" else (8, 40)
+    X = np.asarray(
+        np.arange(40 * 8, dtype="float32").reshape(shape), order=in_order
+    )
+    sizes, _ = _spy_on_blocks(monkeypatch)
+    out = check_array(X, order=out_order, mem_type="device")
+    monkeypatch.undo()
+
+    assert len(sizes) == 20
+    assert max(sizes) <= 64
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, cp.asarray(X))

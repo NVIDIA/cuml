@@ -592,7 +592,14 @@ def _host_to_device(array, dtype=None, order=None, copy=None):
             # ordered output is one transpose kernel on the device.
             axis = 0 if c_in else array.ndim - 1
             n = array.shape[axis]
-            per_slice = max(1, array.nbytes // max(1, n))
+            # Size blocks by the bytes they occupy on the device, after any
+            # dtype conversion (e.g. uint8 -> float32 is 4x the host bytes).
+            itemsize = (
+                array.dtype.itemsize
+                if dtype is None
+                else np.dtype(dtype).itemsize
+            )
+            per_slice = max(1, array.size // max(1, n) * itemsize)
             step = max(1, _H2D_BLOCK_BYTES // per_slice)
             out = None
             for start in range(0, n, step):
@@ -606,6 +613,9 @@ def _host_to_device(array, dtype=None, order=None, copy=None):
                     # non-native byte orders.
                     out = cp.empty(array.shape, dtype=block.dtype, order=order)
                 out[idx] = block
+                # Free this block before the next one is allocated, so that
+                # only `out` and one block are resident at a time.
+                del block
             return out
     # XXX: using cp.array for compat with cupy < 14
     return cp.array(array, dtype=dtype, order=order, copy=copy)
