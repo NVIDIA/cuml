@@ -358,7 +358,7 @@ inline OPT_RETCODE min_owlqn(const LBFGSParam<T>& param,
       param, f_wrap, fx, x, grad, pseudo, step, drt, xp, l1_penalty, dev_scalar, stream);
     gnorm = f.gradNorm(grad, dev_scalar, stream);
 
-    if (update_and_check("QWL-QN",
+    if (update_and_check("OWL-QN",
                          param,
                          *k,
                          lsret,
@@ -395,7 +395,7 @@ inline OPT_RETCODE min_owlqn(const LBFGSParam<T>& param,
     // step = 1.0 as initial guess
     step = T(1.0);
   }
-  CUML_LOG_WARN("QWL-QN: max iterations reached");
+  CUML_LOG_WARN("OWL-QN: max iterations reached");
   *k = param.max_iterations;
   return OPT_MAX_ITERS_REACHED;
 }

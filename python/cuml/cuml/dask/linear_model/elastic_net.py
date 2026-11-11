@@ -88,7 +88,7 @@ class ElasticNet(BaseEstimator):
             Dense matrix (floats or doubles) of shape (n_samples, n_features).
 
         y : Dask cuDF DataFrame or CuPy backed Dask Array
-            Dense matrix (floats or doubles) of shape (n_samples, n_features).
+            Dense vector (floats or doubles) of shape (n_samples,).
 
         """
         self.solver.fit(X, y)
@@ -111,7 +111,7 @@ class ElasticNet(BaseEstimator):
         Returns
         -------
         y : Dask cuDF DataFrame or CuPy backed Dask Array
-            Dense matrix (floats or doubles) of shape (n_samples, n_features).
+            Dense vector (floats or doubles) of shape (n_samples,).
 
         """
 

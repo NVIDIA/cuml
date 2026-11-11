@@ -93,13 +93,9 @@ template <typename TypeV, typename TypeK, bool Greater>
 
     // check result
     for (int j = 0; j < k; j++) {
-      // std::cout<<"Get value at ("<<rIndex<<" "<<j<<") Cpu "
-      //  <<topk[j].val<<" "<<topk[j].key<<" Gpu "<<h_outv[j]<<" "
-      //<<h_outk[j] <<std::endl<<std::endl;
-
       if (abs(h_outv[j] - topk[j].val) > tolerance) {
         return ::testing::AssertionFailure()
-               << "actual=" << topk[j].val << " != expected=" << h_outv[j];
+               << "actual=" << h_outv[j] << " != expected=" << topk[j].val;
       }
     }
     // delete resource

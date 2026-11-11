@@ -27,6 +27,9 @@ reviews:
   # Reduce noise from status messages
   request_changes_workflow: false
   review_status: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
 
   # Path-specific review instructions
   # Note: Detailed C++/CUDA and Python review guidelines are in cpp/agents.md and python/agents.md

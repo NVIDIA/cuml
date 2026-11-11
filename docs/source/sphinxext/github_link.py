@@ -1,7 +1,7 @@
 # This contains code with copyright by the scikit-learn project, subject to the
 # license in /thirdparty/LICENSES/LICENSE.scikit_learn
 #
-# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0 AND BSD-3-Clause
 #
 
@@ -115,10 +115,19 @@ def _linkcode_resolve(domain, info, package, url_fmt, revision):
             )
             fn = fn.replace("/opt/conda/conda-bld/work/python/cuml", sp_path)
 
-        # Convert to relative from module root
-        fn = os.path.relpath(
-            fn, start=os.path.dirname(__import__(package).__file__)
-        )
+        if os.path.isabs(fn):
+            # Convert to relative from module root
+            fn = os.path.relpath(
+                fn, start=os.path.dirname(__import__(package).__file__)
+            )
+        else:
+            # Cython reports paths relative to the source root
+            # (e.g. "cuml/cluster/dbscan.pyx"), not the working directory
+            fn = os.path.relpath(fn, start=package)
+
+    # Objects inherited from other packages (e.g. scikit-learn mixins)
+    if fn.startswith(".."):
+        return
 
     # Get the line number if we need it. (Can work without it)
     if lineno is None:

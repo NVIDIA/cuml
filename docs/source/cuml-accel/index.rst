@@ -31,6 +31,23 @@ Or load the extension at the top of a Jupyter notebook, before other imports:
 
    %load_ext cuml.accel
 
+.. _cuml-accel-jupyterlab-toggle:
+
+.. admonition:: Enable from the JupyterLab toolbar, no %load_ext needed
+   :class: tip
+
+   With the `jupyterlab-nvdashboard`_ extension installed, you can also enable
+   ``cuml.accel`` in JupyterLab from the GPU accelerator toggle, **without
+   loading the extension**: you do not need to add ``%load_ext cuml.accel`` or
+   make any other changes to the notebook. Open the **GPU Accel** menu in the
+   notebook toolbar, select **cuML Accelerator**, and restart the kernel when
+   prompted. The option is shown only when cuML is installed in the notebook's
+   environment. See the `GPU Accelerators documentation`_ for a demo and
+   details.
+
+.. _jupyterlab-nvdashboard: https://github.com/rapidsai/jupyterlab-nvdashboard#installation
+.. _GPU Accelerators documentation: https://github.com/rapidsai/jupyterlab-nvdashboard#gpu-accelerators
+
 See :ref:`activation-methods` for a complete overview of the command-line,
 Jupyter, environment-variable, and programmatic activation options.
 

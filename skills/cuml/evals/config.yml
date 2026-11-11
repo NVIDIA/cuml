@@ -1,0 +1,18 @@
+# SkillEvaluator run policy for the cuml skill. CLI flags override these values.
+# See docs/source/developer_guide/agent_skill.md.
+schema_version: 1
+
+harbor:
+  task_source: evals_json
+  n_attempts: 1
+  pass_threshold: 0.50
+  n_concurrent: 1
+  max_agents: 1
+  timeout_multiplier: 3
+  sandbox:
+    templates:
+      claude-code: harbor-eval-cuml-gpu-claude-code-64g
+      codex: harbor-eval-cuml-gpu-codex-64g
+
+grading:
+  mode: default

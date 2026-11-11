@@ -140,15 +140,15 @@ class SpectralClustering(InteropMixin,
     ----------
     - Normalized cuts and image segmentation, 2000
       Jianbo Shi, Jitendra Malik
-      http://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.160.2324
+      https://ieeexplore.ieee.org/document/868688
 
     - A Tutorial on Spectral Clustering, 2007
       Ulrike von Luxburg
-      http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.165.9323
+      https://arxiv.org/pdf/0711.0189
 
     - Multiclass spectral clustering, 2003
       Stella X. Yu, Jianbo Shi
-      https://www1.icsi.berkeley.edu/~stellayu/publication/doc/2003kwayICCV.pdf
+      https://ieeexplore.ieee.org/document/1238361
     """
     labels_ = ReflectedAttr()
 

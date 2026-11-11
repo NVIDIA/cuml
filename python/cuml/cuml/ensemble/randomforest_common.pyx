@@ -13,6 +13,7 @@ from typing import Literal
 import cupy as cp
 import numpy as np
 import treelite.sklearn
+from cuda.core import Stream
 
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import (
@@ -24,10 +25,12 @@ from cuml.internals.treelite import safe_treelite_call
 from cuml.internals.validation import check_is_fitted, check_random_seed
 from cuml.metrics import accuracy_score, r2_score
 
+from cuda.bindings.cyruntime cimport cudaStream_t
 from libc.stddef cimport size_t
 from libc.stdint cimport uint64_t, uintptr_t
 from libcpp cimport bool
 from pylibraft.common.handle cimport handle_t
+
 import nvforest
 
 from cuml.internals.logger cimport level_enum
@@ -200,6 +203,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             "bootstrap",
             "max_samples",
             "max_depth",
+            "max_leaf_nodes",
             "max_leaves",
             "max_features",
             "n_bins",
@@ -221,7 +225,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             raise UnsupportedOnGPU("`warm_start=True` is not supported")
 
         if model.monotonic_cst is not None:
-            raise UnsupportedOnGPU(f"`monotonic_cst={model.monotonic_cst!r} is not supported")
+            raise UnsupportedOnGPU(f"`monotonic_cst={model.monotonic_cst!r}` is not supported")
 
         if model.ccp_alpha != 0:
             raise UnsupportedOnGPU(f"`ccp_alpha={model.ccp_alpha}` is not supported")
@@ -249,7 +253,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             "min_samples_split": model.min_samples_split,
             "min_samples_leaf": model.min_samples_leaf,
             "max_features": model.max_features,
-            "max_leaves": -1 if model.max_leaf_nodes is None else model.max_leaf_nodes,
+            "max_leaf_nodes": model.max_leaf_nodes,
             "min_impurity_decrease": model.min_impurity_decrease,
             "bootstrap": model.bootstrap,
             "random_state": model.random_state,
@@ -270,7 +274,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             "min_samples_split": self.min_samples_split,
             "min_samples_leaf": self.min_samples_leaf,
             "max_features": self.max_features,
-            "max_leaf_nodes": None if self.max_leaves == -1 else self.max_leaves,
+            "max_leaf_nodes": self._get_max_leaf_nodes(),
             "min_impurity_decrease": self.min_impurity_decrease,
             "bootstrap": self.bootstrap,
             "random_state": self.random_state,
@@ -330,6 +334,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         bootstrap=True,
         max_samples=1.0,
         max_depth=None,
+        max_leaf_nodes=None,
         max_leaves=-1,
         max_features='sqrt',
         n_bins=128,
@@ -350,6 +355,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         self.bootstrap = bootstrap
         self.max_samples = max_samples
         self.max_depth = max_depth
+        self.max_leaf_nodes = max_leaf_nodes
         self.max_leaves = max_leaves
         self.max_features = max_features
         self.n_bins = n_bins
@@ -360,6 +366,32 @@ class BaseRandomForestModel(InteropMixin, Base):
         self.random_state = random_state
         self.n_streams = n_streams
         self.oob_score = oob_score
+
+    def _get_max_leaf_nodes(self):
+        # Resolve at use time so set_params and sklearn.clone retain the
+        # constructor parameters.
+        max_leaf_nodes = self.max_leaf_nodes
+        if max_leaf_nodes is not None and (
+            not isinstance(max_leaf_nodes, numbers.Integral)
+            or max_leaf_nodes < 2
+        ):
+            raise ValueError(
+                "max_leaf_nodes must be an integer of at least 2 or None; "
+                f"got {max_leaf_nodes!r}"
+            )
+        if self.max_leaves != -1 and max_leaf_nodes is not None:
+            raise ValueError(
+                "Only one of `max_leaves` and `max_leaf_nodes` may be set "
+                "to a non-default value. Use `max_leaf_nodes` only."
+            )
+        if self.max_leaves != -1:
+            warnings.warn(
+                "`max_leaves` was deprecated in 26.12 and will be "
+                "removed in 27.02. Use `max_leaf_nodes` instead.",
+                FutureWarning,
+            )
+            max_leaf_nodes = self.max_leaves
+        return max_leaf_nodes
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -413,6 +445,10 @@ class BaseRandomForestModel(InteropMixin, Base):
             A forest inference model which can be used to perform
             inferencing on the random forest model.
         """
+        handle = get_handle()
+        cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
+        cdef cudaStream_t stream = handle_.get_stream().get()
+
         check_is_fitted(self)
 
         return nvforest.load_from_treelite_model(
@@ -421,8 +457,32 @@ class BaseRandomForestModel(InteropMixin, Base):
             layout=layout,
             default_chunk_size=default_chunk_size,
             align_bytes=align_bytes,
-            handle=get_handle(),
+            stream=Stream.from_handle(<uintptr_t>stream),
         )
+
+    def _fit(self, X, y, sample_weight=None):
+        """Prepare inputs once and coordinate validation across Dask workers."""
+        validation_error = None
+        try:
+            X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
+            if (
+                hasattr(self, "_distributed_n_rows")
+                and not self.bootstrap
+                and sample_weight is not None
+                and sample_weight.sum().item() <= 0.0
+            ):
+                raise ValueError(
+                    "Rank-local sample weights must sum to a positive value"
+                )
+        except Exception as error:
+            validation_error = error
+
+        if self._allreduce_validation_status(validation_error is not None):
+            if validation_error is not None:
+                raise validation_error
+            raise RuntimeError("Input validation failed on another worker")
+
+        return self._fit_forest(X, y, sample_weight=sample_weight)
 
     def _fit_forest(self, X, y, sample_weight=None):
         cdef bool is_classifier = self._estimator_type == "classifier"
@@ -454,6 +514,9 @@ class BaseRandomForestModel(InteropMixin, Base):
             )
         else:
             max_depth_c = max_depth
+
+        max_leaf_nodes = self._get_max_leaf_nodes()
+        cdef int max_leaves_c = -1 if max_leaf_nodes is None else max_leaf_nodes
 
         # Validate OOB score parameter
         if callable(self.oob_score):
@@ -506,7 +569,7 @@ class BaseRandomForestModel(InteropMixin, Base):
 
         cdef RF_params params = set_rf_params(
             max_depth_c,
-            self.max_leaves,
+            max_leaves_c,
             max_features,
             n_bins,
             min_samples_leaf,

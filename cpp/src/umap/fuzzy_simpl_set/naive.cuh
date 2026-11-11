@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,10 +10,10 @@
 #include <cuml/manifold/umapparams.h>
 #include <cuml/neighbors/knn.hpp>
 
+#include <raft/linalg/reduce.cuh>
 #include <raft/sparse/coo.hpp>
 #include <raft/sparse/linalg/symmetrize.cuh>
 #include <raft/sparse/op/sort.cuh>
-#include <raft/stats/mean.cuh>
 #include <raft/util/cuda_utils.cuh>
 #include <raft/util/cudart_utils.hpp>
 
@@ -48,6 +48,7 @@ static const float MIN_K_DIST_SCALE   = 1e-3;
  *
  * @param knn_dists: Distances to nearest neighbors for each sample. Each row should
  *                   be a sorted list of distances to a given sample's nearest neighbors.
+ * @param knn_indices: Indices of the nearest neighbors
  *
  * @param n: The number of samples
  * @param mean_dist: The mean distance
@@ -56,6 +57,7 @@ static const float MIN_K_DIST_SCALE   = 1e-3;
  * @param rhos:  An array of size n representing the distance to the 1st nearest neighbor
  *               for each point.
  * @param n_neighbors: The number of neighbors
+ * @param self_knn: Whether query and neighbor indices refer to the same dataset
  *
  * @param local_connectivity: The local connectivity required -- i.e. the number of nearest
  *                            neighbors that should be assumed to be connected at a local
@@ -69,13 +71,15 @@ static const float MIN_K_DIST_SCALE   = 1e-3;
  * Descriptions adapted from: https://github.com/lmcinnes/umap/blob/master/umap/umap_.py
  *
  */
-template <typename value_t, typename nnz_t, int TPB_X>
+template <typename value_t, typename value_idx, typename nnz_t, int TPB_X>
 CUML_KERNEL void smooth_knn_dist_kernel(const value_t* knn_dists,
+                                        const value_idx* knn_indices,
                                         int n,
                                         float mean_dist,
                                         value_t* sigmas,
                                         value_t* rhos,  // Size of n, initialized to zeros
                                         int n_neighbors,
+                                        bool self_knn,
                                         float local_connectivity = 1.0,
                                         int n_iter               = 64,
                                         float bandwidth          = 1.0)
@@ -92,25 +96,41 @@ CUML_KERNEL void smooth_knn_dist_kernel(const value_t* knn_dists,
     float hi  = MAX_FLOAT;
     float mid = 1.0;
 
-    int total_nonzero = 0;
-    int max_nonzero   = -1;
-
-    int start_nonzero = -1;
-    float sum         = 0.0;
+    int total_nonzero   = 0;
+    float max_nonzero   = 0.0;
+    float sum           = 0.0;
+    float rho           = 0.0;
+    int index           = int(floor(local_connectivity));
+    float interpolation = local_connectivity - index;
+    // Transform and graphs without a self entry retain the column-zero exclusion.
+    int self_neighbor = 0;
 
     for (int idx = 0; idx < n_neighbors; idx++) {
+      // Expanded L2 can return a positive self-distance due to round-off. Ignore
+      // known self entries without changing the caller's distance array.
+      if (self_knn && knn_indices[i + idx] == row) {
+        self_neighbor = idx;
+        continue;
+      }
       float cur_dist = knn_dists[i + idx];
       sum += cur_dist;
 
       if (cur_dist > 0.0) {
-        if (start_nonzero == -1) start_nonzero = idx;
         total_nonzero++;
+        // Select by positive-distance rank: skipping self may leave a hole in
+        // the otherwise sorted list, including between interpolation endpoints.
+        if (total_nonzero == index) {
+          rho = cur_dist;
+        } else if (total_nonzero == index + 1 &&
+                   (index == 0 || interpolation > SMOOTH_K_TOLERANCE)) {
+          rho += interpolation * (cur_dist - rho);
+        }
       }
 
       if (cur_dist > max_nonzero) max_nonzero = cur_dist;
     }
 
-    if (start_nonzero == -1) {
+    if (total_nonzero == 0) {
       // All distances are zero: identical neighbors
       rhos[row]   = 0.0;
       sigmas[row] = MIN_K_DIST_SCALE * mean_dist;  // e.g. 1e-5 * mean_dist
@@ -118,26 +138,13 @@ CUML_KERNEL void smooth_knn_dist_kernel(const value_t* knn_dists,
     }
 
     float ith_distances_mean = sum / float(n_neighbors);
-    if (total_nonzero >= local_connectivity) {
-      int index           = int(floor(local_connectivity));
-      float interpolation = local_connectivity - index;
-
-      if (index > 0) {
-        rhos[row] = knn_dists[i + start_nonzero + (index - 1)];
-
-        if (interpolation > SMOOTH_K_TOLERANCE) {
-          rhos[row] += interpolation * (knn_dists[i + start_nonzero + index] -
-                                        knn_dists[i + start_nonzero + (index - 1)]);
-        }
-      } else
-        rhos[row] = interpolation * knn_dists[i + start_nonzero];
-    } else if (total_nonzero > 0)
-      rhos[row] = max_nonzero;
+    rhos[row]                = total_nonzero < local_connectivity ? max_nonzero : rho;
 
     for (int iter = 0; iter < n_iter; iter++) {
       float psum = 0.0;
 
-      for (int j = 1; j < n_neighbors; j++) {
+      for (int j = 0; j < n_neighbors; j++) {
+        if (j == self_neighbor) { continue; }
         float d = knn_dists[i + j] - rhos[row];
         if (d > 0)
           psum += exp(-(d / mid));
@@ -244,15 +251,29 @@ void smooth_knn_dist(nnz_t n,
                      UMAPParams* params,
                      int n_neighbors,
                      float local_connectivity,
-                     cudaStream_t stream)
+                     cudaStream_t stream,
+                     bool self_knn = true)
 {
   dim3 grid(raft::ceildiv(n, static_cast<nnz_t>(TPB_X)), 1, 1);
   dim3 blk(TPB_X, 1, 1);
 
-  rmm::device_uvector<value_t> dist_means_dev(n_neighbors, stream);
+  rmm::device_uvector<value_t> dist_means_dev(1, stream);
 
-  raft::stats::mean<false>(
-    dist_means_dev.data(), knn_dists, nnz_t{1}, n * n_neighbors, false, stream);
+  // Treat known self-distances as zero in the global mean as well as in the
+  // per-row smoothing below. Keep them in the denominator, as exact zeros are.
+  raft::linalg::reduce<false, false>(
+    dist_means_dev.data(),
+    knn_dists,
+    nnz_t{1},
+    n * n_neighbors,
+    value_t{0},
+    stream,
+    false,
+    [=] __device__(float dist, nnz_t idx) {
+      return self_knn && knn_indices[idx] == idx / n_neighbors ? value_t{0} : value_t{dist};
+    },
+    raft::add_op{},
+    raft::mul_const_op<value_t>{value_t{1} / (n * n_neighbors)});
   RAFT_CUDA_TRY(cudaPeekAtLastError());
 
   value_t mean_dist = 0.0;
@@ -263,8 +284,8 @@ void smooth_knn_dist(nnz_t n,
    * Smooth kNN distances to be continuous
    */
 
-  smooth_knn_dist_kernel<value_t, nnz_t, TPB_X><<<grid, blk, 0, stream>>>(
-    knn_dists, n, mean_dist, sigmas, rhos, n_neighbors, local_connectivity);
+  smooth_knn_dist_kernel<value_t, value_idx, nnz_t, TPB_X><<<grid, blk, 0, stream>>>(
+    knn_dists, knn_indices, n, mean_dist, sigmas, rhos, n_neighbors, self_knn, local_connectivity);
   RAFT_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 

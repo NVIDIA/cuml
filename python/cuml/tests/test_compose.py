@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-
-
 import cudf
+import cupy as cp
 import numpy as np
 import pandas as pd
 import pytest
@@ -79,6 +78,33 @@ def test_column_transformer(
 
     assert_allclose(ft_X, sk_t_X)
     assert_allclose(t_X, sk_t_X)
+
+
+@pytest.mark.parametrize("mem_type", ["host", "device"])
+def test_column_transformer_array_like(mem_type):
+    class MyArray:
+        def __init__(self, array):
+            self.array = (np if mem_type == "host" else cp).asarray(array)
+            self.shape = self.array.shape
+            self.ndim = self.array.ndim
+
+        if mem_type == "host":
+
+            def __array__(self, *args, **kwargs):
+                return self.array
+        else:
+
+            @property
+            def __cuda_array_interface__(self):
+                return self.array.__cuda_array_interface__
+
+    X = np.ones((2, 2), dtype=np.float32)
+
+    sk_model = skColumnTransformer([("keep", "passthrough", [0])])
+    sol = sk_model.fit_transform(X)
+    cu_model = cuColumnTransformer([("keep", "passthrough", [0])])
+    res = cu_model.fit_transform(MyArray(X))
+    cp.testing.assert_array_equal(res, sol)
 
 
 @pytest.mark.parametrize("remainder", ["drop", "passthrough"])
@@ -246,16 +272,6 @@ def test_column_transformer_get_feature_names_out(clf_dataset, remainder):
         res = cu_transformer.get_feature_names_out(input_features)
         sol = sk_transformer.get_feature_names_out(input_features)
         np.testing.assert_array_equal(res, sol)
-
-
-def test_column_transformer_get_feature_names_deprecated():
-    X = np.array([[1.5, 2.5, 3.5], [1.6, 2.4, 3.7]])
-    model = cuColumnTransformer([("t1", cuPolynomialFeatures(), [0, 2])])
-    model.fit(X)
-    with pytest.warns(FutureWarning, match="get_feature_names"):
-        res = model.get_feature_names()
-
-    np.testing.assert_array_equal(res, model.get_feature_names_out())
 
 
 def test_column_transformer_named_transformers_(clf_dataset):  # noqa: F811

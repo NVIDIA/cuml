@@ -1,8 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-import warnings
-
 from dask.distributed import get_worker
 from raft_dask.common.comms import Comms, get_raft_comm_state
 
@@ -28,7 +26,6 @@ class BaseRandomForestModel(object):
         workers,
         n_estimators,
         base_seed,
-        ignore_empty_partitions,
         **kwargs,
     ):
         self.client = get_client(client)
@@ -43,22 +40,9 @@ class BaseRandomForestModel(object):
         self.n_estimators = n_estimators
 
         if "n_streams" in kwargs:
-            warnings.warn(
-                (
-                    "n_streams has no effect on distributed training and "
-                    "will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
-            )
-        if ignore_empty_partitions is not None:
-            warnings.warn(
-                (
-                    "ignore_empty_partitions parameter is no longer valid "
-                    "and will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
+            raise TypeError(
+                f"{type(self).__name__}.__init__() got an unexpected keyword "
+                "argument 'n_streams'"
             )
 
         self.rfs = {
@@ -140,13 +124,9 @@ class BaseRandomForestModel(object):
 
     def _set_params(self, **params):
         if "n_streams" in params:
-            warnings.warn(
-                (
-                    "n_streams has no effect on distributed training and "
-                    "will be removed in release 26.12."
-                ),
-                FutureWarning,
-                stacklevel=2,
+            raise TypeError(
+                f"{type(self).__name__}.set_params() got an unexpected keyword "
+                "argument 'n_streams'"
             )
         model_params = list()
         for worker in self.workers:
@@ -169,6 +149,11 @@ def _func_fit(
     handle = get_raft_comm_state(session_id, get_worker())["handle"]
     X = concatenate([item[0] for item in input_data])
     y = concatenate([item[1] for item in input_data])
+    sample_weight = (
+        concatenate([item[2] for item in input_data])
+        if len(input_data[0]) == 3
+        else None
+    )
     model._raft_handle = handle
     model._distributed_n_rows = total_rows
     if classes is not None:
@@ -176,22 +161,7 @@ def _func_fit(
     if class_counts is not None:
         model._distributed_class_counts = class_counts
     try:
-        validation_error = None
-        try:
-            _, _, sample_weight = model._prepare_fit_inputs(X, y)
-            if sample_weight is not None and sample_weight.sum().item() <= 0.0:
-                raise ValueError(
-                    "Rank-local sample weights must sum to a positive value"
-                )
-        except Exception as error:
-            validation_error = error
-
-        if model._allreduce_validation_status(validation_error is not None):
-            if validation_error is not None:
-                raise validation_error
-            raise RuntimeError("Input validation failed on another worker")
-
-        return model.fit(X, y)
+        return model.fit(X, y, sample_weight=sample_weight)
     finally:
         del model._raft_handle
         del model._distributed_n_rows

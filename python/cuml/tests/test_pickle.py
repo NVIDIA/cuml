@@ -80,6 +80,7 @@ k_neighbors_config = ClassEnumerator(
     exclude_classes=[
         cuml.neighbors.NearestNeighbors,
         cuml.neighbors.KernelDensity,
+        cuml.neighbors.LocalOutlierFactor,
     ],
 )
 k_neighbors_models = k_neighbors_config.get_models()
@@ -459,7 +460,8 @@ def test_neighbors_pickle(tmpdir, datatype, keys, data_info):
 
 @pytest.mark.parametrize("algorithm", ["brute", "rbc", "ivfpq", "ivfflat"])
 def test_nearest_neighbors_pickle(algorithm):
-    X, _ = make_blobs(n_features=3, n_samples=500, random_state=42)
+    # Default IVF-PQ needs 256 training samples and uses half the data.
+    X, _ = make_blobs(n_features=3, n_samples=512, random_state=42)
     model = cuml.NearestNeighbors(algorithm=algorithm)
     model.fit(X)
     model2 = pickle.loads(pickle.dumps(model))

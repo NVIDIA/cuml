@@ -1,0 +1,29 @@
+# Configuration for the weekly link check of the published docs
+# (.github/workflows/lychee.yml). lychee reads this file automatically when
+# run from the repository root.
+
+cache = true
+# Don't cache failures, so the confirmation pass checks them again
+cache_exclude_status = ["400..=599"]
+max_concurrency = 8
+max_retries = 3
+retry_wait_time = 5
+timeout = 30
+user_agent = "curl/8.5.0"
+# 429 means rate limited, not broken
+accept = ["200..=204", "429"]
+exclude_all_private = true
+include_mail = false
+
+exclude = [
+  # Theme CSS/JS on the docs site, versioned with digest query strings
+  '^https://docs\.nvidia\.com/cuml/[^/]+/_static/',
+]
+
+# Limit requests per host to avoid 429/503 responses from rate limiting
+[hosts."github.com"]
+concurrency = 4
+request_interval = "200ms"
+
+[hosts."docs.nvidia.com"]
+concurrency = 4

@@ -9,8 +9,7 @@ from cuml.internals.validation import check_inputs
 
 
 class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
-    """
-    Implements a Random Forest regressor model which fits multiple decision
+    """Implements a Random Forest regressor model which fits multiple decision
     trees in an ensemble.
 
     .. note:: Note that the underlying algorithm for tree node splits differs
@@ -66,9 +65,22 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         .. rapids-pre-commit-hooks: disable-next-line
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
+    max_leaf_nodes : int or None (default = None)
+        Maximum leaf nodes per tree. Must be at least 2 or ``None``.
+        A finite limit grows the tree greedily,
+        splitting the leaf with the largest weighted impurity decrease first.
+        If ``None``, use unlimited batched growth.
+
+        .. versionadded:: 26.12
+
     max_leaves : int (default = -1)
-        Maximum leaf nodes per tree. Soft constraint. Unlimited,
-        If ``-1``.
+        Deprecated alias for ``max_leaf_nodes``. When set to ``-1`` (default), the leaf
+        limit is determined by ``max_leaf_nodes``.
+
+        .. deprecated:: 26.12
+
+            ``max_leaves`` will be removed in 27.02. Use ``max_leaf_nodes`` instead.
+
     max_features : {'sqrt', 'log2', None}, int or float (default = 1.0)
         The number of features to consider per node split:
 
@@ -103,7 +115,16 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
            and ``max(2, ceil(min_samples_split * n_rows))`` is the minimum
            number of samples for each split.
     min_impurity_decrease : float (default = 0.0)
-        The minimum decrease in impurity required for node to be split
+        A node will be split if this split induces a decrease of the weighted impurity
+        greater than this value.
+
+        .. versionchanged:: 26.12
+
+            MSE split gains now use full variance instead of half variance to match
+            scikit-learn. For all criteria, impurity decrease is now weighted by the
+            node's fraction of the tree's total training weight. Existing positive
+            thresholds may need retuning. The default ``0.0`` needs no adjustment.
+
     max_batch_size : int (default = 4096)
         Maximum number of nodes that can be processed in a given batch.
     random_state : int (default = None)
@@ -144,6 +165,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
     When converting to sklearn using `as_sklearn()`, the `feature_importances_` attribute will return
     NaN values. If you need feature importances, save them before conversion:
     `importances = cuml_model.feature_importances_`
+
     """
 
     _cpu_class_path = "sklearn.ensemble.RandomForestRegressor"
@@ -158,6 +180,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         bootstrap=True,
         max_samples=1.0,
         max_depth=None,
+        max_leaf_nodes=None,
         max_leaves=-1,
         max_features=1.0,
         n_bins=128,
@@ -177,6 +200,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             bootstrap=bootstrap,
             max_samples=max_samples,
             max_depth=max_depth,
+            max_leaf_nodes=max_leaf_nodes,
             max_leaves=max_leaves,
             max_features=max_features,
             n_bins=n_bins,
@@ -192,7 +216,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         )
 
     @nvtx.annotate(
-        message="fit RF-Regressor @randomforestregressor.pyx",
+        message="fit RF-Regressor @randomforestregressor.py",
         domain="cuml_python",
     )
     @generate_docstring()
@@ -202,10 +226,13 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         Perform Random Forest Regression on the input data
 
         """
-        X, y, sample_weight = self._prepare_fit_inputs(X, y, sample_weight)
-        return self._fit_forest(X, y, sample_weight=sample_weight)
+        return self._fit(X, y, sample_weight=sample_weight)
 
     def _prepare_fit_inputs(self, X, y, sample_weight=None):
+        # In distributed setting, some partitions may have sample weights that are all zeros
+        sample_weight_allow_all_zero = (
+            hasattr(self, "_distributed_n_rows") and self.bootstrap
+        )
         return check_inputs(
             self,
             X,
@@ -214,11 +241,12 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
             dtype=("float32", "float64"),
             order="A",
             sample_weight_dtype="float64",
+            sample_weight_allow_all_zero=sample_weight_allow_all_zero,
             reset=True,
         )
 
     @nvtx.annotate(
-        message="predict RF-Regressor @randomforestclassifier.pyx",
+        message="predict RF-Regressor @randomforestregressor.py",
         domain="cuml_python",
     )
     @insert_into_docstring(
@@ -278,7 +306,7 @@ class RandomForestRegressor(RegressorMixin, BaseRandomForestModel):
         return preds
 
     @nvtx.annotate(
-        message="score RF-Regressor @randomforestclassifier.pyx",
+        message="score RF-Regressor @randomforestregressor.py",
         domain="cuml_python",
     )
     @insert_into_docstring(

@@ -841,13 +841,13 @@ class UMAP(
 
             class CustomCallback(GraphBasedDimRedCallback):
                 def on_preprocess_end(self, embeddings):
-                    print(embeddings.copy_to_host())
+                    print(embeddings)
 
                 def on_epoch_end(self, embeddings):
-                    print(embeddings.copy_to_host())
+                    print(embeddings)
 
                 def on_train_end(self, embeddings):
-                    print(embeddings.copy_to_host())
+                    print(embeddings)
 
     verbose : int or boolean, default=False
         Sets logging level. It must be one of `cuml.common.logger.level_*`.

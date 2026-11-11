@@ -23,6 +23,8 @@ implementation-specific guidance below.
     :doc:`Python API <../api/index>` for applications.
 
 * :doc:`Benchmarking <benchmarking>` explains the benchmark CLI and manifests.
+* :doc:`Agent skill <agent_skill>` explains how to update and evaluate the agent
+  skill for cuML users in ``skills/cuml``.
 
 .. toctree::
    :hidden:
@@ -34,3 +36,4 @@ implementation-specific guidance below.
    python/estimators
    cpp/index
    benchmarking
+   agent_skill

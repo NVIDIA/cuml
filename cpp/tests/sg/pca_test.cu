@@ -266,8 +266,6 @@ TEST_P(PcaTestDataVecSmallD, Result)
                           handle.get_stream().get()));
 }
 
-// FIXME: These tests are disabled due to driver 418+ making them fail:
-// https://github.com/NVIDIA/cuml/issues/379
 typedef PcaTest<float> PcaTestDataVecF;
 TEST_P(PcaTestDataVecF, Result)
 {

@@ -22,7 +22,18 @@ from sklearn.neighbors import (
 from sklearn.svm import SVC, SVR, LinearSVC, LinearSVR
 
 ort = pytest.importorskip("onnxruntime")
-skl2onnx = pytest.importorskip("skl2onnx")
+try:
+    skl2onnx = pytest.importorskip("skl2onnx", exc_type=ModuleNotFoundError)
+except ImportError as exc:
+    if "cannot import name 'PassiveAggressiveClassifier'" in str(
+        exc
+    ) and "sklearn.linear_model" in str(exc):
+        pytest.skip(
+            "skl2onnx imports an estimator removed in scikit-learn 1.10: "
+            "https://github.com/onnx/sklearn-onnx/issues/1286",
+            allow_module_level=True,
+        )
+    raise
 ORT_VERSION = Version(ort.__version__)
 
 convert_sklearn = skl2onnx.convert_sklearn
@@ -65,7 +76,7 @@ def regression_data():
 
 classifiers = [
     pytest.param(
-        RandomForestClassifier(n_estimators=20, max_depth=8, random_state=42),
+        RandomForestClassifier(n_estimators=21, max_depth=8, random_state=42),
         marks=(xfail_skl2onnx_bug if ORT_VERSION < Version("1.28.0") else ()),
         id="RandomForestClassifier",
     ),

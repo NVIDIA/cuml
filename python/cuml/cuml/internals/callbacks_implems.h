@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,26 +15,26 @@ namespace Internals {
 
 class DefaultGraphBasedDimRedCallback : public GraphBasedDimRedCallback {
  public:
-  PyObject* get_numba_matrix(void* embeddings)
+  PyObject* get_cupy_array(void* embeddings)
   {
     PyObject* pycl = (PyObject*)this->pyCallbackClass;
 
     if (isFloat) {
       return PyObject_CallMethod(
-        pycl, "get_numba_matrix", "(l(ll)s)", embeddings, n, n_components, "float32");
+        pycl, "get_cupy_array", "(llls)", embeddings, n, n_components, "float32");
     } else {
       return PyObject_CallMethod(
-        pycl, "get_numba_matrix", "(l(ll)s)", embeddings, n, n_components, "float64");
+        pycl, "get_cupy_array", "(llls)", embeddings, n, n_components, "float64");
     }
   }
 
   void on_preprocess_end(void* embeddings) override
   {
     PyGILState_STATE gstate = PyGILState_Ensure();
-    PyObject* numba_matrix = get_numba_matrix(embeddings);
+    PyObject* array = get_cupy_array(embeddings);
     PyObject* res =
-      PyObject_CallMethod(this->pyCallbackClass, "on_preprocess_end", "(O)", numba_matrix);
-    Py_DECREF(numba_matrix);
+      PyObject_CallMethod(this->pyCallbackClass, "on_preprocess_end", "(O)", array);
+    Py_DECREF(array);
     Py_DECREF(res);
     PyGILState_Release(gstate);
   }
@@ -42,9 +42,9 @@ class DefaultGraphBasedDimRedCallback : public GraphBasedDimRedCallback {
   void on_epoch_end(void* embeddings) override
   {
     PyGILState_STATE gstate = PyGILState_Ensure();
-    PyObject* numba_matrix = get_numba_matrix(embeddings);
-    PyObject* res = PyObject_CallMethod(this->pyCallbackClass, "on_epoch_end", "(O)", numba_matrix);
-    Py_DECREF(numba_matrix);
+    PyObject* array = get_cupy_array(embeddings);
+    PyObject* res = PyObject_CallMethod(this->pyCallbackClass, "on_epoch_end", "(O)", array);
+    Py_DECREF(array);
     Py_DECREF(res);
     PyGILState_Release(gstate);
   }
@@ -52,9 +52,9 @@ class DefaultGraphBasedDimRedCallback : public GraphBasedDimRedCallback {
   void on_train_end(void* embeddings) override
   {
     PyGILState_STATE gstate = PyGILState_Ensure();
-    PyObject* numba_matrix = get_numba_matrix(embeddings);
-    PyObject* res = PyObject_CallMethod(this->pyCallbackClass, "on_train_end", "(O)", numba_matrix);
-    Py_DECREF(numba_matrix);
+    PyObject* array = get_cupy_array(embeddings);
+    PyObject* res = PyObject_CallMethod(this->pyCallbackClass, "on_train_end", "(O)", array);
+    Py_DECREF(array);
     Py_DECREF(res);
     PyGILState_Release(gstate);
   }

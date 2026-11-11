@@ -92,8 +92,12 @@ class KNeighborsClassifier(ClassifierMixin, FMajorInputTagMixin, NeighborsBase):
             - nlist: (int) number of cells to partition dataset into
             - nprobe: (int) at query time, number of cells used for search
             - M: (int) number of subquantizers
-            - n_bits: (int) bits allocated per subquantizer
+            - n_bits: (int) bits allocated per subquantizer, from 4 to 8
             - usePrecomputedTables : (bool) whether to use precomputed tables
+
+        With the default ``nlist=8``, IVF-PQ requires at least
+        ``2**(n_bits + 1)`` rows in ``X`` (512 for the default ``n_bits=8``).
+        Reducing ``n_bits`` reduces this minimum.
     metric_params : dict, optional (default = None)
         Additional keyword arguments for the metric function.
     n_jobs : int (default = None)

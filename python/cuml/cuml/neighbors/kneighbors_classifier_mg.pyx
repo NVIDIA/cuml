@@ -171,7 +171,7 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
                       query, query_parts_to_ranks, query_nrows,
                       uniq_labels, n_unique, ncols, rank) -> tuple:
         """
-        Predict labels for a query from previously stored index
+        Predict class probabilities for a query from previously stored index
         and index labels.
         The process is done in a multi-node multi-GPU fashion.
 
@@ -190,7 +190,9 @@ class KNeighborsClassifierMG(NearestNeighborsMG):
 
         Returns
         -------
-        predictions : labels, indices, distances
+        probabilities : tuple with one entry per output, each a list of
+            float32 arrays of shape (n_rows, n_classes), one per local
+            query partition
         """
         # Detect type
         self.get_out_type(index, query)

@@ -46,7 +46,7 @@ class ElasticNet(
         an L1 penalty.
         For 0 < l1_ratio < 1, the penalty is a combination of L1 and L2.
     fit_intercept : boolean, default=True
-        If True, Lasso tries to correct for the global mean of y.
+        If True, ElasticNet tries to correct for the global mean of y.
         If False, the model expects that you have centered the data.
     max_iter : int, default=1000
         The maximum number of iterations

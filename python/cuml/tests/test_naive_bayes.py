@@ -647,3 +647,183 @@ def test_categorical_parameters(
 
     assert_allclose(y_log_prob, y_log_prob_sk, rtol=1e-4, atol=1e-10)
     assert_array_equal(y_hat, y_hat_sk)
+
+
+@pytest.mark.parametrize("fit_method", ["fit", "partial_fit"])
+@pytest.mark.parametrize("is_sparse", [False, True])
+@pytest.mark.parametrize("alpha_type", [np.array, list])
+def test_complement_array_alpha_matches_sklearn(
+    fit_method, is_sparse, alpha_type
+):
+    """Per-feature alpha (dense/sparse, array/list) matches scikit-learn."""
+    X, y = make_classification(
+        200,
+        5,
+        n_classes=3,
+        n_informative=4,
+        n_redundant=0,
+        random_state=0,
+        dtype=cp.float64,
+    )
+    X -= X.min(0)  # Make all inputs positive
+    if is_sparse:
+        X = cp_sp.csr_matrix(X)
+    alpha = alpha_type([0.5, 1.0, 2.0, 0.1, 3.0])
+
+    X_np = X.get().toarray() if is_sparse else X.get()
+    y_np = y.get()
+    cuml_model = ComplementNB(alpha=alpha)
+    sk_model = skComplementNB(alpha=alpha)
+    if fit_method == "fit":
+        cuml_model.fit(X, y)
+        sk_model.fit(X_np, y_np)
+    else:
+        classes = cp.unique(y)
+        half = len(y) // 2
+        cuml_model.partial_fit(X[:half], y[:half], classes=classes)
+        cuml_model.partial_fit(X[half:], y[half:])
+        sk_model.partial_fit(X_np[:half], y_np[:half], classes=classes.get())
+        sk_model.partial_fit(X_np[half:], y_np[half:])
+
+    assert_allclose(
+        cuml_model.feature_log_prob_.get(),
+        sk_model.feature_log_prob_,
+        rtol=1e-4,
+        atol=1e-8,
+    )
+    assert_array_equal(cuml_model.predict(X).get(), sk_model.predict(X_np))
+    assert_allclose(
+        cuml_model.predict_log_proba(X).get(),
+        sk_model.predict_log_proba(X_np),
+        rtol=1e-4,
+        atol=1e-8,
+    )
+
+
+@pytest.mark.parametrize("fit_method", ["fit", "partial_fit"])
+@pytest.mark.parametrize("x_dtype", [cp.int32, cp.int64])
+def test_complement_array_alpha_preserves_fraction(fit_method, x_dtype):
+    """Integer feature counts must not truncate fractional alpha."""
+    X, y = make_classification(
+        200,
+        5,
+        n_classes=3,
+        n_informative=4,
+        n_redundant=0,
+        random_state=2,
+        dtype=cp.float64,
+    )
+    X -= X.min(0)  # Make all inputs positive
+    X = X.astype(x_dtype)
+    alpha = np.array([0.5, 1.5, 2.5, 0.1, 3.5])
+    X_np, y_np = X.get(), y.get()
+    model = ComplementNB(alpha=alpha)
+    sk_model = skComplementNB(alpha=alpha)
+    if fit_method == "fit":
+        model.fit(X, y)
+        sk_model.fit(X_np, y_np)
+    else:
+        classes = cp.unique(y)
+        half = len(y) // 2
+        model.partial_fit(X[:half], y[:half], classes=classes)
+        model.partial_fit(X[half:], y[half:])
+        sk_model.partial_fit(X_np[:half], y_np[:half], classes=classes.get())
+        sk_model.partial_fit(X_np[half:], y_np[half:])
+
+    for update in [False, True]:
+        if update:
+            model.update_log_probs()
+        assert_allclose(
+            model.feature_log_prob_.get(),
+            sk_model.feature_log_prob_,
+            rtol=1e-4,
+            atol=1e-8,
+        )
+        assert_array_equal(model.predict(X).get(), sk_model.predict(X_np))
+        assert_allclose(
+            model.predict_log_proba(X).get(),
+            sk_model.predict_log_proba(X_np),
+            rtol=1e-4,
+            atol=1e-8,
+        )
+
+
+@pytest.mark.parametrize(
+    "alpha",
+    [
+        np.array([1.0, -1.0, 2.0, 0.1, 3.0]),  # negative entry
+        np.array([1.0, 2.0]),  # wrong shape
+        np.array([1.0, np.nan, 2.0, 0.1, 3.0]),  # NaN entry
+        np.array([1.0, np.inf, 2.0, 0.1, 3.0]),  # +inf entry
+        float("nan"),  # scalar
+        float("inf"),  # scalar
+        np.array(np.nan),  # 0-d
+        np.array(np.inf),  # 0-d
+        np.array(-1.0),  # 0-d
+    ],
+)
+def test_complement_array_alpha_rejects_invalid_values(alpha):
+    X, y = make_classification(
+        50, 5, n_classes=2, random_state=0, dtype=cp.float64
+    )
+    X -= X.min(0)
+
+    with pytest.raises(ValueError):
+        ComplementNB(alpha=alpha).fit(X, y)
+
+
+def test_complement_bad_alpha_never_mutates_state():
+    """Invalid alpha must not initialize fitted attributes or update counts."""
+    X, y = make_classification(
+        100, 5, n_classes=2, random_state=0, dtype=cp.float64
+    )
+    X -= X.min(0)  # Make all inputs positive
+    bad_alpha = np.array([1.0, -1.0, 2.0, 0.1, 3.0])
+
+    fresh_model = ComplementNB(alpha=bad_alpha)
+    with pytest.raises(ValueError):
+        fresh_model.fit(X, y)
+    assert not hasattr(fresh_model, "classes_")
+    assert not hasattr(fresh_model, "n_features_")
+
+    classes = cp.unique(y)
+    half = len(y) // 2
+    model = ComplementNB(alpha=1.0)
+    model.partial_fit(X[:half], y[:half], classes=classes)
+    feature_count_before = model.feature_count_.copy()
+    class_count_before = model.class_count_.copy()
+
+    model.alpha = bad_alpha
+    with pytest.raises(ValueError):
+        model.partial_fit(X[half:], y[half:])
+    assert_array_equal(model.feature_count_.get(), feature_count_before.get())
+    assert_array_equal(model.class_count_.get(), class_count_before.get())
+
+
+@pytest.mark.parametrize(
+    "alpha,reference_alpha",
+    [
+        (
+            cp.asarray([0.5, 1.0, 2.0, 0.1, 3.0]),
+            np.array([0.5, 1.0, 2.0, 0.1, 3.0]),
+        ),
+        (np.array(1.5), 1.5),
+    ],
+)
+def test_complement_array_alpha_coercion_edge_cases(alpha, reference_alpha):
+    """Device and zero-dimensional alpha match host and scalar equivalents."""
+    X, y = make_classification(
+        100,
+        5,
+        n_classes=3,
+        n_informative=3,
+        n_redundant=0,
+        random_state=0,
+        dtype=cp.float64,
+    )
+    X -= X.min(0)  # Make all inputs positive
+
+    cuml_model = ComplementNB(alpha=alpha).fit(X, y)
+    ref_model = ComplementNB(alpha=reference_alpha).fit(X, y)
+
+    assert_array_equal(cuml_model.predict(X).get(), ref_model.predict(X).get())

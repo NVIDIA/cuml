@@ -28,6 +28,7 @@ function(find_and_configure_nvforest)
               EXCLUDE_FROM_ALL       ${PKG_EXCLUDE_FROM_ALL}
               OPTIONS
                 "BUILD_NVFOREST_TESTS OFF"
+                "NVFOREST_USE_TREELITE_STATIC ${CUML_USE_TREELITE_STATIC}"
     )
 
     if(nvforest_ADDED)

@@ -14,8 +14,8 @@ class MBSGDRegressor(
     """
     Linear model fitted by minimizing a regularized empirical loss with SGD.
 
-    The MBSGD Regressor implementation is experimental and and it uses a
-    different algorithm than sklearn's SGDClassifier. In order to improve
+    The MBSGD Regressor implementation is experimental and it uses a
+    different algorithm than sklearn's SGDRegressor. In order to improve
     the results obtained from cuML's MBSGD Regressor:
 
     * Reduce the batch size

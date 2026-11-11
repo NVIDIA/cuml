@@ -126,7 +126,7 @@ class IncrementalPCA(PCA):
     .. [2] `A. Levy and M. Lindenbaum, Sequential Karhunen-Loeve Basis
         Extraction and its Application to Images, IEEE Transactions on Image
         Processing, Volume 9, Number 8, pp. 1371-1374, August 2000.
-        <https://www.cs.technion.ac.il/~mic/doc/skl-ip.pdf>`_
+        <https://ieeexplore.ieee.org/document/723422>`_
 
     .. [3] G. Golub and C. Van Loan. Matrix Computations, Third Edition,
         Chapter 5, Section 5.4.4, pp. 252-253.
@@ -248,6 +248,19 @@ class IncrementalPCA(PCA):
             self.partial_fit(X_batch, check_input=False)
 
         return self
+
+    @mlfunc(
+        set_input_type=True,
+        preserve_index=True,
+        column_names="feature_names_out",
+    )
+    def fit_transform(self, X, y=None):
+        """
+        Fit the model with X, using minibatches of size batch_size, and apply
+        the dimensionality reduction on X.
+
+        """
+        return self.fit(X, y).transform(X)
 
     @mlfunc(convert_output=False)
     def partial_fit(self, X, y=None, *, check_input=True) -> "IncrementalPCA":
