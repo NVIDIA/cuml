@@ -9,7 +9,7 @@ import numpy as np
 
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base, get_handle
-from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
+from cuml.internals.interop import InteropMixin
 from cuml.internals.mixins import (
     FMajorInputTagMixin,
     RegressorMixin,
@@ -113,6 +113,10 @@ class LinearRegression(InteropMixin,
     copy_X : boolean, default=True
         If True, X will never be mutated. Setting to False may reduce memory
         usage, at the cost of potentially mutating X.
+    positive : boolean, default=False
+        If True, constrains the coefficients to be non-negative, solved with
+        :func:`cuml.solvers.nnls`. ``algorithm`` is ignored in this case.
+        Sparse ``X`` is converted to a dense array.
     verbose : int or boolean, default=False
         Sets logging level. It must be one of `cuml.common.logger.level_*`.
         See :ref:`verbosity-levels` for more info.
@@ -176,22 +180,22 @@ class LinearRegression(InteropMixin,
             "algorithm",
             "fit_intercept",
             "copy_X",
+            "positive",
         ]
 
     @classmethod
     def _params_from_cpu(cls, model):
-        if model.positive:
-            raise UnsupportedOnGPU("`positive=True` is not supported")
-
         return {
             "fit_intercept": model.fit_intercept,
             "copy_X": model.copy_X,
+            "positive": model.positive,
         }
 
     def _params_to_cpu(self):
         return {
             "fit_intercept": self.fit_intercept,
             "copy_X": self.copy_X,
+            "positive": self.positive,
         }
 
     def _attrs_from_cpu(self, model):
@@ -222,6 +226,7 @@ class LinearRegression(InteropMixin,
         algorithm="auto",
         fit_intercept=True,
         copy_X=True,
+        positive=False,
         verbose=False,
         output_type=None
     ):
@@ -229,6 +234,7 @@ class LinearRegression(InteropMixin,
         self.algorithm = algorithm
         self.fit_intercept = fit_intercept
         self.copy_X = copy_X
+        self.positive = positive
 
     def _fit_libcuml(
         self,
@@ -343,7 +349,12 @@ class LinearRegression(InteropMixin,
 
         # Determine the solver to use
         fallback_reason = None
-        if self.algorithm == "lsmr":
+        if self.positive:
+            solver = "nnls"
+            if sp.issparse(X):
+                X = X.toarray()
+                X_is_copy = True
+        elif self.algorithm == "lsmr":
             solver = "lsmr"
         elif sp.issparse(X):
             solver = "lsmr"

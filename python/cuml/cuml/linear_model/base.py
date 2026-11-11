@@ -220,8 +220,9 @@ def fit_least_squares(
     alpha : float or cp.ndarray
         Ridge regularization strength. Must be a non-negative float. Defaults
         to 0 for no regularization (a LinearRegression).
-    solver : {'svd', 'lsmr'}
-        The solver to use.
+    solver : {'svd', 'lsmr', 'nnls'}
+        The solver to use. ``'nnls'`` constrains the coefficients to be
+        non-negative and requires a dense ``X``.
     tol : float
         Tolerance, used by the LSMR solver.
     max_iter : int or None
@@ -307,6 +308,13 @@ def fit_least_squares(
             )
             coef[i] = info[0]
             n_iter[i] = info[2]
+    elif solver == "nnls":
+        # Non-negative least squares: one problem per target, shared X.
+        from cuml.solvers.nnls import fit_nnls_batched
+
+        coef, _ = fit_nnls_batched(X, y, compute_rnorm=False, tol=tol)
+        coef = coef.T
+        n_iter = None
     else:
         raise ValueError(f"Unsupported solver={solver!r}")
 
