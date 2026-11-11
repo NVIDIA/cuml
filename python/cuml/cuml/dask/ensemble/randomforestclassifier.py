@@ -65,8 +65,22 @@ class RandomForestClassifier(
         .. rapids-pre-commit-hooks: disable-next-line
         .. versionchanged:: 26.08
           The default of `max_depth` changed from `16` to `None`.
+    max_leaf_nodes : int or None (default = None)
+        Maximum leaf nodes per tree. Must be at least 2 or ``None``.
+        A finite limit grows the tree greedily,
+        splitting the leaf with the largest weighted impurity decrease first.
+        If ``None``, use unlimited batched growth.
+
+        .. versionadded:: 26.12
+
     max_leaves : int (default = -1)
-        Maximum leaf nodes per tree. Soft constraint. Unlimited, If ``-1``.
+        Deprecated alias for ``max_leaf_nodes``. When set to ``-1`` (default), the leaf
+        limit is determined by ``max_leaf_nodes``.
+
+        .. deprecated:: 26.12
+
+            ``max_leaves`` will be removed in 27.02. Use ``max_leaf_nodes`` instead.
+
     max_features : float (default = 'auto')
         Ratio of number of features (columns) to consider
         per node split.\n

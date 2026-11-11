@@ -203,6 +203,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             "bootstrap",
             "max_samples",
             "max_depth",
+            "max_leaf_nodes",
             "max_leaves",
             "max_features",
             "n_bins",
@@ -252,7 +253,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             "min_samples_split": model.min_samples_split,
             "min_samples_leaf": model.min_samples_leaf,
             "max_features": model.max_features,
-            "max_leaves": -1 if model.max_leaf_nodes is None else model.max_leaf_nodes,
+            "max_leaf_nodes": model.max_leaf_nodes,
             "min_impurity_decrease": model.min_impurity_decrease,
             "bootstrap": model.bootstrap,
             "random_state": model.random_state,
@@ -273,7 +274,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             "min_samples_split": self.min_samples_split,
             "min_samples_leaf": self.min_samples_leaf,
             "max_features": self.max_features,
-            "max_leaf_nodes": None if self.max_leaves == -1 else self.max_leaves,
+            "max_leaf_nodes": self._get_max_leaf_nodes(),
             "min_impurity_decrease": self.min_impurity_decrease,
             "bootstrap": self.bootstrap,
             "random_state": self.random_state,
@@ -333,6 +334,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         bootstrap=True,
         max_samples=1.0,
         max_depth=None,
+        max_leaf_nodes=None,
         max_leaves=-1,
         max_features='sqrt',
         n_bins=128,
@@ -353,6 +355,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         self.bootstrap = bootstrap
         self.max_samples = max_samples
         self.max_depth = max_depth
+        self.max_leaf_nodes = max_leaf_nodes
         self.max_leaves = max_leaves
         self.max_features = max_features
         self.n_bins = n_bins
@@ -363,6 +366,32 @@ class BaseRandomForestModel(InteropMixin, Base):
         self.random_state = random_state
         self.n_streams = n_streams
         self.oob_score = oob_score
+
+    def _get_max_leaf_nodes(self):
+        # Resolve at use time so set_params and sklearn.clone retain the
+        # constructor parameters.
+        max_leaf_nodes = self.max_leaf_nodes
+        if max_leaf_nodes is not None and (
+            not isinstance(max_leaf_nodes, numbers.Integral)
+            or max_leaf_nodes < 2
+        ):
+            raise ValueError(
+                "max_leaf_nodes must be an integer of at least 2 or None; "
+                f"got {max_leaf_nodes!r}"
+            )
+        if self.max_leaves != -1 and max_leaf_nodes is not None:
+            raise ValueError(
+                "Only one of `max_leaves` and `max_leaf_nodes` may be set "
+                "to a non-default value. Use `max_leaf_nodes` only."
+            )
+        if self.max_leaves != -1:
+            warnings.warn(
+                "`max_leaves` was deprecated in 26.12 and will be "
+                "removed in 27.02. Use `max_leaf_nodes` instead.",
+                FutureWarning,
+            )
+            max_leaf_nodes = self.max_leaves
+        return max_leaf_nodes
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -486,6 +515,9 @@ class BaseRandomForestModel(InteropMixin, Base):
         else:
             max_depth_c = max_depth
 
+        max_leaf_nodes = self._get_max_leaf_nodes()
+        cdef int max_leaves_c = -1 if max_leaf_nodes is None else max_leaf_nodes
+
         # Validate OOB score parameter
         if callable(self.oob_score):
             raise ValueError(
@@ -537,7 +569,7 @@ class BaseRandomForestModel(InteropMixin, Base):
 
         cdef RF_params params = set_rf_params(
             max_depth_c,
-            self.max_leaves,
+            max_leaves_c,
             max_features,
             n_bins,
             min_samples_leaf,

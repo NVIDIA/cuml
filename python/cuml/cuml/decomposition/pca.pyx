@@ -478,7 +478,10 @@ class PCA(InteropMixin,
             order="F",
             reset=True,
         )
+        return self._fit_validated(X)
 
+    def _fit_validated(self, X):
+        """Fit on an input that `check_inputs` has already validated."""
         n_rows, n_cols = X.shape
         self.n_samples_ = n_rows
 
@@ -513,7 +516,22 @@ class PCA(InteropMixin,
         Fit the model with X and apply the dimensionality reduction on X.
 
         """
-        return self.fit(X).transform(X)
+        # Validate once. `self.fit(X).transform(X)` would convert a host
+        # input to a device array twice (and reorder it twice), which was
+        # most of the wall time of `fit_transform` on NumPy input.
+        X = check_inputs(
+            self,
+            X,
+            accept_sparse=["csr"],
+            accept_large_sparse=True,
+            dtype=("float32", "float64"),
+            ensure_min_samples=2,
+            ensure_min_features=2,
+            order="F",
+            reset=True,
+        )
+        self._fit_validated(X)
+        return self._transform_validated(X)
 
     def _inverse_transform_sparse(self, X, return_sparse=False, sparse_tol=1e-10):
         components = self.components_
@@ -686,6 +704,10 @@ class PCA(InteropMixin,
             dtype=self.components_.dtype,
             order="F",
         )
+        return self._transform_validated(X)
+
+    def _transform_validated(self, X):
+        """Transform an input that `check_inputs` has already validated."""
         if is_sparse(X):
             return self._transform_sparse(X)
         return self._transform_dense(X)

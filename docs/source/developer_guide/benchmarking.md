@@ -45,6 +45,29 @@ Provider requirements:
 - Estimator availability and accepted constructor parameters depend on installed
   packages.
 
+### Select and preview cases
+
+Use `-k` to select cases and `--collect-only` to preview them without running
+benchmarks or writing files:
+
+```bash
+python -m cuml.benchmark --profile smoke -k 'PCA or UMAP'
+python -m cuml.benchmark -k '(PCA or UMAP) and dtype=float32' --collect-only
+```
+
+Terms match case-insensitive substrings of estimator names, operations, dataset
+generators, workload IDs, and resolved `rows=N`, `features=N`, and
+`dtype=TYPE` attributes. Combine terms with lowercase `not`, `and`, `or`, and
+parentheses.
+
+Selection uses measured row counts after profile scaling: `rows: 200` with
+`size_scale: 0.5` matches `rows=100`. Measured row counts are rounded and clamped
+to at least 32; feature counts are unchanged.
+
+Invalid expressions or no matches exit nonzero. The `--collect-only` option
+reports counts by provider. Resuming requires the same selected cases as the
+checkpoint.
+
 ## Define a suite
 
 Save this manifest as `my-suite.yaml`:
@@ -61,6 +84,7 @@ profiles:
     timeout_sec: 60
 cases:
   - estimator: KMeans
+    tags: [clustering]
     dataset:
       generator: blobs
       shape: {rows: 1024, features: 8}
@@ -83,6 +107,9 @@ A suite brings together:
   representation. Generator parameters are separate from estimator parameters.
 - **Input selection:** arguments passed to the operation (`X`, `y`, or both).
   Inference cases also specify training rows and inputs for the initial fit.
+- **Tags:** optional labels for describing and grouping cases. The exact
+  meaning is suite-dependent. Tags are preserved in result artifacts without
+  affecting workload IDs.
 
 Cases inherit the suite's providers. To restrict a case, give it a
 nonempty subset, for example:

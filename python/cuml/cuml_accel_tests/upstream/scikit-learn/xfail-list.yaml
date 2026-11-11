@@ -68,6 +68,11 @@
   - "sklearn.ensemble.tests.test_iforest::test_iforest_sparse[42-csc_matrix]"
   - "sklearn.ensemble.tests.test_iforest::test_iforest_sparse[42-csr_array]"
   - "sklearn.ensemble.tests.test_iforest::test_iforest_sparse[42-csr_matrix]"
+- reason: KMeans.transform can return a nonzero self-distance (https://github.com/NVIDIA/cuml/issues/8872)
+  marker: cuml_accel_bugs
+  strict: false
+  tests:
+  - "sklearn.cluster.tests.test_k_means::test_transform[42-KMeans]"
 - reason: LogisticRegression behavior differs with cuml.accel in sklearn 1.9
   marker: cuml_accel_bugs
   condition: scikit-learn>=1.9
