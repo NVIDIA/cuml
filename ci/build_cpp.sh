@@ -18,6 +18,10 @@ sccache --stop-server 2>/dev/null || true
 RAPIDS_PACKAGE_VERSION=$(rapids-generate-version)
 export RAPIDS_PACKAGE_VERSION
 
+# TEMPORARY (do not merge): build against the libraft of NVIDIA/raft#3204
+RAPIDS_PREPENDED_CONDA_CHANNELS=("$(rapids-get-pr-artifact raft 3204 cpp conda)")
+export RAPIDS_PREPENDED_CONDA_CHANNELS
+
 # populates `RATTLER_CHANNELS` array and `RATTLER_ARGS` array
 source rapids-rattler-channel-string
 

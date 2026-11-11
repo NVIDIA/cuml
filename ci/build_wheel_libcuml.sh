@@ -6,6 +6,10 @@ set -euo pipefail
 
 source rapids-init-pip
 
+# TEMPORARY (do not merge): build against the libraft wheel of NVIDIA/raft#3204
+LIBRAFT_WHEELHOUSE=$(rapids-get-pr-artifact raft 3204 cpp wheel)
+echo "libraft-$(rapids-wheel-ctk-name-gen "${RAPIDS_CUDA_VERSION}") @ file://$(echo "${LIBRAFT_WHEELHOUSE}"/libraft_*.whl)" >> "${PIP_CONSTRAINT}"
+
 package_name="libcuml"
 package_dir="python/libcuml"
 
