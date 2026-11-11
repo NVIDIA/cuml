@@ -613,6 +613,7 @@ jobs:
       build_command: |
         sccache --zero-stats;
         # TEMPORARY (do not merge): build against the raft branch of NVIDIA/raft#3204
-        git clone --depth 1 --branch fea-nnls-solver https://github.com/NVIDIA/raft.git ~/raft;
+        git clone --depth 1 --branch fea-nnls-solver https://github.com/NVIDIA/raft.git /tmp/raft-pr;
+        cp -r /tmp/raft-pr/cpp/include/raft/. "${CONDA_PREFIX:-$HOME/.conda/envs/rapids}/include/raft/";
         build-all -j0 --verbose -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=ON;
         sccache --show-adv-stats;
