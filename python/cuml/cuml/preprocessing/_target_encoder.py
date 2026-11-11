@@ -582,20 +582,17 @@ class TargetEncoder(InteropMixin, Base):
         keys = enc[col]
         vals = enc["out"].to_numpy(dtype="float64", na_value=np.nan)
         key_missing = keys.isna().to_numpy()
-        lut = dict(
-            zip(keys[~key_missing].tolist(), vals[~key_missing].tolist())
-        )
         mean = float(self.mean)
 
         cats = np.asarray(categories)
         cat_missing = np.asarray(pd.isna(cats), dtype=bool)
-        out = np.array(
-            [
-                mean if missing else lut.get(cat, mean)
-                for cat, missing in zip(cats.tolist(), cat_missing)
-            ],
-            dtype="float64",
-        )
+        # Vectorized lookup: a Python loop over the categories costs about
+        # 0.4 s per feature at a million categories. `encode_all` comes from
+        # a groupby, so its keys are unique.
+        pos = pd.Index(keys[~key_missing]).get_indexer(cats)
+        hit = (pos >= 0) & ~cat_missing
+        out = np.full(len(cats), mean, dtype="float64")
+        out[hit] = vals[~key_missing][pos[hit]]
         if cat_missing.any() and key_missing.any():
             out[cat_missing] = vals[key_missing][0]
         # `out` of an empty group can be NaN for some statistics; the merge
