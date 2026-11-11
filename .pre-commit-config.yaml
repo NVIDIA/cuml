@@ -174,17 +174,7 @@ repos:
           (?x)
             ^pyproject[.]toml$
       - id: verify-hardcoded-version
-        exclude: |
-          (?x)
-            (^|/)devcontainer[.]json$|
-            (^|/)dependencies[.]yaml$|
-            ^[.]github/(workflows|ISSUE_TEMPLATE)/|
-            (^|/)pom[.]xml$|
-            ^[.]pre-commit-config[.]yaml$|
-            ^conda/environments/|
-            (^|/)VERSION$|
-            (^|/)RAPIDS_BRANCH$|
-            [.](csv|json|md|rst|avro|parquet|png|orc|gz|pkl|sas7bdat)$
+        exclude: "(?x)\n  (^|/)devcontainer[.]json$|\n  (^|/)dependencies[.]yaml$|\n  ^[.]github/(workflows|ISSUE_TEMPLATE)/|\n  (^|/)pom[.]xml$|\n  ^[.]pre-commit-config[.]yaml$|\n  ^conda/environments/|\n  (^|/)VERSION$|\n  (^|/)RAPIDS_BRANCH$|\n  [.](csv|json|md|rst|avro|parquet|png|orc|gz|pkl|sas7bdat)$\n|^(?:docs/source/_static/cuml\\-accel\\-benchmarks/training\\-heatmap\\.svg)$"
   - repo: https://github.com/rapidsai/dependency-file-generator
     rev: v1.22.0
     hooks:
