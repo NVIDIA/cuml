@@ -466,7 +466,9 @@ class IncrementalPCA(PCA):
             return cp.vstack(output)
         # The dense transform expects column-major (Fortran) data. This is a
         # copy on the GPU, not another host-to-device transfer.
-        return self._transform_dense(cp.asfortranarray(X))
+        return self._transform_dense(
+            cp.asfortranarray(X, dtype=self.components_.dtype)
+        )
 
     @classmethod
     def _get_param_names(cls):

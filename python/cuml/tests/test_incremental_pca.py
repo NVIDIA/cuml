@@ -218,21 +218,26 @@ def test_fit_transform_fits_in_batches():
     assert int(ipca.n_samples_seen_) == 250
 
 
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("input_type", ["numpy", "cupy", "csr"])
-def test_fit_transform_matches_fit_then_transform(input_type):
+def test_fit_transform_matches_fit_then_transform(input_type, dtype):
+    """fit_transform should match fit(...).transform(...) for each input type and dtype."""
     X, _ = make_blobs(
-        n_samples=200, n_features=10, random_state=0, dtype="float64"
+        n_samples=200, n_features=10, random_state=0, dtype=dtype
     )
     if input_type == "numpy":
         X = X.get()
     elif input_type == "csr":
         X = cupyx.scipy.sparse.csr_matrix(X)
 
-    Xt = cuIPCA(n_components=4, batch_size=50).fit_transform(X)
+    ipca = cuIPCA(n_components=4, batch_size=50)
+    Xt = ipca.fit_transform(X)
     ref = cuIPCA(n_components=4, batch_size=50).fit(X).transform(X)
 
+    assert Xt.dtype == ipca.components_.dtype
+    tol = 1e-4 if dtype == "float32" else 1e-6
     cp.testing.assert_allclose(
-        cp.asarray(Xt), cp.asarray(ref), rtol=1e-6, atol=1e-6
+        cp.asarray(Xt), cp.asarray(ref), rtol=tol, atol=tol
     )
 
 
@@ -279,3 +284,30 @@ def test_get_feature_names_out():
     res = cu_model.get_feature_names_out()
     sol = sk_model.get_feature_names_out()
     np.testing.assert_array_equal(res, sol)
+
+
+def test_fit_transform_output_metadata():
+    """fit_transform should keep the index, column names and output type like fit + transform."""
+    pd = pytest.importorskip("pandas")
+    X, _ = make_blobs(n_samples=200, n_features=5, random_state=0)
+    X = pd.DataFrame(
+        X.get(),
+        columns=[f"f{i}" for i in range(5)],
+        index=range(100, 300),
+    )
+
+    ipca = cuIPCA(n_components=2, batch_size=50, output_type="pandas")
+    Xt = ipca.fit_transform(X)
+    ref = (
+        cuIPCA(n_components=2, batch_size=50, output_type="pandas")
+        .fit(X)
+        .transform(X)
+    )
+
+    assert isinstance(Xt, pd.DataFrame)
+    np.testing.assert_array_equal(ipca.feature_names_in_, X.columns)
+    pd.testing.assert_index_equal(Xt.index, X.index)
+    np.testing.assert_array_equal(Xt.columns, ipca.get_feature_names_out())
+    np.testing.assert_allclose(
+        Xt.to_numpy(), ref.to_numpy(), rtol=1e-5, atol=1e-5
+    )
