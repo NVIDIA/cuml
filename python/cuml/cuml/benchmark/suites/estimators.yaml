@@ -38,7 +38,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: LogisticRegression
     tags: [balanced]
@@ -59,7 +61,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: LogisticRegression
     tags: [wide]
@@ -80,7 +84,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: LinearRegression
     tags: [thin]
@@ -93,7 +99,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: LinearRegression
     tags: [balanced]
@@ -106,7 +114,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: LinearRegression
     tags: [wide]
@@ -119,7 +129,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: Ridge
     tags: [thin]
@@ -132,7 +144,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: Ridge
     tags: [balanced]
@@ -145,7 +159,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: Ridge
     tags: [wide]
@@ -158,7 +174,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: ElasticNet
     tags: [thin]
@@ -173,7 +191,9 @@ cases:
     parameters:
       alpha: 0.1
       l1_ratio: 0.5
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: ElasticNet
     tags: [balanced]
@@ -188,7 +208,9 @@ cases:
     parameters:
       alpha: 0.1
       l1_ratio: 0.5
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: ElasticNet
     tags: [wide]
@@ -203,7 +225,9 @@ cases:
     parameters:
       alpha: 0.1
       l1_ratio: 0.5
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: Lasso
     tags: [thin]
@@ -216,7 +240,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: Lasso
     tags: [balanced]
@@ -229,7 +255,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: Lasso
     tags: [wide]
@@ -242,7 +270,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: KernelRidge
     tags: [thin]
@@ -255,7 +285,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 512}
+    scoring:
+      name: r2
+      evaluation_rows: 512
 
   - estimator: KernelRidge
     tags: [balanced]
@@ -268,7 +300,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 512}
+    scoring:
+      name: r2
+      evaluation_rows: 512
 
   - estimator: KernelRidge
     tags: [wide]
@@ -281,7 +315,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 512}
+    scoring:
+      name: r2
+      evaluation_rows: 512
 
   - estimator: MBSGDRegressor
     tags: [thin]
@@ -294,7 +330,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: MBSGDRegressor
     tags: [balanced]
@@ -307,7 +345,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: MBSGDRegressor
     tags: [wide]
@@ -320,7 +360,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: KMeans
     tags: [thin]
@@ -339,7 +381,9 @@ cases:
       n_clusters: 8
       max_iter: 300
       n_init: 1
-    scoring: {name: adjusted_rand, evaluation_rows: 4096}
+    scoring:
+      name: adjusted_rand
+      evaluation_rows: 4096
 
   - estimator: KMeans
     tags: [balanced]
@@ -358,7 +402,9 @@ cases:
       n_clusters: 8
       max_iter: 300
       n_init: 1
-    scoring: {name: adjusted_rand, evaluation_rows: 4096}
+    scoring:
+      name: adjusted_rand
+      evaluation_rows: 4096
 
   - estimator: KMeans
     tags: [wide]
@@ -377,7 +423,9 @@ cases:
       n_clusters: 8
       max_iter: 300
       n_init: 1
-    scoring: {name: adjusted_rand, evaluation_rows: 4096}
+    scoring:
+      name: adjusted_rand
+      evaluation_rows: 4096
 
   - estimator: AgglomerativeClustering
     tags: [thin]
@@ -609,7 +657,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: PCA
     tags: [thin]
@@ -625,7 +675,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: PCA
     tags: [balanced]
@@ -641,7 +693,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: PCA
     tags: [balanced]
@@ -657,7 +711,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: PCA
     tags: [wide]
@@ -673,7 +729,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: PCA
     tags: [wide]
@@ -689,7 +747,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: IncrementalPCA
     tags: [thin]
@@ -705,7 +765,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: IncrementalPCA
     tags: [balanced]
@@ -721,7 +783,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: IncrementalPCA
     tags: [wide]
@@ -737,7 +801,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: TruncatedSVD
     tags: [thin]
@@ -753,7 +819,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: TruncatedSVD
     tags: [balanced]
@@ -769,7 +837,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: TruncatedSVD
     tags: [wide]
@@ -785,7 +855,9 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: reconstruction, evaluation_rows: 4096}
+    scoring:
+      name: reconstruction
+      evaluation_rows: 4096
 
   - estimator: GaussianRandomProjection
     tags: [thin]
@@ -801,7 +873,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: GaussianRandomProjection
     tags: [thin]
@@ -817,7 +893,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: GaussianRandomProjection
     tags: [balanced]
@@ -833,7 +913,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: GaussianRandomProjection
     tags: [balanced]
@@ -849,7 +933,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: GaussianRandomProjection
     tags: [wide]
@@ -865,7 +953,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: GaussianRandomProjection
     tags: [wide]
@@ -881,7 +973,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: SparseRandomProjection
     tags: [thin]
@@ -897,7 +993,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: SparseRandomProjection
     tags: [thin]
@@ -913,7 +1013,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: SparseRandomProjection
     tags: [balanced]
@@ -929,7 +1033,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: SparseRandomProjection
     tags: [balanced]
@@ -945,7 +1053,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: SparseRandomProjection
     tags: [wide]
@@ -961,7 +1073,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 10
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: SparseRandomProjection
     tags: [wide]
@@ -977,7 +1093,11 @@ cases:
     input_selection: [X]
     parameters:
       n_components: 25
-    scoring: {name: distance_distortion, evaluation_rows: 4096, parameters: {pairs: 1024}}
+    scoring:
+      name: distance_distortion
+      evaluation_rows: 4096
+      parameters:
+        pairs: 1024
 
   - estimator: EmpiricalCovariance
     tags: [thin]
@@ -992,7 +1112,9 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    scoring: {name: gaussian_log_likelihood, evaluation_rows: 4096}
+    scoring:
+      name: gaussian_log_likelihood
+      evaluation_rows: 4096
 
   - estimator: EmpiricalCovariance
     tags: [balanced]
@@ -1007,7 +1129,9 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    scoring: {name: gaussian_log_likelihood, evaluation_rows: 4096}
+    scoring:
+      name: gaussian_log_likelihood
+      evaluation_rows: 4096
 
   - estimator: EmpiricalCovariance
     tags: [wide]
@@ -1022,7 +1146,9 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    scoring: {name: gaussian_log_likelihood, evaluation_rows: 4096}
+    scoring:
+      name: gaussian_log_likelihood
+      evaluation_rows: 4096
 
   - estimator: LedoitWolf
     tags: [thin]
@@ -1037,7 +1163,9 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    scoring: {name: gaussian_log_likelihood, evaluation_rows: 4096}
+    scoring:
+      name: gaussian_log_likelihood
+      evaluation_rows: 4096
 
   - estimator: LedoitWolf
     tags: [balanced]
@@ -1052,7 +1180,9 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    scoring: {name: gaussian_log_likelihood, evaluation_rows: 4096}
+    scoring:
+      name: gaussian_log_likelihood
+      evaluation_rows: 4096
 
   - estimator: LedoitWolf
     tags: [wide]
@@ -1067,7 +1197,9 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    scoring: {name: gaussian_log_likelihood, evaluation_rows: 4096}
+    scoring:
+      name: gaussian_log_likelihood
+      evaluation_rows: 4096
 
   - estimator: RandomForestClassifier
     tags: [thin]
@@ -1089,7 +1221,9 @@ cases:
     input_selection: [X, y]
     parameters:
       n_estimators: 20
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: RandomForestClassifier
     tags: [thin]
@@ -1112,7 +1246,9 @@ cases:
     parameters:
       n_estimators: 20
       n_jobs: -1
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: RandomForestClassifier
     tags: [balanced]
@@ -1134,7 +1270,9 @@ cases:
     input_selection: [X, y]
     parameters:
       n_estimators: 20
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: RandomForestClassifier
     tags: [balanced]
@@ -1157,7 +1295,9 @@ cases:
     parameters:
       n_estimators: 20
       n_jobs: -1
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: RandomForestClassifier
     tags: [wide]
@@ -1179,7 +1319,9 @@ cases:
     input_selection: [X, y]
     parameters:
       n_estimators: 20
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: RandomForestClassifier
     tags: [wide]
@@ -1202,7 +1344,9 @@ cases:
     parameters:
       n_estimators: 20
       n_jobs: -1
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: RandomForestRegressor
     tags: [thin]
@@ -1216,7 +1360,9 @@ cases:
     input_selection: [X, y]
     parameters:
       n_estimators: 20
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: RandomForestRegressor
     tags: [thin]
@@ -1231,7 +1377,9 @@ cases:
     parameters:
       n_estimators: 20
       n_jobs: -1
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: RandomForestRegressor
     tags: [balanced]
@@ -1245,7 +1393,9 @@ cases:
     input_selection: [X, y]
     parameters:
       n_estimators: 20
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: RandomForestRegressor
     tags: [balanced]
@@ -1260,7 +1410,9 @@ cases:
     parameters:
       n_estimators: 20
       n_jobs: -1
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: RandomForestRegressor
     tags: [wide]
@@ -1274,7 +1426,9 @@ cases:
     input_selection: [X, y]
     parameters:
       n_estimators: 20
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: RandomForestRegressor
     tags: [wide]
@@ -1289,7 +1443,9 @@ cases:
     parameters:
       n_estimators: 20
       n_jobs: -1
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: SVC
     tags: [thin]
@@ -1311,7 +1467,9 @@ cases:
     input_selection: [X, y]
     parameters:
       kernel: rbf
-    scoring: {name: accuracy, evaluation_rows: 512}
+    scoring:
+      name: accuracy
+      evaluation_rows: 512
 
   - estimator: SVC
     tags: [balanced]
@@ -1333,7 +1491,9 @@ cases:
     input_selection: [X, y]
     parameters:
       kernel: rbf
-    scoring: {name: accuracy, evaluation_rows: 512}
+    scoring:
+      name: accuracy
+      evaluation_rows: 512
 
   - estimator: SVC
     tags: [wide]
@@ -1355,7 +1515,9 @@ cases:
     input_selection: [X, y]
     parameters:
       kernel: rbf
-    scoring: {name: accuracy, evaluation_rows: 512}
+    scoring:
+      name: accuracy
+      evaluation_rows: 512
 
   - estimator: SVR
     tags: [thin]
@@ -1369,7 +1531,9 @@ cases:
     input_selection: [X, y]
     parameters:
       kernel: rbf
-    scoring: {name: r2, evaluation_rows: 512}
+    scoring:
+      name: r2
+      evaluation_rows: 512
 
   - estimator: SVR
     tags: [balanced]
@@ -1383,7 +1547,9 @@ cases:
     input_selection: [X, y]
     parameters:
       kernel: rbf
-    scoring: {name: r2, evaluation_rows: 512}
+    scoring:
+      name: r2
+      evaluation_rows: 512
 
   - estimator: SVR
     tags: [wide]
@@ -1397,7 +1563,9 @@ cases:
     input_selection: [X, y]
     parameters:
       kernel: rbf
-    scoring: {name: r2, evaluation_rows: 512}
+    scoring:
+      name: r2
+      evaluation_rows: 512
 
   - estimator: LinearSVC
     tags: [thin]
@@ -1418,7 +1586,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: LinearSVC
     tags: [balanced]
@@ -1439,7 +1609,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: LinearSVC
     tags: [wide]
@@ -1460,7 +1632,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: LinearSVR
     tags: [thin]
@@ -1473,7 +1647,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: LinearSVR
     tags: [balanced]
@@ -1486,7 +1662,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: LinearSVR
     tags: [wide]
@@ -1499,7 +1677,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2, evaluation_rows: 4096}
+    scoring:
+      name: r2
+      evaluation_rows: 4096
 
   - estimator: DBSCAN
     tags: [thin]
@@ -1621,7 +1801,8 @@ cases:
     input_selection: [X]
     fit_input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy}
+    scoring:
+      name: accuracy
 
   - estimator: KNeighborsClassifier
     tags: [balanced]
@@ -1644,7 +1825,8 @@ cases:
     input_selection: [X]
     fit_input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy}
+    scoring:
+      name: accuracy
 
   - estimator: KNeighborsClassifier
     tags: [wide]
@@ -1667,7 +1849,8 @@ cases:
     input_selection: [X]
     fit_input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy}
+    scoring:
+      name: accuracy
 
   - estimator: KNeighborsRegressor
     tags: [thin]
@@ -1682,7 +1865,8 @@ cases:
     input_selection: [X]
     fit_input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2}
+    scoring:
+      name: r2
 
   - estimator: KNeighborsRegressor
     tags: [balanced]
@@ -1697,7 +1881,8 @@ cases:
     input_selection: [X]
     fit_input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2}
+    scoring:
+      name: r2
 
   - estimator: KNeighborsRegressor
     tags: [wide]
@@ -1712,7 +1897,8 @@ cases:
     input_selection: [X]
     fit_input_selection: [X, y]
     parameters: {}
-    scoring: {name: r2}
+    scoring:
+      name: r2
 
   - estimator: StandardScaler
     tags: [thin]
@@ -2505,7 +2691,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: MultinomialNB
     tags: [balanced]
@@ -2518,7 +2706,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: MultinomialNB
     tags: [wide]
@@ -2531,7 +2721,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: GaussianNB
     tags: [thin]
@@ -2552,7 +2744,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: GaussianNB
     tags: [balanced]
@@ -2573,7 +2767,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: GaussianNB
     tags: [wide]
@@ -2594,7 +2790,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: KernelDensity
     providers: [cuml, cuml.accel]
@@ -2610,7 +2808,9 @@ cases:
     parameters:
       kernel: gaussian
       bandwidth: 1.0
-    scoring: {name: log_density, evaluation_rows: 512}
+    scoring:
+      name: log_density
+      evaluation_rows: 512
 
   - estimator: LocalOutlierFactor
     providers: [cuml, scikit-learn]
@@ -2638,7 +2838,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: ComplementNB
     providers: [cuml]
@@ -2653,7 +2855,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: CategoricalNB
     providers: [cuml]
@@ -2670,7 +2874,9 @@ cases:
     operation: fit
     input_selection: [X, y]
     parameters: {}
-    scoring: {name: accuracy, evaluation_rows: 4096}
+    scoring:
+      name: accuracy
+      evaluation_rows: 4096
 
   - estimator: TargetEncoder
     providers: [cuml]
@@ -2769,7 +2975,11 @@ cases:
       n_neighbors: 10
       n_components: 2
       random_state: 42
-    scoring: {name: trustworthiness, evaluation_rows: 512, parameters: {n_neighbors: 5}}
+    scoring:
+      name: trustworthiness
+      evaluation_rows: 512
+      parameters:
+        n_neighbors: 5
 
   - estimator: HDBSCAN
     providers: [cuml, scikit-learn, hdbscan, cuml.accel]
