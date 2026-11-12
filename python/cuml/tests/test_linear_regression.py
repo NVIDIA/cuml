@@ -180,7 +180,7 @@ def test_linear_regression_short_wide(algorithm):
     sk_model = sklearn.linear_model.LinearRegression().fit(X, y)
     with warnings.catch_warnings():
         warnings.filterwarnings("error", category=UserWarning, module="cuml.*")
-        cu_model = cuml.LinearRegression(algorithm="lu").fit(X, y)
+        cu_model = cuml.LinearRegression(algorithm=algorithm).fit(X, y)
 
     sk_pred = sk_model.predict(X)
     cu_pred = cu_model.predict(X)
