@@ -194,7 +194,6 @@ matrix-entry = "cuda_suffixed=true;use_cuda_wheels=true"
 requires = [
     "cmake>=4.0",
     "cuda-bindings>=13.0.2,<14.0",
-    "cuda-core[cu13]>=1.0.0,<2.0.0",
     "cython>=3.2.2,!=3.2.7",
     "libcuml==26.12.*,>=0.0.0a0",
     "libnvforest==26.12.*,>=0.0.0a0",

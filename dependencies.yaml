@@ -172,7 +172,6 @@ files:
       key: requires
     includes:
       - common_build
-      - depends_on_cuda_core
       - depends_on_cuda_python
       - depends_on_libcuml
       - depends_on_libnvforest
