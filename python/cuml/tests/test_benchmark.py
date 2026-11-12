@@ -43,6 +43,7 @@ from cuml.benchmark.datasets import generate_data, partition_data
 from cuml.benchmark.providers import PROVIDERS, Provider, get_provider
 from cuml.benchmark.providers.base import EstimatorSpec
 from cuml.benchmark.schemas import benchmark_result_schema
+from cuml.benchmark.scoring import EvaluationContext
 from cuml.benchmark.suite import (
     BUILTIN_SUITES,
     Suite,
@@ -3290,6 +3291,75 @@ def test_conversion_rejects_unknown_requirements(provider):
         backend.convert_data(np.zeros(4), representation="unknown")
 
 
+@pytest.mark.parametrize(
+    "operation", ["fit", "fit_predict", "fit_transform", "predict"]
+)
+def test_evaluation_context_predictions(operation):
+    X = np.ones((4, 2))
+    held_out_predictions = np.ones(4)
+    measured_output = np.zeros(4)
+    calls = []
+
+    def predict(inputs):
+        assert inputs is X
+        calls.append(inputs)
+        return held_out_predictions
+
+    context = EvaluationContext(
+        estimator=SimpleNamespace(predict=predict),
+        X=X,
+        y=None,
+        output=measured_output,
+        operation=operation,
+    )
+    if operation == "predict":
+        assert context.predictions() is measured_output
+        assert not calls
+    else:
+        assert context.predictions() is held_out_predictions
+        assert len(calls) == 1
+
+
+def test_scoring_callback_receives_context_and_parameter_copy(monkeypatch):
+    context = EvaluationContext(None, None, None, None, "fit")
+    spec = scoring.ScoringSpec("r2", {"force_finite": False}, 32)
+    expected = [{"name": "test", "value": 0.5}]
+
+    def callback(actual_context, parameters):
+        assert actual_context is context
+        assert parameters == spec.parameters
+        assert parameters is not spec.parameters
+        parameters["force_finite"] = True
+        return expected
+
+    monkeypatch.setitem(
+        scoring.SCORERS,
+        "r2",
+        replace(scoring.SCORERS["r2"], callback=callback),
+    )
+    assert scoring.evaluate(spec, context) is expected
+    assert spec.parameters == {"force_finite": False}
+
+
+def test_scoring_to_host_collects_before_transfer():
+    expected = np.arange(4)
+    events = []
+
+    def step(name, output):
+        def convert():
+            events.append(name)
+            return output
+
+        return convert
+
+    device = SimpleNamespace(get=step("get", expected))
+    frame = SimpleNamespace(to_numpy=step("to_numpy", device))
+    distributed = SimpleNamespace(compute=step("compute", frame))
+    assert scoring._to_host(distributed) is expected
+    assert events == ["compute", "to_numpy", "get"]
+    assert scoring._to_host(expected) is expected
+
+
 def _scored_request(name="r2", operation="fit"):
     estimator, dataset, parameters = {
         "r2": ("LinearRegression", "regression", {}),
@@ -3338,11 +3408,13 @@ def test_scoring_metrics_match_held_out_reference(name, operation, provider):
     estimator.fit(*inputs)
     expected = scoring.evaluate(
         case.scoring,
-        estimator=estimator,
-        output=None,
-        X=partitions.evaluation["X"],
-        y=partitions.evaluation["y"],
-        operation="fit",
+        EvaluationContext(
+            estimator=estimator,
+            output=None,
+            X=partitions.evaluation["X"],
+            y=partitions.evaluation["y"],
+            operation="fit",
+        ),
     )[0]["value"]
     for observation in result["observations"][1:]:
         (metric,) = observation["metrics"]
@@ -3386,10 +3458,6 @@ def test_scoring_split_and_identity():
     "change,match",
     [
         ({"name": "missing", "evaluation_rows": 64}, "unknown scorer"),
-        (
-            {"name": "accuracy", "evaluation_rows": 64},
-            "requires.*classification",
-        ),
         ({"name": "r2"}, "requires evaluation_rows"),
         ({"name": "r2", "evaluation_rows": 0}, "invalid"),
     ],
@@ -3417,17 +3485,17 @@ def test_scoring_outside_timing_and_verification(monkeypatch, failure):
 
     original = scoring.SCORERS["r2"]
 
-    def score(**kwargs):
+    def score(context, parameters):
         assert events[-3:] == ["clock", "clock", "exit"]
         events.append("score")
         if failure:
             raise RuntimeError("evaluation failed")
-        return original.evaluate(**kwargs)
+        return original.callback(context, parameters)
 
     monkeypatch.setattr(backend, "instrumentation", instrumentation)
     monkeypatch.setattr(harness.time, "perf_counter", clock)
     monkeypatch.setitem(
-        scoring.SCORERS, "r2", replace(original, evaluate=score)
+        scoring.SCORERS, "r2", replace(original, callback=score)
     )
     result = _benchmark(case)
     assert events.count("score") == (1 if failure else 2)
@@ -3446,7 +3514,7 @@ def test_r2_constant_targets(force_finite):
     case = resolve_case(_scored_request(), PROFILE)
     parameters = {} if force_finite is None else {"force_finite": force_finite}
     spec = replace(case.scoring, parameters=parameters)
-    kwargs = dict(
+    context = EvaluationContext(
         estimator=None,
         output=np.zeros(32),
         X=None,
@@ -3455,23 +3523,23 @@ def test_r2_constant_targets(force_finite):
     )
     with np.errstate(divide="ignore", invalid="ignore"):
         if force_finite is True:
-            assert scoring.evaluate(spec, **kwargs)[0]["value"] == 0
+            assert scoring.evaluate(spec, context)[0]["value"] == 0
         else:
             with pytest.raises(ValueError, match="nonfinite"):
-                scoring.evaluate(spec, **kwargs)
+                scoring.evaluate(spec, context)
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
 def test_nonfinite_scoring_results_fail_case(monkeypatch, value):
     original = scoring.SCORERS["r2"]
 
-    def score(**kwargs):
-        metrics = original.evaluate(**kwargs)
+    def score(context, parameters):
+        metrics = original.callback(context, parameters)
         metrics[0]["value"] = value
         return metrics
 
     monkeypatch.setitem(
-        scoring.SCORERS, "r2", replace(original, evaluate=score)
+        scoring.SCORERS, "r2", replace(original, callback=score)
     )
     result = _benchmark(resolve_case(_scored_request(), PROFILE))
     assert result["outcome"]["last_phase"] == "scoring"
@@ -3553,7 +3621,10 @@ def test_scoring_inference_reuses_measured_predictions(monkeypatch):
     "estimator,scorer,parameters,dataset",
     [
         ("PCA", "reconstruction", {"n_components": 2}, "blobs"),
+        ("PCA", "reconstruction", {"n_components": 2}, "matrix"),
         ("TruncatedSVD", "reconstruction", {"n_components": 2}, "blobs"),
+        ("PCA", "trustworthiness", {"n_components": 2}, "blobs"),
+        ("KernelDensity", "log_density", {}, "blobs"),
         (
             "GaussianRandomProjection",
             "distance_distortion",
@@ -3588,32 +3659,119 @@ def test_scorer_provider_integration(
     assert np.isfinite(metric["value"])
 
 
-@pytest.mark.parametrize("provider", ["scikit-learn", "cuml", "cuml.dask"])
-def test_covariance_metric_matches_analytic_density(provider):
+def test_covariance_metric_matches_analytic_density():
     from cuml.benchmark.metrics import covariance
 
-    estimator = SimpleNamespace(covariance_=np.eye(2), location_=np.zeros(2))
     expected = -np.log(2 * np.pi) - 0.5
     actual = covariance(
-        estimator=estimator,
-        X=get_provider(provider).backend.convert_data(
-            np.array([[1.0, 0.0], [0.0, 1.0]]), representation="array"
-        ),
+        X=np.array([[1.0, 0.0], [0.0, 1.0]]),
+        covariance=np.eye(2),
+        location=np.zeros(2),
         parameters={},
     )
     assert actual[0]["value"] == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("provider", ["scikit-learn", "cuml", "cuml.dask"])
-def test_projection_metric_preserves_distances(provider):
+@pytest.mark.parametrize("sparse_input", [False, True])
+def test_projection_metric_preserves_distances(sparse_input):
     from cuml.benchmark.metrics import projection
 
     X = np.random.default_rng(42).normal(size=(32, 4))
     actual = projection(
-        estimator=SimpleNamespace(transform=lambda X: X),
-        X=get_provider(provider).backend.convert_data(
-            X, representation="array"
-        ),
+        X=sparse.csr_matrix(X) if sparse_input else X,
+        Z=X,
         parameters={"pairs": 100},
     )
     assert actual[0]["value"] == pytest.approx(0)
+
+
+@pytest.mark.parametrize("provider", ["scikit-learn", "cuml", "cuml.dask"])
+@pytest.mark.parametrize(
+    "name,metric_name,input_names",
+    [
+        ("accuracy", "accuracy", {"y", "prediction"}),
+        ("r2", "r2", {"y", "prediction"}),
+        ("adjusted_rand", "adjusted_rand", {"y", "prediction"}),
+        ("reconstruction", "reconstruction", {"X", "reconstructed"}),
+        ("distance_distortion", "projection", {"X", "Z"}),
+        ("trustworthiness", "trustworthiness", {"X", "Z"}),
+        (
+            "gaussian_log_likelihood",
+            "covariance",
+            {"X", "covariance", "location"},
+        ),
+        ("log_density", "density", {"log_density"}),
+    ],
+)
+@pytest.mark.parametrize("operation", ["fit", "predict"])
+def test_scoring_metrics_receive_only_host_inputs(
+    monkeypatch, provider, name, metric_name, input_names, operation
+):
+    from cuml.benchmark import metrics
+
+    backend = get_provider(provider).backend
+
+    def convert(value):
+        return backend.convert_data(value, representation="array")
+
+    X = convert(np.random.default_rng(42).normal(size=(32, 4)))
+    y = np.arange(32) % 2
+    prediction = convert(y)
+    log_density = convert(np.full(32, -1.0))
+    calls = []
+
+    def predict(inputs):
+        assert inputs is X
+        calls.append("predict")
+        return prediction
+
+    def transform(inputs):
+        assert inputs is X
+        calls.append("transform")
+        return X
+
+    def inverse_transform(inputs):
+        assert inputs is X
+        calls.append("inverse_transform")
+        return X
+
+    def score_samples(inputs):
+        assert inputs is X
+        calls.append("score_samples")
+        return log_density
+
+    estimator = SimpleNamespace(
+        predict=predict,
+        transform=transform,
+        inverse_transform=inverse_transform,
+        score_samples=score_samples,
+        covariance_=convert(np.eye(4)),
+        location_=convert(np.zeros(4)),
+    )
+    original = getattr(metrics, metric_name)
+    received = []
+
+    def host_metric(*, parameters, **inputs):
+        assert set(inputs) == input_names
+        assert all(isinstance(value, np.ndarray) for value in inputs.values())
+        received.append(inputs)
+        return original(**inputs, parameters=parameters)
+
+    monkeypatch.setattr(metrics, metric_name, host_metric)
+    result = scoring.evaluate(
+        scoring.ScoringSpec(name, {}, 32),
+        EvaluationContext(estimator, X, y, prediction, operation),
+    )
+    assert len(received) == 1
+    assert np.isfinite(result[0]["value"])
+    if "prediction" in input_names:
+        assert calls == ([] if operation == "predict" else ["predict"])
+        np.testing.assert_array_equal(received[0]["prediction"], y)
+    elif name == "reconstruction":
+        assert calls == ["transform", "inverse_transform"]
+    elif "Z" in input_names:
+        assert calls == ["transform"]
+    elif name == "log_density":
+        assert calls == ["score_samples"]
+    else:
+        assert calls == []
