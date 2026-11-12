@@ -10,7 +10,6 @@ import scipy.sparse as sp
 import sklearn.linear_model
 from hypothesis import assume, example, given
 from sklearn.datasets import make_regression
-from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 import cuml
@@ -140,19 +139,23 @@ def test_ridge_coef_and_intercept_shape(solver, dtype):
     assert isinstance(model.intercept_, float)
 
 
-def test_ridge_cholesky_singular_matrix():
-    X, y = make_regression(n_samples=2000, n_features=100, random_state=42)
+@pytest.mark.parametrize(
+    "n_targets, alpha", [(1, 0.0), (2, 0.0), (2, [0.0, 0.5])]
+)
+def test_ridge_cholesky_singular_matrix(n_targets, alpha):
+    X, y = make_regression(
+        n_samples=2000, n_features=100, n_targets=n_targets, random_state=42
+    )
     # Some colinear features
     X[:, ::20] = X[:, 0:1]
 
-    sk_model = sklearn.linear_model.Ridge().fit(X, y)
+    sk_model = sklearn.linear_model.Ridge(alpha=alpha).fit(X, y)
     with pytest.warns(UserWarning, match="Singular matrix encountered"):
-        cu_model = cuml.Ridge(solver="cholesky", alpha=0).fit(X, y)
+        cu_model = cuml.Ridge(solver="cholesky", alpha=alpha).fit(X, y)
 
     sk_pred = sk_model.predict(X)
     cu_pred = cu_model.predict(X)
-
-    assert r2_score(sk_pred, cu_pred) >= 0.98
+    np.testing.assert_allclose(sk_pred, cu_pred, atol=1e-4)
 
 
 @pytest.mark.parametrize(

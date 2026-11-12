@@ -244,11 +244,12 @@ def _fit_cholesky_or_lu(
     else:
         coefs = cp.empty((n_targets, N), dtype=X.dtype)
         last_alpha = 0.0
-        for coef, target, current_alpha in zip(coefs, B.T, alpha):
+        for i in range(n_targets):
+            current_alpha = alpha[i]
             offset = current_alpha - last_alpha
             if offset != 0.0:
                 A.flat[:: N + 1] += offset
-            coef[:] = _solve(A, target).ravel()
+            coefs[i, :] = _solve(A, B[:, i, None]).ravel()
             last_alpha = current_alpha
 
     if dual:
