@@ -14,6 +14,7 @@ files:
       - cutile_python
       - cuda_version
       - depends_on_cudf
+      - depends_on_cuda_core
       - depends_on_cuda_python
       - depends_on_cupy
       - depends_on_rapids_dask_dependency
@@ -190,6 +191,7 @@ files:
       table: project
     includes:
       - cuda_wheels
+      - depends_on_cuda_core
       - depends_on_cuda_python
       - depends_on_cudf
       - depends_on_cupy
@@ -767,6 +769,27 @@ dependencies:
       - output_types: [requirements, constraints]
         packages:
           - matplotlib
+  depends_on_cuda_core:
+    common:
+      - output_types: [conda, constraints]
+        packages:
+          - cuda-core>=1.0.0,<2.0.0
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          # Do not pull in CUDA wheels when they are explicitly disabled.
+          - matrix:
+              use_cuda_wheels: "false"
+            packages:
+              - cuda-core>=1.0.0,<2.0.0
+          - matrix:
+              cuda: "12.*"
+            packages:
+              - cuda-core[cu12]>=1.0.0,<2.0.0
+          # fallback to CUDA 13 versions if 'cuda' is '13.*' or not provided
+          - matrix:
+            packages:
+              - cuda-core[cu13]>=1.0.0,<2.0.0
   depends_on_cuda_python:
     specific:
       - output_types: [conda, requirements, constraints, pyproject]
