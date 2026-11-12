@@ -190,7 +190,7 @@ def generate_test_common_signatures_cases():
         "set_params",
     ]
     for cls in sorted(
-        get_all_base_subclasses().values(), key=lambda cls: cls.__name__
+        all_base_children.values(), key=lambda cls: cls.__name__
     ):
         if cls.__module__.startswith("cuml.solvers"):
             # These classes aren't expected to match the sklearn interface

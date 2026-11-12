@@ -15,7 +15,8 @@ import cuml.internals
 import cuml.internals.logger as logger
 import cuml.internals.nvtx as nvtx
 from cuml.internals.mixins import TagsMixin, _ensure_transformer_tags
-from cuml.internals.outputs import infer_output_type
+from cuml.internals.outputs import OUTPUT_TYPES, infer_output_type
+from cuml.internals.param_validation import Bool, Int, Options
 
 _THREAD_STATE = threading.local()
 
@@ -59,6 +60,11 @@ class Base(TagsMixin):
     - Define ``_get_param_names`` to extend the base implementation with
       any additional parameter names.
 
+    - Declare the valid values of each additional parameter in a
+      ``_parameter_constraints`` class attribute (see
+      ``cuml.internals.param_validation``). These are checked at the start
+      of every fit-like method.
+
     - Decorate their ``fit`` method with
       ``cuml.internals.mlfunc(set_input_type=True)`` to store their fitted
       input type.
@@ -86,8 +92,11 @@ class Base(TagsMixin):
 
         import cupy as cp
         from cuml.internals import Base, mlfunc
+        from cuml.internals.param_validation import Int
 
         class MyAlgo(Base):
+            _parameter_constraints = {"param": [Int(ge=0)]}
+
             def __init__(
                 self,
                 *,
@@ -112,6 +121,11 @@ class Base(TagsMixin):
                 # Inference logic goes here...
                 return cp.ones(len(X), dtype="int32")
     """
+
+    _parameter_constraints = {
+        "verbose": [Bool, Int()],
+        "output_type": [Options(*OUTPUT_TYPES), None],
+    }
 
     def __init__(
         self,

@@ -15,6 +15,13 @@ from cuml.internals.mixins import (
     SparseInputTagMixin,
 )
 from cuml.internals.outputs import ReflectedAttr, mlfunc
+from cuml.internals.param_validation import (
+    ArrayLike,
+    Bool,
+    Float,
+    Int,
+    Options,
+)
 from cuml.internals.validation import check_inputs
 from cuml.linear_model.base import (
     LinearPredictMixin,
@@ -165,6 +172,15 @@ class Ridge(InteropMixin,
     intercept_ = ReflectedAttr()
 
     _cpu_class_path = "sklearn.linear_model.Ridge"
+
+    _parameter_constraints = {
+        "alpha": [Float(ge=0), ArrayLike],
+        "fit_intercept": [Bool],
+        "solver": [Options("auto", "eig", "svd", "lsmr")],
+        "tol": [Float(ge=0)],
+        "max_iter": [Int(ge=1), None],
+        "copy_X": [Bool],
+    }
 
     @classmethod
     def _get_param_names(cls):
@@ -387,8 +403,6 @@ class Ridge(InteropMixin,
         # Validate alpha
         if cp.isscalar(self.alpha):
             alpha = self.alpha
-            if self.alpha < 0.0:
-                raise ValueError(f"alpha must be non-negative, got {self.alpha}")
         else:
             alpha = cp.asarray(self.alpha, dtype=X.dtype).ravel()
             if (alpha < 0).any():
@@ -402,12 +416,7 @@ class Ridge(InteropMixin,
                 )
 
         # Validate and select solver
-        _SUPPORTED_SOLVERS = ["auto", "eig", "svd", "lsmr"]
-        if (solver := self.solver) not in _SUPPORTED_SOLVERS:
-            raise ValueError(
-                f"Expected `solver` to be one of {_SUPPORTED_SOLVERS}, got {solver!r}"
-            )
-
+        solver = self.solver
         if solver == "eig":
             if X.shape[1] == 1:
                 raise ValueError(
