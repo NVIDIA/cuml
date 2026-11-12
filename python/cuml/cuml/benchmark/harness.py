@@ -24,7 +24,7 @@ from ._utils import _failure, _gpu_components, _jsonable, _now, atomic_write
 from .backends.base import Backend
 from .datasets import generate_data, partition_data
 from .providers.base import EstimatorSpec
-from .scoring import SCORERS, evaluate
+from .scoring import SCORERS, EvaluationContext, evaluate
 from .suite import ResolvedCase, Suite, SuiteError, Workload
 
 logger = logging.getLogger("cuml.benchmark")
@@ -353,11 +353,13 @@ def _benchmark_case(
                     try:
                         observation["metrics"] = evaluate(
                             case.scoring,
-                            estimator=estimator,
-                            output=output,
-                            X=prepared.evaluation_X,
-                            y=prepared.evaluation_y,
-                            operation=case.operation,
+                            EvaluationContext(
+                                estimator=estimator,
+                                output=output,
+                                X=prepared.evaluation_X,
+                                y=prepared.evaluation_y,
+                                operation=case.operation,
+                            ),
                         )
                         backend.synchronize()
                     except Exception as exc:

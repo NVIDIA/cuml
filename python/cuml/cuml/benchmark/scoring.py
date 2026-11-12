@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import importlib
 import math
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -14,23 +13,24 @@ from . import metrics
 
 
 @dataclass(frozen=True)
-class Scorer:
-    """Versioned scorer returning artifact metric dictionaries.
+class EvaluationContext:
+    """Provide a fitted estimator, held-out data, and the measured output.
 
-    Increment ``version`` whenever evaluation semantics change. Callbacks must
-    not refit or mutate the estimator, which inference repetitions may reuse.
+    ``X`` retains the provider's representation; ``y`` remains on the host.
+    Callbacks must preserve the estimator's fitted state.
     """
 
-    version: str
-    evaluate: Callable[..., list[dict[str, Any]]]
-    dataset: str | tuple[str, ...]
-    operations: tuple[str, ...] = (
-        "fit",
-        "fit_predict",
-        "fit_transform",
-        "predict",
-    )
-    input_selection: tuple[str, ...] = ("X",)
+    estimator: Any
+    X: Any
+    y: Any
+    output: Any
+    operation: str
+
+    def predictions(self) -> Any:
+        """Reuse measured predictions or predict on held-out fitting inputs."""
+        if self.operation == "predict":
+            return self.output
+        return self.estimator.predict(self.X)
 
 
 def _to_host(value: Any) -> Any:
@@ -44,56 +44,115 @@ def _to_host(value: Any) -> Any:
     return value
 
 
-def _prediction_metric(
-    *, estimator, output, X, y, operation, parameters, name, **unused
-) -> list[dict[str, Any]]:
-    """Evaluate a measured prediction or predict on held-out fitting inputs."""
-    prediction = output if operation == "predict" else estimator.predict(X)
-    metric = getattr(importlib.import_module("sklearn.metrics"), name)
-    value = float(metric(y, _to_host(prediction), **parameters))
-    return [
-        {
-            "name": name,
-            "value": value,
-            "unit": "dimensionless",
-            "direction": "higher_is_better",
-        }
+@dataclass(frozen=True)
+class Scorer:
+    """Define a versioned metric callback and its supported workloads.
+
+    Callbacks evaluate fitted estimators while preserving their state.
+    Increment ``version`` when evaluation semantics change.
+    """
+
+    version: str
+    callback: Callable[
+        [EvaluationContext, dict[str, Any]], list[dict[str, Any]]
     ]
+    operations: tuple[str, ...] = (
+        "fit",
+        "fit_predict",
+        "fit_transform",
+        "predict",
+    )
+    input_selection: tuple[str, ...] = ("X",)
 
 
-def _accuracy(**kwargs):
-    return _prediction_metric(name="accuracy_score", **kwargs)
-
-
-def _r2(*, parameters, **kwargs):
-    return _prediction_metric(
-        name="r2_score",
-        parameters={"force_finite": False, **parameters},
-        **kwargs,
+def _accuracy(context: EvaluationContext, parameters):
+    """Collect held-out predictions for host accuracy evaluation."""
+    return metrics.accuracy(
+        y=_to_host(context.y),
+        prediction=_to_host(context.predictions()),
+        parameters=parameters,
     )
 
 
-def _adjusted_rand(**kwargs):
-    return _prediction_metric(name="adjusted_rand_score", **kwargs)
+def _r2(context: EvaluationContext, parameters):
+    """Collect held-out predictions for host R² evaluation."""
+    return metrics.r2(
+        y=_to_host(context.y),
+        prediction=_to_host(context.predictions()),
+        parameters=parameters,
+    )
+
+
+def _adjusted_rand(context: EvaluationContext, parameters):
+    """Collect held-out predictions for host clustering evaluation."""
+    return metrics.adjusted_rand(
+        y=_to_host(context.y),
+        prediction=_to_host(context.predictions()),
+        parameters=parameters,
+    )
+
+
+def _reconstruction(context: EvaluationContext, parameters):
+    """Reconstruct held-out inputs using the provider, then collect to host."""
+    reconstructed = context.estimator.inverse_transform(
+        context.estimator.transform(context.X)
+    )
+    return metrics.reconstruction(
+        X=_to_host(context.X),
+        reconstructed=_to_host(reconstructed),
+        parameters=parameters,
+    )
+
+
+def _projection(context: EvaluationContext, parameters):
+    """Project held-out inputs using the provider, then collect to host."""
+    Z = context.estimator.transform(context.X)
+    return metrics.projection(
+        X=_to_host(context.X), Z=_to_host(Z), parameters=parameters
+    )
+
+
+def _trustworthiness(context: EvaluationContext, parameters):
+    """Embed held-out inputs using the provider, then collect to host."""
+    Z = context.estimator.transform(context.X)
+    return metrics.trustworthiness(
+        X=_to_host(context.X), Z=_to_host(Z), parameters=parameters
+    )
+
+
+def _covariance(context: EvaluationContext, parameters):
+    """Collect held-out inputs and fitted covariance parameters to host."""
+    return metrics.covariance(
+        X=_to_host(context.X),
+        covariance=_to_host(context.estimator.covariance_),
+        location=_to_host(context.estimator.location_),
+        parameters=parameters,
+    )
+
+
+def _density(context: EvaluationContext, parameters):
+    """Evaluate held-out log density using the provider, then collect to host."""
+    return metrics.density(
+        log_density=_to_host(context.estimator.score_samples(context.X)),
+        parameters=parameters,
+    )
 
 
 SCORERS = {
-    "accuracy": Scorer(
-        "1", _accuracy, ("classification", "positive", "matrix", "categorical")
-    ),
-    "r2": Scorer("2", _r2, "regression"),
-    "adjusted_rand": Scorer("1", _adjusted_rand, "blobs"),
-    "reconstruction": Scorer("1", metrics.reconstruction, "blobs"),
-    "distance_distortion": Scorer("1", metrics.projection, "blobs"),
-    "trustworthiness": Scorer("1", metrics.trustworthiness, "blobs"),
-    "gaussian_log_likelihood": Scorer("1", metrics.covariance, "blobs"),
-    "log_density": Scorer("1", metrics.density, "blobs"),
+    "accuracy": Scorer("1", _accuracy),
+    "r2": Scorer("1", _r2),
+    "adjusted_rand": Scorer("1", _adjusted_rand),
+    "reconstruction": Scorer("1", _reconstruction),
+    "distance_distortion": Scorer("1", _projection),
+    "trustworthiness": Scorer("1", _trustworthiness),
+    "gaussian_log_likelihood": Scorer("1", _covariance),
+    "log_density": Scorer("1", _density),
 }
 
 
 @dataclass(frozen=True)
 class ScoringSpec:
-    """Resolved case scoring configuration, separate from timing identity."""
+    """Store a case's scorer, parameters, and evaluation population size."""
 
     name: str
     parameters: dict[str, Any]
@@ -113,22 +172,11 @@ class ScoringSpec:
 
 def evaluate(
     spec: ScoringSpec,
-    *,
-    estimator: Any,
-    output: Any,
-    X: Any,
-    y: Any,
-    operation: str,
+    context: EvaluationContext,
 ) -> list[dict[str, Any]]:
-    """Run an internal scorer and reject nonfinite metric values."""
-    metrics = SCORERS[spec.name].evaluate(
-        estimator=estimator,
-        output=output,
-        X=X,
-        y=y,
-        operation=operation,
-        parameters=dict(spec.parameters),
-    )
+    """Evaluate a registered scorer and validate that metric values are finite."""
+    scorer = SCORERS[spec.name]
+    metrics = scorer.callback(context, dict(spec.parameters))
     for metric in metrics:
         if not math.isfinite(metric["value"]):
             raise ValueError("scorer returned a nonfinite metric")

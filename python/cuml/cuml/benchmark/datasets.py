@@ -165,11 +165,11 @@ def resolve_dataset(
 
 
 @dataclass(frozen=True)
-class HostPartitions:
-    """Keep host populations separate from estimator argument selection.
+class DatasetPartitions:
+    """Store training, measured, and optional held-out evaluation populations.
 
-    Measured data aliases training data for fitting operations. For inference,
-    it contains the disjoint rows consumed by the timed operation.
+    Measured data aliases training data for fitting operations and contains
+    disjoint rows for inference operations.
     """
 
     training: dict[str, Any]
@@ -177,8 +177,8 @@ class HostPartitions:
     evaluation: dict[str, Any] | None = None
 
 
-def partition_data(case: ResolvedCase, X: Any, y: Any) -> HostPartitions:
-    """Partition generated host rows by contiguous slicing, without sampling."""
+def partition_data(case: ResolvedCase, X: Any, y: Any) -> DatasetPartitions:
+    """Split generated host data into contiguous workload populations."""
     training = {"X": X, "y": y}
     measured = training
     if case.lifecycle == "inference":
@@ -193,7 +193,7 @@ def partition_data(case: ResolvedCase, X: Any, y: Any) -> HostPartitions:
             evaluation = {"X": X[split:], "y": y[split:]}
         else:
             evaluation = measured
-    return HostPartitions(training, measured, evaluation)
+    return DatasetPartitions(training, measured, evaluation)
 
 
 def generate_data(case: ResolvedCase) -> tuple[Any, Any]:

@@ -1,7 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Host metrics for held-out benchmark scoring."""
+"""Quality metrics accepting only host data, never estimators or device values.
+
+The scoring layer acquires estimator responses and transfers them to the host
+before calling these functions. Sparse host inputs are densified as needed.
+"""
 
 from __future__ import annotations
 
@@ -21,17 +25,14 @@ def metric(name, value, *, higher=False, unit="dimensionless"):
 
 
 def dense(value):
-    """Collect a bounded scoring output as a host array."""
-    from .scoring import _to_host
-
-    value = _to_host(value)
+    """Materialize a host value as a dense NumPy array."""
     if hasattr(value, "toarray"):
         value = value.toarray()
     return np.asarray(value)
 
 
 def relative_error(actual, expected):
-    """Return relative Frobenius error, with an absolute zero-reference fallback."""
+    """Compute Frobenius error normalized by the epsilon-bounded reference norm."""
     actual, expected = (
         dense(actual).astype(np.float64),
         dense(expected).astype(np.float64),
@@ -45,23 +46,59 @@ def relative_error(actual, expected):
     )
 
 
-def reconstruction(*, estimator, X, parameters, **unused):
-    """Measure held-out transform/inverse-transform reconstruction error."""
+def accuracy(*, y, prediction, parameters):
+    """Measure held-out classification accuracy."""
+    from sklearn.metrics import accuracy_score
+
+    return metric(
+        "accuracy_score",
+        accuracy_score(y, prediction, **parameters),
+        higher=True,
+    )
+
+
+def r2(*, y, prediction, parameters):
+    """Measure held-out R² without masking nonfinite scores by default."""
+    from sklearn.metrics import r2_score
+
+    return metric(
+        "r2_score",
+        r2_score(
+            y,
+            prediction,
+            **{"force_finite": False, **parameters},
+        ),
+        higher=True,
+    )
+
+
+def adjusted_rand(*, y, prediction, parameters):
+    """Measure held-out clustering agreement with reference labels."""
+    from sklearn.metrics import adjusted_rand_score
+
+    return metric(
+        "adjusted_rand_score",
+        adjusted_rand_score(y, prediction, **parameters),
+        higher=True,
+    )
+
+
+def reconstruction(*, X, reconstructed, parameters):
+    """Measure held-out reconstruction error from host inputs and responses."""
     if parameters:
         raise ValueError("reconstruction has no parameters")
-    reconstructed = estimator.inverse_transform(estimator.transform(X))
     return metric(
         "relative_reconstruction_error",
         relative_error(reconstructed, X),
     )
 
 
-def projection(*, estimator, X, parameters, **unused):
+def projection(*, X, Z, parameters):
     """Measure relative distance distortion over deterministic held-out pairs."""
     pairs = parameters.get("pairs", 1024)
     if set(parameters) - {"pairs"} or not isinstance(pairs, int) or pairs < 1:
         raise ValueError("projection requires a positive pairs count")
-    Z = dense(estimator.transform(X)).astype(np.float64)
+    Z = dense(Z).astype(np.float64)
     X = dense(X).astype(np.float64)
     rng = np.random.default_rng(42)
     left = rng.integers(len(X), size=pairs)
@@ -77,24 +114,23 @@ def projection(*, estimator, X, parameters, **unused):
     )
 
 
-def trustworthiness(*, estimator, X, parameters, **unused):
-    """Evaluate a bounded held-out embedding without comparing coordinates."""
+def trustworthiness(*, X, Z, parameters):
+    """Measure neighborhood preservation in a held-out embedding."""
     from sklearn.manifold import trustworthiness as score
 
-    Z = dense(estimator.transform(X))
     return metric(
         "trustworthiness",
-        score(dense(X), Z, **parameters),
+        score(dense(X), dense(Z), **parameters),
         higher=True,
     )
 
 
-def covariance(*, estimator, X, parameters, **unused):
-    """Compute common Gaussian log likelihood from fitted mean and covariance."""
+def covariance(*, X, covariance, location, parameters):
+    """Compute mean held-out Gaussian log likelihood from fitted parameters."""
     if parameters:
         raise ValueError("gaussian_log_likelihood has no parameters")
-    covariance = dense(estimator.covariance_).astype(np.float64)
-    centered = dense(X).astype(np.float64) - dense(estimator.location_)
+    covariance = dense(covariance).astype(np.float64)
+    centered = dense(X).astype(np.float64) - dense(location)
     sign, logdet = np.linalg.slogdet(covariance)
     if sign <= 0:
         raise ValueError("fitted covariance is not positive definite")
@@ -109,13 +145,13 @@ def covariance(*, estimator, X, parameters, **unused):
     )
 
 
-def density(*, estimator, X, parameters, **unused):
-    """Evaluate held-out log density with the fitted provider estimator."""
+def density(*, log_density, parameters):
+    """Compute mean held-out log density from host per-sample values."""
     if parameters:
         raise ValueError("log_density has no parameters")
     return metric(
         "mean_log_density",
-        dense(estimator.score_samples(X)).mean(),
+        dense(log_density).mean(),
         higher=True,
         unit="nats/sample",
     )

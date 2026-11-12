@@ -294,15 +294,6 @@ def _resolve_case(
         if requested.name not in SCORERS:
             raise SuiteError(f"unknown scorer {requested.name!r}")
         scorer = SCORERS[requested.name]
-        datasets = (
-            (scorer.dataset,)
-            if isinstance(scorer.dataset, str)
-            else scorer.dataset
-        )
-        if dataset.generator not in datasets:
-            raise SuiteError(
-                f"scorer {requested.name!r} requires {scorer.dataset!r} data"
-            )
         if not is_fit and request.input_selection != list(
             scorer.input_selection
         ):
