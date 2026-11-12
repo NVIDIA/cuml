@@ -179,21 +179,27 @@ class DatasetPartitions:
 
 def partition_data(case: ResolvedCase, X: Any, y: Any) -> DatasetPartitions:
     """Split generated host data into contiguous workload populations."""
-    training = {"X": X, "y": y}
-    measured = training
+    split = case.training_rows
+
     if case.lifecycle == "inference":
-        split = case.training_rows
         training = {"X": X[:split], "y": y[:split]}
         measured = {"X": X[split:], "y": y[split:]}
-    evaluation = None
-    if case.scoring is not None:
-        if case.lifecycle == "fit":
-            split = case.training_rows
-            training = measured = {"X": X[:split], "y": y[:split]}
+        evaluation = measured if case.scoring is not None else None
+    else:
+        # Fit lifecycle: the timed operation uses the training population.
+        if case.scoring is not None:
+            training = {"X": X[:split], "y": y[:split]}
             evaluation = {"X": X[split:], "y": y[split:]}
         else:
-            evaluation = measured
-    return DatasetPartitions(training, measured, evaluation)
+            training = {"X": X, "y": y}
+            evaluation = None
+        measured = training
+
+    return DatasetPartitions(
+        training=training,
+        measured=measured,
+        evaluation=evaluation,
+    )
 
 
 def generate_data(case: ResolvedCase) -> tuple[Any, Any]:
