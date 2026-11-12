@@ -395,7 +395,6 @@ cases:
       n_clusters: 8
       metric: euclidean
       linkage: single
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: AgglomerativeClustering
     tags: [balanced]
@@ -413,7 +412,6 @@ cases:
       n_clusters: 8
       metric: euclidean
       linkage: single
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: AgglomerativeClustering
     tags: [wide]
@@ -431,7 +429,6 @@ cases:
       n_clusters: 8
       metric: euclidean
       linkage: single
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: SpectralClustering
     tags: [thin]
@@ -451,7 +448,6 @@ cases:
       n_neighbors: 10
       n_init: 1
       random_state: 42
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: SpectralClustering
     tags: [balanced]
@@ -471,7 +467,6 @@ cases:
       n_neighbors: 10
       n_init: 1
       random_state: 42
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: SpectralClustering
     tags: [wide]
@@ -491,7 +486,6 @@ cases:
       n_neighbors: 10
       n_init: 1
       random_state: 42
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: NearestNeighbors
     tags: [thin]
@@ -509,7 +503,6 @@ cases:
     fit_input_selection: [X]
     parameters:
       n_neighbors: 64
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: NearestNeighbors
     tags: [thin]
@@ -529,7 +522,6 @@ cases:
       n_neighbors: 64
       algorithm: brute
       n_jobs: -1
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: NearestNeighbors
     tags: [balanced]
@@ -547,7 +539,6 @@ cases:
     fit_input_selection: [X]
     parameters:
       n_neighbors: 64
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: NearestNeighbors
     tags: [balanced]
@@ -567,7 +558,6 @@ cases:
       n_neighbors: 64
       algorithm: brute
       n_jobs: -1
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: NearestNeighbors
     tags: [wide]
@@ -585,7 +575,6 @@ cases:
     fit_input_selection: [X]
     parameters:
       n_neighbors: 64
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: NearestNeighbors
     tags: [wide]
@@ -605,7 +594,6 @@ cases:
       n_neighbors: 64
       algorithm: brute
       n_jobs: -1
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: PCA
     tags: [thin]
@@ -1528,7 +1516,6 @@ cases:
     parameters:
       eps: 3
       min_samples: 2
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: DBSCAN
     tags: [thin]
@@ -1546,7 +1533,6 @@ cases:
       eps: 3
       min_samples: 2
       algorithm: brute
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: DBSCAN
     tags: [balanced]
@@ -1563,7 +1549,6 @@ cases:
     parameters:
       eps: 3
       min_samples: 2
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: DBSCAN
     tags: [balanced]
@@ -1581,7 +1566,6 @@ cases:
       eps: 3
       min_samples: 2
       algorithm: brute
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: DBSCAN
     tags: [wide]
@@ -1598,7 +1582,6 @@ cases:
     parameters:
       eps: 3
       min_samples: 2
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: DBSCAN
     tags: [wide]
@@ -1616,7 +1599,6 @@ cases:
       eps: 3
       min_samples: 2
       algorithm: brute
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: KNeighborsClassifier
     tags: [thin]
@@ -1751,7 +1733,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: StandardScaler
     tags: [balanced]
@@ -1772,7 +1753,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: StandardScaler
     tags: [wide]
@@ -1793,7 +1773,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: MinMaxScaler
     tags: [thin]
@@ -1814,7 +1793,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: MinMaxScaler
     tags: [balanced]
@@ -1835,7 +1813,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: MinMaxScaler
     tags: [wide]
@@ -1856,7 +1833,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: MaxAbsScaler
     tags: [thin]
@@ -1877,7 +1853,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: MaxAbsScaler
     tags: [balanced]
@@ -1898,7 +1873,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: MaxAbsScaler
     tags: [wide]
@@ -1919,7 +1893,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: Normalizer
     tags: [thin]
@@ -1940,7 +1913,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: Normalizer
     tags: [balanced]
@@ -1961,7 +1933,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: Normalizer
     tags: [wide]
@@ -1982,7 +1953,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: RobustScaler
     tags: [thin]
@@ -2003,7 +1973,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: RobustScaler
     tags: [balanced]
@@ -2024,7 +1993,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: RobustScaler
     tags: [wide]
@@ -2045,7 +2013,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: PolynomialFeatures
     tags: [thin]
@@ -2067,7 +2034,6 @@ cases:
     input_selection: [X]
     parameters:
       degree: 2
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: PolynomialFeatures
     tags: [balanced]
@@ -2089,7 +2055,6 @@ cases:
     input_selection: [X]
     parameters:
       degree: 2
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: PolynomialFeatures
     tags: [wide]
@@ -2111,7 +2076,6 @@ cases:
     input_selection: [X]
     parameters:
       degree: 2
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: Binarizer
     tags: [thin]
@@ -2132,7 +2096,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: Binarizer
     tags: [balanced]
@@ -2153,7 +2116,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: Binarizer
     tags: [wide]
@@ -2174,7 +2136,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: KBinsDiscretizer
     tags: [thin]
@@ -2198,7 +2159,6 @@ cases:
       n_bins: 16
       encode: ordinal
       strategy: uniform
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: KBinsDiscretizer
     tags: [balanced]
@@ -2222,7 +2182,6 @@ cases:
       n_bins: 16
       encode: ordinal
       strategy: uniform
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: KBinsDiscretizer
     tags: [wide]
@@ -2246,7 +2205,6 @@ cases:
       n_bins: 16
       encode: ordinal
       strategy: uniform
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: PowerTransformer
     tags: [thin]
@@ -2268,7 +2226,6 @@ cases:
     input_selection: [X]
     parameters:
       method: yeo-johnson
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: PowerTransformer
     tags: [balanced]
@@ -2290,7 +2247,6 @@ cases:
     input_selection: [X]
     parameters:
       method: yeo-johnson
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: PowerTransformer
     tags: [wide]
@@ -2312,7 +2268,6 @@ cases:
     input_selection: [X]
     parameters:
       method: yeo-johnson
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: QuantileTransformer
     tags: [thin]
@@ -2336,7 +2291,6 @@ cases:
       n_quantiles: 1000
       subsample: 100000
       random_state: 42
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: QuantileTransformer
     tags: [balanced]
@@ -2360,7 +2314,6 @@ cases:
       n_quantiles: 1000
       subsample: 100000
       random_state: 42
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: QuantileTransformer
     tags: [wide]
@@ -2384,7 +2337,6 @@ cases:
       n_quantiles: 1000
       subsample: 100000
       random_state: 42
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: LabelEncoder
     providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
@@ -2404,7 +2356,6 @@ cases:
     operation: fit_transform
     input_selection: [y]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: LabelEncoder
     providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
@@ -2424,7 +2375,6 @@ cases:
     operation: fit_transform
     input_selection: [y]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: LabelEncoder
     providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
@@ -2444,7 +2394,6 @@ cases:
     operation: fit_transform
     input_selection: [y]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: LabelBinarizer
     providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
@@ -2464,7 +2413,6 @@ cases:
     operation: fit_transform
     input_selection: [y]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: LabelBinarizer
     providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
@@ -2484,7 +2432,6 @@ cases:
     operation: fit_transform
     input_selection: [y]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: LabelBinarizer
     providers: [cuml, scikit-learn, cuml.accel, cuml.dask]
@@ -2504,7 +2451,6 @@ cases:
     operation: fit_transform
     input_selection: [y]
     parameters: {}
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: TSNE
     tags: [thin]
@@ -2519,7 +2465,6 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: TSNE
     tags: [balanced]
@@ -2534,7 +2479,6 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: TSNE
     tags: [wide]
@@ -2549,7 +2493,6 @@ cases:
     operation: fit
     input_selection: [X]
     parameters: {}
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: MultinomialNB
     tags: [thin]
@@ -2681,7 +2624,6 @@ cases:
     input_selection: [X]
     parameters:
       n_neighbors: 20
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: BernoulliNB
     providers: [cuml]
@@ -2747,7 +2689,6 @@ cases:
     parameters:
       smooth: 0.0
       seed: 42
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: TargetEncoder
     providers: [cuml.accel]
@@ -2766,7 +2707,6 @@ cases:
     parameters:
       smooth: 0.0
       random_state: 42
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: OneHotEncoder
     providers: [cuml, cuml.accel, cuml.dask]
@@ -2785,7 +2725,6 @@ cases:
     parameters:
       sparse_output: false
       handle_unknown: ignore
-    # Unscored: reference-based scoring is not supported.
 
   - estimator: OrdinalEncoder
     providers: [cuml, cuml.accel, cuml.dask]
@@ -2802,7 +2741,6 @@ cases:
     operation: fit_transform
     input_selection: [X]
     parameters: {}
-    # Unscored: held-out rows may contain unknown categories.
 
   - estimator: SpectralEmbedding
     providers: [cuml, scikit-learn, cuml.accel]
@@ -2817,7 +2755,6 @@ cases:
       n_components: 2
       n_neighbors: 10
       random_state: 42
-    # Unscored: no common held-out evaluation in this configuration.
 
   - estimator: UMAP
     providers: [cuml, umap-learn, cuml.accel]
@@ -2845,4 +2782,3 @@ cases:
     input_selection: [X]
     parameters:
       min_cluster_size: 5
-    # Unscored: no common held-out evaluation in this configuration.
