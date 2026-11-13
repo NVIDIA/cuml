@@ -6,7 +6,7 @@ channels:
 - conda-forge
 dependencies:
 - c-compiler
-- cmake>=4.0
+- cmake>=4.3
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api
