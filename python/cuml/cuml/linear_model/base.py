@@ -181,17 +181,19 @@ def cuda_ptr(X):
     return None
 
 
+_SVD_THRESH = 1e-10
+_EIG_THRESH = _SVD_THRESH**2
 _ridge_transform = cp.ElementwiseKernel(
     "T x, T s, T alpha",
     "T out",
-    "out = s < 1e-10 ? 0 : x * s / (s * s + alpha)",
+    f"out = s < {_SVD_THRESH} ? 0 : x * s / (s * s + alpha)",
     "_ridge_transform",
 )
-_ridge_transform_zero_alpha = cp.ElementwiseKernel(
-    "T x, T s",
+_threshold_divide = cp.ElementwiseKernel(
+    "T x, T s, T thresh",
     "T out",
-    "out = s < 1e-10 ? 0 : x / s",
-    "_ridge_transform_zero_alpha",
+    "out = s < thresh ? 0 : x / s",
+    "_threshold_divide",
 )
 
 
@@ -234,7 +236,7 @@ def _fit_cholesky_or_lu(
             )
 
         w, q = cp.linalg.eigh(A)
-        return q.dot(_ridge_transform_zero_alpha(q.T.dot(B), w[:, None]))
+        return q.dot(_threshold_divide(q.T.dot(B), w[:, None], _EIG_THRESH))
 
     if (alpha == alpha[0]).all():
         # uniform alpha, only one _solve needed
@@ -243,14 +245,10 @@ def _fit_cholesky_or_lu(
         coefs = _solve(A, B).T
     else:
         coefs = cp.empty((n_targets, N), dtype=X.dtype)
-        last_alpha = 0.0
+        A_diag = cp.diag(A)
         for i in range(n_targets):
-            current_alpha = alpha[i]
-            offset = current_alpha - last_alpha
-            if offset != 0.0:
-                A.flat[:: N + 1] += offset
+            A.flat[:: N + 1] = A_diag + alpha[i]
             coefs[i, :] = _solve(A, B[:, i, None]).ravel()
-            last_alpha = current_alpha
 
     if dual:
         coefs = X.T.dot(coefs.T).T
@@ -337,7 +335,7 @@ def fit_least_squares(
         u, s, vh = cp.linalg.svd(X, full_matrices=False)
         if (alpha == 0).all():
             # Small optimization in the case of all-zero alpha
-            temp = _ridge_transform_zero_alpha(u.T.dot(y), s[:, None])
+            temp = _threshold_divide(u.T.dot(y), s[:, None], _SVD_THRESH)
         else:
             temp = _ridge_transform(u.T.dot(y), s[:, None], alpha)
         coef = vh.T.dot(temp).T

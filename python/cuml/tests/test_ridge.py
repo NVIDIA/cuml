@@ -140,7 +140,7 @@ def test_ridge_coef_and_intercept_shape(solver, dtype):
 
 
 @pytest.mark.parametrize(
-    "n_targets, alpha", [(1, 0.0), (2, 0.0), (2, [0.0, 0.5])]
+    "n_targets, alpha", [(1, 0.0), (2, 0.0), (2, np.array([0.0, 0.5]))]
 )
 def test_ridge_cholesky_singular_matrix(n_targets, alpha):
     X, y = make_regression(
@@ -156,6 +156,18 @@ def test_ridge_cholesky_singular_matrix(n_targets, alpha):
     sk_pred = sk_model.predict(X)
     cu_pred = cu_model.predict(X)
     np.testing.assert_allclose(sk_pred, cu_pred, atol=1e-4)
+
+
+@pytest.mark.parametrize("n", [4, 3, 2])
+def test_ridge_cholesky_singular_small_eigs(n):
+    eigs = [0, 1e-6, 1e-9, 1][:n]
+    X = np.diag(eigs).astype("float32")
+    y = X.sum(axis=0)
+    kws = {"alpha": 0, "fit_intercept": False, "solver": "cholesky"}
+    sk_model = sklearn.linear_model.Ridge(**kws).fit(X, y)
+    with pytest.warns(UserWarning, match="Singular matrix encountered"):
+        cu_model = cuml.Ridge(**kws).fit(X, y)
+    np.testing.assert_allclose(cu_model.coef_, sk_model.coef_)
 
 
 @pytest.mark.parametrize(
