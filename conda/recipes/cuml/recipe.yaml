@@ -97,6 +97,7 @@ requirements:
       else: cuda-bindings >=13.0.2,<14.0
   run:
     - ${{ pin_compatible("cuda-version", upper_bound="x", lower_bound="x") }}
+    - cuda-core >=1.0.0,<2.0.0
     - cudf =${{ minor_version }}
     - cupy >=14.0.1,!=14.1.0
     - joblib >=0.11
