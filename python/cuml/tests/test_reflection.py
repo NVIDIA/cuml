@@ -347,6 +347,25 @@ def test_convert_arrays_numpy_pinned(monkeypatch, layout):
     assert cp.any(X != 0)
 
 
+@pytest.mark.skipif(
+    cp.cuda.runtime.getDeviceCount() < 2, reason="needs two GPUs"
+)
+def test_convert_arrays_numpy_pinned_other_device(monkeypatch):
+    """A non-contiguous output on a device that isn't current, whose current
+    stream is non-blocking, is copied after its contiguous copy completes"""
+    import cuml.internals.outputs as outputs
+
+    monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MIN_BYTES", 0)
+    monkeypatch.setattr(outputs, "_PINNED_OUTPUT_MAX_BYTES", 1 << 62)
+    with cp.cuda.Device(1), cp.cuda.Stream(non_blocking=True):
+        X = cp.random.default_rng(42).standard_normal((4096, 4096))[:, ::2]
+        expected = cp.asnumpy(X)
+        with cp.cuda.Device(0):
+            for _ in range(5):
+                out = convert_arrays(X, "numpy")
+                np.testing.assert_array_equal(out, expected)
+
+
 @pytest.mark.parametrize("limit", ["below-min", "above-max", "empty"])
 def test_convert_arrays_numpy_pageable_fallback(monkeypatch, limit):
     """Outputs outside the size limits keep the pageable `get()` path"""

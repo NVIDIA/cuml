@@ -471,22 +471,26 @@ def _cupy_to_numpy(obj):
         _PINNED_OUTPUT_MIN_BYTES <= obj.nbytes <= _PINNED_OUTPUT_MAX_BYTES
     ):
         return obj.get(order="A")
-    if not (obj.flags.c_contiguous or obj.flags.f_contiguous):
-        # `get(order="A")` would make the same device-side copy, on the
-        # array's own device
-        with obj.device:
+    # `get()` takes the current stream of the *current* device, then
+    # switches to the array's device. Make the array's device current for
+    # the whole function so the contiguous copy below and the transfer run
+    # on the same stream, as they do inside a single `get(order="A")`.
+    with obj.device:
+        if not (obj.flags.c_contiguous or obj.flags.f_contiguous):
             obj = cp.ascontiguousarray(obj)
-    order = (
-        "F" if obj.flags.f_contiguous and not obj.flags.c_contiguous else "C"
-    )
-    try:
-        mem = cp.cuda.alloc_pinned_memory(obj.nbytes)
-    except cp.cuda.runtime.CUDARuntimeError:
-        # Out of pinned memory: fall back to pageable
-        return obj.get(order="A")
-    out = np.frombuffer(mem, dtype=obj.dtype, count=obj.size)
-    out = out.reshape(obj.shape, order=order)
-    obj.get(out=out)
+        order = (
+            "F"
+            if obj.flags.f_contiguous and not obj.flags.c_contiguous
+            else "C"
+        )
+        try:
+            mem = cp.cuda.alloc_pinned_memory(obj.nbytes)
+        except cp.cuda.runtime.CUDARuntimeError:
+            # Out of pinned memory: fall back to pageable
+            return obj.get(order="A")
+        out = np.frombuffer(mem, dtype=obj.dtype, count=obj.size)
+        out = out.reshape(obj.shape, order=order)
+        obj.get(out=out)
     return out
 
 
