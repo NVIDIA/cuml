@@ -578,10 +578,14 @@ class TargetEncoder(InteropMixin, Base):
         matched to the null key in `encode_all` explicitly, since NaN does
         not compare equal to itself.
         """
-        enc = encode_all[[col, "out"]].to_pandas()
-        keys = enc[col]
-        vals = enc["out"].to_numpy(dtype="float64", na_value=np.nan)
-        key_missing = keys.isna().to_numpy()
+        key_col = encode_all[col]
+        missing = key_col.isna()
+        key_missing = missing.to_numpy()
+        # Drop the null key before leaving the device: an integer column
+        # with a null comes back from to_pandas() as float64, which merges
+        # distinct keys above 2**53 into one and makes the index non-unique.
+        keys = key_col[~missing].to_pandas()
+        vals = encode_all["out"].to_numpy(dtype="float64", na_value=np.nan)
         mean = float(self.mean)
 
         cats = np.asarray(categories)
@@ -589,7 +593,13 @@ class TargetEncoder(InteropMixin, Base):
         # Vectorized lookup: a Python loop over the categories costs about
         # 0.4 s per feature at a million categories. `encode_all` comes from
         # a groupby, so its keys are unique.
-        pos = pd.Index(keys[~key_missing]).get_indexer(cats)
+        lookup = cats
+        if keys.dtype.kind in "iu" and cats.dtype.kind == "f":
+            # `categories_` of an integer column with a null is float64.
+            # Compare as integers: it is about 3x faster than a float
+            # lookup, and missing categories are excluded from `hit` below.
+            lookup = np.where(cat_missing, 0, cats).astype(keys.dtype)
+        pos = pd.Index(keys).get_indexer(lookup)
         hit = (pos >= 0) & ~cat_missing
         out = np.full(len(cats), mean, dtype="float64")
         out[hit] = vals[~key_missing][pos[hit]]
