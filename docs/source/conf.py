@@ -17,11 +17,16 @@
 #
 import datetime
 import glob
+import itertools
 import os
+import re
 import sys
 import textwrap
+import tomllib
 import xml.etree.ElementTree as ET
 
+import jinja2
+import yaml
 from packaging.version import Version
 
 import cuml
@@ -33,6 +38,62 @@ import cuml
 sys.path.insert(0, os.path.abspath("sphinxext"))
 
 from github_link import make_linkcode_resolve  # noqa
+
+
+# -- Render supported_versions.rst from its template ------------------------
+
+# Package name, optional extras, version constraint
+_REQUIREMENT = re.compile(r"^([A-Za-z0-9._-]+)(?:\[[^\]]*\])?(.*)$")
+
+
+def _constraints(requirements):
+    """Map package name to its version constraint as written.
+
+    Packages listed with different constraints are left out, so using them
+    in the template fails the build.
+    """
+    found = {}
+    for requirement in requirements:
+        text = requirement.split(";")[0].replace(" ", "")
+        name, constraint = _REQUIREMENT.match(text).groups()
+        found.setdefault(name, set()).add(constraint)
+    return {name: c.pop() for name, c in found.items() if len(c) == 1}
+
+
+def render_supported_versions():
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.join(here, "..", "..")
+    with open(
+        os.path.join(root, "python", "cuml", "pyproject.toml"), "rb"
+    ) as f:
+        project = tomllib.load(f)["project"]
+    pip = itertools.chain(
+        project["dependencies"], *project["optional-dependencies"].values()
+    )
+    conda = []
+    for path in glob.glob(
+        os.path.join(root, "conda", "environments", "all_cuda-*.yaml")
+    ):
+        with open(path) as f:
+            dependencies = yaml.safe_load(f)["dependencies"]
+        # Skip the 'pip:' sub-list
+        conda += [d for d in dependencies if isinstance(d, str)]
+
+    with open(os.path.join(here, "supported_versions.rst.template")) as f:
+        template = jinja2.Template(
+            f.read(),
+            undefined=jinja2.StrictUndefined,
+            keep_trailing_newline=True,
+        )
+    with open(os.path.join(here, "supported_versions.rst"), "w") as f:
+        f.write(
+            template.render(
+                versions=_constraints(pip), conda_versions=_constraints(conda)
+            )
+        )
+
+
+render_supported_versions()
 
 
 # -- General configuration ------------------------------------------------

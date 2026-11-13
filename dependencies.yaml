@@ -356,7 +356,7 @@ dependencies:
           - packaging
           - rich
           - &scikit_learn scikit-learn>=1.6
-          - treelite==4.*,>=4.8.1
+          - treelite>=4.8.1,<5.0.0
   # 'cuda_version' intentionally does not contain fallback entries... we want
   # a loud error if an unsupported 'cuda' value is passed
   cuda_version:
@@ -535,6 +535,8 @@ dependencies:
           - ipykernel
           - nbsphinx
           - &onnxruntime onnxruntime
+          # used by docs/source/conf.py to render supported_versions.rst
+          - pyyaml
           - recommonmark
           - *scikit_learn
           - &skl2onnx skl2onnx
