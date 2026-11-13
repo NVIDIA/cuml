@@ -158,11 +158,6 @@ def test_hyperparameters(n_components, n_init, eigen_tol):
     assert len(cp.unique(labels)) <= n_clusters
 
 
-@pytest.mark.xfail(
-    reason="Spectral clustering labels differ with the same random_state (#8869)",
-    raises=AssertionError,
-    strict=False,
-)
 def test_reproducibility_with_random_state():
     n_samples = 500
     n_clusters = 4
