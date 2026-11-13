@@ -34,6 +34,9 @@ namespace ML {
 namespace Test {
 namespace opg {
 
+using MLCommon::Test::opg::get_node_local_rank_size;
+using MLCommon::Test::opg::initialize_mpi_once;
+
 struct RfMgTestParams {
   int n_rows;
   int n_cols;
@@ -206,22 +209,6 @@ void expect_tree_limits(RandomForestMetaData<T, L> const& forest, RfMgTestParams
   }
 }
 
-void initialize_mpi_once()
-{
-  int mpi_initialized = 0;
-  MPI_Initialized(&mpi_initialized);
-  if (!mpi_initialized) { MPI_Init(nullptr, nullptr); }
-}
-
-void get_mpi_local_rank_size(int& local_rank, int& local_size)
-{
-  MPI_Comm local_comm{};
-  MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &local_comm);
-  MPI_Comm_rank(local_comm, &local_rank);
-  MPI_Comm_size(local_comm, &local_size);
-  MPI_Comm_free(&local_comm);
-}
-
 template <typename DataT, typename LabelT>
 class RfMgPropertyTestImpl {
  public:
@@ -235,7 +222,7 @@ class RfMgPropertyTestImpl {
 
     int local_rank = 0;
     int local_size = 1;
-    get_mpi_local_rank_size(local_rank, local_size);
+    get_node_local_rank_size(local_rank, local_size);
 
     int n_gpus = 0;
     RAFT_CUDA_TRY(cudaGetDeviceCount(&n_gpus));
