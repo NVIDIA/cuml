@@ -217,10 +217,6 @@ class IncrementalPCA(PCA):
             Returns the instance itself.
 
         """
-        self.n_samples_seen_ = 0
-        self.mean_ = 0.0
-        self.var_ = 0.0
-
         # Sparse inputs are sliced into row batches below; restrict to CSR/CSC
         # which support that.
         X = check_inputs(
@@ -231,8 +227,15 @@ class IncrementalPCA(PCA):
             reset=True,
         )
 
-        n_samples, n_features = X.shape
+        return self._fit_validated(X)
 
+    def _fit_validated(self, X):
+        """Fit in batches on an input that `check_inputs` has already validated."""
+        self.n_samples_seen_ = 0
+        self.mean_ = 0.0
+        self.var_ = 0.0
+
+        n_samples, n_features = X.shape
         if self.batch_size is None:
             self.batch_size_ = 5 * n_features
         else:
@@ -260,7 +263,17 @@ class IncrementalPCA(PCA):
         the dimensionality reduction on X.
 
         """
-        return self.fit(X, y).transform(X)
+        # Validate once. `self.fit(X).transform(X)` would convert a host
+        # input to a device array twice.
+        X = check_inputs(
+            self,
+            X,
+            accept_sparse=["csr", "csc"],
+            dtype=("float32", "float64"),
+            reset=True,
+        )
+        self._fit_validated(X)
+        return self._transform_validated(X)
 
     @mlfunc(convert_output=False)
     def partial_fit(self, X, y=None, *, check_input=True) -> "IncrementalPCA":
@@ -424,15 +437,21 @@ class IncrementalPCA(PCA):
 
         if is_sparse(X):
             # CSR/CSC support fast row slicing for the per-batch projection
-            # below. Validate `X` once here and call `_transform_sparse`
-            # directly per batch to avoid re-validating every slice.
+            # in `_transform_validated`. Validate `X` once here.
             X = check_inputs(
                 self,
                 X,
                 accept_sparse=["csr", "csc"],
                 dtype=self.components_.dtype,
             )
+            return self._transform_validated(X)
+        else:
+            # `PCA.transform` validates `X` itself, so don't re-check here.
+            return super().transform(X)
 
+    def _transform_validated(self, X):
+        """Transform an input that `check_inputs` has already validated."""
+        if is_sparse(X):
             n_samples, n_features = X.shape
             batch_size = getattr(
                 self, "batch_size_", self.batch_size or 5 * n_features
@@ -445,9 +464,11 @@ class IncrementalPCA(PCA):
             ):
                 output.append(self._transform_sparse(X[batch]))
             return cp.vstack(output)
-        else:
-            # `PCA.transform` validates `X` itself, so don't re-check here.
-            return super().transform(X)
+        # The dense transform expects column-major (Fortran) data. This is a
+        # copy on the GPU, not another host-to-device transfer.
+        return self._transform_dense(
+            cp.asfortranarray(X, dtype=self.components_.dtype)
+        )
 
     @classmethod
     def _get_param_names(cls):
