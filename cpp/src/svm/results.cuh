@@ -22,10 +22,10 @@
 #include <rmm/aligned.hpp>
 #include <rmm/device_uvector.hpp>
 #include <rmm/mr/per_device_resource.hpp>
-#include <rmm/resource_ref.hpp>
 
 #include <cub/device/device_reduce.cuh>
 #include <cub/device/device_select.cuh>
+#include <cuda/memory_resource>
 
 #include <math.h>
 
@@ -305,7 +305,7 @@ class Results {
     return n_selected;
   }
 
-  rmm::device_async_resource_ref rmm_alloc;
+  cuda::mr::device_resource_ref rmm_alloc;
 
  private:
   const raft::handle_t& handle;
