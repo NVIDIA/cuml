@@ -556,3 +556,42 @@ def test_as_sklearn_missing_category_matches_cuml(multi_feature_mode):
     np.testing.assert_allclose(
         sklearn_model.transform(X_new), encoder.transform(X_new), rtol=1e-5
     )
+
+
+def test_independent_fit_transform_all_null_target_category():
+    """With smooth=0 a category whose targets are all null has no encoding
+    of its own; its training rows fall back to `y_stat_val`, not NaN."""
+    X = np.array(["a", "a", "c", "b", "b"], dtype=object)[:, None]
+    y = np.array([1.0, 1.0, 4.0, np.nan, np.nan])
+
+    encoder = TargetEncoder(
+        smooth=0, multi_feature_mode="independent", output_type="numpy"
+    )
+    train_encoded = encoder.fit_transform(X, y)
+
+    assert encoder.y_stat_val == 2.0
+    np.testing.assert_allclose(
+        train_encoded, np.array([1.0, 1.0, 4.0, 2.0, 2.0])[:, None]
+    )
+
+
+@pytest.mark.parametrize(
+    "dtype, big", [("int64", 2**53), ("uint64", 2**63 + 2**11)]
+)
+def test_independent_fit_integer_keys_beyond_float64_with_null(dtype, big):
+    """Integer keys that are distinct but equal as float64, in a column that
+    also has a null, must not collapse into a non-unique lookup index."""
+    keys = [big, big + 1, None, big, big + 1, 7]
+    X = cudf.DataFrame({"a": cudf.Series(keys, dtype=dtype)})
+    y = cudf.Series([0.0, 1.0, 0.5, 0.0, 1.0, 0.25])
+
+    encoder = TargetEncoder(
+        smooth=0, multi_feature_mode="independent", output_type="numpy"
+    )
+    encoder.fit(X, y)
+
+    (encodings,) = encoder._encodings_per_feature
+    assert len(encodings) == len(encoder.categories_[0])
+    np.testing.assert_allclose(
+        encoder.transform(X).ravel(), [0.0, 1.0, 0.5, 0.0, 1.0, 0.25]
+    )
