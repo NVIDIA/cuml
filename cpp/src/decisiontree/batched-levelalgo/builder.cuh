@@ -248,6 +248,8 @@ struct Builder {
   std::int64_t* column_samples;
   /** temporary row IDs for row-wise out-of-place partitioning */
   std::int64_t* partition_row_ids;
+  /** temporary bootstrap counts partitioned alongside row IDs */
+  std::uint32_t* partition_bootstrap_count;
   /** rmm device workspace buffer */
   rmm::device_uvector<char> d_buff;
   /** pinned host buffer to store the trained nodes */
@@ -263,6 +265,7 @@ struct Builder {
           const DataT* data,
           const LabelT* labels,
           const double* sample_weight,
+          std::uint32_t* bootstrap_count,
           std::int64_t n_rows,
           std::int64_t n_cols,
           rmm::device_uvector<std::int64_t>* row_ids,
@@ -277,6 +280,7 @@ struct Builder {
       dataset{data,
               labels,
               sample_weight,
+              bootstrap_count,
               n_rows,
               n_cols,
               row_major ? n_cols : std::int64_t{1},
@@ -358,6 +362,10 @@ struct Builder {
       ML::checked_mul<std::size_t>(sizeof(std::int64_t), max_batch, dataset.n_sampled_cols);
     auto partition_row_ids_bytes =
       ML::checked_mul<std::size_t>(sizeof(std::int64_t), dataset.n_sampled_rows);
+    auto partition_bootstrap_count_bytes =
+      dataset.bootstrap_count == nullptr
+        ? std::size_t{0}
+        : ML::checked_mul<std::size_t>(sizeof(std::uint32_t), dataset.n_sampled_rows);
 
     d_wsize += calculateAlignedBytes(histograms_bytes);         // histograms
     d_wsize += calculateAlignedBytes(mutex_bytes);              // mutex
@@ -366,6 +374,8 @@ struct Builder {
     d_wsize += calculateAlignedBytes(workload_info_bytes);      // workload_info
     d_wsize += calculateAlignedBytes(column_samples_bytes);     // column_samples
     d_wsize += calculateAlignedBytes(partition_row_ids_bytes);  // partition row IDs
+    d_wsize +=
+      calculateAlignedBytes(partition_bootstrap_count_bytes);  // partition bootstrap counts
     d_wsize += packedHistogramWorkspaceSize(max_len_histograms);
 
     // all nodes in the tree
@@ -399,6 +409,10 @@ struct Builder {
       ML::checked_mul<std::size_t>(sizeof(std::int64_t), max_batch, dataset.n_sampled_cols);
     auto partition_row_ids_bytes =
       ML::checked_mul<std::size_t>(sizeof(std::int64_t), dataset.n_sampled_rows);
+    auto partition_bootstrap_count_bytes =
+      dataset.bootstrap_count == nullptr
+        ? std::size_t{0}
+        : ML::checked_mul<std::size_t>(sizeof(std::uint32_t), dataset.n_sampled_rows);
     // device
     histograms = reinterpret_cast<BinT*>(d_wspace);
     d_wspace += calculateAlignedBytes(histograms_bytes);
@@ -414,6 +428,9 @@ struct Builder {
     d_wspace += calculateAlignedBytes(column_samples_bytes);
     partition_row_ids = reinterpret_cast<std::int64_t*>(d_wspace);
     d_wspace += calculateAlignedBytes(partition_row_ids_bytes);
+    partition_bootstrap_count =
+      dataset.bootstrap_count == nullptr ? nullptr : reinterpret_cast<std::uint32_t*>(d_wspace);
+    d_wspace += calculateAlignedBytes(partition_bootstrap_count_bytes);
     packed_histograms = reinterpret_cast<void*>(d_wspace);
     d_wspace += packedHistogramWorkspaceSize(max_len_histograms);
 
@@ -441,12 +458,16 @@ struct Builder {
     // Total training weight across all ranks for this tree.
     auto root_weight = static_cast<double>(global_sampled_rows);
     if constexpr (ObjectiveT::weighted) {
-      auto weights      = dataset.sample_weight;
-      auto local_weight = thrust::transform_reduce(
+      auto row_positions = thrust::make_counting_iterator<std::int64_t>(0);
+      auto dataset_copy  = dataset;
+      auto local_weight  = thrust::transform_reduce(
         rmm::exec_policy(builder_stream),
-        dataset.row_ids,
-        dataset.row_ids + dataset.n_sampled_rows,
-        [weights] __device__(std::int64_t row) -> double { return weights[row]; },
+        row_positions,
+        row_positions + dataset.n_sampled_rows,
+        [dataset_copy] __device__(std::int64_t row_position) -> double {
+          auto row = dataset_copy.row_ids[row_position];
+          return dataset_copy.weight(row_position, row);
+        },
         0.0,
         cuda::std::plus{});
       root_weight = globalSum(local_weight);
@@ -590,6 +611,7 @@ struct Builder {
                                                       n_partition_blocks,
                                                       work_items.size(),
                                                       partition_row_ids,
+                                                      partition_bootstrap_count,
                                                       builder_stream);
     RAFT_CUDA_TRY(cudaPeekAtLastError());
     raft::common::nvtx::pop_range();

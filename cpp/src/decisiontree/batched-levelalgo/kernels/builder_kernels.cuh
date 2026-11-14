@@ -106,6 +106,7 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
                            size_t n_blocks_dimx,
                            size_t n_work_items,
                            std::int64_t* partition_row_ids,
+                           std::uint32_t* partition_bootstrap_count,
                            cudaStream_t builder_stream);
 
 template <typename DatasetT, typename NodeT, typename ObjectiveT>
