@@ -384,3 +384,47 @@ def test_linear_regression_sparse(
 
     # Check predictions are close
     np.testing.assert_allclose(cu_pred, sk_pred, atol=1e-2)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("weighted", [True, False])
+@pytest.mark.parametrize("n_targets", [0, 3])
+@pytest.mark.parametrize("sparse", [True, False])
+def test_linear_regression_positive(
+    dtype, fit_intercept, weighted, n_targets, sparse
+):
+    n_samples, n_features = 400, 20
+    rng = np.random.default_rng(0)
+    # Mixed-sign ground truth, so the non-negativity constraint is active
+    coef_shape = (n_features, n_targets) if n_targets else (n_features,)
+    coef = rng.normal(size=coef_shape)
+    X = rng.normal(size=(n_samples, n_features)).astype(dtype)
+    noise = 0.1 * rng.normal(size=(n_samples,) + coef.shape[1:])
+    y = (X @ coef + 2.0 + noise).astype(dtype)
+    sample_weight = (
+        rng.uniform(0.5, 1, size=n_samples).astype(dtype) if weighted else None
+    )
+    X_fit = scipy.sparse.csr_matrix(X) if sparse else X
+
+    cu_model = cuml.LinearRegression(
+        fit_intercept=fit_intercept, positive=True
+    ).fit(X_fit, y, sample_weight=sample_weight)
+    sk_model = sklearn.linear_model.LinearRegression(
+        fit_intercept=fit_intercept, positive=True
+    ).fit(X, y, sample_weight=sample_weight)
+
+    cu_coef = cp.asnumpy(cu_model.coef_)
+    assert cu_model.coef_.dtype == dtype
+    assert cu_coef.shape == sk_model.coef_.shape
+    assert (cu_coef >= 0).all()
+    assert (cu_coef == 0).any()  # the constraint is actually active
+    np.testing.assert_allclose(cu_coef, sk_model.coef_, atol=1e-3)
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.intercept_), sk_model.intercept_, atol=1e-3
+    )
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.predict(X)).reshape(-1),
+        sk_model.predict(X).reshape(-1),
+        atol=1e-2,
+    )
