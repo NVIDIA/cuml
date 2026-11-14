@@ -24,6 +24,7 @@ from .datasets import (
     resolve_dtypes,
 )
 from .providers import PROVIDERS, Provider, get_provider
+from .scoring import SCORERS, ScoringSpec
 
 if TYPE_CHECKING:
     from ._schema import CaseManifest, ProfileManifest
@@ -163,6 +164,7 @@ class ResolvedCase:
     repetitions: int
     timeout_sec: float | None
     tags: tuple[str, ...] = ()
+    scoring: ScoringSpec | None = None
 
     @property
     def lifecycle(self) -> Literal["fit", "inference"]:
@@ -186,6 +188,12 @@ class ResolvedCase:
                 inference_rows=self.measured_rows,
                 partition="disjoint-contiguous-v1",
                 fit_input_selection=list(self.fit_input_selection),
+            )
+        elif self.scoring is not None:
+            dataset_parameters.update(
+                train_rows=self.training_rows,
+                evaluation_rows=self.scoring.evaluation_rows,
+                partition="disjoint-contiguous-v1",
             )
         return Workload(
             algorithm=self.estimator,
@@ -280,6 +288,40 @@ def _resolve_case(
         training_rows = max(1, round(shape.train_rows * profile.size_scale))
         measured_rows = rows
         generated_rows = training_rows + measured_rows
+    scoring = None
+    if request.scoring is not None:
+        requested = request.scoring
+        if requested.name not in SCORERS:
+            raise SuiteError(f"unknown scorer {requested.name!r}")
+        scorer = SCORERS[requested.name]
+        if not is_fit and request.input_selection != list(
+            scorer.input_selection
+        ):
+            raise SuiteError(
+                "prediction scoring requires input_selection: [X]"
+            )
+        if request.operation not in scorer.operations:
+            raise SuiteError(
+                f"scorer {requested.name!r} does not support {request.operation!r}"
+            )
+        if is_fit:
+            if requested.evaluation_rows is None:
+                raise SuiteError("scored fitting requires evaluation_rows")
+            evaluation_rows = max(
+                32, round(requested.evaluation_rows * profile.size_scale)
+            )
+            generated_rows += evaluation_rows
+        else:
+            if requested.evaluation_rows is not None:
+                raise SuiteError(
+                    "inference scoring uses measured rows; omit evaluation_rows"
+                )
+            evaluation_rows = measured_rows
+        scoring = ScoringSpec(
+            requested.name,
+            copy.deepcopy(requested.parameters),
+            evaluation_rows,
+        )
     dtype = dataset.dtype
     if isinstance(dtype, schema.DtypeMapping):
         dtype = {"X": dtype.X, "y": dtype.y}
@@ -296,6 +338,7 @@ def _resolve_case(
     return ResolvedCase(
         estimator=request.estimator,
         tags=tuple(request.tags),
+        scoring=scoring,
         dataset=dataset.generator,
         operation=request.operation,
         generated_rows=generated_rows,
