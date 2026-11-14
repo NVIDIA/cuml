@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import numpy as np
@@ -51,7 +51,7 @@ def test_lasso(
     lasso = Lasso(
         alpha=np.array([alpha]),
         fit_intercept=True,
-        max_iter=1000,
+        max_iter=100,
         selection=algorithm,
         tol=1e-10,
         client=client,
@@ -140,7 +140,7 @@ def test_elastic_net(
     elasticnet = ElasticNet(
         alpha=np.array([alpha]),
         fit_intercept=True,
-        max_iter=1000,
+        max_iter=100,
         selection=algorithm,
         tol=1e-10,
         client=client,

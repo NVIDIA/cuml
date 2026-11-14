@@ -55,7 +55,7 @@ jobs:
       date: ${{ inputs.date }}
       script: ci/test_cpp.sh
       sha: ${{ inputs.sha }}
-      matrix_type: nightly
+      matrix_type: nightly,wsl-nightly
   conda-python-tests-singlegpu:
     permissions:
       actions: read
@@ -186,7 +186,7 @@ jobs:
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
       script: ci/test_wheel.sh
-      matrix_type: nightly
+      matrix_type: nightly,wsl-nightly
   wheel-tests-cuml-nightly-dependencies-versions:
     permissions:
       actions: read
@@ -210,7 +210,7 @@ jobs:
         | max_by([.CUDA_VER, .PY_VER] | map(split(".") | map(tonumber)))
         | .DEPENDENCIES = "nightly"
         | [.]
-      matrix_type: nightly
+      matrix_type: nightly,wsl-nightly
   wheel-tests-cuml-dask:
     permissions:
       actions: read
@@ -226,7 +226,9 @@ jobs:
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
       script: ci/test_wheel_dask.sh
-      matrix_type: nightly
+      matrix_type: nightly,wsl-nightly
+      # NCCL_CUMEM_ENABLE=0 on WSL needs more than Docker's default 64 MB /dev/shm.
+      container-options: "--shm-size=1g"
   wheel-tests-integrations:
     permissions:
       actions: read
@@ -245,4 +247,4 @@ jobs:
       # Test all CUDA major versions with latest dependencies and respective latest Python version
       matrix_filter: 'map(select(.DEPENDENCIES == "latest")) | group_by(.CUDA_VER|split(".")|.[0]) | map(max_by(.PY_VER|split(".")|map(tonumber)))'
       continue-on-error: true
-      matrix_type: nightly
+      matrix_type: nightly,wsl-nightly
