@@ -606,6 +606,40 @@ def test_kmeans_transform_euclidean():
     np.testing.assert_allclose(cu_dist, sk_dist)
 
 
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize("n_features", [2, 100])
+def test_kmeans_transform_small_distances_exact(dtype, n_features):
+    """transform doesn't lose small distances to round-off (gh-8872)."""
+    X, _ = make_blobs(
+        n_samples=2000,
+        n_features=n_features,
+        centers=8,
+        center_box=(-100, 100),
+        random_state=0,
+    )
+    X = cp.asnumpy(X).astype(dtype)
+    model = cuml.KMeans(
+        n_clusters=8, n_init=1, random_state=0, output_type="numpy"
+    ).fit(X)
+    centers = model.cluster_centers_
+
+    # A center's distance to itself is exactly 0
+    np.testing.assert_array_equal(np.diag(model.transform(centers)), 0)
+
+    # Points very close to a center get accurate distances
+    rng = np.random.default_rng(0)
+    scale = np.sqrt(np.finfo(dtype).eps)
+    query = (centers + scale * rng.standard_normal(centers.shape)).astype(
+        dtype
+    )
+    expected = np.linalg.norm(
+        query.astype(np.float64)[:, None] - centers.astype(np.float64),
+        axis=-1,
+    )
+    rtol = 1e-4 if dtype == np.float32 else 1e-12
+    np.testing.assert_allclose(model.transform(query), expected, rtol=rtol)
+
+
 def test_get_feature_names_out():
     X, _ = make_blobs(n_features=5)
     cu_model = cuml.KMeans().fit(X)

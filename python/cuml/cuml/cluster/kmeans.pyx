@@ -435,6 +435,35 @@ cdef _kmeans_predict_host_chunked(
     return labels_host, total_inertia
 
 
+_row_sq_norms = cp.ReductionKernel(
+    "T x", "T out", "x * x", "a + b", "out = a", "0", "_row_sq_norms"
+)
+
+
+# cuVS computes distances as sqrt(|x|^2 + |c|^2 - 2 x.c), which loses small
+# distances to cancellation, e.g. a center's distance to itself isn't exactly
+# 0 (cuvs#2841). Recompute entries within the round-off bound of that formula
+# directly. Only a few entries typically fall below the bound.
+_refine_small_distances = cp.ElementwiseKernel(
+    "raw T X, raw T centers, raw T x_norms, raw T c_norms, "
+    "int64 n_cols, int64 n_clusters, T tol",
+    "T out",
+    """
+    const long long row = i / n_clusters;
+    const long long col = i % n_clusters;
+    if (out * out <= tol * (x_norms[row] + c_norms[col])) {
+        T acc = 0;
+        for (long long j = 0; j < n_cols; j++) {
+            const T diff = X[row * n_cols + j] - centers[col * n_cols + j];
+            acc += diff * diff;
+        }
+        out = sqrt(acc);
+    }
+    """,
+    "_refine_small_distances",
+)
+
+
 class KMeans(
     InteropMixin,
     ClusterMixin,
@@ -1168,6 +1197,20 @@ class KMeans(
                         <double*>out_ptr,
                     )
         handle.sync()
+
+        # The round-off bound of an n-term inner product is ~n * eps relative
+        # to the norms; use a 4x margin.
+        centers = self.cluster_centers_
+        _refine_small_distances(
+            X,
+            centers,
+            _row_sq_norms(X, axis=1),
+            _row_sq_norms(centers, axis=1),
+            n_cols,
+            n_clusters,
+            X.dtype.type(4 * (n_cols + 2) * np.finfo(X.dtype).eps),
+            out,
+        )
         return out
 
     @generate_docstring(return_values={'name': 'score',
