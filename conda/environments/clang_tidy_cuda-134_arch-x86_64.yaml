@@ -8,7 +8,7 @@ dependencies:
 - c-compiler
 - clang-tools==20.1.8
 - clang==20.1.8
-- cmake>=4.0
+- cmake>=4.0,<4.5
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api

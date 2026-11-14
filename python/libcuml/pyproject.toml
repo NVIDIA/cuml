@@ -68,7 +68,7 @@ build-backend = "scikit_build_core.build"
 dependencies-file = "../../dependencies.yaml"
 matrix-entry = "cuda_suffixed=true;use_cuda_wheels=true"
 requires = [
-    "cmake>=4.0",
+    "cmake>=4.0,<4.5",
     "libcuvs==27.2.*,>=0.0.0a0",
     "libnvforest==27.2.*,>=0.0.0a0",
     "libraft==27.2.*,>=0.0.0a0",
