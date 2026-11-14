@@ -85,11 +85,16 @@ class LinearRegression(InteropMixin,
 
     Parameters
     ----------
-    algorithm : {'auto', 'eig', 'svd', 'lsmr', 'qr', 'svd-qr', 'svd-jacobi'}, default='auto'
+    algorithm : {'auto', 'lu', 'eig', 'svd', 'lsmr', 'qr', 'svd-qr', 'svd-jacobi'}, default='auto'
         The algorithm to use when fitting:
 
         - 'auto': will select 'eig' if supported, falling back to 'lsmr' if X
           is sparse, and 'svd' otherwise.
+
+        - 'lu': uses an LU decomposition of the covariance matrix,
+          falling back to an eigendecomposition if that's singular. This is
+          typically the fastest dense solver, and is competitive for sparse
+          matrices. It doesn't support sparse ``X`` when ``fit_intercept=True``.
 
         - 'eig': uses an eigendecomposition of the covariance matrix. It is
           faster than SVD, but potentially unstable. It doesn't support
@@ -99,7 +104,8 @@ class LinearRegression(InteropMixin,
           stable. It doesn't support sparse ``X``.
 
         - 'lsmr': uses ``cupyx.scipy.sparse.linalg.lsmr``, an iterative
-          algorithm. It supports all input types and is typically very fast.
+          algorithm. It is typically the fastest sparse solver, and competitive
+          for dense matrices. It supports all options.
 
         - 'qr': uses QR decomposition and solves ``Rx = Q^T y``. It's faster
           than SVD, but doesn't support multi-target ``y`` or sparse ``X``.
@@ -337,14 +343,17 @@ class LinearRegression(InteropMixin,
         sample_weight_is_copy = cuda_ptr(sample_weight) != cuda_ptr(sample_weight_orig)
 
         if self.algorithm not in (
-            "auto", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"
+            "auto", "lu", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"
         ):
             raise ValueError(f"algorithm={self.algorithm!r} is not supported")
 
         # Determine the solver to use
         fallback_reason = None
-        if self.algorithm == "lsmr":
+        if self.algorithm == "lu" and sp.issparse(X) and self.fit_intercept:
             solver = "lsmr"
+            fallback_reason = "sparse X with `fit_intercept=True`"
+        elif self.algorithm in ("lu", "lsmr"):
+            solver = self.algorithm
         elif sp.issparse(X):
             solver = "lsmr"
             fallback_reason = "sparse X"
