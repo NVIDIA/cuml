@@ -155,11 +155,6 @@ def test_spectral_clustering_fit_predict(clustering_data):
     assert np.array_equal(labels, sc.labels_)
 
 
-@pytest.mark.xfail(
-    reason="Spectral clustering labels differ with the same random_state (#8869)",
-    raises=AssertionError,
-    strict=False,
-)
 def test_spectral_clustering_random_state(clustering_data):
     X, _ = clustering_data
     sc1 = SpectralClustering(
