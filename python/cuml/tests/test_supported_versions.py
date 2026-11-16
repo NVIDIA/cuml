@@ -15,7 +15,9 @@ files, so check that they agree for the packages on that page:
 * optional packages: the ``test`` extra of pyproject.toml vs
   ``conda/environments/all_cuda-*.yaml``.
 
-Constraints must be written the same way, ignoring whitespace and extras.
+Constraints must have the same specifiers (``SpecifierSet`` equality), so
+``==4.*,>=4.8.1`` and ``>=4.8.1,<5.0.0`` differ although they allow the same
+versions.
 """
 
 import re
@@ -25,6 +27,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 
 REPO = Path(__file__).resolve().parents[3]
 TEMPLATE = REPO / "docs" / "source" / "supported_versions.rst.template"
@@ -58,24 +62,30 @@ ALLOWED_MISMATCH = {
     ),
 }
 
-# Package name, optional extras, version constraint
-_REQUIREMENT = re.compile(r"^([A-Za-z0-9._-]+)(?:\[[^\]]*\])?(.*)$")
+# Conda names of the checked packages
+CHECKED = {canonicalize_name(n) for n in [*REQUIRED.values(), *OPTIONAL]}
+
+# Leading package name of an entry, whether or not it parses
+_NAME = re.compile(r"^\s*([A-Za-z0-9._-]+)")
 # A recipe variable, e.g. '${{ treelite_version_run }}'
 _RECIPE_VARIABLE = re.compile(r"\$\{\{\s*(\w+)\s*\}\}")
 
 
 def _constraints(requirements):
-    """Map package name to the constraints it is listed with.
+    """Map package name to the specifiers it is listed with.
 
-    Entries that don't start with a package name (e.g. the recipe's
-    ``${{ pin_compatible(...) }}``) are skipped.
+    Entries that aren't PEP 508 requirements (conda-only syntax such as
+    ``rapids-logger =0.3`` or the recipe's ``${{ pin_compatible(...) }}``) are
+    skipped. ``test_checked_packages_parse`` makes sure that doesn't hide
+    entries for checked packages.
     """
     found = {}
-    for requirement in requirements:
-        text = requirement.split(";")[0].replace(" ", "")
-        if match := _REQUIREMENT.match(text):
-            name, constraint = match.groups()
-            found.setdefault(name, []).append(constraint)
+    for text in requirements:
+        try:
+            requirement = Requirement(text)
+        except InvalidRequirement:
+            continue
+        found.setdefault(requirement.name, []).append(requirement.specifier)
     return found
 
 
@@ -87,6 +97,7 @@ def _pyproject():
 
 @cache
 def _recipe_run():
+    """Return the recipe's run requirements with variables filled in."""
     config = yaml.safe_load(RECIPE_CONFIG.read_text())
 
     def substitute(match):
@@ -96,16 +107,16 @@ def _recipe_run():
 
     run = yaml.safe_load(RECIPE.read_text())["requirements"]["run"]
     # Skip 'if:' entries
-    return _constraints(
+    return [
         _RECIPE_VARIABLE.sub(substitute, r) for r in run if isinstance(r, str)
-    )
+    ]
 
 
 @cache
 def _environment(path):
     dependencies = yaml.safe_load(path.read_text())["dependencies"]
     # Skip the 'pip:' sub-list
-    return _constraints(d for d in dependencies if isinstance(d, str))
+    return [d for d in dependencies if isinstance(d, str)]
 
 
 def test_documented_packages_are_checked():
@@ -116,10 +127,33 @@ def test_documented_packages_are_checked():
     assert conda == set(ALLOWED_MISMATCH)
 
 
+@pytest.mark.parametrize("path", [RECIPE, *ENV_FILES], ids=lambda p: p.name)
+def test_checked_packages_parse(path):
+    # The other tests skip entries that don't parse. That must not hide an
+    # entry for a checked package, e.g. conda-only 'treelite =4.8'.
+    entries = _recipe_run() if path == RECIPE else _environment(path)
+    invalid = []
+    for text in entries:
+        match = _NAME.match(text)
+        if match and canonicalize_name(match[1]) in CHECKED:
+            try:
+                Requirement(text)
+            except InvalidRequirement:
+                invalid.append(text)
+    assert not invalid, (
+        f"{invalid} in {path.relative_to(REPO)} aren't PEP 508 "
+        "requirements, write them as e.g. 'treelite>=4.8.1,<5.0.0'"
+    )
+
+
 @pytest.mark.parametrize("pip_name", REQUIRED)
 def test_required(pip_name):
     pip = _constraints(_pyproject()["dependencies"])[pip_name]
-    conda = _recipe_run()[REQUIRED[pip_name]]
+    found = _constraints(_recipe_run())
+    assert REQUIRED[pip_name] in found, (
+        f"{REQUIRED[pip_name]} not found in {RECIPE.relative_to(REPO)}"
+    )
+    conda = found[REQUIRED[pip_name]]
     assert len(pip) == 1, f"{pip_name} listed more than once in {PYPROJECT}"
     assert conda == pip, (
         f"{pip_name}: {conda} in {RECIPE.relative_to(REPO)} differs from "
@@ -131,7 +165,9 @@ def test_required(pip_name):
 @pytest.mark.parametrize("name", OPTIONAL)
 def test_optional(name, env_file):
     pip = _constraints(_pyproject()["optional-dependencies"]["test"])[name]
-    conda = _environment(env_file)[name]
+    found = _constraints(_environment(env_file))
+    assert name in found, f"{name} not found in {env_file.relative_to(REPO)}"
+    conda = found[name]
     assert len(pip) == 1, f"{name} listed more than once in {PYPROJECT}"
     if name in ALLOWED_MISMATCH:
         assert conda != pip, (

@@ -19,7 +19,6 @@ import datetime
 import glob
 import itertools
 import os
-import re
 import sys
 import textwrap
 import tomllib
@@ -27,6 +26,7 @@ import xml.etree.ElementTree as ET
 
 import jinja2
 import yaml
+from packaging.requirements import InvalidRequirement, Requirement
 from packaging.version import Version
 
 import cuml
@@ -42,22 +42,32 @@ from github_link import make_linkcode_resolve  # noqa
 
 # -- Render supported_versions.rst from its template ------------------------
 
-# Package name, optional extras, version constraint
-_REQUIREMENT = re.compile(r"^([A-Za-z0-9._-]+)(?:\[[^\]]*\])?(.*)$")
-
 
 def _constraints(requirements):
-    """Map package name to its version constraint as written.
+    """Map package name to its version constraint.
 
-    Packages listed with different constraints are left out, so using them
-    in the template fails the build.
+    Entries that aren't PEP 508 requirements (conda-only syntax such as
+    ``doxygen=1.18.0``) are skipped. So are packages listed with different
+    constraints. Using either in the template fails the build.
     """
     found = {}
-    for requirement in requirements:
-        text = requirement.split(";")[0].replace(" ", "")
-        name, constraint = _REQUIREMENT.match(text).groups()
-        found.setdefault(name, set()).add(constraint)
-    return {name: c.pop() for name, c in found.items() if len(c) == 1}
+    for text in requirements:
+        try:
+            requirement = Requirement(text)
+        except InvalidRequirement:
+            continue
+        found.setdefault(requirement.name, set()).add(requirement.specifier)
+    # SpecifierSet's str() sorts alphabetically, put lower bounds first
+    return {
+        name: ",".join(
+            sorted(
+                map(str, specifiers.pop()),
+                key=lambda s: (not s.startswith(">"), s),
+            )
+        )
+        for name, specifiers in found.items()
+        if len(specifiers) == 1
+    }
 
 
 def render_supported_versions():
