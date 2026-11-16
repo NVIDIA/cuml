@@ -415,6 +415,7 @@ NOT_YET_CONVERTED = {
     "LinearRegression",
     "LinearSVC",
     "LinearSVR",
+    "LocalOutlierFactor",
     "LogisticRegression",
     "MBSGDClassifier",
     "MBSGDRegressor",
