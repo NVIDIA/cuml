@@ -230,7 +230,7 @@ class IncrementalPCA(PCA):
         return self._fit_validated(X)
 
     def _fit_validated(self, X):
-        """Fit in batches on an input that `check_inputs` has already validated."""
+        """Fit the model in row batches using validated input."""
         self.n_samples_seen_ = 0
         self.mean_ = 0.0
         self.var_ = 0.0
@@ -450,7 +450,11 @@ class IncrementalPCA(PCA):
             return super().transform(X)
 
     def _transform_validated(self, X):
-        """Transform an input that `check_inputs` has already validated."""
+        """Project validated input onto the fitted components.
+
+        Process sparse input in row batches and convert dense input to the
+        fitted components' dtype and column-major order before projection.
+        """
         if is_sparse(X):
             n_samples, n_features = X.shape
             batch_size = getattr(
