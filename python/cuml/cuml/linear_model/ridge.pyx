@@ -174,12 +174,12 @@ class Ridge(InteropMixin,
     _cpu_class_path = "sklearn.linear_model.Ridge"
 
     _parameter_constraints = {
-        "alpha": [Float(ge=0), ArrayLike],
-        "fit_intercept": [Bool],
+        "alpha": [Float(ge=0), ArrayLike()],
+        "fit_intercept": [Bool()],
         "solver": [Options("auto", "eig", "svd", "lsmr")],
         "tol": [Float(ge=0)],
         "max_iter": [Int(ge=1), None],
-        "copy_X": [Bool],
+        "copy_X": [Bool()],
     }
 
     @classmethod

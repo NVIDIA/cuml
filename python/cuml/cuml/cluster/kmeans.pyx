@@ -616,10 +616,10 @@ class KMeans(
         "n_clusters": [Int(ge=1)],
         "max_iter": [Int(ge=1)],
         "tol": [Float(ge=0)],
-        "random_state": [RandomState],
+        "random_state": [RandomState()],
         "init": [
             Options("scalable-k-means++", "k-means||", "k-means++", "random"),
-            ArrayLike,
+            ArrayLike(),
         ],
         "n_init": [Options("auto"), Int(ge=1)],
         "oversampling_factor": [Float(ge=0)],

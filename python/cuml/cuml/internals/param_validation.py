@@ -10,8 +10,8 @@ constraints, a value is valid if any of them accepts it::
 
     class Ridge(Base):
         _parameter_constraints = {
-            "alpha": [Float(ge=0), ArrayLike],
-            "fit_intercept": [Bool],
+            "alpha": [Float(ge=0), ArrayLike()],
+            "fit_intercept": [Bool()],
             "solver": [Options("auto", "eig", "svd", "lsmr")],
             "max_iter": [Int(ge=1), None],
         }
@@ -20,7 +20,7 @@ Besides constraint objects, the lists may contain ``None`` and classes
 (e.g. ``dict``), which become an ``isinstance`` check. ``bool``, ``int`` and
 ``float`` are rejected because ``isinstance`` gives surprising results for
 them (``True`` is an ``int``, ``np.float32(1.0)`` is not a ``float``); use
-``Bool``, ``Int()`` and ``Float()`` instead. Constraints declared by parent
+``Bool()``, ``Int()`` and ``Float()`` instead. Constraints declared by parent
 classes are inherited. Validation happens at the start of every fit-like
 method (see :func:`cuml.internals.mlfunc`) and raises
 :class:`InvalidParameterError`.
@@ -218,7 +218,9 @@ class _InstanceOf(Constraint):
         return f"an instance of {_type_name(self.cls)!r}"
 
 
-class _Bool(Constraint):
+class Bool(Constraint):
+    """A bool or ``numpy.bool_``."""
+
     def accepts(self, value) -> bool:
         return isinstance(value, (bool, np.bool_))
 
@@ -240,7 +242,9 @@ class _None(Constraint):
         return "None"
 
 
-class _ArrayLike(Constraint):
+class ArrayLike(Constraint):
+    """A list, tuple or array (numpy, cupy, pandas, ...)."""
+
     def accepts(self, value) -> bool:
         if isinstance(value, (list, tuple)):
             return True
@@ -254,7 +258,9 @@ class _ArrayLike(Constraint):
         return "an array-like"
 
 
-class _Callable(Constraint):
+class Callable(Constraint):
+    """A callable."""
+
     def accepts(self, value) -> bool:
         return callable(value)
 
@@ -291,7 +297,7 @@ class AnyOf(Constraint):
 
 
 # `isinstance` checks against these don't match what users expect
-_BUILTIN_REPLACEMENTS = {bool: "Bool", int: "Int()", float: "Float()"}
+_BUILTIN_REPLACEMENTS = {bool: "Bool()", int: "Int()", float: "Float()"}
 
 
 def as_constraint(spec) -> Constraint:
@@ -301,6 +307,11 @@ def as_constraint(spec) -> Constraint:
     elif spec is None:
         return _None()
     elif isinstance(spec, type):
+        if issubclass(spec, Constraint):
+            raise TypeError(
+                f"Unsupported parameter constraint {spec!r}, use "
+                f"{spec.__name__}() instead"
+            )
         if (replacement := _BUILTIN_REPLACEMENTS.get(spec)) is not None:
             raise TypeError(
                 f"Unsupported parameter constraint {spec!r}, use "
@@ -310,17 +321,16 @@ def as_constraint(spec) -> Constraint:
     raise TypeError(f"Unsupported parameter constraint {spec!r}")
 
 
-Bool = _Bool()
-ArrayLike = _ArrayLike()
-Callable = _Callable()
+class RandomState(AnyOf):
+    """The values accepted by `cuml.internals.validation.check_random_seed`."""
 
-# Matches the values accepted by `cuml.internals.validation.check_random_seed`
-RandomState = AnyOf(
-    Int(ge=0, le=2**32 - 1),
-    np.random.RandomState,
-    cp.random.RandomState,
-    None,
-)
+    def __init__(self):
+        super().__init__(
+            Int(ge=0, le=2**32 - 1),
+            np.random.RandomState,
+            cp.random.RandomState,
+            None,
+        )
 
 
 @functools.cache

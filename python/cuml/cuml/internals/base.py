@@ -123,7 +123,7 @@ class Base(TagsMixin):
     """
 
     _parameter_constraints = {
-        "verbose": [Bool, Int()],
+        "verbose": [Bool(), Int()],
         "output_type": [Options(*OUTPUT_TYPES), None],
     }
 

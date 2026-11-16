@@ -172,7 +172,7 @@ class MyEstimator(Base):
 
     # Only this class's own parameters; inherited ones (`verbose`,
     # `output_type`) are declared by `Base`
-    _parameter_constraints = {"extra_arg": [Bool]}
+    _parameter_constraints = {"extra_arg": [Bool()]}
 
     def __init__(self, *, extra_arg=True, verbose=False, output_type=None):
         super().__init__(verbose=verbose, output_type=output_type)
@@ -393,8 +393,8 @@ from cuml.internals.param_validation import ArrayLike, Bool, Float, Int, Options
 
 class Ridge(Base):
     _parameter_constraints = {
-        "alpha": [Float(ge=0), ArrayLike],
-        "fit_intercept": [Bool],
+        "alpha": [Float(ge=0), ArrayLike()],
+        "fit_intercept": [Bool()],
         "solver": [Options("auto", "eig", "svd", "lsmr")],
         "max_iter": [Int(ge=1), None],
     }
@@ -407,14 +407,14 @@ The available constraints are:
 - `Float(ge=, gt=, le=, lt=)`: a real number, including ints and numpy floats
   but not bools or NaN, optionally bounded.
 - `Options(*values)`: one of a fixed set of values, usually strings.
-- `Bool`: `bool` or `numpy.bool_`.
-- `None`, `ArrayLike`, `RandomState` (the values `check_random_seed` accepts)
-  and `Callable`.
+- `Bool()`: `bool` or `numpy.bool_`.
+- `None`, `ArrayLike()`, `RandomState()` (the values `check_random_seed`
+  accepts) and `Callable()`.
 - Any class, such as `dict`: an `isinstance` check.
 
 `bool`, `int` and `float` are rejected, because `isinstance` gives surprising
 results for them (`True` is an `int`, `np.float32(1.0)` is not a `float`). Use
-`Bool`, `Int()` and `Float()` instead. `Bool` also avoids `bool`, which in
+`Bool()`, `Int()` and `Float()` instead. `Bool()` also avoids `bool`, which in
 Cython files often refers to the C++ type.
 
 Constraints are inherited: only declare the parameters a class adds. A
