@@ -2,24 +2,18 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-"""Tests for cuml.solvers.nnls / nnls_batched.
+"""Tests for cuml.solvers.nnls.
 
-Both the single-problem ``nnls`` wrapper and the masked, shared-``A`` batched
-``nnls_batched`` primitive are exercised against ``scipy.optimize.nnls`` on
-three accuracy facets:
+Single problems and masked, shared-``A`` batches are exercised against
+``scipy.optimize.nnls`` on three accuracy facets:
 
 * the residual 2-norm is no worse than scipy's (within a small slack),
 * the KKT residual ``max_j |min(x_j, g_j)|`` is small relative to the scale of
   ``A^T b``, and
 * every coefficient is non-negative and masked-out coordinates are zero.
 
-Only the Lawson-Hanson backend is currently available; the ``solver`` argument
-is retained on the public API but ``"lawson"`` is the sole valid value.
-
-Dimensions cover the sizes seen in Mutation Signature Analysis (the primary
-consumer) as well as larger ``n`` and larger batch counts.  The heavier shapes
-are guarded behind cuML's ``quality_param`` / ``stress_param`` tiers so the
-default unit run stays fast.
+The heavier shapes are guarded behind cuML's ``quality_param`` /
+``stress_param`` tiers so the default unit run stays fast.
 """
 
 import cupy as cp
@@ -28,17 +22,16 @@ import pytest
 from scipy.optimize import nnls as scipy_nnls
 
 from cuml.solvers import nnls as cuml_nnls
-from cuml.solvers import nnls_batched as cuml_nnls_batched
 from cuml.testing.utils import quality_param, stress_param, unit_param
 
 
 def _lawson_kw(dtype):
-    """Solver kwargs for the Lawson backend (max_iter=0 -> active-set cap)."""
-    return {"maxiter": 0, "tol": (1e-4 if dtype == np.float32 else 1e-8)}
+    """Solver kwargs: the default iteration cap and a dtype-dependent tol."""
+    return {"tol": (1e-4 if dtype == np.float32 else 1e-8)}
 
 
 # ---------------------------------------------------------------------------
-# Single-problem NNLS (cuml.solvers.nnls)
+# Single-problem NNLS
 # ---------------------------------------------------------------------------
 
 
@@ -100,7 +93,7 @@ def _make_tall(n_rows, n_cols, *, seed, dtype, sparsity=0.5):
     "n_rows,n_cols",
     [
         unit_param(200, 50),  # mildly tall
-        unit_param(96, 40),  # signature-attribution-like
+        unit_param(96, 40),
         quality_param(2000, 200),  # tall
         quality_param(200, 200),  # square
         stress_param(4000, 400),  # large n
@@ -159,26 +152,8 @@ def test_nnls_compute_rnorm_false():
     _check_solution(A, cp.asnumpy(x), b, dtype=np.float64)
 
 
-def test_nnls_default_solver_is_lawson():
-    """The solver argument defaults to (and only accepts) 'lawson'."""
-    A, b = _make_tall(64, 12, seed=2, dtype=np.float64)
-    x_default, _ = cuml_nnls(A, b)
-    x_explicit, _ = cuml_nnls(A, b, solver="lawson")
-    np.testing.assert_allclose(
-        cp.asnumpy(x_default), cp.asnumpy(x_explicit), rtol=1e-9, atol=1e-9
-    )
-
-
-def test_nnls_unknown_solver():
-    """An unsupported solver name is rejected."""
-    A = np.eye(3, dtype=np.float32)
-    b = np.ones(3, dtype=np.float32)
-    with pytest.raises(ValueError):
-        cuml_nnls(A, b, solver="apg")
-
-
 # ---------------------------------------------------------------------------
-# Batched, masked, shared-A NNLS (cuml.solvers.nnls_batched)
+# Batched, masked, shared-A NNLS
 # ---------------------------------------------------------------------------
 
 
@@ -272,8 +247,8 @@ def _check_batched(
 
 
 def _run_batched(A, B, masks, **kw):
-    """Call the device-native nnls_batched and mirror (X, rnorm) to host."""
-    X, rnorm = cuml_nnls_batched(A, B, masks, **kw)
+    """Call nnls on a batch and mirror (X, rnorm) to host."""
+    X, rnorm = cuml_nnls(A, B, masks, **kw)
     X = cp.asnumpy(X)
     rnorm = None if rnorm is None else cp.asnumpy(rnorm)
     return X, rnorm
@@ -329,12 +304,12 @@ def test_batched_masked(dtype):
     _check_batched(A, B, masks, b_index, out_weights, out_rnorm, dtype=dtype)
 
 
-# Mutation-signature dimensions (m rows = mutation contexts, n = signatures).
+# Small problems with a few dozen rows and up to a few dozen columns.
 _SIGNATURE_SHAPES = [
-    unit_param(96, 65),  # SBS-96 default
-    unit_param(78, 11),  # DBS
-    unit_param(83, 17),  # ID
-    quality_param(192, 54),  # SBS-192
+    unit_param(96, 65),
+    unit_param(78, 11),
+    unit_param(83, 17),
+    quality_param(192, 54),
     quality_param(288, 10),  # SBS-288
     quality_param(1536, 10),  # SBS-1536 (Gram setup dominates)
     stress_param(4608, 10),  # SBS-4608
@@ -344,7 +319,7 @@ _SIGNATURE_SHAPES = [
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 @pytest.mark.parametrize("m,n", _SIGNATURE_SHAPES)
 def test_batched_signature_shapes(dtype, m, n):
-    """Shapes mimicking a mutation-signature-attribution round."""
+    """Small non-negative problems with many columns relative to the rows."""
     P = 128
     A, B, masks, b_index = _make_batched(
         m, n, P, seed=(m * 131 + n), dtype=dtype, signature_like=True
@@ -399,7 +374,7 @@ def test_batched_b_index_out_of_range():
     B = np.abs(np.random.default_rng(1).standard_normal((16, 3)))
     masks = np.ones((4, 2), dtype=bool)
     with pytest.raises(ValueError):
-        cuml_nnls_batched(A, B, masks, b_index=np.array([0, 5]))
+        cuml_nnls(A, B, masks, b_index=np.array([0, 5]))
 
 
 def test_batched_b_index_length_mismatch():
@@ -408,7 +383,7 @@ def test_batched_b_index_length_mismatch():
     B = np.abs(np.random.default_rng(1).standard_normal((16, 3)))
     masks = np.ones((4, 2), dtype=bool)  # 2 problems
     with pytest.raises(ValueError):
-        cuml_nnls_batched(A, B, masks, b_index=np.array([0, 1, 2]))
+        cuml_nnls(A, B, masks, b_index=np.array([0, 1, 2]))
 
 
 def test_batched_rnorm_matches_scipy():
@@ -427,20 +402,20 @@ def test_batched_rnorm_matches_scipy():
 
 
 def test_batched_returns_device_arrays():
-    """nnls_batched is device-native: it returns cupy arrays, and rnorm is
-    None when compute_rnorm=False (skipping the residual evaluation)."""
+    """nnls returns cupy arrays, and rnorm is None when compute_rnorm=False
+    (skipping the residual evaluation)."""
     rng = np.random.default_rng(3)
     A = np.abs(rng.standard_normal((32, 6))).astype(np.float64)
     B = np.abs(rng.standard_normal((32, 5))).astype(np.float64)
     masks = np.ones((6, 5), dtype=bool)
 
-    X, rnorm = cuml_nnls_batched(A, B, masks)
+    X, rnorm = cuml_nnls(A, B, masks)
     assert isinstance(X, cp.ndarray)
     assert isinstance(rnorm, cp.ndarray)
     assert X.shape == (6, 5)
     assert rnorm.shape == (5,)
 
-    X2, rnorm2 = cuml_nnls_batched(A, B, masks, compute_rnorm=False)
+    X2, rnorm2 = cuml_nnls(A, B, masks, compute_rnorm=False)
     assert isinstance(X2, cp.ndarray)
     assert rnorm2 is None
     np.testing.assert_allclose(
@@ -469,11 +444,9 @@ def test_batched_mask_order_parity(order):
     assert masks.flags[f"{order}_CONTIGUOUS"]
     b_index = np.arange(P)
 
-    X, _ = cuml_nnls_batched(
-        A, B, masks, b_index=b_index, **_lawson_kw(np.float64)
-    )
+    X, _ = cuml_nnls(A, B, masks, b_index=b_index, **_lawson_kw(np.float64))
     other = "C" if order == "F" else "F"
-    X_other, _ = cuml_nnls_batched(
+    X_other, _ = cuml_nnls(
         A,
         B,
         np.asarray(masks_bool, order=other),
@@ -513,9 +486,9 @@ def test_batched_repeated_calls_resident():
     )
     masks = cp.asarray(np.ones((n, P), dtype=np.uint8))
 
-    X0, _ = cuml_nnls_batched(A, B, masks, **_lawson_kw(np.float64))
+    X0, _ = cuml_nnls(A, B, masks, **_lawson_kw(np.float64))
     for _ in range(3):
-        Xi, _ = cuml_nnls_batched(A, B, masks, **_lawson_kw(np.float64))
+        Xi, _ = cuml_nnls(A, B, masks, **_lawson_kw(np.float64))
         np.testing.assert_allclose(
             cp.asnumpy(Xi), cp.asnumpy(X0), rtol=1e-9, atol=1e-9
         )
@@ -541,7 +514,7 @@ def test_batched_on_device_l2_scoring_parity():
     A_dev = cp.asarray(A)
     B_dev = cp.asfortranarray(cp.asarray(B))
     bi_dev = cp.asarray(b_index)
-    X_dev, rnorm = cuml_nnls_batched(
+    X_dev, rnorm = cuml_nnls(
         A_dev,
         B_dev,
         cp.asarray(masks),
@@ -585,18 +558,69 @@ def test_batched_large_batch(P):
     )
 
 
-def test_batched_unknown_solver():
-    """An unsupported solver name is rejected."""
-    A = np.eye(4, dtype=np.float32)
-    B = np.ones((4, 2), dtype=np.float32)
-    masks = np.ones((4, 2), dtype=bool)
-    with pytest.raises(ValueError):
-        cuml_nnls_batched(A, B, masks, solver="apg")
-
-
 def test_batched_bad_mask_shape():
     """A mask whose row count differs from the columns of A is rejected."""
     A = np.eye(4, dtype=np.float32)
     B = np.ones((4, 2), dtype=np.float32)
     with pytest.raises(ValueError):
-        cuml_nnls_batched(A, B, np.ones((3, 4), dtype=bool))
+        cuml_nnls(A, B, np.ones((3, 4), dtype=bool))
+
+
+def test_nnls_vector_and_matrix_shapes():
+    """A 1D b gives a 1D solution and a float residual norm, a 2D b gives
+    matrices and arrays, also with a single column."""
+    rng = np.random.default_rng(0)
+    A = rng.uniform(size=(30, 5))
+    b = rng.uniform(size=30)
+
+    x, rnorm = cuml_nnls(A, b)
+    assert isinstance(x, cp.ndarray) and x.shape == (5,)
+    assert isinstance(rnorm, float)
+
+    X, rnorms = cuml_nnls(A, b.reshape(-1, 1))
+    assert X.shape == (5, 1) and rnorms.shape == (1,)
+    np.testing.assert_allclose(cp.asnumpy(X[:, 0]), cp.asnumpy(x), atol=1e-8)
+    np.testing.assert_allclose(float(rnorms[0]), rnorm, rtol=1e-6)
+
+    # A 1D mask describes a single problem
+    mask = np.array([True, False, True, True, False])
+    x_masked, _ = cuml_nnls(A, b, mask)
+    assert x_masked.shape == (5,)
+    assert (cp.asnumpy(x_masked)[~mask] == 0).all()
+
+
+@pytest.mark.parametrize(
+    "a_dtype,b_dtype,expected",
+    [
+        (np.float32, np.float32, np.float32),
+        (np.float64, np.float64, np.float64),
+        (np.float32, np.float64, np.float64),
+        (np.float64, np.float32, np.float64),
+        (np.int32, np.int32, np.float32),
+        (np.float16, np.float32, np.float32),
+    ],
+)
+def test_nnls_dtype_handling(a_dtype, b_dtype, expected):
+    """float64 is kept if either input has it, everything else is float32."""
+    A = (np.arange(1, 13).reshape(6, 2) % 5 + 1).astype(a_dtype)
+    b = (np.arange(6) % 4 + 1).astype(b_dtype)
+    x, _ = cuml_nnls(A, b)
+    assert x.dtype == expected
+    X, rnorm = cuml_nnls(A, b.reshape(-1, 1))
+    assert X.dtype == expected and rnorm.dtype == expected
+
+
+def test_nnls_input_validation():
+    A = np.ones((4, 3))
+    with pytest.raises(ValueError, match="2-D array for A"):
+        cuml_nnls(np.ones(4), np.ones(4))
+    with pytest.raises(ValueError, match="1-D or 2-D array for b"):
+        cuml_nnls(A, np.ones((4, 2, 2)))
+    with pytest.raises(ValueError, match="Incompatible dimensions"):
+        cuml_nnls(A, np.ones(5))
+    with pytest.raises(ValueError, match="at least one"):
+        cuml_nnls(np.ones((4, 0)), np.ones(4))
+    with pytest.raises(ValueError, match="masks with 3 rows"):
+        cuml_nnls(A, np.ones((4, 2)), np.ones((2, 2), dtype=bool))
+    with pytest.raises(ValueError, match="b with 2 columns"):
+        cuml_nnls(A, np.ones((4, 3)), np.ones((3, 2), dtype=bool))

@@ -22,16 +22,19 @@ namespace {
 template <typename T>
 void nnls_batched_impl(raft::handle_t& handle,
                        const T* A,
-                       int m,
-                       int n,
+                       std::int64_t m,
+                       std::int64_t n,
                        const T* B,
-                       int P,
+                       std::int64_t P,
                        const std::uint8_t* masks,
                        T* X,
                        T* rnorm,
                        const NnlsBatchedParams& params)
 {
-  raft::common::nvtx::range fun_scope("ML::Solver::nnlsBatched(%d, %d, %d)", m, n, P);
+  raft::common::nvtx::range fun_scope("ML::Solver::nnlsBatched(%lld, %lld, %lld)",
+                                      static_cast<long long>(m),
+                                      static_cast<long long>(n),
+                                      static_cast<long long>(P));
 
   using index_t = std::int64_t;
   auto view     = [](auto* ptr, index_t rows, index_t cols) {
@@ -58,10 +61,10 @@ void nnls_batched_impl(raft::handle_t& handle,
 
 void nnlsBatched(raft::handle_t& handle,
                  const float* A,
-                 int m,
-                 int n,
+                 std::int64_t m,
+                 std::int64_t n,
                  const float* B,
-                 int n_problems,
+                 std::int64_t n_problems,
                  const std::uint8_t* masks,
                  float* X,
                  float* rnorm,
@@ -72,10 +75,10 @@ void nnlsBatched(raft::handle_t& handle,
 
 void nnlsBatched(raft::handle_t& handle,
                  const double* A,
-                 int m,
-                 int n,
+                 std::int64_t m,
+                 std::int64_t n,
                  const double* B,
-                 int n_problems,
+                 std::int64_t n_problems,
                  const std::uint8_t* masks,
                  double* X,
                  double* rnorm,

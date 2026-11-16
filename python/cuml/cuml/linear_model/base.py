@@ -8,6 +8,7 @@ import numpy as np
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import check_inputs, check_is_fitted
+from cuml.solvers.nnls import _nnls
 
 
 class LinearPredictMixin:
@@ -224,7 +225,7 @@ def fit_least_squares(
         The solver to use. ``'nnls'`` constrains the coefficients to be
         non-negative and requires a dense ``X``.
     tol : float
-        Tolerance, used by the LSMR solver.
+        Tolerance, used by the LSMR and NNLS solvers.
     max_iter : int or None
         Maximum number of iterations, used by the LSMR solver.
     may_mutate_X : bool
@@ -310,9 +311,7 @@ def fit_least_squares(
             n_iter[i] = info[2]
     elif solver == "nnls":
         # Non-negative least squares: one problem per target, shared X.
-        from cuml.solvers.nnls import fit_nnls_batched
-
-        coef, _ = fit_nnls_batched(X, y, compute_rnorm=False, tol=tol)
+        coef, _ = _nnls(X, y, compute_rnorm=False, tol=tol)
         coef = coef.T
         n_iter = None
     else:

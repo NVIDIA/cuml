@@ -390,9 +390,9 @@ def test_linear_regression_sparse(
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("weighted", [True, False])
 @pytest.mark.parametrize("n_targets", [0, 3])
-@pytest.mark.parametrize("sparse", [True, False])
+@pytest.mark.parametrize("algorithm", ["auto", "nnls"])
 def test_linear_regression_positive(
-    dtype, fit_intercept, weighted, n_targets, sparse
+    dtype, fit_intercept, weighted, n_targets, algorithm
 ):
     n_samples, n_features = 400, 20
     rng = np.random.default_rng(0)
@@ -405,11 +405,10 @@ def test_linear_regression_positive(
     sample_weight = (
         rng.uniform(0.5, 1, size=n_samples).astype(dtype) if weighted else None
     )
-    X_fit = scipy.sparse.csr_matrix(X) if sparse else X
 
     cu_model = cuml.LinearRegression(
-        fit_intercept=fit_intercept, positive=True
-    ).fit(X_fit, y, sample_weight=sample_weight)
+        fit_intercept=fit_intercept, positive=True, algorithm=algorithm
+    ).fit(X, y, sample_weight=sample_weight)
     sk_model = sklearn.linear_model.LinearRegression(
         fit_intercept=fit_intercept, positive=True
     ).fit(X, y, sample_weight=sample_weight)
@@ -427,4 +426,51 @@ def test_linear_regression_positive(
         cp.asnumpy(cu_model.predict(X)).reshape(-1),
         sk_model.predict(X).reshape(-1),
         atol=1e-2,
+    )
+
+
+@pytest.mark.parametrize(
+    "algorithm", ["eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"]
+)
+def test_linear_regression_positive_incompatible_algorithm(algorithm):
+    X = np.random.default_rng(0).normal(size=(20, 3))
+    y = X.sum(axis=1)
+    model = cuml.LinearRegression(positive=True, algorithm=algorithm)
+    with pytest.raises(ValueError, match="positive=True"):
+        model.fit(X, y)
+
+
+def test_linear_regression_nnls_requires_positive():
+    X = np.random.default_rng(0).normal(size=(20, 3))
+    y = X.sum(axis=1)
+    model = cuml.LinearRegression(positive=False, algorithm="nnls")
+    with pytest.raises(ValueError, match="requires `positive=True`"):
+        model.fit(X, y)
+
+
+@pytest.mark.parametrize("algorithm", ["auto", "nnls"])
+@pytest.mark.parametrize("fmt", ["csr", "csc", "coo"])
+def test_linear_regression_positive_rejects_sparse(algorithm, fmt):
+    X = np.random.default_rng(0).normal(size=(20, 3))
+    y = X.sum(axis=1)
+    model = cuml.LinearRegression(positive=True, algorithm=algorithm)
+    with pytest.raises(TypeError, match=r"\.toarray\(\)"):
+        model.fit(scipy.sparse.coo_matrix(X).asformat(fmt), y)
+
+
+@pytest.mark.parametrize("fit_intercept", [True, False])
+def test_linear_regression_positive_single_sample(fit_intercept):
+    X = np.array([[1.0]])
+    y = np.array([2.0])
+    cu_model = cuml.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y)
+    sk_model = sklearn.linear_model.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y)
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.coef_), sk_model.coef_, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.intercept_), sk_model.intercept_, atol=1e-5
     )

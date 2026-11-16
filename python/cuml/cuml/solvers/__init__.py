@@ -4,8 +4,8 @@
 #
 
 from cuml.solvers.cd import CD
-from cuml.solvers.nnls import nnls, nnls_batched
+from cuml.solvers.nnls import nnls
 from cuml.solvers.qn import QN
 from cuml.solvers.sgd import SGD
 
-__all__ = ["CD", "QN", "SGD", "nnls", "nnls_batched"]
+__all__ = ["CD", "QN", "SGD", "nnls"]

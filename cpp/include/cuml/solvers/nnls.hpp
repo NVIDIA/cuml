@@ -17,32 +17,22 @@ namespace CUML_EXPORT ML {
 namespace Solver {
 
 /**
- * @brief Solver backend selector for the batched NNLS entry point.
- *
- * Only the Lawson-Hanson active-set method is currently exposed.  The selector
- * is kept so that additional backends can be added later without changing the
- * call signature.
- */
-enum class NnlsBatchedSolver {
-  LAWSON = 0  ///< Lawson-Hanson active-set (exact, best for small n_cols).
-};
-
-/**
  * Parameters for the batched NNLS solver.
  */
 struct NnlsBatchedParams {
-  NnlsBatchedSolver solver = NnlsBatchedSolver::LAWSON;
-  int max_iter             = 0;     ///< 0 => per-solver default (3 * n_cols + 1 for Lawson).
-  double tol               = 1e-6;  ///< Dual-feasibility (KKT) tolerance on the projected gradient.
+  int max_iter = 0;     ///< Iteration cap; 0 selects the default (3 * n + 1).
+  double tol   = 1e-6;  ///< Absolute tolerance on the projected gradient (dual feasibility).
 };
 
 /**
  * Solve a batch of Non-Negative Least Squares problems that share the same
  * coefficient matrix but differ by right-hand side and active-column support:
  *
- *   for p in [0, n_problems):
- *     X[:, p] = argmin_{x >= 0, x[j]=0 for masks[j,p]==0}
- *                 1/2 || A[:, support_p] x[support_p] - B[:, p] ||_2^2
+ * @code
+ * for p in [0, n_problems):
+ *   X[:, p] = argmin_{x >= 0, x[j] = 0 for masks[j, p] == 0}
+ *               1/2 || A[:, support_p] x[support_p] - B[:, p] ||_2^2
+ * @endcode
  *
  * The shared matrix A stays resident; its Gram matrix G = A^T A and the RHS
  * projections C = A^T B are formed once (via cuBLAS) and reused by every
@@ -62,29 +52,29 @@ struct NnlsBatchedParams {
  * @param X            output solutions, column-major (n, n_problems).  Masked-out
  *                     rows are written as 0.
  * @param rnorm        optional output, length n_problems: the residual norms
- *                     ||A @ X[:, p] - B[:, p]||_2 (the second result of
- *                     scipy.optimize.nnls).  May be null to skip them.
- * @param params       solver selection and per-backend knobs.
+ *                     ||A @ X[:, p] - B[:, p]||_2.  May be null to skip them.
+ * @param params       iteration cap and tolerance.
  */
 void nnlsBatched(raft::handle_t& handle,
                  const float* A,
-                 int m,
-                 int n,
+                 std::int64_t m,
+                 std::int64_t n,
                  const float* B,
-                 int n_problems,
+                 std::int64_t n_problems,
                  const std::uint8_t* masks,
                  float* X,
                  float* rnorm,
                  const NnlsBatchedParams& params);
 
-/** @copydoc nnlsBatched(raft::handle_t&, const float*, int, int, const float*, int,
- *                       const std::uint8_t*, float*, float*, const NnlsBatchedParams&) */
+/** @copydoc nnlsBatched(raft::handle_t&, const float*, std::int64_t, std::int64_t, const float*,
+ *                       std::int64_t, const std::uint8_t*, float*, float*,
+ *                       const NnlsBatchedParams&) */
 void nnlsBatched(raft::handle_t& handle,
                  const double* A,
-                 int m,
-                 int n,
+                 std::int64_t m,
+                 std::int64_t n,
                  const double* B,
-                 int n_problems,
+                 std::int64_t n_problems,
                  const std::uint8_t* masks,
                  double* X,
                  double* rnorm,
