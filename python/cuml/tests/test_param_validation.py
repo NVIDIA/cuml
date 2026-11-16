@@ -157,17 +157,16 @@ def test_constraint_str(constraint, expected):
     assert str(constraint) == expected
 
 
-@pytest.mark.parametrize(
-    "spec, replacement",
-    [
-        (bool, r"Bool\(\)"),
-        (int, r"Int\(\)"),
-        (float, r"Float\(\)"),
-    ],
-)
-def test_builtin_types_are_rejected(spec, replacement):
-    with pytest.raises(TypeError, match=f"use {replacement} instead"):
-        as_constraint(spec)
+def test_bool_is_rejected():
+    with pytest.raises(TypeError, match=r"use Bool\(\) instead"):
+        as_constraint(bool)
+
+
+@pytest.mark.parametrize("spec, cls", [(int, Int), (float, Float)])
+def test_int_and_float_are_aliases(spec, cls):
+    constraint = as_constraint(spec)
+    assert type(constraint) is cls
+    assert str(constraint) == str(cls())
 
 
 @pytest.mark.parametrize(

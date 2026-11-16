@@ -403,19 +403,19 @@ class Ridge(Base):
 The available constraints are:
 
 - `Int(ge=, gt=, le=, lt=)`: an integer, including numpy integers but not
-  bools, optionally bounded.
+  bools, optionally bounded. `int` is an alias for `Int()`.
 - `Float(ge=, gt=, le=, lt=)`: a real number, including ints and numpy floats
-  but not bools or NaN, optionally bounded.
+  but not bools or NaN, optionally bounded. `float` is an alias for `Float()`.
 - `Options(*values)`: one of a fixed set of values, usually strings.
 - `Bool()`: `bool` or `numpy.bool_`.
 - `None`, `ArrayLike()`, `RandomState()` (the values `check_random_seed`
   accepts) and `Callable()`.
 - Any class, such as `dict`: an `isinstance` check.
 
-`bool`, `int` and `float` are rejected, because `isinstance` gives surprising
-results for them (`True` is an `int`, `np.float32(1.0)` is not a `float`). Use
-`Bool()`, `Int()` and `Float()` instead. `Bool()` also avoids `bool`, which in
-Cython files often refers to the C++ type.
+`int` and `float` are not `isinstance` checks, because those give surprising
+results (`True` is an `int`, `np.float32(1.0)` is not a `float`). `bool` is
+rejected, use `Bool()` instead: in Cython files `bool` often refers to the C++
+type.
 
 Constraints are inherited: only declare the parameters a class adds. A
 subclass can narrow an inherited constraint by declaring it again, for

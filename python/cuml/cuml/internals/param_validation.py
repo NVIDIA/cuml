@@ -17,12 +17,12 @@ constraints, a value is valid if any of them accepts it::
         }
 
 Besides constraint objects, the lists may contain ``None`` and classes
-(e.g. ``dict``), which become an ``isinstance`` check. ``bool``, ``int`` and
-``float`` are rejected because ``isinstance`` gives surprising results for
-them (``True`` is an ``int``, ``np.float32(1.0)`` is not a ``float``); use
-``Bool()``, ``Int()`` and ``Float()`` instead. Constraints declared by parent
-classes are inherited. Validation happens at the start of every fit-like
-method (see :func:`cuml.internals.mlfunc`) and raises
+(e.g. ``dict``), which become an ``isinstance`` check. ``int`` and ``float``
+are aliases for ``Int()`` and ``Float()``, not ``isinstance`` checks, because
+those give surprising results (``True`` is an ``int``, ``np.float32(1.0)`` is
+not a ``float``). ``bool`` is rejected, use ``Bool()`` instead. Constraints
+declared by parent classes are inherited. Validation happens at the start of
+every fit-like method (see :func:`cuml.internals.mlfunc`) and raises
 :class:`InvalidParameterError`.
 
 Checks that relate several parameters to each other, or parameters to the
@@ -296,10 +296,6 @@ class AnyOf(Constraint):
         ]
 
 
-# `isinstance` checks against these don't match what users expect
-_BUILTIN_REPLACEMENTS = {bool: "Bool()", int: "Int()", float: "Float()"}
-
-
 def as_constraint(spec) -> Constraint:
     """Convert a declared constraint specification to a ``Constraint``."""
     if isinstance(spec, Constraint):
@@ -312,10 +308,13 @@ def as_constraint(spec) -> Constraint:
                 f"Unsupported parameter constraint {spec!r}, use "
                 f"{spec.__name__}() instead"
             )
-        if (replacement := _BUILTIN_REPLACEMENTS.get(spec)) is not None:
+        if spec is int:
+            return Int()
+        if spec is float:
+            return Float()
+        if spec is bool:
             raise TypeError(
-                f"Unsupported parameter constraint {spec!r}, use "
-                f"{replacement} instead"
+                f"Unsupported parameter constraint {spec!r}, use Bool() instead"
             )
         return _InstanceOf(spec)
     raise TypeError(f"Unsupported parameter constraint {spec!r}")
