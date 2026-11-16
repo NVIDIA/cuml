@@ -431,6 +431,58 @@ def test_linear_regression_positive(
     )
 
 
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("multi_output", [True, False])
+@pytest.mark.parametrize("uniform_weights", [True, False])
+@pytest.mark.parametrize("scale", [1e-12, 1e-8, 1e8])
+def test_linear_regression_positive_sample_weight_scale(
+    dtype, fit_intercept, multi_output, uniform_weights, scale
+):
+    rng = np.random.default_rng(42)
+    X = rng.normal(size=(40, 4)).astype(dtype)
+    coef = np.array([1.0, -2.0, 3.0, -0.5], dtype=dtype)
+    y = X @ coef + dtype(2.0)
+    if multi_output:
+        y = np.column_stack((y, -y))
+    weights = np.ones(40, dtype=dtype)
+    if not uniform_weights:
+        weights = rng.uniform(0.5, 2.0, size=40).astype(dtype)
+        weights[::5] = 0.0
+
+    reference = sklearn.linear_model.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y, sample_weight=weights)
+    baseline = cuml.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y, sample_weight=weights)
+
+    scaled_weights = cp.asarray(weights * dtype(scale))
+    original_weights = scaled_weights.copy()
+    model = cuml.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y, sample_weight=scaled_weights)
+
+    np.testing.assert_array_equal(
+        cp.asnumpy(scaled_weights), cp.asnumpy(original_weights)
+    )
+    assert model.coef_.dtype == dtype
+    for expected in (baseline, reference):
+        np.testing.assert_allclose(
+            cp.asnumpy(model.coef_), cp.asnumpy(expected.coef_), atol=1e-5
+        )
+        np.testing.assert_allclose(
+            cp.asnumpy(model.intercept_),
+            cp.asnumpy(expected.intercept_),
+            atol=1e-5,
+        )
+        np.testing.assert_allclose(
+            cp.asnumpy(model.predict(X)),
+            cp.asnumpy(expected.predict(X)),
+            atol=1e-4,
+        )
+
+
 @pytest.mark.parametrize(
     "algorithm", ["eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"]
 )

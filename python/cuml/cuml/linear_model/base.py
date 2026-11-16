@@ -249,6 +249,10 @@ def fit_least_squares(
         if X.format not in ("csr", "csc"):
             X = X.tocsr()
 
+    if solver == "nnls" and sample_weight is not None:
+        # Keep the absolute NNLS tolerance independent of the weight scale.
+        sample_weight = sample_weight / sample_weight.mean()
+
     X, y, X_offset, y_offset, sqrt_weight = center_and_scale(
         X,
         y,
