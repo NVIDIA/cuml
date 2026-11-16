@@ -6,7 +6,7 @@ files:
   all:
     output: conda
     matrix:
-      cuda: ["12.9", "13.3"]
+      cuda: ["12.9", "13.4"]
       arch: [x86_64, aarch64]
     includes:
       - common_build
@@ -14,6 +14,7 @@ files:
       - cutile_python
       - cuda_version
       - depends_on_cudf
+      - depends_on_cuda_core
       - depends_on_cuda_python
       - depends_on_cupy
       - depends_on_rapids_dask_dependency
@@ -24,6 +25,7 @@ files:
       - depends_on_libraft
       - depends_on_librmm
       - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
       - depends_on_nvforest
       - depends_on_pylibraft
       - depends_on_raft_dask
@@ -41,7 +43,7 @@ files:
   cpp_all:
     output: conda
     matrix:
-      cuda: ["12.9", "13.3"]
+      cuda: ["12.9", "13.4"]
       arch: [x86_64]
     includes:
       - common_build
@@ -59,7 +61,7 @@ files:
   clang_tidy:
     output: conda
     matrix:
-      cuda: ["12.9", "13.3"]
+      cuda: ["12.9", "13.4"]
       arch: [x86_64]
     includes:
       - clang_tidy
@@ -103,6 +105,8 @@ files:
       - depends_on_cupy
       - depends_on_libcuml
       - depends_on_nvforest
+      - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
       - py_version
       - test_python
       - test_python_xgboost
@@ -142,7 +146,6 @@ files:
       - depends_on_rapids_dask_dependency
       - depends_on_dask_cuda
       - depends_on_dask_cudf
-      - depends_on_numba_cuda
       - depends_on_nvforest
       - depends_on_pylibraft
       - depends_on_raft_dask
@@ -188,11 +191,11 @@ files:
       table: project
     includes:
       - cuda_wheels
+      - depends_on_cuda_core
       - depends_on_cuda_python
       - depends_on_cudf
       - depends_on_cupy
       - depends_on_libcuml
-      - depends_on_numba_cuda
       - depends_on_nvforest
       - depends_on_pylibraft
       - depends_on_rmm
@@ -209,6 +212,8 @@ files:
     includes:
       - test_python
       - test_python_xgboost
+      - depends_on_numba_cuda
+      - depends_on_numba_cuda_mlir
   py_dask_cuml:
     output: pyproject
     pyproject_dir: python/cuml
@@ -306,7 +311,7 @@ dependencies:
     common:
       - output_types: [conda, requirements, constraints, pyproject]
         packages:
-          - &cmake_ver cmake>=4.0
+          - &cmake_ver cmake>=4.0,<4.5
           - ninja
       - output_types: conda
         packages:
@@ -340,19 +345,18 @@ dependencies:
         packages:
           # skipping Cython 3.2.7 because of https://github.com/cython/cython/issues/7781
           - &cython cython>=3.2.2,!=3.2.7
-          - treelite==4.7.2
+          - treelite==4.8.1
   py_run_cuml:
     common:
       - output_types: [conda, requirements, constraints, pyproject]
         packages:
           - joblib>=0.11
-          - numba>=0.60.0,<0.65.0
           - &numpy numpy>=2.0,<3.0
           - scipy>=1.14.0
           - packaging
           - rich
           - &scikit_learn scikit-learn>=1.6
-          - treelite==4.*,>=4.7.2
+          - treelite==4.*,>=4.8.1
   # 'cuda_version' intentionally does not contain fallback entries... we want
   # a loud error if an unsupported 'cuda' value is passed
   cuda_version:
@@ -391,6 +395,10 @@ dependencies:
               cuda: "13.3"
             packages:
               - cuda-version=13.3
+          - matrix:
+              cuda: "13.4"
+            packages:
+              - cuda-version=13.4
       - output_types: [requirements, constraints]
         matrices:
           # if use_cuda_wheels=false is provided, do not add dependencies on any CUDA wheels
@@ -446,6 +454,11 @@ dependencies:
               use_cuda_wheels: "true"
             packages:
               - cuda-toolkit==13.3.*
+          - matrix:
+              cuda: "13.4"
+              use_cuda_wheels: "true"
+            packages:
+              - cuda-toolkit==13.4.*
   # NOTE: 'tileiras' is needed too, but in CI that's provided by a system-installed CTK.
   cutile_python:
     specific:
@@ -504,7 +517,7 @@ dependencies:
               use_cuda_wheels: "true"
             packages:
               - &ctk_cu13 cuda-toolkit[cublas,cufft,curand,cusolver,cusparse]==13.*
-              - &nvjitlink_cu13 nvidia-nvjitlink>=13.3,<14
+              - &nvjitlink_cu13 nvidia-nvjitlink>=13.4,<14
           # if no matching matrix selectors passed, list the CUDA 13 requirement
           # (just as a source of documentation, as this populates pyproject.toml in source control)
           - matrix:
@@ -587,7 +600,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - libcuml-tests==26.12.*,>=0.0.0a0
+          - libcuml-tests==27.2.*,>=0.0.0a0
   test_cpp:
     common:
       - output_types: conda
@@ -688,7 +701,7 @@ dependencies:
           - shap
       - output_types: conda
         packages:
-          - cuvs==26.12.*,>=0.0.0a0
+          - cuvs==27.2.*,>=0.0.0a0
           # upstream sklearn docstring tests require numpydoc<1.9
           #
           # 'numpydoc' is intentionally conda-only, see https://github.com/NVIDIA/cuml/issues/7710
@@ -756,6 +769,27 @@ dependencies:
       - output_types: [requirements, constraints]
         packages:
           - matplotlib
+  depends_on_cuda_core:
+    common:
+      - output_types: [conda, constraints]
+        packages:
+          - cuda-core>=1.0.0,<2.0.0
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          # Do not pull in CUDA wheels when they are explicitly disabled.
+          - matrix:
+              use_cuda_wheels: "false"
+            packages:
+              - cuda-core>=1.0.0,<2.0.0
+          - matrix:
+              cuda: "12.*"
+            packages:
+              - cuda-core[cu12]>=1.0.0,<2.0.0
+          # fallback to CUDA 13 versions if 'cuda' is '13.*' or not provided
+          - matrix:
+            packages:
+              - cuda-core[cu13]>=1.0.0,<2.0.0
   depends_on_cuda_python:
     specific:
       - output_types: [conda, requirements, constraints, pyproject]
@@ -772,7 +806,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &cudf_unsuffixed cudf==26.12.*,>=0.0.0a0
+          - &cudf_unsuffixed cudf==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -780,12 +814,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu12==26.12.*,>=0.0.0a0
+              - cudf-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu13==26.12.*,>=0.0.0a0
+              - cudf-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -794,7 +828,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - cuml==26.12.*,>=0.0.0a0
+          - cuml==27.2.*,>=0.0.0a0
   depends_on_cupy:
     common:
       - output_types: conda
@@ -864,12 +898,12 @@ dependencies:
     common:
       - output_types: [conda, pyproject, requirements, constraints]
         packages:
-          - rapids-dask-dependency==26.12.*,>=0.0.0a0
+          - rapids-dask-dependency==27.2.*,>=0.0.0a0
   depends_on_dask_cuda:
     common:
       - output_types: [conda, constraints]
         packages:
-          - &dask_cuda_unsuffixed dask-cuda==26.12.*,>=0.0.0a0
+          - &dask_cuda_unsuffixed dask-cuda==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, pyproject]
         matrices:
@@ -877,12 +911,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - dask-cuda[cu12]==26.12.*,>=0.0.0a0
+              - dask-cuda[cu12]==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - dask-cuda[cu13]==26.12.*,>=0.0.0a0
+              - dask-cuda[cu13]==27.2.*,>=0.0.0a0
           - matrix:
             packages:
               - *dask_cuda_unsuffixed
@@ -890,7 +924,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &dask_cudf_unsuffixed dask-cudf==26.12.*,>=0.0.0a0
+          - &dask_cudf_unsuffixed dask-cudf==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -898,12 +932,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - dask-cudf-cu12==26.12.*,>=0.0.0a0
+              - dask-cudf-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - dask-cudf-cu13==26.12.*,>=0.0.0a0
+              - dask-cudf-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -912,7 +946,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &libcuml_unsuffixed libcuml==26.12.*,>=0.0.0a0
+          - &libcuml_unsuffixed libcuml==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -920,12 +954,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libcuml-cu12==26.12.*,>=0.0.0a0
+              - libcuml-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - libcuml-cu13==26.12.*,>=0.0.0a0
+              - libcuml-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -934,7 +968,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &libcuvs_unsuffixed libcuvs==26.12.*,>=0.0.0a0
+          - &libcuvs_unsuffixed libcuvs==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -942,12 +976,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libcuvs-cu12==26.12.*,>=0.0.0a0
+              - libcuvs-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - libcuvs-cu13==26.12.*,>=0.0.0a0
+              - libcuvs-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -956,7 +990,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &libnvforest_unsuffixed libnvforest==26.12.*,>=0.0.0a0
+          - &libnvforest_unsuffixed libnvforest==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -964,12 +998,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libnvforest-cu12==26.12.*,>=0.0.0a0
+              - libnvforest-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - libnvforest-cu13==26.12.*,>=0.0.0a0
+              - libnvforest-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -978,7 +1012,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &libraft_unsuffixed libraft==26.12.*,>=0.0.0a0
+          - &libraft_unsuffixed libraft==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -986,12 +1020,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libraft-cu12==26.12.*,>=0.0.0a0
+              - libraft-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - libraft-cu13==26.12.*,>=0.0.0a0
+              - libraft-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -1000,12 +1034,12 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - libraft-headers==26.12.*,>=0.0.0a0
+          - libraft-headers==27.2.*,>=0.0.0a0
   depends_on_librmm:
     common:
       - output_types: conda
         packages:
-          - &librmm_unsuffixed librmm==26.12.*,>=0.0.0a0
+          - &librmm_unsuffixed librmm==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -1013,23 +1047,23 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - librmm-cu12==26.12.*,>=0.0.0a0
+              - librmm-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - librmm-cu13==26.12.*,>=0.0.0a0
+              - librmm-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
               - *librmm_unsuffixed
   depends_on_numba_cuda:
     common:
-      - output_types: [conda]
+      - output_types: [conda, constraints]
         packages:
           - &numba_cuda numba-cuda>=0.22.2
     specific:
-      - output_types: [requirements, constraints, pyproject]
+      - output_types: [requirements, pyproject]
         matrices:
           - matrix:
               cuda: "12.*"
@@ -1045,11 +1079,35 @@ dependencies:
           - matrix:
             packages:
               - *numba_cuda
+  depends_on_numba_cuda_mlir:
+    common:
+      - output_types: [conda, constraints]
+        packages:
+          - &numba_cuda_mlir numba-cuda-mlir>=0.3.0
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
+            packages:
+              - numba-cuda-mlir[cu12]>=0.3.0
+          - matrix:
+              cuda: "13.*"
+              cuda_suffixed: "true"
+            packages:
+              - numba-cuda-mlir[cu13]>=0.3.0
+          # fallback to numba-cuda-mlir with no extra CUDA packages if
+          # 'cuda_suffixed' isn't true
+          - matrix:
+              cuda_suffixed: "false"
+            packages:
+              - *numba_cuda_mlir
   depends_on_nvforest:
     common:
       - output_types: conda
         packages:
-          - &nvforest_unsuffixed nvforest==26.12.*,>=0.0.0a0
+          - &nvforest_unsuffixed nvforest==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -1057,12 +1115,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - nvforest-cu12==26.12.*,>=0.0.0a0
+              - nvforest-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - nvforest-cu13==26.12.*,>=0.0.0a0
+              - nvforest-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -1071,7 +1129,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &pylibraft_unsuffixed pylibraft==26.12.*,>=0.0.0a0
+          - &pylibraft_unsuffixed pylibraft==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -1079,12 +1137,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - pylibraft-cu12==26.12.*,>=0.0.0a0
+              - pylibraft-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - pylibraft-cu13==26.12.*,>=0.0.0a0
+              - pylibraft-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -1093,7 +1151,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &raft_dask_unsuffixed raft-dask==26.12.*,>=0.0.0a0
+          - &raft_dask_unsuffixed raft-dask==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -1101,12 +1159,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - raft-dask-cu12==26.12.*,>=0.0.0a0
+              - raft-dask-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - raft-dask-cu13==26.12.*,>=0.0.0a0
+              - raft-dask-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:
@@ -1120,7 +1178,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &rmm_unsuffixed rmm==26.12.*,>=0.0.0a0
+          - &rmm_unsuffixed rmm==27.2.*,>=0.0.0a0
     specific:
       - output_types: [requirements, constraints, pyproject]
         matrices:
@@ -1128,12 +1186,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - rmm-cu12==26.12.*,>=0.0.0a0
+              - rmm-cu12==27.2.*,>=0.0.0a0
           - matrix:
               cuda: "13.*"
               cuda_suffixed: "true"
             packages:
-              - rmm-cu13==26.12.*,>=0.0.0a0
+              - rmm-cu13==27.2.*,>=0.0.0a0
           - matrix:
               cuda_suffixed: "false"
             packages:

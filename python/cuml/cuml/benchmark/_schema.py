@@ -56,6 +56,7 @@ class CaseManifest(msgspec.Struct, forbid_unknown_fields=True):
     input_selection: InputSelection
     # Omission inherits the suite providers; a list narrows applicability.
     providers: Providers | None = None
+    tags: list[str] = msgspec.field(default_factory=list)
     # Required for inference, forbidden for fitting (validated by the loader).
     fit_input_selection: InputSelection | None = None
     # Omission inherits the profile timeout; explicit null disables it.

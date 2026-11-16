@@ -5,12 +5,12 @@
 
 from .accel import AccelBackend
 from .base import Backend
-from .cuml import CumlBackend
+from .cuml import NativeCumlBackend
 from .dask import DaskBackend
 
 BACKENDS: dict[str, Backend] = {
     "cpu": Backend(),
-    "cuml": CumlBackend(),
+    "cuml": NativeCumlBackend(),
     "cuml.accel": AccelBackend(),
     "cuml.dask": DaskBackend(),
 }

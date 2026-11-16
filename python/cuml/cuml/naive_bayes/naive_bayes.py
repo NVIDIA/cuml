@@ -228,8 +228,6 @@ class GaussianNB(_BaseNB):
     For details on algorithm used to update feature means and variance online,
     see Stanford CS tech report STAN-CS-79-773 by Chan, Golub, and LeVeque:
 
-        http://i.stanford.edu/pub/cstr/reports/cs/tr/79/773/CS-TR-79-773.pdf
-
     Parameters
     ----------
     priors : array-like of shape (n_classes,)
@@ -972,7 +970,7 @@ class BernoulliNB(_BaseDiscreteNB):
     ----------
     C.D. Manning, P. Raghavan and H. Schuetze (2008). Introduction to
     Information Retrieval. Cambridge University Press, pp. 234-265.
-    https://nlp.stanford.edu/IR-book/html/htmledition/the-bernoulli-model-1.html
+    https://doi.org/10.1017/CBO9780511809071
     A. McCallum and K. Nigam (1998). A comparison of event models for naive
     Bayes text classification. Proc. AAAI/ICML-98 Workshop on Learning for
     Text Categorization, pp. 41-48.

@@ -16,7 +16,8 @@ the skill correct and how to measure whether it helps.
 | `scripts/removed_apis.json` | Removed APIs whose replacement cannot be found by inspecting the installed cuML. |
 | `scripts/check_removed_apis.py` | Scans user code for the APIs in `removed_apis.json`. |
 | `evals/evals.json` | Evaluation cases (prompt, expected output, assertions). |
-| `evals/config.yml`, `evals/environment/Dockerfile` | How the evaluation runs. |
+| `evals/config.yml` | Evaluation settings and prebuilt GPU sandbox templates for NVSkills CI. |
+| `evals/.reference/Dockerfile.cuml-image` | Package pins used to build the cuML evaluation images. |
 
 ## Keeping the skill up to date
 
@@ -196,13 +197,26 @@ export SKILLEVALUATOR_RESULTS_DIR=~/skilleval-results
 
 ## Evaluation environment
 
-`evals/environment/Dockerfile` installs a pinned cuML release and the newest scikit-learn,
-umap-learn and hdbscan versions inside that release's `cuml.accel` tested window, so rebuilding
-the image gives the same versions. SkillEvaluator replaces its `FROM` line with its own base image
-and keeps the rest. When a new cuML release is on PyPI, update all four pins together using that
-release's `_CONSTRAINTS` in `python/cuml/cuml/accel/core.py`.
+NVSkills CI uses the prebuilt Astra sandbox templates selected in `evals/config.yml`:
+`harbor-eval-cuml-gpu-claude-code-64g` and `harbor-eval-cuml-gpu-codex-64g`. Each sandbox has
+4 CPUs, 64 GiB RAM, and one GPU. The configuration limits concurrency and the number of agents
+to one; CLI flags can override these settings.
 
-### GPU access
+Custom Dockerfile builds are not supported in NVSkills CI. The Dockerfile is retained at
+`evals/.reference/Dockerfile.cuml-image` as an image reference, outside the active
+`evals/environment/` directory. It installs a pinned cuML release and the newest scikit-learn,
+umap-learn and hdbscan versions inside that release's `cuml.accel` tested window. When a new
+cuML release is on PyPI, update all four pins together using that release's `_CONSTRAINTS` in
+`python/cuml/cuml/accel/core.py`, and coordinate rebuilding the templates with the NVSkills CI
+maintainers.
+
+For the local Docker evaluations described above, copy the skill to a temporary directory,
+restore the reference Dockerfile to `evals/environment/Dockerfile`, and replace
+`harbor.sandbox` in the copied configuration with `harbor.custom_dockerfile_mode: rebase`.
+SkillEvaluator replaces the Dockerfile's `FROM` line with its own base image and keeps the rest.
+Run the evaluation against the copied skill.
+
+### GPU access for local Docker evaluations
 
 SkillEvaluator does not give containers a GPU, and rejects GPU settings in its configuration
 files as sandbox escapes. Without a GPU, cuML still imports and agents can inspect signatures,
@@ -213,7 +227,7 @@ image:
 1. Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/),
    add `"default-runtime": "nvidia"` to `/etc/docker/daemon.json`, and restart Docker.
 2. Add `ENV NVIDIA_VISIBLE_DEVICES=0 NVIDIA_DRIVER_CAPABILITIES=compute,utility` to
-   `evals/environment/Dockerfile`, using the index or UUID from `nvidia-smi -L`.
+   the copied `evals/environment/Dockerfile`, using the index or UUID from `nvidia-smi -L`.
 3. Set `n_concurrent: 1` in `evals/config.yml`, because trials share the GPU.
 
 This deliberately bypasses a SkillEvaluator safety rule and changes the default runtime for every

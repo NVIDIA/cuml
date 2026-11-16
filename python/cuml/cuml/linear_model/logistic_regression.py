@@ -162,17 +162,6 @@ class LogisticRegression(
         ):
             raise UnsupportedOnGPU("`multi_class` is not supported")
 
-        penalty = model.penalty
-        l1_ratio = model.l1_ratio
-
-        # `penalty` was deprecated in sklearn 1.8 and will be removed in 1.10
-        if penalty == "deprecated":
-            if l1_ratio in (None, 0):
-                penalty = "l2"
-                l1_ratio = None
-            else:
-                penalty = "elasticnet"
-
         # `C` was deprecated in sklearn 1.10 in favor of `alpha = 1 / C`
         if model.C == "deprecated":
             C = np.inf if model.alpha == 0 else 1.0 / model.alpha
@@ -183,6 +172,25 @@ class LogisticRegression(
             )
         else:
             C = model.C
+
+        # `penalty` was deprecated in sklearn 1.8 and removed in 1.10
+        penalty = getattr(model, "penalty", "deprecated")
+        l1_ratio = model.l1_ratio
+
+        if penalty == "deprecated":
+            if C == np.inf:
+                # No regularization, `C` is unused so use cuml's default
+                penalty = None
+                l1_ratio = None
+                C = 1.0
+            elif l1_ratio in (None, 0):
+                penalty = "l2"
+                l1_ratio = None
+            elif l1_ratio == 1:
+                penalty = "l1"
+                l1_ratio = None
+            else:
+                penalty = "elasticnet"
 
         return {
             "penalty": penalty,
@@ -199,9 +207,12 @@ class LogisticRegression(
         # `penalty` was deprecated in sklearn 1.8 and will be removed in 1.10
         if SKLEARN_18:
             extra = {
-                "l1_ratio": {"l1": 1.0, "l2": 0.0, None: 0.0}.get(
-                    self.l1_ratio
-                ),
+                "l1_ratio": {
+                    "l1": 1.0,
+                    "l2": 0.0,
+                    None: 0.0,
+                    "elasticnet": self.l1_ratio,
+                }[self.penalty],
             }
             # `C` was deprecated in sklearn 1.10 in favor of `alpha = 1 / C`
             if SKLEARN_110:

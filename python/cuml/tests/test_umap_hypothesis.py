@@ -1059,14 +1059,25 @@ def test_fuzzy_simplicial_set_hypothesis(dataset, params):
         X_cp, k=n_neighbors, metric=metric, backend="bruteforce"
     )
 
+    # umap-learn assumes exact self-distances and a self entry in column 0.
+    # Normalize its inputs while keeping cuML's original cuVS distances.
+    self_neighbors = knn_inds_np == np.arange(X_np.shape[0])[:, None]
+    ref_knn_dists = knn_dists_np.copy()
+    ref_knn_dists[self_neighbors] = 0.0
+    order = np.argsort(
+        np.where(self_neighbors, -1.0, ref_knn_dists), axis=1, kind="stable"
+    )
+    ref_knn_inds = np.take_along_axis(knn_inds_np, order, axis=1)
+    ref_knn_dists = np.take_along_axis(ref_knn_dists, order, axis=1)
+
     # Reference fuzzy graph (CPU / SciPy sparse)
     ref_graph, _, _ = ref_fuzzy_simplicial_set(
         X_np,
         n_neighbors=n_neighbors,
         random_state=random_state,
         metric=metric,
-        knn_indices=knn_inds_np,
-        knn_dists=knn_dists_np,
+        knn_indices=ref_knn_inds,
+        knn_dists=ref_knn_dists,
     )
     ref_graph = csr_matrix(ref_graph)
 

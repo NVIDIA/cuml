@@ -57,6 +57,7 @@ from cuml.naive_bayes.naive_bayes import MultinomialNB
 from cuml.neighbors.kernel_density import KernelDensity
 from cuml.neighbors.kneighbors_classifier import KNeighborsClassifier
 from cuml.neighbors.kneighbors_regressor import KNeighborsRegressor
+from cuml.neighbors.local_outlier_factor import LocalOutlierFactor
 from cuml.neighbors.nearest_neighbors import NearestNeighbors
 from cuml.preprocessing._label import LabelEncoder
 from cuml.random_projection.random_projection import (
@@ -138,6 +139,7 @@ __all__ = [
     "LinearRegression",
     "LinearSVC",
     "LinearSVR",
+    "LocalOutlierFactor",
     "LogisticRegression",
     "MBSGDClassifier",
     "MBSGDRegressor",

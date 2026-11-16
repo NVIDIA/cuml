@@ -8,6 +8,8 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        # Preserve the signing service's generated signature files verbatim.
+        exclude: '(^|/)skill\.oms\.sig$'
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.3
     hooks:
@@ -182,7 +184,8 @@ repos:
             ^conda/environments/|
             (^|/)VERSION$|
             (^|/)RAPIDS_BRANCH$|
-            [.](csv|json|md|rst|avro|parquet|png|orc|gz|pkl|sas7bdat)$
+            [.](csv|json|md|rst|avro|parquet|png|orc|gz|pkl|sas7bdat)$|
+            ^(?:docs/source/_static/cuml\-accel\-benchmarks/training\-heatmap\.svg)$
   - repo: https://github.com/rapidsai/dependency-file-generator
     rev: v1.22.0
     hooks:

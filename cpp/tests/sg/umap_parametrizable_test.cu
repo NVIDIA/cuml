@@ -24,6 +24,7 @@
 #include <test_utils.h>
 #include <umap/runner.cuh>
 
+#include <algorithm>
 #include <cstddef>
 #include <iostream>
 #include <memory>
@@ -349,3 +350,143 @@ class UMAPParametrizableTest : public ::testing::Test {
 
 typedef UMAPParametrizableTest UMAPParametrizableTest;
 TEST_F(UMAPParametrizableTest, Result) {}
+
+namespace {
+
+struct SmoothKnnResult {
+  std::vector<float> sigmas;
+  std::vector<float> rhos;
+};
+
+template <typename Index>
+SmoothKnnResult smooth_knn_distances(const std::vector<Index>& indices,
+                                     const std::vector<float>& distances,
+                                     int n_neighbors,
+                                     float local_connectivity,
+                                     bool self_knn = true)
+{
+  raft::handle_t handle;
+  auto stream = handle.get_stream();
+  int n       = static_cast<int>(distances.size() / n_neighbors);
+  rmm::device_uvector<Index> indices_d(indices.size(), stream);
+  rmm::device_uvector<float> distances_d(distances.size(), stream);
+  rmm::device_uvector<float> sigmas_d(n, stream);
+  rmm::device_uvector<float> rhos_d(n, stream);
+  raft::update_device(indices_d.data(), indices.data(), indices.size(), stream);
+  raft::update_device(distances_d.data(), distances.data(), distances.size(), stream);
+
+  UMAPParams params;
+  UMAPAlgo::FuzzySimplSet::Naive::smooth_knn_dist<float, Index, int64_t, 128>(n,
+                                                                              indices_d.data(),
+                                                                              distances_d.data(),
+                                                                              rhos_d.data(),
+                                                                              sigmas_d.data(),
+                                                                              &params,
+                                                                              n_neighbors,
+                                                                              local_connectivity,
+                                                                              stream.get(),
+                                                                              self_knn);
+
+  SmoothKnnResult result{std::vector<float>(n), std::vector<float>(n)};
+  std::vector<Index> indices_after(indices.size());
+  std::vector<float> distances_after(distances.size());
+  raft::update_host(result.sigmas.data(), sigmas_d.data(), n, stream);
+  raft::update_host(result.rhos.data(), rhos_d.data(), n, stream);
+  raft::update_host(indices_after.data(), indices_d.data(), indices.size(), stream);
+  raft::update_host(distances_after.data(), distances_d.data(), distances.size(), stream);
+  handle.sync_stream(stream);
+  EXPECT_EQ(indices_after, indices);
+  EXPECT_EQ(distances_after, distances);
+  return result;
+}
+
+template <typename Index>
+class UMAPSmoothKnnTest : public ::testing::Test {};
+
+using UMAPSmoothKnnIndexTypes = ::testing::Types<int, int64_t>;
+TYPED_TEST_SUITE(UMAPSmoothKnnTest, UMAPSmoothKnnIndexTypes);
+
+TYPED_TEST(UMAPSmoothKnnTest, RoundedSelfDistances)
+{
+  constexpr int n                      = 8;
+  constexpr int n_neighbors            = 4;
+  constexpr float neighbor_distances[] = {0.0f, 1e-4f, 0.2f, 0.4f};
+  std::vector<TypeParam> indices(n * n_neighbors);
+  std::vector<float> distances(n * n_neighbors);
+  for (int row = 0; row < n; ++row) {
+    for (int col = 0; col < n_neighbors; ++col) {
+      indices[row * n_neighbors + col]   = (row + col) % n;
+      distances[row * n_neighbors + col] = neighbor_distances[col];
+    }
+  }
+  // This row takes its bandwidth floor from the global mean.
+  std::fill_n(distances.begin(), n_neighbors, 0.0f);
+
+  for (float local_connectivity : {0.0f, 0.5f, 1.0f, 1.5f, 3.5f}) {
+    SCOPED_TRACE(local_connectivity);
+    auto expected      = smooth_knn_distances(indices, distances, n_neighbors, local_connectivity);
+    float expected_rho = local_connectivity <= 1.0f   ? local_connectivity * 1e-4f
+                         : local_connectivity == 1.5f ? 1e-4f + 0.5f * (0.2f - 1e-4f)
+                                                      : 0.4f;
+    EXPECT_FLOAT_EQ(expected.rhos[1], expected_rho);
+    EXPECT_NEAR(
+      expected.sigmas[0], 1e-3f * 7.0f * (1e-4f + 0.2f + 0.4f) / (n * n_neighbors), 1e-9f);
+
+    for (int self_column : {0, 1, 3}) {
+      SCOPED_TRACE(self_column);
+      auto rounded_indices   = indices;
+      auto rounded_distances = distances;
+      for (int row = 0; row < n; ++row) {
+        int start                = row * n_neighbors;
+        rounded_distances[start] = self_column == 0 ? 1e-5f : self_column == 1 ? 0.02f : 0.5f;
+        // Keep the supplied distances sorted, including the all-zero row.
+        int column = row == 0 ? n_neighbors - 1 : self_column;
+        std::rotate(rounded_indices.begin() + start,
+                    rounded_indices.begin() + start + 1,
+                    rounded_indices.begin() + start + column + 1);
+        std::rotate(rounded_distances.begin() + start,
+                    rounded_distances.begin() + start + 1,
+                    rounded_distances.begin() + start + column + 1);
+      }
+      auto actual =
+        smooth_knn_distances(rounded_indices, rounded_distances, n_neighbors, local_connectivity);
+      for (int row = 0; row < n; ++row) {
+        EXPECT_FLOAT_EQ(actual.rhos[row], expected.rhos[row]);
+        EXPECT_NEAR(actual.sigmas[row], expected.sigmas[row], 1e-6f * expected.sigmas[row] + 1e-9f);
+      }
+    }
+  }
+}
+
+TYPED_TEST(UMAPSmoothKnnTest, TransformDistances)
+{
+  constexpr int n                      = 8;
+  constexpr int n_neighbors            = 4;
+  constexpr float neighbor_distances[] = {0.01f, 0.02f, 0.2f, 0.4f};
+  std::vector<TypeParam> indices(n * n_neighbors);
+  std::vector<float> distances(n * n_neighbors);
+  for (int row = 0; row < n; ++row) {
+    for (int col = 0; col < n_neighbors; ++col) {
+      // The neighbor ID matches the query row number in column 1. This is not
+      // a self entry: queries and neighbors have separate index spaces.
+      indices[row * n_neighbors + col]   = (row + col + n - 1) % n;
+      distances[row * n_neighbors + col] = neighbor_distances[col];
+    }
+  }
+  std::fill_n(distances.begin(), n_neighbors, 0.0f);
+  auto actual = smooth_knn_distances(indices, distances, n_neighbors, 1.0f, false);
+  // An index array without row/neighbor coincidences must give the same result.
+  for (int row = 0; row < n; ++row) {
+    for (int col = 0; col < n_neighbors; ++col) {
+      indices[row * n_neighbors + col] = (row + col + 1) % n;
+    }
+  }
+  auto expected = smooth_knn_distances(indices, distances, n_neighbors, 1.0f, false);
+  for (int row = 0; row < n; ++row) {
+    EXPECT_FLOAT_EQ(actual.rhos[row], row == 0 ? 0.0f : 0.01f);
+    EXPECT_FLOAT_EQ(actual.rhos[row], expected.rhos[row]);
+    EXPECT_FLOAT_EQ(actual.sigmas[row], expected.sigmas[row]);
+  }
+}
+
+}  // namespace

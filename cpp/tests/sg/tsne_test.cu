@@ -13,6 +13,7 @@
 #include <raft/linalg/transpose.cuh>
 #include <raft/util/cudart_utils.hpp>
 
+#include <thrust/fill.h>
 #include <thrust/reduce.h>
 
 #include <datasets/boston.h>
@@ -26,13 +27,72 @@
 #include <tsne/tsne_runner.cuh>
 #include <tsne/utils.cuh>
 
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 using namespace MLCommon;
 using namespace MLCommon::Datasets;
 using namespace ML;
 using namespace ML::Metrics;
+
+TEST(TSNEKLDivTest, SubEpsilonProbabilities)
+{
+  raft::handle_t handle;
+  auto stream = handle.get_stream().get();
+  // Uniform P and two equal-sized groups of Q give
+  // KL(P || Q) = (log(2) + log(2 / 3)) / 2, independently of the size.
+  // These sizes exercise partial clipping and the all-zero result, respectively.
+  const double expected = (std::log(2.0) + std::log(2.0 / 3.0)) / 2;
+  for (const size_t size : {10'000'000, 20'000'000}) {
+    SCOPED_TRACE(size);
+    rmm::device_uvector<float> ps(size, stream);
+    rmm::device_uvector<float> qs(size, stream);
+    thrust::fill(rmm::exec_policy(stream), ps.begin(), ps.end(), 1.0f);
+    thrust::fill(rmm::exec_policy(stream), qs.begin(), qs.begin() + size / 2, 0.5f);
+    thrust::fill(rmm::exec_policy(stream), qs.begin() + size / 2, qs.end(), 1.5f);
+
+    // Exercise normalization and the in-place Q/output alias used by t-SNE.
+    const float actual = compute_kl_div(ps.data(), qs.data(), qs.data(), size, stream);
+    EXPECT_NEAR(actual, expected, 1e-5);
+  }
+}
+
+TEST(TSNEKLDivTest, ZeroAndTinyProbabilities)
+{
+  raft::handle_t handle;
+  auto stream = handle.get_stream().get();
+  struct Input {
+    std::vector<float> ps;
+    std::vector<float> qs;
+    double expected;
+  };
+  const std::vector<Input> inputs = {
+    {{0.0f, 1.0f, 0.0f}, {0.0f, 0.5f, 0.5f}, std::log(2.0)},
+    {{1.0f, 0.0f}, {0.0f, 1.0f}, -std::log(static_cast<double>(std::numeric_limits<float>::min()))},
+    {{std::numeric_limits<float>::denorm_min(), 1.0f}, {1.0f, 1.0f}, std::log(2.0)},
+  };
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    SCOPED_TRACE(i);
+    const auto& input = inputs[i];
+    const auto size   = input.ps.size();
+    rmm::device_uvector<float> ps(size, stream);
+    rmm::device_uvector<float> qs(size, stream);
+    raft::update_device(ps.data(), input.ps.data(), size, stream);
+    raft::update_device(qs.data(), input.qs.data(), size, stream);
+
+    const float actual = compute_kl_div(ps.data(), qs.data(), qs.data(), size, stream);
+    EXPECT_NEAR(actual, input.expected, 1e-5);
+    std::vector<float> contributions(size);
+    raft::update_host(contributions.data(), qs.data(), size, stream);
+    handle.sync_stream(stream);
+    for (size_t j = 0; j < size; ++j) {
+      EXPECT_TRUE(std::isfinite(contributions[j]));
+      if (input.ps[j] == 0.0f) { EXPECT_FLOAT_EQ(contributions[j], 0.0f); }
+    }
+  }
+}
 
 struct TSNEInput {
   int n, p;

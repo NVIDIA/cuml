@@ -45,6 +45,9 @@ CATALOG = {
         "cuml.neighbors", "KNeighborsRegressor", "cuml"
     ),
     "KernelDensity": EstimatorSpec("cuml.neighbors", "KernelDensity", "cuml"),
+    "LocalOutlierFactor": EstimatorSpec(
+        "cuml.neighbors", "LocalOutlierFactor", "cuml"
+    ),
     "LinearRegression": EstimatorSpec(
         "cuml.linear_model", "LinearRegression", "cuml"
     ),

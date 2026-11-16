@@ -260,7 +260,7 @@ def test_degenerate_cases():
         random_state=123,
         n_streams=1,
         n_estimators=10,
-        max_leaves=-1,
+        max_leaf_nodes=None,
         max_depth=16,
     )
     # Attempt to import un-fitted model
@@ -304,7 +304,7 @@ def test_cuml_rf_regressor(input_type):
         random_state=123,
         n_streams=1,
         n_estimators=10,
-        max_leaves=-1,
+        max_leaf_nodes=None,
         max_depth=16,
     )
     cuml_model.fit(X, y)
@@ -353,7 +353,7 @@ def test_cuml_rf_classifier(n_classes, input_type):
         random_state=123,
         n_streams=1,
         n_estimators=10,
-        max_leaves=-1,
+        max_leaf_nodes=None,
         max_depth=16,
     )
     cuml_model.fit(X, y)

@@ -254,6 +254,23 @@ Common options:
 
 Running pytest from outside `python/cuml/` can result in import errors or missed pytest configuration.
 
+## Python-defined kernels
+
+When writing a kernel in python, prefer using the functionality provided by
+`cupy` (`cupy.RawKernel`, `cupy.ReductionKernel`, `cupy.ElementwiseKernel`)
+whenever possible. If you need a kernel definition to depend on the types of
+the input, you may find `cuml.common.kernel_utils.cuda_kernel_factory` useful.
+
+For wrapping user-defined kernels, `cuml` also currently has an optional
+dependency on `numba-cuda` and `numba-cuda-mlir`. This is used in
+`pairwise_kernels` for example, to wrap user-defined metrics. Both `numba*`
+compilers remain supported and tested, but `numba-cuda` itself is in
+maintenance mode. We retain support as long as it is easy, but all
+documentation and examples should prefer `numba-cuda-mlir`. Both compiler
+imports should remain confined to code paths that receive a device function
+compiled with that backend, to ensure imports are only hit when a user has
+already opted in to using that `numba*` compiler themselves.
+
 ## Input Validation
 
 Code should use `cuml.internals.validation` for user-facing input validation.

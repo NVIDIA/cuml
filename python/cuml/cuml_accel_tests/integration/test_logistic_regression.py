@@ -26,8 +26,9 @@ def classification_data():
     return X, y
 
 
-# TODO: Once sklearn <1.10 is no longer supported, replace this legacy penalty test
-# with l1_ratio/alpha cases and remove its warning filters.
+# TODO: Once sklearn <1.10 is no longer supported, remove this legacy penalty test,
+# test_logistic_regression_l1_ratio_alpha covers it.
+@pytest.mark.skipif(SKLEARN_110, reason="penalty removed in sklearn 1.10")
 @pytest.mark.filterwarnings(
     "ignore:The solver 'liblinear' was deprecated in version 1.10.*:FutureWarning"
 )
@@ -54,6 +55,30 @@ def test_logistic_regression_penalty(classification_data, penalty, solver):
     if penalty == "elasticnet":
         kwargs["l1_ratio"] = 0.5  # l1_ratio is required for elasticnet
     clf = LogisticRegression(**kwargs).fit(X, y)
+    y_pred = clf.predict(X)
+    accuracy_score(y, y_pred)
+
+
+@pytest.mark.skipif(not SKLEARN_110, reason="alpha added in sklearn 1.10")
+@pytest.mark.parametrize(
+    "kwargs, solver, expected_penalty",
+    [
+        ({"l1_ratio": 1.0}, "saga", "l1"),
+        ({"l1_ratio": 0.0}, "lbfgs", "l2"),
+        ({"l1_ratio": 0.0}, "sag", "l2"),
+        ({"l1_ratio": 0.0}, "saga", "l2"),
+        ({"l1_ratio": 0.5}, "saga", "elasticnet"),
+        ({"alpha": 0.0}, "lbfgs", None),
+        ({"alpha": 0.0}, "saga", None),
+    ],
+)
+def test_logistic_regression_l1_ratio_alpha(
+    classification_data, kwargs, solver, expected_penalty
+):
+    X, y = classification_data
+    clf = LogisticRegression(**kwargs, solver=solver, max_iter=200).fit(X, y)
+    assert clf._gpu is not None
+    assert clf._gpu.penalty == expected_penalty
     y_pred = clf.predict(X)
     accuracy_score(y, y_pred)
 
@@ -92,7 +117,11 @@ def test_logistic_regression_regularization(classification_data, strength):
     kwargs = {"alpha": strength} if SKLEARN_110 else {"C": C}
     model = LogisticRegression(**kwargs, max_iter=200).fit(X, y)
     assert model._gpu is not None
-    assert model._gpu.C == C
+    # sklearn >=1.8 has no explicit penalty, no regularization imports as None
+    if strength == 0 and SKLEARN_18:
+        assert model._gpu.penalty is None
+    else:
+        assert model._gpu.C == C
     assert model.predict(X).shape == y.shape
 
 

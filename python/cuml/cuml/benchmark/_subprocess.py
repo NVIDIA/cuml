@@ -65,11 +65,14 @@ def run_command(command: list[str], environment: dict[str, str]) -> None:
                 _, diagnostics = process.communicate(timeout=0.1)
                 complete = True
             except subprocess.TimeoutExpired as exc:
-                diagnostics = exc.stderr or b""
-            text = decoder.decode(diagnostics[received:], final=complete)
-            received = len(diagnostics)
-            sys.stderr.write(text)
-            stderr_lines.append(text)
+                diagnostics = exc.stderr
+            # A process-wait timeout may omit the cumulative stderr snapshot.
+            # Preserve the consumed offset and decoder state in that case.
+            if diagnostics is not None:
+                text = decoder.decode(diagnostics[received:], final=complete)
+                received = len(diagnostics)
+                sys.stderr.write(text)
+                stderr_lines.append(text)
             status = process.poll()
             if status is not None and drain_deadline is None:
                 # Descendants may inherit stderr. A dead command can no longer

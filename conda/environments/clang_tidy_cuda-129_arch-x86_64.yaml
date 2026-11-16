@@ -8,7 +8,7 @@ dependencies:
 - c-compiler
 - clang-tools==20.1.8
 - clang==20.1.8
-- cmake>=4.0
+- cmake>=4.0,<4.5
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api
@@ -20,10 +20,10 @@ dependencies:
 - libcurand-dev
 - libcusolver-dev
 - libcusparse-dev
-- libcuvs==26.12.*,>=0.0.0a0
-- libnvforest==26.12.*,>=0.0.0a0
-- libraft-headers==26.12.*,>=0.0.0a0
-- librmm==26.12.*,>=0.0.0a0
+- libcuvs==27.2.*,>=0.0.0a0
+- libnvforest==27.2.*,>=0.0.0a0
+- libraft-headers==27.2.*,>=0.0.0a0
+- librmm==27.2.*,>=0.0.0a0
 - llvm-openmp==20.1.8
 - ninja
 - sysroot_linux-64==2.28

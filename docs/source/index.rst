@@ -45,6 +45,8 @@ Key Features
 * **Flexible Input**: Works with NumPy, cuDF, cuPy, and PyTorch tensors
 * **Production Ready**: Battle-tested in enterprise environments
 
+.. _install-cuml:
+
 Installation
 ============
 

@@ -19,6 +19,7 @@ from ._runner import (
     BenchmarkRunError,
     _run_plan,
 )
+from ._selection import case_keywords, select_plan
 from .suite import (
     BUILTIN_SUITES,
     SuiteError,
@@ -86,6 +87,17 @@ def _parser(
         "--profile",
         metavar=profile_metavar,
         help="profile defined by the selected suite (default: standard)",
+    )
+    parser.add_argument(
+        "-k",
+        default="",
+        metavar="EXPRESSION",
+        help="select cases by case-insensitive substrings with and/or/not and parentheses",
+    )
+    parser.add_argument(
+        "--collect-only",
+        action="store_true",
+        help="list resolved selected cases without running benchmarks or writing output",
     )
     parser.add_argument(
         "-v",
@@ -171,6 +183,34 @@ def _console_logging(verbose: bool):
         handler.close()
 
 
+def _collect(plan, selected, expression: str) -> None:
+    """Print deterministic selection details without preparing any backends."""
+    print(f"Suite: {plan.name}")
+    print(f"Profile: {plan.profile_name}")
+    print(f"Selection: {expression or '(all)'}")
+    selected_runs = {run.provider: run for run in selected.runs}
+    for run in plan.runs:
+        chosen = selected_runs.get(run.provider)
+        cases = chosen.cases if chosen else ()
+        print(
+            f"\nProvider: {run.provider} — "
+            f"{len(cases)} selected / {len(run.cases)} available"
+        )
+        for case in cases:
+            keywords = case_keywords(case)
+            print(
+                f"  {case.label}  {case.estimator}.{case.operation}  "
+                f"dataset={case.dataset}  {'  '.join(keywords[6:])}"
+            )
+    total = sum(len(run.cases) for run in selected.runs)
+    case_word = "case" if total == 1 else "cases"
+    provider_word = "provider" if len(selected.runs) == 1 else "providers"
+    print(
+        f"\nCollected {total} {case_word} "
+        f"across {len(selected.runs)} {provider_word}."
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the benchmark command and return its exit status.
 
@@ -182,6 +222,10 @@ def main(argv: list[str] | None = None) -> int:
     argument_values = sys.argv[1:] if argv is None else argv
     parser = _suite_aware_parser(argument_values)
     args = parser.parse_args(argument_values)
+    if args.collect_only and (args.resume or args._worker):
+        parser.error(
+            "--collect-only cannot be combined with --resume or --_worker"
+        )
     if args.resume and not args.output:
         parser.error("--resume requires --output")
     try:
@@ -190,12 +234,24 @@ def main(argv: list[str] | None = None) -> int:
             args.profile,
             args.providers or [DEFAULT_PROVIDER],
         )
+        selected = select_plan(suite, args.k)
+        if args.collect_only:
+            _collect(suite, selected, args.k)
+            return 0
+        omitted = {run.provider for run in suite.runs} - {
+            run.provider for run in selected.runs
+        }
+        suite = selected
         output = (
             Path(args.output).resolve()
             if args.output
             else default_output_path(suite)
         )
         with _console_logging(args.verbose):
+            for provider in sorted(omitted):
+                logger.info(
+                    "Omitting provider %s: no matching cases", provider
+                )
             if args._worker:
                 if len(suite.runs) != 1 or not args.output:
                     raise SuiteError(

@@ -81,6 +81,10 @@ backward-incompatible way. Backward-compatible additions do not require a
 `breaking` label. The C++ API currently has no backward-compatibility guarantee,
 so C++ API changes are not typically considered breaking.
 
+Apply the `Deprecation!` label to PRs that introduce deprecations. These PRs
+are typically `non-breaking`, unless they also introduce backward-incompatible
+changes.
+
 ### Review and merge
 
 Check CI results and address failures. Respond to review feedback and update

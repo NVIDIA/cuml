@@ -479,6 +479,7 @@ void _transform(const raft::handle_t& handle,
   dim3 grid_n(raft::ceildiv(inputs.n, TPB_X), 1, 1);
   dim3 blk(TPB_X, 1, 1);
 
+  // Query row numbers do not identify self-neighbors in the training dataset.
   FuzzySimplSetImpl::smooth_knn_dist<value_t, value_idx, nnz_t, TPB_X>(inputs.n,
                                                                        knn_graph.knn_indices,
                                                                        knn_graph.knn_dists,
@@ -487,7 +488,8 @@ void _transform(const raft::handle_t& handle,
                                                                        params,
                                                                        params->n_neighbors,
                                                                        adjusted_local_connectivity,
-                                                                       stream);
+                                                                       stream,
+                                                                       false);
   raft::common::nvtx::pop_range();
 
   /**

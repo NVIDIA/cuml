@@ -89,7 +89,6 @@ message(VERBOSE
         "CUML_CPP: Enabling detection of conda environment for dependencies: ${DETECT_CONDA_ENV}"
 )
 message(VERBOSE "CUML_CPP: Disabling OpenMP: ${DISABLE_OPENMP}")
-message(VERBOSE "CUML_CPP: Enabling kernel resource usage info: ${KERNEL_INFO}")
 message(VERBOSE "CUML_CPP: Enabling kernelinfo in nvcc: ${CUDA_ENABLE_KERNEL_INFO}")
 message(VERBOSE "CUML_CPP: Enabling lineinfo in nvcc: ${CUDA_ENABLE_LINE_INFO}")
 message(VERBOSE "CUML_CPP: Enabling nvtx markers: ${NVTX}")

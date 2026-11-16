@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "../dataset.h"  // for Dataset
 #include "builder_kernels_impl.cuh"
 
 #include <cuml/tree/flatnode.h>
@@ -24,7 +25,6 @@ template void launchBuildLeafHistogramsKernel<DatasetT, NodeT, ObjectiveT>(
   const InstanceRange* instance_ranges,
   BinT* leaf_histograms,
   int batch_size,
-  size_t smem_size,
   cudaStream_t builder_stream);
 
 template void launchFinalizeLeafKernel<ObjectiveT, DataT>(const BinT* leaf_histograms,

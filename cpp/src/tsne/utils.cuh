@@ -187,9 +187,15 @@ CUML_KERNEL void compute_kl_div_k(const value_t* Ps,
   const auto index = (blockIdx.x * blockDim.x) + threadIdx.x;
   if (index >= NNZ) return;
   const value_t P = Ps[index];
-  const value_t Q = max(Qs[index], FLT_EPSILON);
+  if (P == 0) {
+    KL_divs[index] = 0;
+    return;
+  }
 
-  KL_divs[index] = P * __logf(__fdividef(max(P, FLT_EPSILON), Q));
+  // Machine epsilon is not a minimum probability: valid P and Q can be much smaller.
+  const value_t Q = max(Qs[index], FLT_MIN);
+  // Avoid forming a ratio that can lose tiny probabilities through fast division.
+  KL_divs[index] = P * (logf(P) - logf(Q));
 }
 
 /**

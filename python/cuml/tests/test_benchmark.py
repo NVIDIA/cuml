@@ -33,6 +33,7 @@ from cuml.benchmark import _runner as coordinator
 from cuml.benchmark import _subprocess as runner
 from cuml.benchmark import cli, harness
 from cuml.benchmark._hashing import canonical_json
+from cuml.benchmark._selection import compile_expression, select_plan
 from cuml.benchmark.backends import base as base_backend
 from cuml.benchmark.backends import cuml as cuml_backend
 from cuml.benchmark.backends import get_backend
@@ -127,6 +128,167 @@ def document():
         "profiles": {"standard": dict(PROFILE)},
         "cases": [_request()],
     }
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("", True),
+        ("  ", True),
+        ("pCa", True),
+        ("pca.fit", True),
+        ("matrix and rows=64 and features=8 and dtype=float32", True),
+        ("PCA or UMAP and predict", True),
+        ("(PCA or UMAP) and predict", False),
+        ("not (UMAP or predict)", True),
+        ("not not PCA", True),
+        ("PCA and not fit", False),
+        ("scikit-learn", False),
+        ("n_components", False),
+    ],
+)
+def test_keyword_expression(expression, expected):
+    case = resolve_case(_request(), PROFILE)
+    assert compile_expression(expression)(case) is expected
+    assert compile_expression(case.label)(case)
+    assert compile_expression(case.workload_id())(case)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "PCA UMAP",
+        "PCA and",
+        "or PCA",
+        "()",
+        "(PCA",
+        "PCA)",
+        "not",
+        "PCA or or fit",
+    ],
+)
+def test_invalid_keyword_expression(expression):
+    with pytest.raises(SuiteError, match="invalid -k expression"):
+        compile_expression(expression)
+
+
+def test_keyword_selection_resolved_profiles(document, tmp_path):
+    document["profiles"]["standard"]["size_scale"] = 0.5
+    document["cases"][0]["dataset"]["shape"].update(rows=200, features=16)
+    document["cases"].append(_request(estimator="TruncatedSVD"))
+    plan = load_suite(_write_suite(tmp_path, document))
+    selected = select_plan(plan, "rows=100 and features=16")
+    assert selected.runs[0].cases == (plan.runs[0].cases[0],)
+    assert selected.runs[0].cases[0] is plan.runs[0].cases[0]
+    assert select_plan(plan, "").runs == plan.runs
+    with pytest.raises(SuiteError, match="no benchmark cases match"):
+        select_plan(plan, "rows=64")
+
+
+def test_cli_collect_only(document, tmp_path, monkeypatch, capsys):
+    document["providers"] = ["cuml", "scikit-learn"]
+    document["cases"][0]["providers"] = ["cuml"]
+    document["cases"].append(
+        _request(estimator="TruncatedSVD", providers=["scikit-learn"])
+    )
+    path = _write_suite(tmp_path, document)
+    output = tmp_path / "untouched"
+    monkeypatch.chdir(tmp_path)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail(
+            "collection must not prepare backends or execute benchmarks"
+        )
+
+    monkeypatch.setattr(cli, "_run_plan", forbidden)
+    monkeypatch.setattr(cli, "default_output_path", forbidden)
+    monkeypatch.setattr(harness, "run_suite", forbidden)
+    monkeypatch.setattr(harness, "generate_data", forbidden)
+    monkeypatch.setattr(
+        cuml_backend.CumlBackend, "bootstrap_process", forbidden
+    )
+    monkeypatch.setattr(cuml_backend.CumlBackend, "prepare_process", forbidden)
+    argv = [
+        "--suite",
+        str(path),
+        "--provider",
+        "cuml",
+        "--provider",
+        "scikit-learn",
+        "-k",
+        "pca",
+        "--collect-only",
+    ]
+    assert cli.main(argv) == 0
+    first = capsys.readouterr().out
+    assert "cuml — 1 selected / 1 available" in first
+    assert "scikit-learn — 0 selected / 1 available" in first
+    assert (
+        "PCA.fit  dataset=matrix  rows=64  features=8  dtype=float32" in first
+    )
+    assert "Collected 1 case across 1 provider." in first
+    assert cli.main([*argv, "--output", str(output)]) == 0
+    assert capsys.readouterr().out == first
+    assert not output.exists()
+    assert not (tmp_path / ".benchmarks").exists()
+    with pytest.raises(SystemExit) as exc:
+        cli.main([*argv, "--resume", "--output", str(output)])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("expression", ["PCA", "-missing or PCA"])
+def test_cli_keyword_workers_and_resume(
+    document, tmp_path, monkeypatch, expression
+):
+    monkeypatch.delenv("CUML_ACCEL_ENABLED", raising=False)
+    document["cases"].append(_request(estimator="TruncatedSVD"))
+    path = _write_suite(tmp_path, document)
+    output = tmp_path / "results"
+    argv = [
+        "--suite",
+        str(path),
+        "--provider",
+        "scikit-learn",
+        "--output",
+        str(output),
+    ]
+    expected = select_plan(load_suite(path), "PCA").runs[0].cases
+    assert cli.main([*argv, f"-k={expression}"]) == 0
+    artifact_path = output / "scikit-learn.json"
+    artifact = json.loads(artifact_path.read_text())
+    assert [result["id"] for result in artifact["results"]] == [
+        case.workload_id() for case in expected
+    ]
+    assert f"-k={expression}" in artifact["run"]["command"]["argv"]
+    assert cli.main([*argv, "-k", "PCA and not UMAP", "--resume"]) == 0
+    resumed = json.loads(artifact_path.read_text())
+    assert resumed["results"] == artifact["results"]
+    assert resumed["run"]["id"] == artifact["run"]["id"]
+    assert cli.main([*argv, "--resume"]) == 1
+    assert json.loads(artifact_path.read_text()) == resumed
+
+
+@pytest.mark.parametrize("expression", ["PCA and", "unknown-estimator"])
+def test_cli_keyword_errors_do_not_write(document, tmp_path, expression):
+    path = _write_suite(tmp_path, document)
+    output = tmp_path / "untouched"
+    for flags in [[], ["--collect-only"]]:
+        with pytest.raises(SystemExit) as exc:
+            cli.main(
+                [
+                    "--suite",
+                    str(path),
+                    "--provider",
+                    "scikit-learn",
+                    "--output",
+                    str(output),
+                    "-k",
+                    expression,
+                    *flags,
+                ]
+            )
+        assert exc.value.code == 2
+        assert not output.exists()
 
 
 def test_provider_qualified_estimator_workers(document, tmp_path, monkeypatch):
@@ -317,6 +479,37 @@ def test_estimator_benchmark_coverage():
         .runs[0]
         .cases
     } == expected
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [[], ["balanced"], ["wide", "diagnostic"], ["thin", "wide"], ["", " "]],
+)
+def test_case_tags_are_metadata(tags):
+    case = resolve_case(_request(tags=tags), PROFILE)
+    assert case.tags == tuple(tags)
+    assert (
+        case.workload_id() == resolve_case(_request(), PROFILE).workload_id()
+    )
+    result = _benchmark(case)
+    assert result["extensions"][harness.EXTENSION]["tags"] == tags
+
+
+def test_tags_preserved_on_failure_and_across_profiles():
+    request = _request(tags=["balanced"])
+    case = resolve_case(request, PROFILE)
+    failed = harness._base_result(_suite(case), case, PACKAGE)
+    assert failed["outcome"]["status"] == "failed"
+    assert failed["extensions"][harness.EXTENSION]["tags"] == ["balanced"]
+    smoke = resolve_case(request, {**PROFILE, "size_scale": 0.01})
+    assert smoke.tags == case.tags
+    assert resolve_case(_request(), PROFILE).tags == ()
+
+
+@pytest.mark.parametrize("tags", [["thin", "thin"], ["", ""], [" ", " "]])
+def test_duplicate_case_tags(tags):
+    with pytest.raises(SuiteError, match="duplicate tags"):
+        resolve_case(_request(tags=tags), PROFILE)
 
 
 def test_packaged_suites_are_valid_and_roundtrip():
@@ -911,6 +1104,16 @@ def test_gpu_synchronization_failure_fails_observation(
         "_generate_data",
         lambda case, backend: (np.ones((64, 8)), None),
     )
+    monkeypatch.setattr(
+        backend, "prepare_inputs", lambda inputs, runtime: inputs
+    )
+    monkeypatch.setattr(
+        backend,
+        "instrumentation",
+        lambda *args: contextlib.nullcontext(
+            base_backend.VerificationResult()
+        ),
+    )
     monkeypatch.setattr(importlib, "import_module", lambda name: cupy)
     result = _benchmark(resolve_case(_request(), PROFILE), provider="cuml")
     assert result["outcome"]["status"] == "failed"
@@ -1153,6 +1356,7 @@ def test_cli_artifact_checkpoint_and_resume(registered_suite, monkeypatch):
         "schema",
         "methodology",
         "plan",
+        "tags",
         "provider",
         "software",
         "system",
@@ -1174,6 +1378,10 @@ def test_resume_rejects_incompatible_artifact(registered_suite, change):
         artifact["run"]["extensions"][harness.EXTENSION]["execution_plan"][0][
             "repetitions"
         ] += 1
+    elif change == "tags":
+        artifact["run"]["extensions"][harness.EXTENSION]["execution_plan"][0][
+            "tags"
+        ] = ["wide"]
     elif change == "provider":
         artifact["run"]["extensions"][harness.EXTENSION][change] = "changed"
     elif change == "unknown_id":
@@ -1965,16 +2173,34 @@ def _real_backend_smoke(provider, workload, output, *, report_phase):
             X[case.training_rows :] if case.lifecycle == "inference" else X
         )
         assert actual.dtype == np.dtype(case.dtypes["X"])
-        assert sparse.isspmatrix_csr(actual) == (case.input_format == "csr")
+        if provider == "cuml":
+            import cupy as cp
+            from cupyx.scipy import sparse as device_sparse
+
+            assert device_sparse.isspmatrix_csr(actual) == (
+                case.input_format == "csr"
+            )
+            assert isinstance(actual, cp.ndarray) or device_sparse.issparse(
+                actual
+            )
+            host = actual.get()
+        else:
+            assert sparse.isspmatrix_csr(actual) == (
+                case.input_format == "csr"
+            )
+            host = actual
         if case.input_format == "csr":
             for name in ("data", "indices", "indptr"):
                 np.testing.assert_array_equal(
-                    getattr(actual, name), getattr(expected, name)
+                    getattr(host, name), getattr(expected, name)
                 )
         else:
-            np.testing.assert_array_equal(actual, expected)
+            np.testing.assert_array_equal(host, expected)
         calls.append(actual.shape)
-        return invoke(estimator, *args)
+        output = invoke(estimator, *args)
+        if provider == "cuml" and case.lifecycle == "inference":
+            assert isinstance(output, cp.ndarray)
+        return output
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(cls, case.operation, observe)
@@ -2006,6 +2232,104 @@ def test_real_backend_smoke(monkeypatch, tmp_path, provider, workload):
         timeout=90,
     )
     _validate_artifact(artifact)
+
+
+@pytest.mark.parametrize("kind", ["dense", "csr", "categorical"])
+def test_native_device_preparation_and_output_contract(kind):
+    import cudf
+    import cupy as cp
+    from cupyx.scipy import sparse as device_sparse
+
+    import cuml
+
+    backend = get_backend("cuml")
+    request = _request()
+    if kind == "categorical":
+        request["dataset"].update(generator="categorical")
+    elif kind == "csr":
+        request["dataset"]["format"] = "csr"
+    case = resolve_case(request, PROFILE)
+    X_host, y_host = generate_data(case)
+    X, y = backend.convert_data(case, X_host, y_host)
+    assert isinstance(y, cp.ndarray)
+    if kind == "categorical":
+        assert isinstance(X, cudf.DataFrame)
+        np.testing.assert_array_equal(X.to_numpy(), X_host.to_numpy())
+    elif kind == "csr":
+        assert device_sparse.isspmatrix_csr(X)
+        np.testing.assert_array_equal(X.get().toarray(), X_host.toarray())
+    else:
+        assert isinstance(X, cp.ndarray)
+        np.testing.assert_array_equal(X.get(), X_host)
+    inputs = (X, y)
+    assert backend.prepare_inputs(inputs) is inputs
+    assert cuml.global_settings.output_type is None
+    with backend.instrumentation(None, "measurement", 0):
+        assert cuml.global_settings.output_type is None
+
+
+def test_native_instrumentation_rejects_nondefault_output_type():
+    import cuml
+
+    backend = get_backend("cuml")
+    with cuml.using_output_type("numpy"):
+        with pytest.raises(ValueError, match="default global output_type"):
+            with backend.instrumentation(None, "measurement", 0):
+                pytest.fail("nondefault output type must be rejected")
+        assert cuml.global_settings.output_type == "numpy"
+
+
+@pytest.mark.parametrize("output_type", ["numpy", "pandas"])
+def test_native_estimator_rejects_host_output_default(output_type):
+    class Estimator:
+        def __init__(self):
+            self.output_type = output_type
+
+    with pytest.raises(ValueError, match="device-resident estimator outputs"):
+        get_backend("cuml").construct_estimator(Estimator, {})
+
+
+def test_native_preparation_precedes_initial_fit_and_timing(monkeypatch):
+    backend = get_backend("cuml")
+    events = []
+    X_device, y_device = object(), object()
+
+    class Estimator:
+        def __init__(self, **kwargs):
+            events.append("construct")
+
+        def fit(self, X, y):
+            assert X is X_device and y is y_device
+            events.append("fit")
+            return self
+
+        def predict(self, X):
+            assert X is X_device
+            events.append("predict")
+            return X
+
+    def partition(case, selected_backend):
+        assert selected_backend is backend
+        events.append("convert")
+        return X_device, y_device, X_device, y_device
+
+    monkeypatch.setattr(harness, "_partition_data", partition)
+    monkeypatch.setattr(backend, "load_estimator", lambda spec: Estimator)
+    monkeypatch.setattr(
+        backend, "synchronize", lambda value=None: events.append("sync")
+    )
+    monkeypatch.setattr(
+        harness.time, "perf_counter", lambda: events.append("clock") or 1.0
+    )
+    request = _request(operation="predict", fit_input_selection=["X", "y"])
+    request["dataset"]["shape"]["train_rows"] = 32
+    result = _benchmark(resolve_case(request, PROFILE), provider="cuml")
+    assert result["outcome"] == {"status": "success"}
+    assert (
+        events
+        == ["convert", "sync", "construct", "fit", "sync"]
+        + ["sync", "clock", "predict", "sync", "clock"] * 3
+    )
 
 
 @pytest.mark.parametrize("inference", [False, True])
@@ -2584,6 +2908,47 @@ def test_run_command_forwards_output(monkeypatch, capfd):
     assert captured.err == "progress €\n"
 
 
+@pytest.mark.parametrize("initial_timeout", [False, True])
+@pytest.mark.parametrize("returncode", [0, 7])
+def test_run_command_missing_stderr_snapshot(
+    monkeypatch, capsys, initial_timeout, returncode
+):
+    monkeypatch.setattr(
+        runner.locale, "getpreferredencoding", lambda _: "utf-8"
+    )
+    snapshots = [b"progress \xe2", None, b"progress \xe2\x82\xac\n"]
+    if initial_timeout:
+        snapshots.insert(0, None)
+
+    class Process:
+        stderr = SimpleNamespace(close=lambda: None)
+
+        def __init__(self, command, **kwargs):
+            self.command = command
+            self.returncode = returncode
+            self.snapshots = iter(snapshots)
+
+        def communicate(self, timeout):
+            snapshot = next(self.snapshots)
+            if snapshot == snapshots[-1]:
+                return None, snapshot
+            raise subprocess.TimeoutExpired(
+                self.command, timeout, stderr=snapshot
+            )
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(runner.subprocess, "Popen", Process)
+    if returncode:
+        with pytest.raises(RuntimeError) as error:
+            runner.run_command(["worker"], {})
+        assert str(error.value) == ("worker exited with status 7:\nprogress €")
+    else:
+        runner.run_command(["worker"], {})
+    assert capsys.readouterr().err == "progress €\n"
+
+
 @pytest.mark.skipif(
     os.name != "posix", reason="process group cleanup is POSIX-specific"
 )
@@ -2606,10 +2971,13 @@ def test_run_interrupt_stops_provider_and_descendant(tmp_path, monkeypatch):
             raise KeyboardInterrupt
 
     monkeypatch.setattr(runner.subprocess, "Popen", InterruptedProcess)
+    tmp_file = tmp_path / "pids.json.tmp"
+    # Write then rename so pid_file never exists with partial contents.
     script = (
-        "import json, os, subprocess, sys, time; "
+        "import json, os, pathlib, subprocess, sys, time; "
         "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
-        f"open({str(pid_file)!r}, 'w').write(json.dumps([os.getpid(), child.pid])); "
+        f"pathlib.Path({str(tmp_file)!r}).write_text(json.dumps([os.getpid(), child.pid])); "
+        f"os.replace({str(tmp_file)!r}, {str(pid_file)!r}); "
         "time.sleep(120)"
     )
     with pytest.raises(KeyboardInterrupt):

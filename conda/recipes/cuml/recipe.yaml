@@ -97,13 +97,12 @@ requirements:
       else: cuda-bindings >=13.0.2,<14.0
   run:
     - ${{ pin_compatible("cuda-version", upper_bound="x", lower_bound="x") }}
+    - cuda-core >=1.0.0,<2.0.0
     - cudf =${{ minor_version }}
     - cupy >=14.0.1,!=14.1.0
     - joblib >=0.11
     - libcuml =${{ version }}
     - librmm =${{ minor_version }}
-    - numba >=0.60.0,<0.65.0
-    - numba-cuda >=0.22.2
     - numpy >=2.0,<3.0
     - nvforest =${{ minor_version }}
     - scikit-learn >=1.6

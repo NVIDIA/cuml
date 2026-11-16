@@ -64,6 +64,7 @@ struct IFNodeCompact {
   T threshold;
   int left_child;
   int right_child;
+  int n_node_samples;
 };
 
 /**
