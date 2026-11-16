@@ -300,7 +300,7 @@ jobs:
       build_type: pull-request
       node_type: "cpu8"
       arch: "amd64"
-      container_image: "rapidsai/ci-conda:26.12-latest"
+      container_image: "rapidsai/ci-conda:27.02-latest"
       script: "ci/run_clang_tidy.sh"
   conda-cpp-build:
     needs: [build-details, checks]
@@ -470,7 +470,7 @@ jobs:
       build_type: pull-request
       node_type: "gpu-rtxpro6000-latest-1"
       arch: "amd64"
-      container_image: "rapidsai/ci-conda:26.12-latest"
+      container_image: "rapidsai/ci-conda:27.02-latest"
       script: "ci/test_notebooks.sh"
   docs-build-matrix:
     permissions:
@@ -498,7 +498,7 @@ jobs:
       build_type: pull-request
       node_type: "gpu-${{ matrix.GPU }}-${{ matrix.DRIVER }}-1"
       arch: "${{ matrix.arch }}"
-      container_image: "rapidsai/ci-conda:26.12-cuda${{ matrix.CUDA_VER }}-${{ matrix.LINUX_VER }}-py${{ matrix.PY_VER }}"
+      container_image: "rapidsai/ci-conda:27.02-cuda${{ matrix.CUDA_VER }}-${{ matrix.LINUX_VER }}-py${{ matrix.PY_VER }}"
       script: "ci/build_docs.sh"
   publish-api-docs:
     needs: [docs-build]

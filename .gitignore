@@ -46,6 +46,9 @@ docs/source/**/*.onnx
 ## autosummary-generated API reference stubs
 docs/source/api/generated/
 
+## rendered from supported_versions.rst.template by docs/source/conf.py
+docs/source/supported_versions.rst
+
 ## Sphinx build output
 docs/build/
 docs/_html/
