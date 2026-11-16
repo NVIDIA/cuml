@@ -391,17 +391,19 @@ def test_linear_regression_sparse(
 @pytest.mark.parametrize("weighted", [True, False])
 @pytest.mark.parametrize("n_targets", [0, 3])
 @pytest.mark.parametrize("algorithm", ["auto", "nnls"])
+@pytest.mark.parametrize("X_order", ["C", "F"])
+@pytest.mark.parametrize("y_order", ["C", "F"])
 def test_linear_regression_positive(
-    dtype, fit_intercept, weighted, n_targets, algorithm
+    dtype, fit_intercept, weighted, n_targets, algorithm, X_order, y_order
 ):
     n_samples, n_features = 400, 20
     rng = np.random.default_rng(0)
     # Mixed-sign ground truth, so the non-negativity constraint is active
     coef_shape = (n_features, n_targets) if n_targets else (n_features,)
     coef = rng.normal(size=coef_shape)
-    X = rng.normal(size=(n_samples, n_features)).astype(dtype)
+    X = rng.normal(size=(n_samples, n_features)).astype(dtype, order=X_order)
     noise = 0.1 * rng.normal(size=(n_samples,) + coef.shape[1:])
-    y = (X @ coef + 2.0 + noise).astype(dtype)
+    y = (X @ coef + 2.0 + noise).astype(dtype, order=y_order)
     sample_weight = (
         rng.uniform(0.5, 1, size=n_samples).astype(dtype) if weighted else None
     )

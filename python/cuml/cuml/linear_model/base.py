@@ -311,6 +311,8 @@ def fit_least_squares(
             n_iter[i] = info[2]
     elif solver == "nnls":
         # Non-negative least squares: one problem per target, shared X.
+        X = cp.asfortranarray(X)
+        y = cp.asfortranarray(y)
         coef, _ = _nnls(X, y, compute_rnorm=False, tol=tol)
         coef = coef.T
         n_iter = None
