@@ -1,3 +1,10 @@
+..
+   Don't edit supported_versions.rst, conf.py renders it from
+   supported_versions.rst.template. ``versions`` are the pip constraints from
+   python/cuml/pyproject.toml, ``conda_versions`` the conda constraints from
+   conda/environments/. python/cuml/tests/test_supported_versions.py checks
+   that pip and conda agree.
+
 Supported Versions
 ==================
 
@@ -10,11 +17,11 @@ Required Runtime Dependencies
 
 The following dependencies are required for the cuML library:
 
-* **NumPy**: >=2,<3.0a0
-* **scikit-learn**: >=1.6
-* **scipy**: >=1.14.0
-* **cupy**: cupy-cuda12x>=14.0.1 (CUDA 12), cupy-cuda13x>=14.0.1 (CUDA 13)
-* **treelite**: >=4.6.1,<5.0.0
+* **NumPy**: {{ versions["numpy"] }}
+* **scikit-learn**: {{ versions["scikit-learn"] }}
+* **scipy**: {{ versions["scipy"] }}
+* **cupy**: {{ versions["cupy-cuda13x"] }} (pip: ``cupy-cuda12x`` (CUDA 12), ``cupy-cuda13x`` (CUDA 13); conda: ``cupy``)
+* **treelite**: {{ versions["treelite"] }}
 
 Dask Runtime Dependencies
 -------------------------
@@ -33,11 +40,11 @@ Optional Runtime Dependencies
 
 The following dependencies are optional and provide additional functionality:
 
-* **xgboost**: >=2.1.0 (for gradient boosting algorithms)
-* **hdbscan**: >=0.8.39,<0.8.40 (for hierarchical density-based clustering)
-* **umap-learn**: >=0.5.7,<0.5.13 (for dimensionality reduction)
-* **pynndescent**: (for approximate nearest neighbor search)
-* **numba-cuda-mlir** >=0.3.0 (for user defined metrics)
+* **xgboost**: pip: {{ versions["xgboost"] }}; conda: {{ conda_versions["xgboost"] }} (for gradient boosting algorithms)
+* **hdbscan**: {{ versions["hdbscan"] }} (for hierarchical density-based clustering)
+* **umap-learn**: {{ versions["umap-learn"] }} (for dimensionality reduction)
+* **pynndescent**: {{ versions["pynndescent"] }} (for approximate nearest neighbor search)
+* **numba-cuda-mlir**: {{ versions["numba-cuda-mlir"] }} (for user defined metrics)
 
 CUDA-X Dependencies
 -------------------
