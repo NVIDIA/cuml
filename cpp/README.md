@@ -14,7 +14,7 @@ Multi-GPU communication is provided through RAFT communicator APIs; cuML does no
 ## Setup
 ### Dependencies
 
-1. cmake (>= 4.0)
+1. cmake (>= 4.3)
 2. CUDA (>= 12.2)
 3. gcc (>=13.0)
 4. clang-format (= 20.1.8) - enforces uniform C++ coding style; required for pre-commit/CI formatting checks, not to build cuML. The packages `clang=20` and `clang-tools=20` from the conda-forge channel should be sufficient, if you are on conda. If not using conda, install the right version using your OS package manager.
