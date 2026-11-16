@@ -276,7 +276,7 @@ scores like ``sklearn.metrics.r2_score`` (for regression) or
 
    ``LinearRegression`` will fall back to CPU in the following cases:
 
-   - If ``positive=True``.
+   - If ``positive=True`` and ``X`` is sparse.
 
    Additionally, the following fitted attributes are currently not computed:
 

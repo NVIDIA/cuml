@@ -13,3 +13,4 @@ cuml.solvers
    CD
    QN
    SGD
+   nnls
