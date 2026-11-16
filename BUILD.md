@@ -16,7 +16,7 @@ Note that while a GPU is not required to build or develop cuML itself, it is nec
 **Software Dependencies:**
 1. CUDA Toolkit (>= 12.2) - must include development libraries (cudart, cublas, cusparse, cusolver, curand, cufft)
 2. gcc (>= 13.0)
-3. cmake (>= 4.0)
+3. cmake (>= 4.3)
 4. ninja - build system used by default
 5. Python (>= 3.12 and <= 3.14)
 6. Cython (>= 3.2.2)

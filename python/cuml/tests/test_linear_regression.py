@@ -384,3 +384,147 @@ def test_linear_regression_sparse(
 
     # Check predictions are close
     np.testing.assert_allclose(cu_pred, sk_pred, atol=1e-2)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("weighted", [True, False])
+@pytest.mark.parametrize("n_targets", [0, 3])
+@pytest.mark.parametrize("algorithm", ["auto", "nnls"])
+@pytest.mark.parametrize("X_order", ["C", "F"])
+@pytest.mark.parametrize("y_order", ["C", "F"])
+def test_linear_regression_positive(
+    dtype, fit_intercept, weighted, n_targets, algorithm, X_order, y_order
+):
+    n_samples, n_features = 400, 20
+    rng = np.random.default_rng(0)
+    # Mixed-sign ground truth, so the non-negativity constraint is active
+    coef_shape = (n_features, n_targets) if n_targets else (n_features,)
+    coef = rng.normal(size=coef_shape)
+    X = rng.normal(size=(n_samples, n_features)).astype(dtype, order=X_order)
+    noise = 0.1 * rng.normal(size=(n_samples,) + coef.shape[1:])
+    y = (X @ coef + 2.0 + noise).astype(dtype, order=y_order)
+    sample_weight = (
+        rng.uniform(0.5, 1, size=n_samples).astype(dtype) if weighted else None
+    )
+
+    cu_model = cuml.LinearRegression(
+        fit_intercept=fit_intercept, positive=True, algorithm=algorithm
+    ).fit(X, y, sample_weight=sample_weight)
+    sk_model = sklearn.linear_model.LinearRegression(
+        fit_intercept=fit_intercept, positive=True
+    ).fit(X, y, sample_weight=sample_weight)
+
+    cu_coef = cp.asnumpy(cu_model.coef_)
+    assert cu_model.coef_.dtype == dtype
+    assert cu_coef.shape == sk_model.coef_.shape
+    assert (cu_coef >= 0).all()
+    assert (cu_coef == 0).any()  # the constraint is actually active
+    np.testing.assert_allclose(cu_coef, sk_model.coef_, atol=1e-3)
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.intercept_), sk_model.intercept_, atol=1e-3
+    )
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.predict(X)).reshape(-1),
+        sk_model.predict(X).reshape(-1),
+        atol=1e-2,
+    )
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("multi_output", [True, False])
+@pytest.mark.parametrize("uniform_weights", [True, False])
+@pytest.mark.parametrize("scale", [1e-12, 1e-8, 1e8])
+def test_linear_regression_positive_sample_weight_scale(
+    dtype, fit_intercept, multi_output, uniform_weights, scale
+):
+    rng = np.random.default_rng(42)
+    X = rng.normal(size=(40, 4)).astype(dtype)
+    coef = np.array([1.0, -2.0, 3.0, -0.5], dtype=dtype)
+    y = X @ coef + dtype(2.0)
+    if multi_output:
+        y = np.column_stack((y, -y))
+    weights = np.ones(40, dtype=dtype)
+    if not uniform_weights:
+        weights = rng.uniform(0.5, 2.0, size=40).astype(dtype)
+        weights[::5] = 0.0
+
+    reference = sklearn.linear_model.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y, sample_weight=weights)
+    baseline = cuml.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y, sample_weight=weights)
+
+    scaled_weights = cp.asarray(weights * dtype(scale))
+    original_weights = scaled_weights.copy()
+    model = cuml.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y, sample_weight=scaled_weights)
+
+    np.testing.assert_array_equal(
+        cp.asnumpy(scaled_weights), cp.asnumpy(original_weights)
+    )
+    assert model.coef_.dtype == dtype
+    for expected in (baseline, reference):
+        np.testing.assert_allclose(
+            cp.asnumpy(model.coef_), cp.asnumpy(expected.coef_), atol=1e-5
+        )
+        np.testing.assert_allclose(
+            cp.asnumpy(model.intercept_),
+            cp.asnumpy(expected.intercept_),
+            atol=1e-5,
+        )
+        np.testing.assert_allclose(
+            cp.asnumpy(model.predict(X)),
+            cp.asnumpy(expected.predict(X)),
+            atol=1e-4,
+        )
+
+
+@pytest.mark.parametrize(
+    "algorithm", ["eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"]
+)
+def test_linear_regression_positive_incompatible_algorithm(algorithm):
+    X = np.random.default_rng(0).normal(size=(20, 3))
+    y = X.sum(axis=1)
+    model = cuml.LinearRegression(positive=True, algorithm=algorithm)
+    with pytest.raises(ValueError, match="positive=True"):
+        model.fit(X, y)
+
+
+def test_linear_regression_nnls_requires_positive():
+    X = np.random.default_rng(0).normal(size=(20, 3))
+    y = X.sum(axis=1)
+    model = cuml.LinearRegression(positive=False, algorithm="nnls")
+    with pytest.raises(ValueError, match="requires `positive=True`"):
+        model.fit(X, y)
+
+
+@pytest.mark.parametrize("algorithm", ["auto", "nnls"])
+@pytest.mark.parametrize("fmt", ["csr", "csc", "coo"])
+def test_linear_regression_positive_rejects_sparse(algorithm, fmt):
+    X = np.random.default_rng(0).normal(size=(20, 3))
+    y = X.sum(axis=1)
+    model = cuml.LinearRegression(positive=True, algorithm=algorithm)
+    with pytest.raises(TypeError, match=r"\.toarray\(\)"):
+        model.fit(scipy.sparse.coo_matrix(X).asformat(fmt), y)
+
+
+@pytest.mark.parametrize("fit_intercept", [True, False])
+def test_linear_regression_positive_single_sample(fit_intercept):
+    X = np.array([[1.0]])
+    y = np.array([2.0])
+    cu_model = cuml.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y)
+    sk_model = sklearn.linear_model.LinearRegression(
+        positive=True, fit_intercept=fit_intercept
+    ).fit(X, y)
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.coef_), sk_model.coef_, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        cp.asnumpy(cu_model.intercept_), sk_model.intercept_, atol=1e-5
+    )
