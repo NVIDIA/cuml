@@ -294,7 +294,7 @@ def test_not_implemented_attr_error():
 
 
 def test_setattr():
-    model = LinearRegression()
+    model = ElasticNet()
 
     # Hyperparameters are forwarded to CPU
     model.fit_intercept = False
@@ -359,7 +359,7 @@ def test_get_params():
 
 
 def test_set_params():
-    model = LinearRegression()
+    model = ElasticNet()
 
     # Hyperparameters are forwarded to CPU
     assert model.set_params(fit_intercept=False) is model
@@ -444,7 +444,7 @@ def test_pickle_gpu_fit():
 
 def test_pickle_cpu_fit():
     X, y = make_regression(n_samples=10)
-    model = LinearRegression(positive=True)
+    model = ElasticNet(positive=True)
     model.fit(X, y)
     # Ensure the test case is one that isn't GPU accelerated
     assert model._gpu is None
@@ -593,7 +593,7 @@ def test_fit_gpu():
 def test_fit_unsupported_params():
     """Hyperparameters not supported on GPU"""
     X, y = make_regression(n_samples=10)
-    model = LinearRegression(positive=True)
+    model = ElasticNet(positive=True)
     assert model.fit(X, y) is model
     # Fit happened on CPU
     check_is_fitted(model)
@@ -653,7 +653,7 @@ def test_fit_gpu_predict_gpu():
 
 def test_fit_cpu_predict_cpu():
     X, y = make_regression(n_samples=10)
-    model = LinearRegression(positive=True).fit(X, y)
+    model = ElasticNet(positive=True).fit(X, y)
     y_pred = model.predict(X)
     assert isinstance(y_pred, np.ndarray)
     # cpu estimator used

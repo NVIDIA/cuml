@@ -8,8 +8,9 @@ import cupyx.scipy.sparse as sp
 import numpy as np
 
 from cuml.common.doc_utils import generate_docstring
+from cuml.common.sparse import is_sparse
 from cuml.internals.base import Base, get_handle
-from cuml.internals.interop import InteropMixin, UnsupportedOnGPU
+from cuml.internals.interop import InteropMixin
 from cuml.internals.mixins import (
     FMajorInputTagMixin,
     RegressorMixin,
@@ -85,11 +86,12 @@ class LinearRegression(InteropMixin,
 
     Parameters
     ----------
-    algorithm : {'auto', 'eig', 'svd', 'lsmr', 'qr', 'svd-qr', 'svd-jacobi'}, default='auto'
+    algorithm : {'auto', 'eig', 'svd', 'lsmr', 'qr', 'svd-qr', 'svd-jacobi', 'nnls'}, default='auto'
         The algorithm to use when fitting:
 
-        - 'auto': will select 'eig' if supported, falling back to 'lsmr' if X
-          is sparse, and 'svd' otherwise.
+        - 'auto': will select 'nnls' if ``positive=True``. Otherwise it
+          selects 'eig' if supported, falling back to 'lsmr' if X is sparse,
+          and 'svd' otherwise.
 
         - 'eig': uses an eigendecomposition of the covariance matrix. It is
           faster than SVD, but potentially unstable. It doesn't support
@@ -107,12 +109,19 @@ class LinearRegression(InteropMixin,
         - 'svd-qr': computes SVD decomposition using QR algorithm. It's the
           slowest option. It doesn't support multi-target ``y`` or sparse ``X``.
 
+        - 'nnls': solves a non-negative least squares problem with an active
+          set method. It requires ``positive=True``, supports multi-target
+          ``y``, and doesn't support sparse ``X``.
+
     fit_intercept : boolean (default = True)
         If True, LinearRegression tries to correct for the global mean of y.
         If False, the model expects that you have centered the data.
     copy_X : boolean, default=True
         If True, X will never be mutated. Setting to False may reduce memory
         usage, at the cost of potentially mutating X.
+    positive : boolean, default=False
+        If True, constrains the coefficients to be non-negative. This requires
+        ``algorithm`` to be 'auto' or 'nnls'.
     verbose : int or boolean, default=False
         Sets logging level. It must be one of `cuml.common.logger.level_*`.
         See :ref:`verbosity-levels` for more info.
@@ -176,22 +185,22 @@ class LinearRegression(InteropMixin,
             "algorithm",
             "fit_intercept",
             "copy_X",
+            "positive",
         ]
 
     @classmethod
     def _params_from_cpu(cls, model):
-        if model.positive:
-            raise UnsupportedOnGPU("`positive=True` is not supported")
-
         return {
             "fit_intercept": model.fit_intercept,
             "copy_X": model.copy_X,
+            "positive": model.positive,
         }
 
     def _params_to_cpu(self):
         return {
             "fit_intercept": self.fit_intercept,
             "copy_X": self.copy_X,
+            "positive": self.positive,
         }
 
     def _attrs_from_cpu(self, model):
@@ -222,6 +231,7 @@ class LinearRegression(InteropMixin,
         algorithm="auto",
         fit_intercept=True,
         copy_X=True,
+        positive=False,
         verbose=False,
         output_type=None
     ):
@@ -229,6 +239,7 @@ class LinearRegression(InteropMixin,
         self.algorithm = algorithm
         self.fit_intercept = fit_intercept
         self.copy_X = copy_X
+        self.positive = positive
 
     def _fit_libcuml(
         self,
@@ -320,14 +331,28 @@ class LinearRegression(InteropMixin,
 
         """
         X_orig, y_orig, sample_weight_orig = X, y, sample_weight
+        if self.positive and self.algorithm not in ("auto", "nnls"):
+            raise ValueError(
+                "`positive=True` requires `algorithm='auto'` or "
+                f"`algorithm='nnls'`, got `algorithm={self.algorithm!r}`."
+            )
+        if not self.positive and self.algorithm == "nnls":
+            raise ValueError("`algorithm='nnls'` requires `positive=True`.")
+        if self.positive and is_sparse(X):
+            raise TypeError(
+                "`positive=True` requires dense `X`, but sparse data was "
+                "passed. Use '.toarray()' to explicitly convert it to a "
+                "dense array."
+            )
+
         X, y, sample_weight = check_inputs(
             self,
             X,
             y,
             sample_weight,
             dtype=("float32", "float64"),
-            ensure_min_samples=2,
-            accept_sparse=("csr", "csc"),
+            ensure_min_samples=1 if self.positive else 2,
+            accept_sparse=False if self.positive else ("csr", "csc"),
             accept_large_sparse=True,
             accept_multi_output=True,
             reset=True,
@@ -337,13 +362,15 @@ class LinearRegression(InteropMixin,
         sample_weight_is_copy = cuda_ptr(sample_weight) != cuda_ptr(sample_weight_orig)
 
         if self.algorithm not in (
-            "auto", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi"
+            "auto", "eig", "svd", "lsmr", "qr", "svd-qr", "svd-jacobi", "nnls"
         ):
             raise ValueError(f"algorithm={self.algorithm!r} is not supported")
 
         # Determine the solver to use
         fallback_reason = None
-        if self.algorithm == "lsmr":
+        if self.positive:
+            solver = "nnls"
+        elif self.algorithm == "lsmr":
             solver = "lsmr"
         elif sp.issparse(X):
             solver = "lsmr"
