@@ -184,7 +184,8 @@ repos:
             ^conda/environments/|
             (^|/)VERSION$|
             (^|/)RAPIDS_BRANCH$|
-            [.](csv|json|md|rst|avro|parquet|png|orc|gz|pkl|sas7bdat)$
+            [.](csv|json|md|rst|avro|parquet|png|orc|gz|pkl|sas7bdat)$|
+            ^(?:docs/source/_static/cuml\-accel\-benchmarks/training\-heatmap\.svg)$
   - repo: https://github.com/rapidsai/dependency-file-generator
     rev: v1.22.0
     hooks:
