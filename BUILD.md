@@ -41,7 +41,7 @@ These libraries must match the cuML version (e.g., all version 25.10 if building
 
 **Python Runtime Dependencies:**
 
-For detailed version requirements of runtime dependencies (numpy, scikit-learn, scipy, joblib, numba, cupy, treelite, etc.), please see [docs/source/supported_versions.rst](docs/source/supported_versions.rst).
+For detailed version requirements of runtime dependencies (numpy, scikit-learn, scipy, joblib, numba, cupy, treelite, etc.), please see [supported_versions](https://docs.nvidia.com/cuml/latest/supported_versions/).
 
 **Other External Libraries:**
 - treelite
