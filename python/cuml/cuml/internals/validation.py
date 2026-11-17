@@ -562,6 +562,19 @@ else:
         return np.array(x, dtype=dtype, order=order or "K", copy=bool(copy))
 
 
+# Thresholds for the device-side reorder in `_host_to_device`. They mirror
+# the upstream CuPy fix (cupy/cupy#10425) and are measured on the output, i.e.
+# after any dtype conversion:
+# - Below `_H2D_REORDER_MIN_BYTES` the host transpose in `cp.array` is cheaper
+#   than the extra allocation and kernel launch, so those inputs keep the
+#   plain `cp.array` path.
+# - Above it, the input is copied in blocks of at most `_H2D_REORDER_BLOCK_BYTES`
+#   (or one slice, if a single slice is larger), which bounds the temporary
+#   device memory to one block on top of the output.
+_H2D_REORDER_MIN_BYTES = 256 << 10  # 256 KiB
+_H2D_REORDER_BLOCK_BYTES = 32 << 20  # 32 MiB
+
+
 def _host_to_device(array, dtype=None, order=None, copy=None):
     """Move a host array to the device without reordering it on the host.
 
@@ -571,10 +584,6 @@ def _host_to_device(array, dtype=None, order=None, copy=None):
     1 GB input takes seconds to reach the device; transferring the bytes
     as they are and transposing on the device costs the same as a plain
     copy. Dtype conversion is left to ``cp.array`` as before.
-
-    The reorder is done in blocks of about ``_H2D_BLOCK_BYTES`` so that
-    only the output and one block are resident on the device, rather than
-    two full-sized arrays.
     """
     if (
         isinstance(array, np.ndarray)
@@ -583,24 +592,27 @@ def _host_to_device(array, dtype=None, order=None, copy=None):
     ):
         c_in = array.flags.c_contiguous
         f_in = array.flags.f_contiguous
-        if (order == "F" and c_in and not f_in) or (
+        reorder = (order == "F" and c_in and not f_in) or (
             order == "C" and f_in and not c_in
-        ):
+        )
+        if reorder:
+            # Bytes on the device, after any dtype conversion
+            # (e.g. uint8 -> float32 is 4x the host bytes).
+            itemsize = (
+                array.dtype.itemsize
+                if dtype is None
+                else np.dtype(dtype).itemsize
+            )
+            nbytes = array.size * itemsize
+            reorder = nbytes >= _H2D_REORDER_MIN_BYTES
+        if reorder:
             # Slice along the axis that is contiguous in the input's own
             # layout (first for C, last for F) so each block is one
             # contiguous host region; assigning it into the differently
             # ordered output is one transpose kernel on the device.
             axis = 0 if c_in else array.ndim - 1
             n = array.shape[axis]
-            # Size blocks by the bytes they occupy on the device, after any
-            # dtype conversion (e.g. uint8 -> float32 is 4x the host bytes).
-            itemsize = (
-                array.dtype.itemsize
-                if dtype is None
-                else np.dtype(dtype).itemsize
-            )
-            per_slice = max(1, array.size // max(1, n) * itemsize)
-            step = max(1, _H2D_BLOCK_BYTES // per_slice)
+            step = max(1, _H2D_REORDER_BLOCK_BYTES // (nbytes // n))
             out = None
             for start in range(0, n, step):
                 idx = [slice(None)] * array.ndim
@@ -619,10 +631,6 @@ def _host_to_device(array, dtype=None, order=None, copy=None):
             return out
     # XXX: using cp.array for compat with cupy < 14
     return cp.array(array, dtype=dtype, order=order, copy=copy)
-
-
-# Block size for the device-side reorder in `_host_to_device`
-_H2D_BLOCK_BYTES = 256 << 20
 
 
 def check_array(
