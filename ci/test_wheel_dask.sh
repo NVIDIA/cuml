@@ -31,6 +31,11 @@ EXITCODE=0
 trap "EXITCODE=1" ERR
 set +e
 
+# NCCL cuMem allocations fail with CUDA error 999 on WSL (driver 596.36), breaking ncclCommInitRank.
+if grep -qi microsoft /proc/version; then
+  export NCCL_CUMEM_ENABLE=0
+fi
+
 rapids-logger "pytest cuml dask"
 timeout -v --signal=SIGINT --kill-after=60s 1h ./ci/run_cuml_dask_pytests.sh --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-dask.xml"
 
