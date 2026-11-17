@@ -184,7 +184,8 @@ def test_linear_regression_short_wide(algorithm):
 
     sk_pred = sk_model.predict(X)
     cu_pred = cu_model.predict(X)
-    np.testing.assert_allclose(sk_pred, cu_pred, atol=1e-2)
+    atol = 1e-2 if algorithm == "lsmr" else 1e-6
+    np.testing.assert_allclose(sk_pred, cu_pred, atol=atol)
 
 
 def test_linear_regression_lu_singular_matrix():

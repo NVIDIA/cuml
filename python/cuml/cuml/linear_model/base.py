@@ -198,9 +198,7 @@ _threshold_divide = cp.ElementwiseKernel(
 )
 
 
-def _fit_cholesky_or_lu(
-    X, y, sample_weight, X_offset, y_offset, alpha, fit_intercept, solver
-):
+def _fit_cholesky_or_lu(X, y, alpha, fit_intercept, solver):
     """Fits a least-squares problem using a cholesky or LU decomposition.
 
     See `fit_least_squares` for parameters."""
@@ -346,16 +344,7 @@ def fit_least_squares(
         coef = vh.T.dot(temp).T
         n_iter = None
     elif solver in ("cholesky", "lu"):
-        coef = _fit_cholesky_or_lu(
-            X,
-            y,
-            sample_weight,
-            X_offset,
-            y_offset,
-            alpha,
-            fit_intercept,
-            solver,
-        )
+        coef = _fit_cholesky_or_lu(X, y, alpha, fit_intercept, solver)
         n_iter = None
     elif solver == "lsmr":
         if X_is_sparse and fit_intercept:
