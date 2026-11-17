@@ -86,7 +86,8 @@ class LinearRegression(InteropMixin,
 
     Parameters
     ----------
-    algorithm : {'auto', 'lu', 'eig', 'svd', 'lsmr', 'nnls', 'qr', 'svd-qr', 'svd-jacobi'}, default='auto'
+    algorithm : {'auto', 'lu', 'eig', 'svd', 'lsmr', 'nnls', 'qr', 'svd-qr', 'svd-jacobi'}, \
+                default='auto'
         The algorithm to use when fitting:
 
         - 'auto': will select 'nnls' if ``positive=True``. Otherwise it
