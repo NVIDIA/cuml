@@ -34,11 +34,55 @@ from cuml.preprocessing.encoders import (
 
 # Above this many categories, `TargetEncoder._category_encodings` resolves
 # the encodings with a device merge instead of a host lookup. The host lookup
-# avoids the merge's ~3 ms fixed cost, which dominates wide inputs with few
-# categories, but grows with the number of categories: on an RTX 5090 it
-# breaks even at ~30k string or ~250k integer categories, and at 1M string
-# categories it is 9x slower than the merge.
-_HOST_LOOKUP_MAX_CATEGORIES = 50_000
+# avoids the merge's fixed cost, which dominates wide inputs with few
+# categories, but grows with the number of categories, fastest for strings.
+# Limits by key dtype, from benchmarks on RTX PRO 6000 Blackwell, DGX Spark
+# and H100 with the default and `cuml.accel` allocators.
+_HOST_LOOKUP_MAX_INT_CATEGORIES = 100_000
+_HOST_LOOKUP_MAX_FLOAT_CATEGORIES = 75_000
+_HOST_LOOKUP_MAX_OTHER_CATEGORIES = 50_000
+
+
+def _host_lookup_max_categories(dtype):
+    """The most categories with keys of `dtype` to look up on the host."""
+    kind = getattr(dtype, "kind", "O")
+    if kind in "iu":
+        return _HOST_LOOKUP_MAX_INT_CATEGORIES
+    if kind == "f":
+        return _HOST_LOOKUP_MAX_FLOAT_CATEGORIES
+    return _HOST_LOOKUP_MAX_OTHER_CATEGORIES
+
+
+def _exact_integer_categories(column, categories):
+    """`categories` of `column`, keeping integers exact.
+
+    `_compute_categories` returns the categories of an integer column with a
+    null as float64, with a trailing NaN, as sklearn does. That is exact up
+    to 2**53; beyond it distinct integers round to the same float. Then the
+    categories are returned as an object array of Python ints instead, with
+    the trailing NaN.
+    """
+    if column.dtype.kind not in "iu" or categories.dtype.kind != "f":
+        return categories
+    if len(categories) == 1:
+        # Only the missing category
+        return categories
+    exact = 2**53
+    if -exact <= int(column.min()) and int(column.max()) <= exact:
+        return categories
+    values = column.dropna().drop_duplicates().sort_values().to_numpy()
+    return np.append(values.astype(object), np.nan)
+
+
+def _integer_lookup_keys(categories, missing, dtype):
+    """`categories` cast to the integer key `dtype`, 0 where `missing`.
+
+    The categories of an integer column with a null are float64 (exact by
+    construction, see `_exact_integer_categories`) or Python ints in an
+    object array. Comparing as integers is exact, and about 3x faster than a
+    float lookup on the host.
+    """
+    return np.where(missing, 0, categories).astype(dtype)
 
 
 class TargetEncoder(InteropMixin, Base):
@@ -98,7 +142,10 @@ class TargetEncoder(InteropMixin, Base):
     categories_ : list of cupy.ndarray
         The categories of each input feature determined during fitting.
         Each element is an array of unique category values for that feature,
-        sorted in ascending order.
+        sorted in ascending order, with a missing category last as NaN. As in
+        sklearn, the categories of an integer feature with missing values are
+        float64, unless that would round distinct values beyond 2**53 to the
+        same float; then they are an object array of Python ints.
     target_type_ : str
         Type of target.
     classes_ : numpy.ndarray or None
@@ -366,7 +413,12 @@ class TargetEncoder(InteropMixin, Base):
         df = self._check_X_y(X, y)
         x_cols = [n for n in df.columns.tolist() if n.startswith("X_")]
 
-        self.categories_ = _compute_categories(df[x_cols])
+        self.categories_ = [
+            _exact_integer_categories(df[col], cats)
+            for col, cats in zip(
+                x_cols, _compute_categories(df[x_cols]), strict=True
+            )
+        ]
 
         if self.multi_feature_mode not in {"combination", "independent"}:
             raise ValueError(
@@ -586,9 +638,9 @@ class TargetEncoder(InteropMixin, Base):
         matched to the null key in `encode_all` explicitly, since NaN does
         not compare equal to itself.
         """
-        if len(categories) > _HOST_LOOKUP_MAX_CATEGORIES:
-            return self._category_encodings_device(encode_all, col, categories)
         key_col = encode_all[col]
+        if len(categories) > _host_lookup_max_categories(key_col.dtype):
+            return self._category_encodings_device(encode_all, col, categories)
         missing = key_col.isna()
         key_missing = missing.to_numpy()
         # Drop the null key before leaving the device: an integer column
@@ -602,13 +654,11 @@ class TargetEncoder(InteropMixin, Base):
         cat_missing = np.asarray(pd.isna(cats), dtype=bool)
         # Vectorized lookup: a Python loop over the categories costs about
         # 0.4 s per feature at a million categories. `encode_all` comes from
-        # a groupby, so its keys are unique.
+        # a groupby, so its keys are unique. Missing categories are excluded
+        # from `hit` below.
         lookup = cats
-        if keys.dtype.kind in "iu" and cats.dtype.kind == "f":
-            # `categories_` of an integer column with a null is float64.
-            # Compare as integers: it is about 3x faster than a float
-            # lookup, and missing categories are excluded from `hit` below.
-            lookup = np.where(cat_missing, 0, cats).astype(keys.dtype)
+        if keys.dtype.kind in "iu" and cats.dtype.kind in "fO":
+            lookup = _integer_lookup_keys(cats, cat_missing, keys.dtype)
         pos = pd.Index(keys).get_indexer(lookup)
         hit = (pos >= 0) & ~cat_missing
         out = np.full(len(cats), mean, dtype="float64")
@@ -625,13 +675,17 @@ class TargetEncoder(InteropMixin, Base):
         Its fixed cost is higher than the host lookup's, but it does not
         grow with the number of categories on the host.
         """
-        cats = _cats_to_series(categories)
         key_dtype = encode_all[col].dtype
-        if key_dtype.kind in "iu" and cats.dtype.kind == "f":
-            # `categories_` of an integer column with a null is float64;
-            # merging float64 against the integer keys would match distinct
+        cats = cp.asnumpy(categories)
+        if key_dtype.kind in "iu" and cats.dtype.kind in "fO":
+            # Merge as integers: float64 keys would match distinct integer
             # keys above 2**53 more than once.
-            cats = cats.astype(key_dtype)
+            missing = np.asarray(pd.isna(cats), dtype=bool)
+            cats = cudf.Series(
+                _integer_lookup_keys(cats, missing, key_dtype)
+            ).mask(missing)
+        else:
+            cats = _cats_to_series(cats)
         table = cudf.DataFrame({col: cats, "pos": cp.arange(len(cats))})
         table = table.merge(encode_all[[col, "out"]], on=col, how="left")
         out = table.sort_values("pos")["out"].to_numpy(
