@@ -8,6 +8,7 @@ import numpy as np
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import check_inputs, check_is_fitted
+from cuml.solvers.nnls import _nnls
 
 
 class LinearPredictMixin:
@@ -220,10 +221,11 @@ def fit_least_squares(
     alpha : float or cp.ndarray
         Ridge regularization strength. Must be a non-negative float. Defaults
         to 0 for no regularization (a LinearRegression).
-    solver : {'svd', 'lsmr'}
-        The solver to use.
+    solver : {'svd', 'lsmr', 'nnls'}
+        The solver to use. ``'nnls'`` constrains the coefficients to be
+        non-negative and requires a dense ``X``.
     tol : float
-        Tolerance, used by the LSMR solver.
+        Tolerance, used by the LSMR and NNLS solvers.
     max_iter : int or None
         Maximum number of iterations, used by the LSMR solver.
     may_mutate_X : bool
@@ -246,6 +248,10 @@ def fit_least_squares(
         # Centering and lsmr are much faster with CSR/CSC inputs
         if X.format not in ("csr", "csc"):
             X = X.tocsr()
+
+    if solver == "nnls" and sample_weight is not None:
+        # Keep the absolute NNLS tolerance independent of the weight scale.
+        sample_weight = sample_weight / sample_weight.mean()
 
     X, y, X_offset, y_offset, sqrt_weight = center_and_scale(
         X,
@@ -307,6 +313,13 @@ def fit_least_squares(
             )
             coef[i] = info[0]
             n_iter[i] = info[2]
+    elif solver == "nnls":
+        # Non-negative least squares: one problem per target, shared X.
+        X = cp.asfortranarray(X)
+        y = cp.asfortranarray(y)
+        coef, _ = _nnls(X, y, compute_rnorm=False, tol=tol)
+        coef = coef.T
+        n_iter = None
     else:
         raise ValueError(f"Unsupported solver={solver!r}")
 
