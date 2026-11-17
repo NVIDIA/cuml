@@ -99,6 +99,7 @@ struct NodeSplitPartitionWriter {
   const Split<DataT>* splits;
   const WorkloadInfo* workload_info;
   std::int64_t* partition_row_ids;
+  std::uint32_t* partition_bootstrap_count;
 
   __host__ __device__ void operator()(std::ptrdiff_t index, NodeSplitPartitionState state) const
   {
@@ -119,6 +120,9 @@ struct NodeSplitPartitionWriter {
     const auto local_left_count = std::size_t(split.local_nLeft);
     const auto out_idx          = range_start + (state.goes_left ? rank : local_left_count + rank);
     partition_row_ids[out_idx]  = row;
+    if (partition_bootstrap_count != nullptr) {
+      partition_bootstrap_count[out_idx] = dataset.bootstrap_count[range_start + range_pos];
+    }
   }
 };
 
@@ -129,7 +133,8 @@ CUML_KERNEL void nodeSplitCopyBackKernel(const Dataset<DataT, LabelT> dataset,
                                          const NodeWorkItem* work_items,
                                          const Split<DataT>* splits,
                                          const WorkloadInfo* workload_info,
-                                         const std::int64_t* partition_row_ids)
+                                         const std::int64_t* partition_row_ids,
+                                         const std::uint32_t* partition_bootstrap_count)
 {
   const auto workload_info_cta = workload_info[blockIdx.x];
   const auto nid               = workload_info_cta.nodeid;
@@ -143,6 +148,9 @@ CUML_KERNEL void nodeSplitCopyBackKernel(const Dataset<DataT, LabelT> dataset,
   if (range_pos < range_len) {
     const auto idx       = range_start + range_pos;
     dataset.row_ids[idx] = partition_row_ids[idx];
+    if (partition_bootstrap_count != nullptr) {
+      dataset.bootstrap_count[idx] = partition_bootstrap_count[idx];
+    }
   }
 }
 
@@ -154,6 +162,7 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
                            size_t n_blocks_dimx,
                            size_t n_work_items,
                            std::int64_t* partition_row_ids,
+                           std::uint32_t* partition_bootstrap_count,
                            cudaStream_t builder_stream)
 {
   if (n_blocks_dimx == 0) return;
@@ -202,7 +211,7 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
   auto partition_states = thrust::make_transform_iterator(slots_begin, partition_state);
   auto partition_writer =
     thrust::make_tabulate_output_iterator(NodeSplitPartitionWriter<DataT, LabelT, TPB>{
-      dataset, work_items, splits, workload_info, partition_row_ids});
+      dataset, work_items, splits, workload_info, partition_row_ids, partition_bootstrap_count});
   thrust::inclusive_scan_by_key(exec_policy,
                                 node_keys,
                                 node_keys + n_slots,
@@ -213,7 +222,7 @@ void launchNodeSplitKernel(const Dataset<DataT, LabelT>& dataset,
 
   // The original row_ids buffer remains the source during the scan, so copy back after it finishes.
   nodeSplitCopyBackKernel<DataT, LabelT, TPB><<<n_blocks_dimx, TPB, 0, builder_stream>>>(
-    dataset, work_items, splits, workload_info, partition_row_ids);
+    dataset, work_items, splits, workload_info, partition_row_ids, partition_bootstrap_count);
 }
 
 template <bool kSingleTile, typename DatasetT, typename NodeT, typename ObjectiveT>
@@ -243,7 +252,7 @@ CUML_KERNEL void buildLeafHistogramsKernel(ObjectiveT objective,
   for (auto i = range.begin + tid; i < range.begin + range.count; i += blockDim.x) {
     auto row = dataset.row_ids[i];
     objective.template IncrementLeafHistogram<kSingleTile>(
-      histogram, output_begin, output_count, dataset, row);
+      histogram, output_begin, output_count, dataset, row, i);
   }
   __syncthreads();
   for (int i = tid; i < output_count; i += blockDim.x) {
@@ -403,7 +412,7 @@ CUML_KERNEL void buildHistogramsKernel(typename ObjectiveT::BinT* histograms,
         return quantiles_for_split[bin] < value;
       });
     auto bin = bin_it == bin_end ? n_bins - 1 : *bin_it;
-    objective.IncrementHistogram(histogram, n_bins, bin, label, dataset, row);
+    objective.IncrementHistogram(histogram, n_bins, bin, label, dataset, row, i);
   }
 
   if (!use_global_memory_histogram) {
