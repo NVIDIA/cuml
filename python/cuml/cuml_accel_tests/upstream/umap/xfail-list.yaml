@@ -19,7 +19,6 @@
   - "umap.tests.test_umap_validation_params::test_umap_bad_hellinger_data"
   - "umap.tests.test_umap_validation_params::test_umap_bad_metrics"
   - "umap.tests.test_umap_validation_params::test_umap_bad_n_components"
-  - "umap.tests.test_umap_validation_params::test_umap_bad_n_jobs"
   - "umap.tests.test_umap_validation_params::test_umap_bad_output_metric"
   - "umap.tests.test_umap_validation_params::test_umap_bad_output_metric_no_grad"
   - "umap.tests.test_umap_validation_params::test_umap_haversine_embed_to_highd"
