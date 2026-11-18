@@ -637,28 +637,27 @@ UMAP
 
    ``UMAP`` will fall back to CPU in the following cases:
 
-   - If ``init`` is not ``"random"`` or ``"spectral"``. In UMAP 0.6,
-     ``init="auto"`` is also supported when it resolves to ``"spectral"``
-     under the compatibility layout.
-   - If UMAP 0.6 selects the modern layout pipeline, including
-     ``compatibility_layout=False`` or ``optimizer="adam"``/``"momentum"``.
-   - If UMAP 0.6 initialization, sampling, or neighbor-backend options differ
-     from their upstream defaults. This includes ``init_rescale``,
+   - If ``init`` is neither ``"random"`` nor ``"spectral"``, unless it is
+     ``"auto"`` resolving to ``"spectral"`` in UMAP 0.6.
+   - If ``compatibility_layout`` is ``False`` or ``optimizer`` is ``"adam"``
+     or ``"momentum"`` in UMAP 0.6.
+   - If any of the following UMAP 0.6-specific parameters are set to nondefault
+     values: ``init_rescale``,
      ``init_scale_factor``, ``recursive_init_kwds``, ``recursive_coarsening_ratio``,
      ``coarse_layout_weights``, ``coarsen_on_layout_weights``,
      ``negative_selection_range``, ``negative_sample_scale``,
      ``negative_sample_scale_adaptation_samples``, ``exclude_graph_neighbors``,
      and ``nearest_neighbor_backend``.
-   - If ``metric`` is not one of the supported metrics (``"l1"``, ``"cityblock"``,
+   - If ``metric`` is not one of ``"l1"``, ``"cityblock"``,
      ``"taxicab"``, ``"manhattan"``, ``"euclidean"``, ``"l2"``, ``"sqeuclidean"``,
      ``"canberra"``, ``"minkowski"``, ``"chebyshev"``, ``"linf"``, ``"cosine"``,
-     ``"correlation"``, ``"hellinger"``, ``"hamming"``, ``"jaccard"``).
-   - If ``target_metric`` is not one of the supported metrics (``"categorical"``,
-     ``"l2"``, ``"euclidean"``).
-   - If ``unique=True``.
-   - If ``densmap=True``.
-   - If ``disconnection_distance`` is explicitly set.
-   - If ``n_epochs`` is a sequence rather than a scalar.
+     ``"correlation"``, ``"hellinger"``, ``"hamming"``, or ``"jaccard"``.
+   - If ``target_metric`` is not one of ``"categorical"``, ``"l2"``, or
+     ``"euclidean"``.
+   - If ``unique`` is ``True``.
+   - If ``densmap`` is ``True``.
+   - If ``disconnection_distance`` is not ``None``.
+   - If ``n_epochs`` is a sequence.
    - If ``ensure_all_finite`` is not ``True``.
 
    Additional notes:
@@ -669,13 +668,7 @@ UMAP
    - Parallelism during the optimization stage introduces numerical imprecision,
      which can lead to differences between CPU and GPU results.
 
-   - UMAP 0.6 retains the legacy layout by default and emits an upstream
-     migration warning. Set ``compatibility_layout=True`` explicitly to retain
-     this behavior without the warning.
-
    - UMAP model-combination operators (``+``, ``-``, and ``*``) are not supported.
-     After a GPU fit, ``update()`` and transforming new data after modifying
-     fitted attributes are limited by the absence of a CPU neighbor-search index.
 
    - ONNX export via ``skl2onnx`` is not supported for this estimator.
 
