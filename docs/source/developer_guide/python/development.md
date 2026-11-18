@@ -237,8 +237,8 @@ Control via these pytest options:
 ### Running Tests
 
 Activate the development environment and rebuild changed code before testing.
-Run `pytest` from the repository root or any of its subdirectories. The following
-examples use paths relative to the repository root:
+Run `pytest` from the repository root or any subdirectory (except `ci/tests`).
+The following examples use paths relative to the repository root:
 
 ```bash
 pytest                            # Run the standard single-GPU Python test suite
@@ -255,8 +255,8 @@ working directory; explicit targets replace the suite's default selection.
 
 #### Selecting a suite
 
-The default suite, `standard`, runs cuML's single-GPU Python tests. Select other
-suites with `--cuml-suite`:
+The default suite, `standard`, selects cuML's single-GPU Python tests. Select
+other suites with `--cuml-suite`:
 
 ```bash
 pytest --cuml-suite=dask            # Requires Dask dependencies
@@ -264,8 +264,9 @@ pytest --cuml-suite=accel           # cuML accelerator tests
 pytest --cuml-suite=cudf-pandas     # Standard tests with cudf.pandas
 ```
 
-Explicit test paths retain the selected suite's execution configuration.
-Add `--quick_run` to reduce parameter combinations for a shorter correctness run.
+Explicit files or directories replace the suite's default selection, so passing
+`python/cuml/tests` also includes its Dask subdirectory. The selected suite's
+execution configuration still applies.
 
 ## Python-defined kernels
 
