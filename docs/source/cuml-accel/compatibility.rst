@@ -663,12 +663,12 @@ UMAP
    - Parallelism during the optimization stage introduces numerical imprecision,
      which can lead to differences between CPU and GPU results.
 
-   - UMAP 0.6 options for modern sampling, initialization rescaling, and recursive
-     initialization have no effect on the supported legacy pipeline and are not
-     validated during GPU fitting. This does not change GPU results, but invalid
-     values may raise errors later when fitted state is synchronized to CPU,
-     for example when accessing ``embedding_``. Using the modern pipeline always
-     falls back to CPU.
+   - UMAP 0.6 options for the new sampling methods, initialization rescaling, and
+     recursive initialization have no effect on the supported 0.5-compatible
+     pipeline and are not validated during GPU fitting. This does not change GPU
+     results, but invalid values may raise errors later when fitted state is
+     synchronized to CPU, for example when accessing ``embedding_``. The new
+     UMAP 0.6 pipeline always falls back to CPU.
 
    - UMAP model-combination operators (``+``, ``-``, and ``*``) are not supported.
 
