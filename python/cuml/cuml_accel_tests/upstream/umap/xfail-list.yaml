@@ -49,6 +49,11 @@
   condition: umap-learn>=0.6.0
   tests:
   - "umap.tests.test_layout_policy::test_models_pickled_before_0_6_still_transform_and_update"
+- reason: Mutating embedding_ switches to CPU, but the GPU-converted model has no neighbor-search index for transforming new data
+  marker: cuml_accel_mutated_embedding_transform
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_on_iris::test_umap_compatibility_transform_on_iris_modified_dtype"
 - reason: UMAP using removed numpy function `in1d`
   marker: cuml_accel_no_numpy_in1d
   condition: umap-learn<=0.5.7 and numpy>=2.4
