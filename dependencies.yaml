@@ -695,7 +695,7 @@ dependencies:
           - rfc3986-validator
           - *scikit_learn
           - seaborn
-          - umap-learn>=0.5.7,<0.5.13
+          - umap-learn>=0.5.7,<0.6.1
           - pynndescent
           - lightgbm
           - shap
