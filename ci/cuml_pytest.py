@@ -99,8 +99,8 @@ def _configure_upstream(config, parser, args, options):
     options = parser.parse_known_args(args)
     if not options.xfail_list:
         args.append(f"--xfail-list={directory / 'xfail-list.yaml'}")
-    # Use upstream warning policy rather than cuML's own test policy. Keep
-    # command-line -W overrides intact. Read the same policy the wrappers use.
+    # Use the shared upstream warning policy instead of cuML's test filters.
+    # Preserve explicit command-line -W overrides.
     from configparser import ConfigParser
 
     policy = ConfigParser(interpolation=None)
