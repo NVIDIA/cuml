@@ -47,6 +47,18 @@
   - "umap.tests.test_aligned_umap::test_aligned_update"
   - "umap.tests.test_aligned_umap::test_aligned_update_params"
   - "umap.tests.test_aligned_umap::test_neighbor_local_neighbor_accuracy"
+- reason: Tests inspect private layout state that cuml.accel does not expose
+  marker: cuml_accel_private_layout_state
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_layout_policy::test_default_uses_legacy_pipeline_with_future_warning"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs0-expected0]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs1-expected1]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs2-expected2]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs3-expected3]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs4-expected4]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs5-expected5]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs6-expected6]"
 - reason: Test fails with newer sklearn
   marker: cuml_accel_sklearn_pin
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
