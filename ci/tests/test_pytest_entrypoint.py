@@ -85,18 +85,23 @@ def test_node_id_and_report_are_caller_relative(repo, subdir):
     assert (cwd / "report.xml").exists()
 
 
-@pytest.mark.parametrize("suite", ["dask", "accel"])
-def test_suite_defaults_and_overrides(repo, suite):
-    result = run(repo, f"--cuml-suite={suite}", "-k", "selected")
+@pytest.mark.parametrize(
+    "suite, expected_file",
+    [
+        ("dask", "python/cuml/tests/dask/test_tests_dask.py"),
+        ("accel", "python/cuml/cuml_accel_tests/test_cuml_accel_tests.py"),
+    ],
+)
+def test_suite_defaults_and_overrides(repo, suite, expected_file):
+    result = run(repo, f"--cuml-suite={suite}", "-k", "selected", "-v")
     assert result.returncode == 0, result.stdout
     assert "1 passed" in result.stdout
-    result = run(
-        repo,
-        f"--cuml-suite={suite}",
-        "python/cuml/tests/test_tests.py::test_other",
-    )
+    assert f"{expected_file}::test_selected PASSED" in result.stdout
+    target = "python/cuml/tests/test_tests.py::test_other"
+    result = run(repo, f"--cuml-suite={suite}", target, "-v")
     assert result.returncode == 0, result.stdout
     assert "1 passed" in result.stdout
+    assert f"{target} PASSED" in result.stdout
 
 
 @pytest.mark.parametrize("separator", [(), ("--",)])
