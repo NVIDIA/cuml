@@ -13,6 +13,7 @@ from scipy import sparse
 from sklearn.base import clone
 from umap import UMAP
 
+from cuml.accel.profilers import profile
 from cuml.manifold import UMAP as GPUUMAP
 
 UMAP_060 = Version(version("umap-learn")) >= Version("0.6.0")
@@ -42,6 +43,30 @@ def test_umap_gpu_dispatch_and_dtype(data, dtype, method):
     assert model.transform(X).dtype == expected
     assert model.transform(X[:10] + 1).dtype == expected
     assert clone(model).get_params() == model.get_params()
+
+
+@pytest.mark.parametrize("sparse_input", [False, True])
+def test_umap_transform_cache(data, sparse_input):
+    X = sparse.csr_matrix(data) if sparse_input else data.copy()
+    model = UMAP(n_neighbors=5, n_epochs=20, random_state=42).fit(X)
+    embedding = model.embedding_.copy()
+
+    with profile(quiet=True) as results:
+        # Device/host conversion need not preserve Python object identity.
+        assert_array_equal(model.transform(X.copy()), embedding)
+        X[0, 0] += 10.0
+        transformed = model.transform(X)
+        assert transformed.shape == embedding.shape
+        assert np.isfinite(transformed).all()
+        assert not np.array_equal(transformed, embedding)
+        # A transform must not replace the stored training embedding or cache.
+        assert_array_equal(model.embedding_, embedding)
+        original = sparse.csr_matrix(data) if sparse_input else data
+        assert_array_equal(model.transform(original.copy()), embedding)
+
+    stats = results.method_calls["UMAP.transform"]
+    assert stats.gpu_calls == 3
+    assert stats.cpu_calls == 0
 
 
 @pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6")
