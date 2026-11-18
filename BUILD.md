@@ -16,7 +16,7 @@ Note that while a GPU is not required to build or develop cuML itself, it is nec
 **Software Dependencies:**
 1. CUDA Toolkit (>= 12.2) - must include development libraries (cudart, cublas, cusparse, cusolver, curand, cufft)
 2. gcc (>= 13.0)
-3. cmake (>= 4.0)
+3. cmake (>= 4.3)
 4. ninja - build system used by default
 5. Python (>= 3.12 and <= 3.14)
 6. Cython (>= 3.2.2)
@@ -41,7 +41,7 @@ These libraries must match the cuML version (e.g., all version 25.10 if building
 
 **Python Runtime Dependencies:**
 
-For detailed version requirements of runtime dependencies (numpy, scikit-learn, scipy, joblib, numba, cupy, treelite, etc.), please see [docs/source/supported_versions.rst](docs/source/supported_versions.rst).
+For detailed version requirements of runtime dependencies (numpy, scikit-learn, scipy, joblib, numba, cupy, treelite, etc.), please see [Supported Versions](https://docs.nvidia.com/cuml/latest/supported_versions/).
 
 **Other External Libraries:**
 - treelite
