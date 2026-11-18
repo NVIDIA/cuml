@@ -15,11 +15,13 @@ set +e
 
 # Keep both transport reports; the UCXX run must not overwrite the TCP run.
 rapids-logger "pytest cuml-dask (No UCXX)"
-timeout -v --signal=SIGINT --kill-after=60s 1h ./ci/run_cuml_dask_pytests.sh \
+timeout -v --signal=SIGINT --kill-after=60s 1h python -m pytest --cuml-suite=dask \
+  --cache-clear --durations=100 --durations-min=1 \
   --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-dask.xml"
 
 rapids-logger "pytest cuml-dask (UCXX only)"
-timeout -v --signal=SIGINT --kill-after=60s 10m ./ci/run_cuml_dask_pytests.sh \
+timeout -v --signal=SIGINT --kill-after=60s 10m python -m pytest --cuml-suite=dask \
+  --cache-clear --durations=100 --durations-min=1 \
   --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-dask-ucxx.xml" --run_ucx
 
 rapids-logger "Test script exiting with value: $EXITCODE"

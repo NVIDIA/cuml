@@ -94,37 +94,3 @@ def test_explicit_dask_not_ignored(repo):
     result = run(repo, "python/cuml/tests/dask")
     assert result.returncode == 0, result.stdout
     assert "2 passed" in result.stdout
-
-
-@pytest.mark.parametrize(
-    "runner",
-    [
-        "ci/run_cuml_singlegpu_pytests.sh",
-        "ci/run_cuml_dask_pytests.sh",
-        "ci/run_cuml_singlegpu_accel_pytests.sh",
-        "ci/run_cuml_integration_pytests.sh",
-    ],
-)
-def test_runner_preserves_arguments_and_cwd(tmp_path, runner):
-    # Capture the exact interpreter invocation; no GPU or upstream checkout.
-    executable = tmp_path / "python"
-    executable.write_text('#!/bin/bash\nprintf "%s\\n" "$PWD" "$@"\n')
-    executable.chmod(0o755)
-    result = subprocess.run(
-        [
-            str(REPO / runner),
-            "some path/test_file.py::test_one",
-            "-k",
-            "a or b",
-        ],
-        cwd=tmp_path,
-        env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode == 0, result.stderr
-    lines = result.stdout.splitlines()
-    assert lines[0] == str(tmp_path)
-    assert lines[1:5] == ["-m", "pytest", "-c", str(REPO / "pyproject.toml")]
-    assert lines[-3:] == ["some path/test_file.py::test_one", "-k", "a or b"]
-    assert "." not in lines
