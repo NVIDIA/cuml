@@ -138,7 +138,7 @@ def function_name(param1, param2):
 For more details, refer to the [NumPy docstring style guide](https://numpydoc.readthedocs.io/en/stable/format.html).
 
 ## Testing and Unit Testing
-We use [pytest](https://docs.pytest.org/en/latest/) for writing and running tests. To see existing examples, refer to any of the `test_*.py` files in the folder `cuml/tests`.
+We use [pytest](https://docs.pytest.org/en/latest/) for writing and running tests. To see existing examples, refer to any of the `test_*.py` files in the folder `python/cuml/tests`.
 
 ### Test Organization
 - Keep all tests for a single estimator in one file, with exceptions for:
@@ -235,24 +235,50 @@ Control via these pytest options:
    - Document test assumptions and requirements
 
 ### Running Tests
-Build from the repository root. Run Python tests from `python/cuml/` or one of its subdirectories so pytest picks up the package configuration.
+
+Activate the development environment and rebuild changed code before testing.
+Run `pytest` from the repository root or any of its subdirectories. The following
+examples use paths relative to the repository root:
 
 ```bash
-# From the repository root
-./build.sh
-
-# Then run Python tests
-cd python/cuml
-python -m pytest  # Run all configured Python tests
+pytest                            # Run the standard single-GPU Python test suite
+pytest -k kmeans                  # Run tests matching "kmeans"
+# Select test targets directly:
+pytest python/cuml/tests/test_kmeans.py
+pytest python/cuml/tests/test_kmeans.py::test_kmeans_transform_euclidean
+pytest --collect-only             # List the default suite without running it
 ```
 
-Common options:
-- `python -m pytest cuml/tests/test_kmeans.py` - Run a specific file
-- `python -m pytest -k "test_kmeans"` - Run tests matching a pattern
-- `python -m pytest --run_unit` - Run only unit tests
-- `python -m pytest -v` - Verbose output
+Refine the selection with standard pytest options such as `-k`, or provide test
+files, directories, or test IDs directly. Paths are relative to your current
+working directory; explicit targets replace the suite's default selection.
 
-Running pytest from outside `python/cuml/` can result in import errors or missed pytest configuration.
+#### Selecting a suite
+
+The default suite, `standard`, runs cuML's single-GPU Python tests. Select other
+suites with `--cuml-suite`:
+
+```bash
+pytest --cuml-suite=dask            # Requires Dask dependencies
+pytest --cuml-suite=accel           # cuML accelerator tests
+pytest --cuml-suite=cudf-pandas     # Standard tests with cudf.pandas
+```
+
+Explicit test paths retain the selected suite's execution configuration.
+Add `--quick_run` to reduce parameter combinations for a shorter correctness run.
+
+#### Test-runner regression tests
+
+The runner regression tests run in the dedicated `local-runner-tests` CPU job
+on every PR CI run, independently of cuML builds. JUnit results are retained in
+the job's additional artifacts, including on test failure. Run them locally with:
+
+```bash
+python -m pytest ci/tests
+```
+
+Some tests require `xgboost`. If using a conda devcontainer, install the `xgboost`
+conda package manually; see `dependencies.yaml` for version information.
 
 ## Python-defined kernels
 

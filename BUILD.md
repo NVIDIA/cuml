@@ -116,24 +116,8 @@ If you want a list of the available C++ tests:
 $ ctest --test-dir cpp/build -N
 ```
 
-To run all Python tests, including multi-GPU algorithms, from the repo root:
-```bash
-$ cd python
-$ pytest -v
-```
-
-To run only single-GPU algorithm tests:
-
-```bash
-$ pytest --ignore=cuml/tests/dask --ignore=cuml/tests/test_nccl.py
-```
-
-If you want a list of the available Python tests:
-```bash
-$ pytest cuml/tests --collect-only
-```
-
-**Note:** Some tests require `xgboost`. If running tests in conda devcontainers, you must install the `xgboost` conda package manually. See `dependencies.yaml` for version information.
+For Python tests and focused local test execution, see
+[Running Tests](docs/source/developer_guide/python/development.md#running-tests).
 
 ### Manual Process
 
@@ -236,23 +220,14 @@ From the repository root:
 $ python -m pip install --no-build-isolation --no-deps --config-settings rapidsai.disable-cuda=true python/cuml
 ```
 
-To run Python tests (optional):
+To run Python tests from the repository root:
 
 ```bash
-$ cd python
-$ pytest -v
+pytest -v
 ```
 
-To run only single-GPU algorithm tests:
-
-```bash
-$ pytest --ignore=cuml/tests/dask --ignore=cuml/tests/test_nccl.py
-```
-
-If you want a list of the available tests:
-```bash
-$ pytest cuml/tests --collect-only
-```
+See the [developer testing guide](docs/source/developer_guide/python/development.md#running-tests)
+for focused selections and other suites.
 
 ### Custom Build Options
 

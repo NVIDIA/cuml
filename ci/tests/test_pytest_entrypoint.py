@@ -128,4 +128,3 @@ def test_runner_preserves_arguments_and_cwd(tmp_path, runner):
     assert lines[1:5] == ["-m", "pytest", "-c", str(REPO / "pyproject.toml")]
     assert lines[-3:] == ["some path/test_file.py::test_one", "-k", "a or b"]
     assert "." not in lines
-
