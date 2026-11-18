@@ -74,6 +74,11 @@
   - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs5-expected5]"
   - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs6-expected6]"
   - "umap.tests.test_layout_policy::test_unfitted_legacy_pickle_resolves_on_fit"
+- reason: Test inspects private _knn_search_index that cuml.accel does not expose; precomputed distances use CPU fallback
+  marker: cuml_accel_private_neighbor_index
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_on_iris::test_precomputed_transform_on_iris_force_approx"
 - reason: Test fails with newer sklearn
   marker: cuml_accel_sklearn_pin
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
