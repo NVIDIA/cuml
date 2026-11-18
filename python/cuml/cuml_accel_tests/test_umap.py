@@ -89,6 +89,21 @@ def test_umap_compatibility_layout(data, layout, init):
         {"optimizer": "adam"},
         {"optimizer": "momentum"},
         {"init": "recursive"},
+    ],
+)
+def test_umap_new_options_fall_back(data, params):
+    # An explicit supported init must not hide a modern optimizer request.
+    params = {"init": "spectral", **params}
+    model = UMAP(n_epochs=10, n_jobs=1, random_state=42, **params).fit(data)
+    assert model._gpu is None
+    for key, value in params.items():
+        assert model.get_params()[key] == value
+
+
+@pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6")
+@pytest.mark.parametrize(
+    "params",
+    [
         {"negative_selection_range": 10},
         {"negative_sample_scale": 2.0},
         {"exclude_graph_neighbors": True},
@@ -100,13 +115,22 @@ def test_umap_compatibility_layout(data, layout, init):
         {"init_rescale": "per_axis"},
         {"init_scale_factor": 2.0},
         {"recursive_init_kwds": {}},
+        # Invalid but inactive values are deliberately not validated during GPU fitting.
+        {"recursive_coarsening_ratio": 5},
+        {"init_scale_factor": -1},
+        {"negative_sample_scale": -1},
+        {"recursive_init_kwds": {"unknown": 1}},
     ],
 )
-def test_umap_new_options_fall_back(data, params):
-    # An explicit supported init must not hide a modern optimizer request.
-    params = {"init": "spectral", **params}
-    model = UMAP(n_epochs=10, n_jobs=1, random_state=42, **params).fit(data)
-    assert model._gpu is None
+def test_umap_inactive_legacy_options(data, params):
+    common = dict(compatibility_layout=True, n_epochs=10, random_state=42)
+    baseline = UMAP(**common).fit_transform(data)
+    model = UMAP(**common, **params)
+    with profile(quiet=True) as results:
+        embedding = model.fit_transform(data)
+    assert results.method_calls["UMAP.fit_transform"].gpu_calls == 1
+    assert results.method_calls["UMAP.fit_transform"].cpu_calls == 0
+    assert_array_equal(embedding, baseline)
     for key, value in params.items():
         assert model.get_params()[key] == value
 

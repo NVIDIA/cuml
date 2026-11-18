@@ -44,6 +44,26 @@
   - "umap.tests.test_umap_on_iris::test_precomputed_sparse_transform_on_iris"
   - "umap.tests.test_umap_on_iris::test_precomputed_transform_on_iris"
   - "umap.tests.test_umap_ops::test_umap_transform_embedding_stability"
+- reason: GPU fitting intentionally does not validate UMAP options inactive in the legacy pipeline
+  marker: cuml_accel_inactive_option_validation
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[1]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[3.0]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[3]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[5]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[True]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[-1.0]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[0.0]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[1]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[True]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[inf]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[nan]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_non_boolean_coarsen_on_layout_weights"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_coarse_layout_weights"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_initialization_rescaling[1]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_initialization_rescaling[None]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_initialization_rescaling[unknown]"
 - reason: Legacy pickle test inspects private layout state; update also requires a CPU neighbor-search index unavailable after GPU conversion
   marker: cuml_accel_legacy_pickle_update
   condition: umap-learn>=0.6.0
