@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # This script runs all scikit-learn examples with the cuml.accel plugin.
@@ -33,7 +33,7 @@ PYTHONPATH="${THIS_DIRECTORY}:${PYTHONPATH:-}" \
 pytest -p example_collector -p cuml.accel \
     "${SKLEARN_REPO}/examples" \
     --rootdir="${THIS_DIRECTORY}" \
-    --config-file="${THIS_DIRECTORY}/../pytest.ini" \
+    --config-file="${THIS_DIRECTORY}/../pytest-upstream.ini" \
     --xfail-list="${THIS_DIRECTORY}/xfail-examples.yaml" \
     --examples-dir="${SKLEARN_REPO}/examples" \
     "$@"

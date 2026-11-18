@@ -90,6 +90,167 @@ def test_suite_defaults_and_overrides(repo, suite):
     assert "1 passed" in result.stdout
 
 
+@pytest.fixture
+def upstream_repo(repo):
+    # Exercise the actual xfail plugin without importing GPU dependencies.
+    accel = repo / "cuml/accel"
+    accel.mkdir(parents=True)
+    (repo / "cuml/__init__.py").touch()
+    (accel / "core.py").write_text("def install(): pass\n")
+    shutil.copy(REPO / "python/cuml/cuml/accel/pytest_plugin.py", accel)
+    (accel / "__init__.py").write_text(
+        "from .core import install\n"
+        "from .pytest_plugin import (pytest_addoption, "
+        "pytest_collection_modifyitems, pytest_load_initial_conftests)\n"
+    )
+    upstream = repo / "python/cuml/cuml_accel_tests/upstream"
+    (upstream / "scikit-learn").mkdir(parents=True)
+    shutil.copy(
+        REPO / "python/cuml/cuml_accel_tests/upstream/pytest-upstream.ini",
+        upstream,
+    )
+    (upstream / "scikit-learn/xfail-list.yaml").write_text(
+        "- reason: known failure\n  marker: known\n  tests:\n"
+        "    - sklearn.tests.test_sample::test_failure\n"
+        "    - sklearn.tests.test_other::test_failure\n"
+    )
+    tests = repo / "sklearn/tests"
+    tests.mkdir(parents=True)
+    (tests.parent / "__init__.py").touch()
+    (tests / "__init__.py").touch()
+    (tests / "test_sample.py").write_text(
+        "def test_failure(): assert False\ndef test_pass(): pass\n"
+    )
+    (tests / "test_other.py").write_text("def test_failure(): assert False\n")
+    (repo / "python/cuml/tests/conftest.py").write_text(
+        "raise AssertionError('standard suite must not load for upstream')\n"
+    )
+    metadata = repo / "umap_learn-0.0.1.dist-info"
+    metadata.mkdir()
+    (metadata / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: umap-learn\nVersion: 0.0.1\n"
+    )
+    return repo
+
+
+def git(checkout, *args):
+    return subprocess.run(
+        ["git", "-C", str(checkout), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def prepare_umap_git(checkout):
+    git(checkout, "init")
+    git(checkout, "add", ".")
+    git(
+        checkout,
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-m",
+        "Test sources",
+    )
+    git(checkout, "tag", "release-0.0.1")
+
+
+@pytest.mark.parametrize(
+    "selection", [(), ("-k", "test_pass"), ("-m", "known")]
+)
+def test_upstream_default_collection(upstream_repo, selection):
+    result = run(
+        upstream_repo,
+        "--cuml-suite=accel/sklearn",
+        *selection,
+    )
+    assert result.returncode == 0, result.stdout
+    if selection[:1] == ("-k",):
+        assert "1 passed" in result.stdout
+    else:
+        assert "2 xfailed" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "sklearn.tests.test_sample",
+        "sklearn/tests/test_sample.py::test_failure",
+    ],
+)
+def test_upstream_focused_collection(upstream_repo, target):
+    result = run(
+        upstream_repo, "--cuml-suite=accel/sklearn", "--pyargs", target
+    )
+    assert result.returncode == 0, result.stdout
+    assert "1 xfailed" in result.stdout
+    result = run(
+        upstream_repo,
+        "--cuml-suite=accel/sklearn",
+        "--pyargs",
+        target,
+        "--strict-xfail-list",
+    )
+    assert result.returncode != 0, result.stdout
+    assert "UnmatchedXfailTests" in result.stdout
+
+
+def test_upstream_full_collection_rejects_stale_xfail(upstream_repo):
+    path = (
+        upstream_repo
+        / "python/cuml/cuml_accel_tests/upstream/scikit-learn/xfail-list.yaml"
+    )
+    path.write_text(
+        path.read_text() + "    - sklearn.tests.test_gone::test_gone\n"
+    )
+    result = run(upstream_repo, "--cuml-suite=accel/sklearn")
+    assert result.returncode != 0, result.stdout
+    assert "UnmatchedXfailTests" in result.stdout
+
+
+def test_upstream_keeps_legacy_long_parameter_ids(upstream_repo):
+    text = "x" * 1000
+    test = upstream_repo / "sklearn/tests/test_long.py"
+    test.write_text(
+        f"import pytest\n@pytest.mark.parametrize('value', [{text!r}])\n"
+        "def test_long(value): pass\n"
+    )
+    result = run(
+        upstream_repo,
+        "--cuml-suite=accel/sklearn",
+        "--pyargs",
+        "sklearn.tests.test_long",
+        "--collect-only",
+        "-q",
+    )
+    assert result.returncode == 0, result.stdout
+    assert f"test_long[{text}]" in result.stdout
+
+
+def test_umap_sources_do_not_load_parent_conftest(upstream_repo):
+    upstream = upstream_repo / "python/cuml/cuml_accel_tests/upstream"
+    directory = upstream / "umap"
+    tests = directory / "umap-upstream/umap/tests"
+    tests.mkdir(parents=True)
+    (tests.parent / "__init__.py").touch()
+    (tests / "__init__.py").touch()
+    (tests / "conftest.py").write_text("pytest_plugins = ['suite_plugin']\n")
+    (tests / "test_sample.py").write_text("def test_sample(): pass\n")
+    (directory / "xfail-list.yaml").write_text("[]\n")
+    parent = upstream.parent / "conftest.py"
+    parent.write_text("raise AssertionError('parent suite must not load')\n")
+    prepare_umap_git(directory / "umap-upstream")
+    for selection in [(), (str(tests / "test_sample.py"),)]:
+        result = run(upstream_repo, "--cuml-suite=accel/umap", *selection)
+        assert result.returncode == 0, result.stdout
+        assert "1 passed" in result.stdout
+
+
 def test_explicit_dask_not_ignored(repo):
     result = run(repo, "python/cuml/tests/dask")
     assert result.returncode == 0, result.stdout
