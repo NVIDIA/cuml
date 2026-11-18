@@ -15,6 +15,7 @@ jobs:
       - check-nightly-ci
       - changed-files
       - checks
+      - local-runner-tests
       - clang-tidy
       - conda-cpp-build
       - conda-cpp-tests
@@ -286,6 +287,22 @@ jobs:
       # Main builds seed this cache. PR merge refs can restore it but should not create
       # duplicate archives that are inaccessible to other PRs.
       pre-commit-cache-read-only: true
+  local-runner-tests:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+      pull-requests: read
+    secrets: inherit # zizmor: ignore[secrets-inherit]
+    uses: rapidsai/shared-workflows/.github/workflows/custom-job.yaml@main
+    with:
+      build_type: pull-request
+      node_type: "cpu8"
+      arch: "amd64"
+      container_image: "rapidsai/ci-conda:27.02-latest"
+      script: "ci/test_local_runners.sh"
+      artifact-name: local-runner-tests
   clang-tidy:
     needs: checks
     permissions:
