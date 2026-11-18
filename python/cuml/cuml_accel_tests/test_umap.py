@@ -86,6 +86,22 @@ def test_umap_new_options_fall_back(data, params):
         assert model.get_params()[key] == value
 
 
+@pytest.mark.parametrize("n_jobs", [0, -2])
+def test_umap_invalid_n_jobs(data, n_jobs):
+    model = UMAP(n_jobs=n_jobs)
+    with pytest.raises(ValueError, match="n_jobs"):
+        model.fit(data)
+    assert model._gpu is None
+
+
+@pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6")
+def test_umap_invalid_neighbor_backend(data):
+    model = UMAP(nearest_neighbor_backend="unknown")
+    with pytest.raises(ValueError, match="nearest_neighbor_backend"):
+        model.fit(data)
+    assert model._gpu is None
+
+
 @pytest.mark.parametrize("sparse_input", [False, True])
 def test_umap_cpu_gpu_hash_roundtrip(data, sparse_input):
     X = sparse.csr_matrix(data) if sparse_input else data
