@@ -267,19 +267,6 @@ pytest --cuml-suite=cudf-pandas     # Standard tests with cudf.pandas
 Explicit test paths retain the selected suite's execution configuration.
 Add `--quick_run` to reduce parameter combinations for a shorter correctness run.
 
-#### Test-runner regression tests
-
-The runner regression tests run in the dedicated `local-runner-tests` CPU job
-on every PR CI run, independently of cuML builds. JUnit results are retained in
-the job's additional artifacts, including on test failure. Run them locally with:
-
-```bash
-python -m pytest ci/tests
-```
-
-Some tests require `xgboost`. If using a conda devcontainer, install the `xgboost`
-conda package manually; see `dependencies.yaml` for version information.
-
 ## Python-defined kernels
 
 When writing a kernel in python, prefer using the functionality provided by
