@@ -40,6 +40,11 @@
   - "umap.tests.test_umap_on_iris::test_precomputed_sparse_transform_on_iris"
   - "umap.tests.test_umap_on_iris::test_precomputed_transform_on_iris"
   - "umap.tests.test_umap_ops::test_umap_transform_embedding_stability"
+- reason: Legacy pickle test inspects private layout state; update also requires a CPU neighbor-search index unavailable after GPU conversion
+  marker: cuml_accel_legacy_pickle_update
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_layout_policy::test_models_pickled_before_0_6_still_transform_and_update"
 - reason: UMAP using removed numpy function `in1d`
   marker: cuml_accel_no_numpy_in1d
   condition: umap-learn<=0.5.7 and numpy>=2.4
@@ -59,6 +64,7 @@
   - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs4-expected4]"
   - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs5-expected5]"
   - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs6-expected6]"
+  - "umap.tests.test_layout_policy::test_unfitted_legacy_pickle_resolves_on_fit"
 - reason: Test fails with newer sklearn
   marker: cuml_accel_sklearn_pin
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
