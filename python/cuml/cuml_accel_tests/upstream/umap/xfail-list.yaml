@@ -49,6 +49,13 @@
   condition: umap-learn>=0.6.0
   tests:
   - "umap.tests.test_layout_policy::test_models_pickled_before_0_6_still_transform_and_update"
+- reason: cuml.accel UMAP proxies do not implement model-combination operators (*, +, -)
+  marker: cuml_accel_model_combination
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_composite_models::test_composite_densmap_models[add]"
+  - "umap.tests.test_composite_models::test_composite_densmap_models[mul]"
+  - "umap.tests.test_composite_models::test_composite_densmap_models[sub]"
 - reason: Mutating embedding_ switches to CPU, but the GPU-converted model has no neighbor-search index for transforming new data
   marker: cuml_accel_mutated_embedding_transform
   condition: umap-learn>=0.6.0
