@@ -268,6 +268,22 @@ Explicit files or directories replace the suite's default selection, so passing
 `python/cuml/tests` also includes its Dask subdirectory. The selected suite's
 execution configuration still applies.
 
+#### Upstream tests with cuml.accel
+
+Upstream suites enable acceleration and apply the accepted xfails:
+
+```bash
+pytest --cuml-suite=accel/sklearn -k kmeans
+pytest --cuml-suite=accel/sklearn --pyargs sklearn.cluster.tests.test_k_means
+pytest --cuml-suite=accel/hdbscan
+pytest --cuml-suite=accel/umap --cuml-fetch-upstream
+```
+
+UMAP requires a source checkout. `--cuml-fetch-upstream` permits downloading
+missing sources; existing checkouts are not updated automatically. See the
+[upstream guide](https://github.com/NVIDIA/cuml/blob/main/python/cuml/cuml_accel_tests/upstream/README.md)
+for source preparation, explicit source paths, and xfail-list validation.
+
 ## Python-defined kernels
 
 When writing a kernel in python, prefer using the functionality provided by
