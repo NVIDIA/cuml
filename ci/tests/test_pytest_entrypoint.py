@@ -167,6 +167,7 @@ def test_upstream_default_collection(upstream_repo, selection):
     result = run(
         upstream_repo,
         "--cuml-suite=accel/sklearn",
+        "--cuml-fetch-upstream",
         *selection,
     )
     assert result.returncode == 0, result.stdout
@@ -249,6 +250,121 @@ def test_umap_sources_do_not_load_parent_conftest(upstream_repo):
         result = run(upstream_repo, "--cuml-suite=accel/umap", *selection)
         assert result.returncode == 0, result.stdout
         assert "1 passed" in result.stdout
+
+
+@pytest.mark.parametrize("missing_tag", [False, True])
+def test_umap_automatic_checkout(upstream_repo, tmp_path, missing_tag):
+    remote = tmp_path / "remote"
+    tests = remote / "umap/tests"
+    tests.mkdir(parents=True)
+    (tests.parent / "__init__.py").touch()
+    (tests / "__init__.py").touch()
+    (tests / "test_sample.py").write_text("def test_sample(): pass\n")
+    prepare_umap_git(remote)
+    if missing_tag:
+        git(remote, "tag", "-d", "release-0.0.1")
+    directory = upstream_repo / "python/cuml/cuml_accel_tests/upstream/umap"
+    directory.mkdir(parents=True)
+    (directory / "xfail-list.yaml").write_text("[]\n")
+    config = tmp_path / "gitconfig"
+    config.write_text(
+        f'[url "{remote.as_uri()}"]\n'
+        "    insteadOf = https://github.com/lmcinnes/umap.git\n"
+    )
+    env = {"GIT_CONFIG_GLOBAL": str(config), "GIT_CONFIG_NOSYSTEM": "1"}
+    # Help must not trigger network access or source preparation.
+    result = run(
+        upstream_repo,
+        "--cuml-suite=accel/umap",
+        "--cuml-fetch-upstream",
+        "--help",
+        env=env,
+    )
+    assert result.returncode == 0, result.stdout
+    assert not (directory / "umap-upstream").exists()
+    result = run(upstream_repo, "--cuml-suite=accel/umap", env=env)
+    assert result.returncode == 4, result.stdout
+    assert "--cuml-fetch-upstream" in result.stdout
+    assert "Obtaining UMAP" not in result.stdout
+    assert not (directory / "umap-upstream").exists()
+    result = run(
+        upstream_repo,
+        "--cuml-suite=accel/umap",
+        "--cuml-fetch-upstream",
+        env=env,
+    )
+    checkout = directory / "umap-upstream"
+    if missing_tag:
+        assert result.returncode == 4, result.stdout
+        assert "Could not obtain UMAP sources" in result.stdout
+        assert "prepare-tests.sh" in result.stdout
+        assert "/path/to/umap-checkout/umap/tests" in result.stdout
+        assert not checkout.exists()
+    else:
+        assert result.returncode == 0, result.stdout
+        assert "1 passed" in result.stdout
+        assert git(checkout, "rev-parse", "HEAD") == git(
+            remote, "rev-parse", "HEAD"
+        )
+        # An existing valid clone is reusable without access to the remote.
+        shutil.rmtree(remote)
+        for opt_in in [(), ("--cuml-fetch-upstream",)]:
+            result = run(
+                upstream_repo, "--cuml-suite=accel/umap", *opt_in, env=env
+            )
+            assert result.returncode == 0, result.stdout
+    assert not list(directory.glob(".umap-checkout-*"))
+
+
+@pytest.mark.parametrize(
+    "state", ["wrong-revision", "missing-tag", "dirty", "not-git"]
+)
+def test_umap_invalid_managed_sources_and_explicit_override(
+    upstream_repo, state
+):
+    directory = upstream_repo / "python/cuml/cuml_accel_tests/upstream/umap"
+    checkout = directory / "umap-upstream"
+    tests = checkout / "umap/tests"
+    tests.mkdir(parents=True)
+    (tests.parent / "__init__.py").touch()
+    (tests / "__init__.py").touch()
+    test = tests / "test_sample.py"
+    test.write_text("def test_sample(): pass\n")
+    (directory / "xfail-list.yaml").write_text("[]\n")
+    if state != "not-git":
+        prepare_umap_git(checkout)
+        if state == "missing-tag":
+            git(checkout, "tag", "-d", "release-0.0.1")
+        else:
+            test.write_text("def test_sample(): assert True\n")
+            if state == "wrong-revision":
+                git(checkout, "add", ".")
+                git(
+                    checkout,
+                    "-c",
+                    "user.name=Test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-m",
+                    "Modified sources",
+                )
+    result = run(upstream_repo, "--cuml-suite=accel/umap")
+    assert result.returncode == 4, result.stdout
+    assert "prepare-tests.sh" not in result.stdout
+    if state != "dirty":
+        assert "release-0.0.1" in result.stdout
+    # Explicit paths are an intentional escape hatch, even for modified sources.
+    result = run(
+        upstream_repo,
+        "--cuml-suite=accel/umap",
+        "--cuml-fetch-upstream",
+        str(test),
+    )
+    assert result.returncode == 0, result.stdout
+    assert "1 passed" in result.stdout
 
 
 def test_explicit_dask_not_ignored(repo):

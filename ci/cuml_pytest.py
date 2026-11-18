@@ -4,7 +4,11 @@
 """Repository-local pytest defaults, shared by developers and CI adapters."""
 
 import copy
+from importlib.metadata import version
 from pathlib import Path
+import shlex
+import subprocess
+from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -14,6 +18,14 @@ PYTHON = REPO / "python/cuml"
 
 def pytest_addoption(parser):
     group = parser.getgroup("cuML options")
+    group.addoption(
+        "--cuml-fetch-upstream",
+        action="store_true",
+        help=(
+            "Allow downloading missing upstream test sources (currently accel/umap). "
+            "Existing checkouts are not updated."
+        ),
+    )
     group.addoption(
         "--cuml-suite",
         choices=(
@@ -112,7 +124,9 @@ def _configure_upstream(config, parser, args, options):
         args.append(f"--confcutdir={upstream}")
     if not options.file_or_dir:
         if suite == "umap":
-            tests = _validated_umap_tests(directory)
+            tests = _validated_umap_tests(
+                directory, fetch=options.cuml_fetch_upstream
+            )
             args.append(str(tests))
         else:
             args.extend(
@@ -126,12 +140,109 @@ def _configure_upstream(config, parser, args, options):
         args.append("--strict-xfail-list")
 
 
-def _validated_umap_tests(directory):
-    tests = directory / "umap-upstream/umap/tests"
+def _validated_umap_tests(directory, *, fetch=False):
+    """Obtain missing managed sources, then validate without overwriting them."""
+    installed_version = version("umap-learn")
+    tag = f"release-{installed_version}"
+    checkout = directory / "umap-upstream"
+    tests = checkout / "umap/tests"
+    prepare = shlex.quote(str(directory / "prepare-tests.sh"))
+    config = shlex.quote(str(REPO / "pyproject.toml"))
+    guidance = (
+        "\nAllow pytest to obtain missing sources:\n"
+        f"  pytest -c {config} --cuml-suite=accel/umap --cuml-fetch-upstream\n"
+        f"Or prepare sources matching UMAP {installed_version} manually:\n"
+        f"  {prepare}\n"
+        "Then retry (from any working directory):\n"
+        f"  pytest -c {config} --cuml-suite=accel/umap\n"
+        "Or use an existing or modified checkout explicitly:\n"
+        f"  pytest -c {config} --cuml-suite=accel/umap /path/to/umap-checkout/umap/tests\n"
+        "Existing checkouts are never reset or overwritten automatically."
+    )
+    if not checkout.exists() and fetch:
+        _checkout_umap(directory, checkout, tag, guidance)
     if not tests.is_dir():
         raise pytest.UsageError(
-            f"UMAP test sources not found at {tests}. "
-            f"Run {directory / 'prepare-tests.sh'} to obtain matching sources, "
-            "or pass an explicit test-source path."
+            f"UMAP test sources not found at {tests}.{guidance}"
+        )
+
+    def revision(ref):
+        result = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "--verify", ref],
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+
+    try:
+        head = revision("HEAD")
+        expected = revision(f"refs/tags/{tag}^{{commit}}")
+    except OSError as exc:
+        raise pytest.UsageError(
+            f"Cannot validate UMAP sources: {exc}."
+        ) from exc
+    if head is None or expected is None or head != expected:
+        raise pytest.UsageError(
+            f"UMAP sources at {checkout} do not match installed UMAP "
+            f"{installed_version}: expected tag {tag} "
+            f"({expected or 'not found'}), HEAD is {head or 'not found'}."
+        )
+    dirty = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(checkout),
+            "status",
+            "--porcelain",
+            "--untracked-files=no",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if dirty.returncode != 0 or dirty.stdout.strip():
+        raise pytest.UsageError(
+            f"Managed UMAP sources at {checkout} have local changes or cannot "
+            "be inspected. Use an explicit test path to test modified sources."
         )
     return tests
+
+
+def _checkout_umap(directory, checkout, tag, guidance):
+    """Publish only complete clones; failures leave no partial managed checkout."""
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        with TemporaryDirectory(
+            prefix=".umap-checkout-", dir=directory
+        ) as tmp:
+            source = Path(tmp) / "source"
+            print(
+                f"Obtaining UMAP test sources at {tag} from GitHub...",
+                flush=True,
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--depth=1",
+                    "--branch",
+                    tag,
+                    "https://github.com/lmcinnes/umap.git",
+                    str(source),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            try:
+                source.rename(checkout)
+            except OSError:
+                # Another pytest process (e.g. an xdist worker) may have
+                # published a complete clone first. Validate that copy below.
+                if not checkout.exists():
+                    raise
+    except (OSError, subprocess.SubprocessError) as exc:
+        detail = getattr(exc, "stderr", None) or str(exc)
+        raise pytest.UsageError(
+            f"Could not obtain UMAP sources for {tag}: {detail}{guidance}"
+        ) from exc
