@@ -235,6 +235,30 @@ def test_umap_simulated_legacy_fitted(data, sparse_input):
     )
 
 
+def test_umap_inverse_transform_outside_hull(data):
+    model = UMAP(n_epochs=30, n_jobs=1, random_state=42).fit(data)
+    embedding = model.embedding_
+    query = np.max(embedding, axis=0) + 10 * np.ptp(embedding, axis=0)
+    with profile(quiet=True) as results:
+        with pytest.warns(
+            UserWarning, match="outside the embedding convex hull"
+        ):
+            inverse = model.inverse_transform(query.reshape(1, -1))
+    assert inverse.shape == (1, data.shape[1])
+    assert np.isfinite(inverse).all()
+    stats = results.method_calls["UMAP.inverse_transform"]
+    assert stats.gpu_calls == 1
+    assert stats.cpu_calls == 0
+
+
+@pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6")
+def test_umap_inverse_transform_wrong_dimension(data):
+    model = UMAP(n_epochs=30, n_jobs=1, random_state=42).fit(data)
+    assert model._gpu is not None
+    with pytest.raises(ValueError, match="same number of dimensions"):
+        model.inverse_transform(np.zeros((1, 3), dtype="float32"))
+
+
 @pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6 migration")
 def test_umap_simulated_legacy_inverse_transform(data):
     cpu = UMAP._cpu_class(

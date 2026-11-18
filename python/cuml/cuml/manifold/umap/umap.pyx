@@ -180,6 +180,12 @@ def _compute_inverse_neighborhoods(embedding_np, X_np, min_vertices):
             axis=2,
         )
         start_vertices[out_of_hull_mask] = np.argmin(dists, axis=1)
+        warnings.warn(
+            f"{np.sum(out_of_hull_mask)} inverse-transform point(s) lie outside "
+            "the embedding convex hull; using nearest-vertex extrapolation.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     # Build adjacency matrix from simplices
     simplices = deltri.simplices
@@ -1665,6 +1671,8 @@ class UMAP(
         n_samples = X.shape[0]
         if X.shape[1] != self.n_components:
             raise ValueError(
+                "Inverse transform input must have the same number of dimensions "
+                "as the fitted embedding. "
                 f"X has {X.shape[1]} components, but UMAP is expecting "
                 f"{self.n_components} components as input"
             )
