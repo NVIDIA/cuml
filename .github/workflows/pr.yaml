@@ -410,7 +410,7 @@ jobs:
       # Select the amd64 entry with the highest CUDA and Python version
       matrix_filter: map(select(.ARCH=="amd64")) | [max_by([.CUDA_VER,.PY_VER]|map(split(".")|map(tonumber)))]
       build_type: pull-request
-      script: "ci/test_python_integration.sh"
+      script: "ci/test_python_cudf_pandas.sh"
       matrix_type: pull-request
   conda-python-tests-dask:
     needs: [conda-python-build, changed-files]
@@ -440,7 +440,7 @@ jobs:
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_conda
     with:
       build_type: pull-request
-      script: "ci/test_python_scikit_learn_tests.sh"
+      script: "ci/test_python_cuml_accel_sklearn.sh"
       # One run for each dependencies config on amd64, breaking ties by highest Python version
       matrix_filter: |
         (
@@ -468,7 +468,7 @@ jobs:
     if: fromJSON(needs.changed-files.outputs.changed_file_groups).test_python_conda
     with:
       build_type: pull-request
-      script: "ci/test_python_cuml_accel_upstream.sh"
+      script: "ci/test_python_cuml_accel_umap.sh"
       # One run for each dependencies config on amd64, breaking ties by highest Python version
       matrix_filter: map(select(.ARCH == "amd64")) | sort_by(.PY_VER) | unique_by(.DEPENDENCIES)
       matrix_type: pull-request

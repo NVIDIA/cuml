@@ -13,7 +13,7 @@ rapids-logger "Running scikit-learn tests with cuML acceleration"
 # Do not immediately exit on error
 set +e
 
-timeout -v --signal=SIGINT --kill-after=60s 1h ./python/cuml/cuml_accel_tests/upstream/scikit-learn/run-tests.sh \
+timeout -v --signal=SIGINT --kill-after=60s 1h python -m pytest --cuml-suite=accel/sklearn \
     --numprocesses=8 \
     --dist=worksteal \
     --durations=100 --durations-min=1 \

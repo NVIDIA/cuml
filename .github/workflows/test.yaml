@@ -102,7 +102,7 @@ jobs:
       branch: ${{ inputs.branch }}
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
-      script: "ci/test_python_scikit_learn_tests.sh"
+      script: "ci/test_python_cuml_accel_sklearn.sh"
       # Select amd64 and one job per major CUDA version with the latest CUDA and Python versions
       # Add an "intermediate" entry based on the "oldest" entry
       matrix_filter: |
@@ -132,7 +132,7 @@ jobs:
       branch: ${{ inputs.branch }}
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
-      script: "ci/test_python_cuml_accel_upstream.sh"
+      script: "ci/test_python_cuml_accel_umap.sh"
       # Select amd64 and one job per major CUDA version with the latest CUDA and Python versions
       matrix_filter: map(select(.ARCH == "amd64")) | group_by(.CUDA_VER|split(".")|map(tonumber)|.[0]) | map(max_by([.CUDA_VER,.PY_VER]|map(split(".")|map(tonumber))))
       matrix_type: nightly
@@ -150,7 +150,7 @@ jobs:
       branch: ${{ inputs.branch }}
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
-      script: "ci/test_python_sklearn_examples.sh"
+      script: "ci/test_python_cuml_accel_sklearn_examples.sh"
       # Select amd64 and one job per major CUDA version with the latest CUDA and Python versions
       matrix_filter: map(select(.ARCH == "amd64")) | group_by(.CUDA_VER|split(".")|map(tonumber)|.[0]) | map(max_by([.CUDA_VER,.PY_VER]|map(split(".")|map(tonumber))))
       matrix_type: nightly
