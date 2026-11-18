@@ -32,6 +32,11 @@
   - "umap.tests.test_umap_validation_params::test_umap_non_integer_n_components"
   - "umap.tests.test_umap_validation_params::test_umap_too_large_op"
   - "umap.tests.test_umap_validation_params::test_umap_too_many_neighbors_warns"
+- reason: Test requires bit-identical transforms between CPU fallback for list n_epochs and GPU execution for integer n_epochs
+  marker: cuml_accel_cross_backend_equality
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_on_iris::test_umap_transforms_with_n_epochs_list_on_iris[True]"
 - reason: Tests are flaky
   marker: cuml_accel_flaky
   strict: false
