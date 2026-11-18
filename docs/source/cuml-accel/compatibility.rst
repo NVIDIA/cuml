@@ -638,11 +638,11 @@ UMAP
    ``UMAP`` will fall back to CPU in the following cases:
 
    - If ``init`` is neither ``"random"`` nor ``"spectral"``, unless it is
-     ``"auto"`` resolving to ``"spectral"`` in UMAP 0.6.
+     ``"auto"`` resolving to ``"spectral"`` with UMAP 0.6.
    - If ``compatibility_layout`` is ``False`` or ``optimizer`` is ``"adam"``
-     or ``"momentum"`` in UMAP 0.6.
+     or ``"momentum"`` with UMAP 0.6.
    - If ``nearest_neighbor_backend`` is neither ``"auto"`` nor ``"pynndescent"``
-     in UMAP 0.6.
+     with UMAP 0.6.
    - If ``metric`` is not one of ``"l1"``, ``"cityblock"``,
      ``"taxicab"``, ``"manhattan"``, ``"euclidean"``, ``"l2"``, ``"sqeuclidean"``,
      ``"canberra"``, ``"minkowski"``, ``"chebyshev"``, ``"linf"``, ``"cosine"``,
