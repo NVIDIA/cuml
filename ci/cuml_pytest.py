@@ -47,7 +47,9 @@ def pytest_load_initial_conftests(early_config, parser, args):
     if not options.file_or_dir:
         args.append(str(targets[suite]))
         if suite in ("standard", "cudf-pandas"):
-            args.append(f"--ignore={PYTHON / 'tests/dask'}")
+            # Options must precede --, which makes all following args targets.
+            index = args.index("--") if "--" in args else len(args)
+            args.insert(index, f"--ignore={PYTHON / 'tests/dask'}")
     if suite == "cudf-pandas":
         early_config.pluginmanager.import_plugin("cudf.pandas")
         from cudf.pandas import install

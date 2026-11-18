@@ -53,7 +53,16 @@ def run(repo, *args, cwd=None, env=None):
     )
 
 
-@pytest.mark.parametrize("args", [(), ("-k", "selected"), ("-m", "not slow")])
+@pytest.mark.parametrize(
+    "args",
+    [
+        (),
+        ("-k", "selected"),
+        ("-m", "not slow"),
+        ("--",),
+        ("-k", "selected", "--"),
+    ],
+)
 def test_default_suite(repo, args):
     result = run(repo, "--collect-only", "-q", *args)
     assert result.returncode == 0, result.stdout
@@ -90,7 +99,8 @@ def test_suite_defaults_and_overrides(repo, suite):
     assert "1 passed" in result.stdout
 
 
-def test_explicit_dask_not_ignored(repo):
-    result = run(repo, "python/cuml/tests/dask")
+@pytest.mark.parametrize("separator", [(), ("--",)])
+def test_explicit_dask_not_ignored(repo, separator):
+    result = run(repo, *separator, "python/cuml/tests/dask")
     assert result.returncode == 0, result.stdout
     assert "2 passed" in result.stdout
