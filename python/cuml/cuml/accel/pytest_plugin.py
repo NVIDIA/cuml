@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -36,6 +36,11 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
 def pytest_addoption(parser):
     """Add command line option for xfail list file."""
+    parser.addoption(
+        "--strict-xfail-list",
+        action="store_true",
+        help="Validate every active xfail entry (requires full suite collection)",
+    )
     parser.addoption(
         "--xfail-list",
         action="store",
@@ -91,6 +96,7 @@ def pytest_collection_modifyitems(config, items):
     # pytest is only needed when running tests.
     import pytest
 
+    strict_xfail_list = config.getoption("strict_xfail_list")
     xfail_list_path = config.getoption("xfail_list")
     if not xfail_list_path:
         return
@@ -172,7 +178,7 @@ def pytest_collection_modifyitems(config, items):
         if any(config["condition"] for config in configs)
     }
     missing_tests = expected_tests - found_xfail_tests
-    if missing_tests:
+    if strict_xfail_list and missing_tests:
         missing_list = sorted(missing_tests)
         print("Did not find the following test ids:")
         print("\n".join(missing_list))
@@ -181,3 +187,9 @@ def pytest_collection_modifyitems(config, items):
             f"Found {len(missing_list)} xfail entries that don't match any present tests",
             category=UnmatchedXfailTests,
         )
+
+
+# Equivalent to @pytest.hookimpl(tryfirst=True), without importing the optional
+# pytest dependency when users import cuml.accel. Mark xfails and validate full
+# collection before pytest applies -k/-m deselection (including xfail markers).
+pytest_collection_modifyitems.pytest_impl = {"tryfirst": True}

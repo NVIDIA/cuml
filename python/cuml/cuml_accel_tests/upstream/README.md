@@ -1,37 +1,94 @@
 # Upstream Acceleration Tests
 
-This directory contains wrappers for running upstream project test suites under
-`cuml.accel`. Each upstream integration has a wrapper script under
-`python/cuml/cuml_accel_tests/upstream/<suite>/`, and pytest arguments passed to
-the wrapper are forwarded to pytest.
+Run upstream project tests with `cuml.accel` directly through pytest. From the
+repository root, in an active development environment:
+
+```bash
+pytest --cuml-suite=accel/sklearn
+pytest --cuml-suite=accel/sklearn -k kmeans
+pytest --cuml-suite=accel/sklearn --pyargs sklearn.cluster.tests.test_k_means
+pytest --cuml-suite=accel/hdbscan
+```
+
+The option selects acceleration, upstream warning policy, and the official
+xfail list. Explicit targets replace the default suite; `-k` and `-m` filter
+after collection. Paths and output filenames remain relative to the caller.
+These commands do not install packages. UMAP can obtain missing test sources
+with `--cuml-fetch-upstream` as described below; sklearn and HDBSCAN use their
+installed tests.
+
+The examples runner is separate and provisions its own source checkout.
 
 Most test suites use a suite-local `xfail-list.yaml` file. The scikit-learn
 examples runner is separate from the scikit-learn test-suite runner: it collects
 example scripts as pytest tests and uses `scikit-learn/xfail-examples.yaml`.
 
-Run commands below from `python/cuml/cuml_accel_tests/upstream` in an environment
+Run commands below from the repository root in an environment
 where `cuml.accel` and the target upstream package are importable.
 
 ## Run upstream tests
 
 ```bash
-./scikit-learn/run-tests.sh --junitxml=report-sklearn.xml
-./umap/run-tests.sh --junitxml=report-umap.xml
-./hdbscan/run-tests.sh --junitxml=report-hdbscan.xml
-./scikit-learn/run-examples.sh --junitxml=report-sklearn-examples.xml
+pytest --cuml-suite=accel/sklearn --junitxml=report-sklearn.xml
+pytest --cuml-suite=accel/umap --cuml-fetch-upstream --junitxml=report-umap.xml
+pytest --cuml-suite=accel/hdbscan --junitxml=report-hdbscan.xml
+./python/cuml/cuml_accel_tests/upstream/scikit-learn/run-examples.sh --junitxml=report-sklearn-examples.xml
 ```
 
-Available runners:
+Available suites:
 
-| Suite | Runner | Xfail file |
+| Suite | Selection or runner | Xfail file |
 | ----- | ------ | ---------- |
-| scikit-learn tests | `scikit-learn/run-tests.sh` | `scikit-learn/xfail-list.yaml` |
-| UMAP tests | `umap/run-tests.sh` | `umap/xfail-list.yaml` |
-| HDBSCAN tests | `hdbscan/run-tests.sh` | `hdbscan/xfail-list.yaml` |
+| scikit-learn tests | `--cuml-suite=accel/sklearn` | `scikit-learn/xfail-list.yaml` |
+| UMAP tests | `--cuml-suite=accel/umap` | `umap/xfail-list.yaml` |
+| HDBSCAN tests | `--cuml-suite=accel/hdbscan` | `hdbscan/xfail-list.yaml` |
 | scikit-learn examples | `scikit-learn/run-examples.sh` | `scikit-learn/xfail-examples.yaml` |
 
-The UMAP and scikit-learn examples runners clone the matching upstream project
-tag into their suite directory when needed.
+UMAP does not ship its tests in the installed package. To allow pytest to obtain
+missing sources, opt in explicitly:
+
+```bash
+pytest --cuml-suite=accel/umap --cuml-fetch-upstream
+```
+
+Without the flag, missing sources produce a usage error with setup guidance.
+With the flag, pytest shallow-clones the matching `release-<installed UMAP version>`
+tag from GitHub into `umap/umap-upstream`. This requires Git and network access.
+Existing valid checkouts are reused offline, even with the flag.
+
+Pytest checks that an existing default checkout is at the matching tag and has
+no tracked local changes. It does not reset or update existing checkouts. To
+prepare sources in advance or update them after changing the installed version,
+run the explicit preparation script (from the repository root):
+
+```bash
+./python/cuml/cuml_accel_tests/upstream/umap/prepare-tests.sh
+pytest --cuml-suite=accel/umap
+```
+
+The preparation script fetches tags and checks out the matching release. Unlike
+pytest, it explicitly changes the checkout. Automatic setup failures include
+manual preparation and explicit-source commands.
+
+To test another checkout or modified sources, pass its test path explicitly:
+
+```bash
+pytest --cuml-suite=accel/umap /path/to/umap-checkout/umap/tests
+```
+
+Explicit targets bypass managed-checkout validation and do not enable full-list
+xfail validation automatically. Use a compatible source version; the accepted
+xfails still come from this repository.
+
+To run a single file from the managed checkout, specify its path relative to
+your current directory. For example, from the repository root:
+
+```bash
+pytest --cuml-suite=accel/umap python/cuml/cuml_accel_tests/upstream/umap/umap-upstream/umap/tests/test_umap_ops.py
+```
+
+The scikit-learn examples runner still clones the matching upstream project tag
+into its suite directory when needed.
 
 ## CI-like runs
 
@@ -41,7 +98,7 @@ machines because it can spawn too many workers and exhaust GPU memory.
 ### scikit-learn tests
 
 ```bash
-./scikit-learn/run-tests.sh \
+pytest --cuml-suite=accel/sklearn \
     --numprocesses=8 \
     --dist=worksteal \
     --junitxml=report-sklearn.xml
@@ -50,15 +107,15 @@ machines because it can spawn too many workers and exhaust GPU memory.
 CI summarizes this report with the scikit-learn test config:
 
 ```bash
-./summarize-results.py \
-    --config scikit-learn/test_config.yaml \
+./python/cuml/cuml_accel_tests/upstream/summarize-results.py \
+    --config python/cuml/cuml_accel_tests/upstream/scikit-learn/test_config.yaml \
     report-sklearn.xml
 ```
 
 ### scikit-learn examples
 
 ```bash
-./scikit-learn/run-examples.sh \
+./python/cuml/cuml_accel_tests/upstream/scikit-learn/run-examples.sh \
     -vv --durations=0 --durations-min=0 \
     -n 4 --dist worksteal \
     --junitxml=report-sklearn-examples.xml
@@ -67,7 +124,7 @@ CI summarizes this report with the scikit-learn test config:
 ### UMAP tests
 
 ```bash
-./umap/run-tests.sh --junitxml=report-umap.xml
+pytest --cuml-suite=accel/umap --cuml-fetch-upstream --junitxml=report-umap.xml
 ```
 
 The current CI wrapper runs UMAP with a 15-minute outer timeout. Add local pytest
@@ -76,22 +133,21 @@ filters or bounded xdist options as needed while debugging.
 ### HDBSCAN tests
 
 ```bash
-./hdbscan/run-tests.sh --junitxml=report-hdbscan.xml
+pytest --cuml-suite=accel/hdbscan --junitxml=report-hdbscan.xml
 ```
 
-This repository has a local HDBSCAN upstream runner. At the time this README was
-updated, there was no dedicated CI script invoking it.
+HDBSCAN tests can be run locally; there is no dedicated HDBSCAN CI job.
 
-## Debugging runners
+## Debugging tests
 
-All wrappers forward arguments to pytest, so the same basic debugging options
-work across the pytest-based runners:
+Use standard pytest options to debug upstream tests. The examples runner forwards
+these options too:
 
 ```bash
-./scikit-learn/run-tests.sh -k "pattern" --junitxml=report.xml
-./umap/run-tests.sh -x --tb=short --junitxml=report.xml
-./hdbscan/run-tests.sh --runxfail --junitxml=report.xml
-./scikit-learn/run-examples.sh -n 4 --dist worksteal --junitxml=report.xml
+pytest --cuml-suite=accel/sklearn -k "pattern" --junitxml=report.xml
+pytest --cuml-suite=accel/umap -x --tb=short --junitxml=report.xml
+pytest --cuml-suite=accel/hdbscan --runxfail --junitxml=report.xml
+./python/cuml/cuml_accel_tests/upstream/scikit-learn/run-examples.sh -n 4 --dist worksteal --junitxml=report.xml
 ```
 
 Useful options:
@@ -131,7 +187,7 @@ tests. Expected example failures are read from
 To debug expected example failures as ordinary failures:
 
 ```bash
-./scikit-learn/run-examples.sh \
+./python/cuml/cuml_accel_tests/upstream/scikit-learn/run-examples.sh \
     --runxfail \
     --example-timeout=1200 \
     --junitxml=report-sklearn-examples-runxfail.xml
@@ -139,16 +195,16 @@ To debug expected example failures as ordinary failures:
 
 ## Analyze results
 
-Generate a summary from any wrapper's JUnit XML report:
+Generate a summary from a JUnit XML report:
 
 ```bash
-./summarize-results.py -v -f 80 report.xml
+./python/cuml/cuml_accel_tests/upstream/summarize-results.py -v -f 80 report.xml
 ```
 
 View tracebacks for specific failures:
 
 ```bash
-./summarize-results.py --format=traceback -k "logistic" report.xml
+./python/cuml/cuml_accel_tests/upstream/summarize-results.py --format=traceback -k "logistic" report.xml
 ```
 
 Useful `summarize-results.py` options:
@@ -172,7 +228,8 @@ Xfail lists mark tests that are expected to fail. They are used to track known
 issues, manage version-specific failures, and identify tests that are flaky or
 not currently expected to match upstream behavior.
 
-The upstream wrappers pass the relevant xfail file to pytest:
+The suite selector supplies the relevant xfail file; the examples runner supplies
+its separate list:
 
 - `scikit-learn/xfail-list.yaml` for scikit-learn tests.
 - `umap/xfail-list.yaml` for UMAP tests.
@@ -184,7 +241,7 @@ The upstream wrappers pass the relevant xfail file to pytest:
 Generate xfail YAML from a report:
 
 ```bash
-./summarize-results.py --format=xfail_list report.xml > umap/xfail-list.yaml
+./python/cuml/cuml_accel_tests/upstream/summarize-results.py --format=xfail_list report.xml > python/cuml/cuml_accel_tests/upstream/umap/xfail-list.yaml
 ```
 
 Review generated entries before using them. Use `xfail_manager.py` for
@@ -228,27 +285,27 @@ reviewed periodically.
 
 ### Modify an xfail list
 
-Use `xfail_manager.py` from this directory:
+Use `xfail_manager.py` from the repository root:
 
 ```bash
 # Format an xfail list
-./xfail_manager.py format umap/xfail-list.yaml
+./python/cuml/cuml_accel_tests/upstream/xfail_manager.py format python/cuml/cuml_accel_tests/upstream/umap/xfail-list.yaml
 
 # Format the scikit-learn examples xfail file
-./xfail_manager.py format scikit-learn/xfail-examples.yaml
+./python/cuml/cuml_accel_tests/upstream/xfail_manager.py format python/cuml/cuml_accel_tests/upstream/scikit-learn/xfail-examples.yaml
 
 # Set metadata for specific tests
-./xfail_manager.py set hdbscan/xfail-list.yaml \
+./python/cuml/cuml_accel_tests/upstream/xfail_manager.py set python/cuml/cuml_accel_tests/upstream/hdbscan/xfail-list.yaml \
     "hdbscan.tests.test_hdbscan::test_missing_data" \
     --reason "Known issue with missing-data handling"
 
 # Mark an existing test as flaky
-./xfail_manager.py set scikit-learn/xfail-list.yaml \
+./python/cuml/cuml_accel_tests/upstream/xfail_manager.py set python/cuml/cuml_accel_tests/upstream/scikit-learn/xfail-list.yaml \
     "sklearn.tests.test_example::test_flaky" \
     --no-strict
 
 # Add a version condition
-./xfail_manager.py set umap/xfail-list.yaml \
+./python/cuml/cuml_accel_tests/upstream/xfail_manager.py set python/cuml/cuml_accel_tests/upstream/umap/xfail-list.yaml \
     "umap.tests.test_umap_ops::test_new_behavior" \
     --reason "Version-specific upstream behavior" \
     --condition "umap-learn>=0.5.8"
@@ -258,8 +315,8 @@ Before adding tests, check existing reasons and markers so related failures stay
 grouped:
 
 ```bash
-grep "^- reason:" scikit-learn/xfail-list.yaml | sort -u
-grep "marker:" scikit-learn/xfail-list.yaml | sort -u
+grep "^- reason:" python/cuml/cuml_accel_tests/upstream/scikit-learn/xfail-list.yaml | sort -u
+grep "marker:" python/cuml/cuml_accel_tests/upstream/scikit-learn/xfail-list.yaml | sort -u
 ```
 
 ### Version-conditional xfails
@@ -267,12 +324,12 @@ grep "marker:" scikit-learn/xfail-list.yaml | sort -u
 Use `--condition` when failures apply only to specific dependency versions:
 
 ```bash
-./xfail_manager.py set scikit-learn/xfail-list.yaml \
+./python/cuml/cuml_accel_tests/upstream/xfail_manager.py set python/cuml/cuml_accel_tests/upstream/scikit-learn/xfail-list.yaml \
     "sklearn.tests.test_new_api::test_behavior" \
     --reason "Test uses behavior introduced in scikit-learn 1.8" \
     --condition "scikit-learn>=1.8"
 
-./xfail_manager.py set umap/xfail-list.yaml \
+./python/cuml/cuml_accel_tests/upstream/xfail_manager.py set python/cuml/cuml_accel_tests/upstream/umap/xfail-list.yaml \
     "umap.tests.test_umap_ops::test_version_specific" \
     --reason "Version-specific upstream behavior" \
     --condition "umap-learn<=0.5.8 and scikit-learn>=1.6"
@@ -282,9 +339,15 @@ Conditions can combine multiple version requirements with `and`.
 
 ### Handling unmatched test IDs
 
-The pytest plugin validates that xfail entries correspond to collected tests.
-When tests do not exist, an `UnmatchedXfailTests` warning is issued and the
-shared pytest config treats that warning as an error.
+Focused collection applies matching xfails without requiring unrelated entries
+to be collected. Full default upstream collection enables `--strict-xfail-list`
+automatically, including when using `-k` or `-m`: validation runs before
+deselection. This preserves stale-entry checks in full-suite CI.
+
+For a custom full-suite target, pass `--strict-xfail-list` explicitly. Unknown
+active entries produce an `UnmatchedXfailTests` warning, treated as an error by
+the upstream policy. The examples runner also retains strict validation.
+`--runxfail` changes test execution, not list validation.
 
 Common causes:
 
@@ -292,13 +355,13 @@ Common causes:
 - Tests renamed or removed upstream.
 - Typographical errors in test IDs.
 
-For temporary local investigation, remove the pytest argument or warning filter
-that elevates unmatched xfails to an error. Do not leave stale unmatched IDs in a
-committed xfail list.
+For focused investigation, select a module or file rather than collecting the
+whole suite. Do not remove the official xfail list just to narrow collection,
+and do not leave stale unmatched IDs in a committed xfail list.
 
 ## Parity workflow
 
-1. Run the relevant upstream wrapper and write a JUnit XML report for the current
+1. Run the relevant upstream suite and write a JUnit XML report for the current
    branch.
 2. Summarize the report with `summarize-results.py`.
 3. Group failures by root cause, estimator, upstream feature, or dependency
