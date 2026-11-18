@@ -15,7 +15,7 @@ jobs:
       - check-nightly-ci
       - changed-files
       - checks
-      - local-runner-tests
+      - pytest-entrypoint-tests
       - clang-tidy
       - conda-cpp-build
       - conda-cpp-tests
@@ -287,7 +287,7 @@ jobs:
       # Main builds seed this cache. PR merge refs can restore it but should not create
       # duplicate archives that are inaccessible to other PRs.
       pre-commit-cache-read-only: true
-  local-runner-tests:
+  pytest-entrypoint-tests:
     permissions:
       actions: read
       contents: read
@@ -301,8 +301,8 @@ jobs:
       node_type: "cpu8"
       arch: "amd64"
       container_image: "rapidsai/ci-conda:27.02-latest"
-      script: "ci/test_local_runners.sh"
-      artifact-name: local-runner-tests
+      script: "ci/test_pytest_entrypoint.sh"
+      artifact-name: pytest-entrypoint-tests
   clang-tidy:
     needs: checks
     permissions:
