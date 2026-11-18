@@ -1030,6 +1030,9 @@ class UMAP(
         if model.densmap:
             raise UnsupportedOnGPU("`densmap=True` is not supported")
 
+        if model.disconnection_distance is not None:
+            raise UnsupportedOnGPU("Explicit `disconnection_distance` is not supported")
+
         if isinstance(model.n_epochs, (list, tuple, np.ndarray)):
             raise UnsupportedOnGPU("A sequence of `n_epochs` is not supported")
 

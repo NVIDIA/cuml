@@ -89,6 +89,11 @@
   condition: umap-learn>=0.6.0
   tests:
   - "umap.tests.test_umap_on_iris::test_precomputed_transform_on_iris_force_approx"
+- reason: Test accesses private _sigmas that cuml.accel does not expose; explicit disconnection_distance uses CPU fallback
+  marker: cuml_accel_private_sigmas
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_ops::test_disconnection_distance_keeps_sigma_finite"
 - reason: Test fails with newer sklearn
   marker: cuml_accel_sklearn_pin
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
