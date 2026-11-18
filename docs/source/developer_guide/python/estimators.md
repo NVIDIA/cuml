@@ -407,15 +407,15 @@ The available constraints are:
 - `Float(ge=, gt=, le=, lt=)`: a real number, including ints and numpy floats
   but not bools or NaN, optionally bounded. `float` is an alias for `Float()`.
 - `Options(*values)`: one of a fixed set of values, usually strings.
-- `Bool()`: `bool` or `numpy.bool_`.
+- `Bool()`: `bool` or `numpy.bool_`. `bool` is an alias for `Bool()`.
 - `None`, `ArrayLike()`, `RandomState()` (the values `check_random_seed`
   accepts) and `Callable()`.
 - Any class, such as `dict`: an `isinstance` check.
 
-`int` and `float` are not `isinstance` checks, because those give surprising
-results (`True` is an `int`, `np.float32(1.0)` is not a `float`). `bool` is
-rejected, use `Bool()` instead: in Cython files `bool` often refers to the C++
-type.
+`bool`, `int` and `float` are not `isinstance` checks, because those give
+surprising results (`True` is an `int`, `np.float32(1.0)` is not a `float`).
+In Cython files that `cimport bool` from libcpp, `bool` is the C++ type and
+`[bool]` fails to compile, use `Bool()` there.
 
 Constraints are inherited: only declare the parameters a class adds. A
 subclass can narrow an inherited constraint by declaring it again, for

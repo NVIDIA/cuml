@@ -17,11 +17,12 @@ constraints, a value is valid if any of them accepts it::
         }
 
 Besides constraint objects, the lists may contain ``None`` and classes
-(e.g. ``dict``), which become an ``isinstance`` check. ``int`` and ``float``
-are aliases for ``Int()`` and ``Float()``, not ``isinstance`` checks, because
-those give surprising results (``True`` is an ``int``, ``np.float32(1.0)`` is
-not a ``float``). ``bool`` is rejected, use ``Bool()`` instead. Constraints
-declared by parent classes are inherited. Validation happens at the start of
+(e.g. ``dict``), which become an ``isinstance`` check. ``bool``, ``int`` and
+``float`` are aliases for ``Bool()``, ``Int()`` and ``Float()``, not
+``isinstance`` checks, because those give surprising results (``True`` is an
+``int``, ``np.float32(1.0)`` is not a ``float``). In Cython files that
+``cimport bool`` from libcpp, ``bool`` is the C++ type, use ``Bool()`` there.
+Constraints declared by parent classes are inherited. Validation happens at the start of
 every fit-like method (see :func:`cuml.internals.mlfunc`) and raises
 :class:`InvalidParameterError`.
 
@@ -296,6 +297,18 @@ class AnyOf(Constraint):
         ]
 
 
+class RandomState(AnyOf):
+    """The values accepted by `cuml.internals.validation.check_random_seed`."""
+
+    def __init__(self):
+        super().__init__(
+            Int(ge=0, le=2**32 - 1),
+            np.random.RandomState,
+            cp.random.RandomState,
+            None,
+        )
+
+
 def as_constraint(spec) -> Constraint:
     """Convert a declared constraint specification to a ``Constraint``."""
     if isinstance(spec, Constraint):
@@ -313,23 +326,9 @@ def as_constraint(spec) -> Constraint:
         if spec is float:
             return Float()
         if spec is bool:
-            raise TypeError(
-                f"Unsupported parameter constraint {spec!r}, use Bool() instead"
-            )
+            return Bool()
         return _InstanceOf(spec)
     raise TypeError(f"Unsupported parameter constraint {spec!r}")
-
-
-class RandomState(AnyOf):
-    """The values accepted by `cuml.internals.validation.check_random_seed`."""
-
-    def __init__(self):
-        super().__init__(
-            Int(ge=0, le=2**32 - 1),
-            np.random.RandomState,
-            cp.random.RandomState,
-            None,
-        )
 
 
 @functools.cache
