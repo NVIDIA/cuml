@@ -51,6 +51,11 @@
   - "umap.tests.test_aligned_umap::test_aligned_update"
   - "umap.tests.test_aligned_umap::test_aligned_update_params"
   - "umap.tests.test_aligned_umap::test_neighbor_local_neighbor_accuracy"
+- reason: Test modifies private upstream hash state and requires transform output object identity
+  marker: cuml_accel_private_hash_state
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_ops::test_transform_supports_legacy_joblib_input_hash"
 - reason: Tests inspect private layout state that cuml.accel does not expose
   marker: cuml_accel_private_layout_state
   condition: umap-learn>=0.6.0
@@ -69,6 +74,11 @@
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
   tests:
   - "umap.tests.test_umap_validation_params::test_umap_custom_distance_w_grad"
+- reason: Transform cache test requires Python object identity across device/host conversion
+  marker: cuml_accel_transform_cache_identity
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_ops::test_transform_cache_uses_equal_input_copy_and_detects_mutation"
 - reason: Test fails with old scikit-learn OR old scipy, and doesn't test our umap anyway
   strict: false
   tests:
