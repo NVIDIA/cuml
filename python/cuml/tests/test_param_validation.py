@@ -30,7 +30,7 @@ from cuml.internals.param_validation import (
     get_parameter_constraints,
     validate_params,
 )
-from cuml.linear_model import LogisticRegression
+from cuml.linear_model import LogisticRegression, Ridge
 from cuml.linear_model.ridge_mg import RidgeMG
 from cuml.multiclass import OneVsOneClassifier, OneVsRestClassifier
 from cuml.testing.utils import get_all_base_subclasses
@@ -369,6 +369,16 @@ def test_exit_internal_context_validates_inner_estimator():
         match="'a' parameter of _Fittable must .* Got -1",
     ):
         _Fittable(inner=inner).fit(np.zeros((3, 2)))
+
+
+@pytest.mark.parametrize("meta", [OneVsOneClassifier, OneVsRestClassifier])
+def test_multiclass_validates_inner_estimator(meta):
+    X = np.random.default_rng(0).normal(size=(30, 3))
+    y = np.arange(30) % 3
+    with pytest.raises(
+        InvalidParameterError, match="'alpha' parameter of Ridge"
+    ):
+        meta(Ridge(alpha=-0.5)).fit(X, y)
 
 
 @pytest.mark.parametrize("output_type", [None, "cupy", "cudf", "pandas"])
