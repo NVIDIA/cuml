@@ -992,25 +992,14 @@ class UMAP(
             if not model._compatibility_layout:
                 raise UnsupportedOnGPU("The UMAP 0.6 layout pipeline is not supported")
 
-            # Do not silently discard explicit requests for new layout/search
-            # options, even when upstream only uses them in the modern pipeline.
-            defaults = {
-                "negative_selection_range": 200_000,
-                "negative_sample_scale": None,
-                "exclude_graph_neighbors": False,
-                "negative_sample_scale_adaptation_samples": 128,
-                "recursive_coarsening_ratio": 4,
-                "nearest_neighbor_backend": "auto",
-                "coarse_layout_weights": "transition",
-                "coarsen_on_layout_weights": True,
-                "init_rescale": "isotropic",
-                "init_scale_factor": 1.0,
-                "recursive_init_kwds": None,
-            }
-            for name, default in defaults.items():
-                value = getattr(model, name)
-                if value != default or type(value) is not type(default):
-                    raise UnsupportedOnGPU(f"`{name}={value!r}` is not supported")
+            # Modern sampling/rescaling and recursive-initialization options
+            # are inactive on this path. Deliberately ignore their values and
+            # validation rather than duplicating upstream's validation rules.
+            # Backend requests still require upstream eligibility checks.
+            if model.nearest_neighbor_backend not in ("auto", "pynndescent"):
+                raise UnsupportedOnGPU(
+                    f"`nearest_neighbor_backend={model.nearest_neighbor_backend!r}` is not supported"
+                )
             init = model._init
 
         if isinstance(init, str) and init not in _INITS:

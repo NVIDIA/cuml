@@ -641,13 +641,8 @@ UMAP
      ``"auto"`` resolving to ``"spectral"`` in UMAP 0.6.
    - If ``compatibility_layout`` is ``False`` or ``optimizer`` is ``"adam"``
      or ``"momentum"`` in UMAP 0.6.
-   - If any of the following UMAP 0.6-specific parameters are set to nondefault
-     values: ``init_rescale``,
-     ``init_scale_factor``, ``recursive_init_kwds``, ``recursive_coarsening_ratio``,
-     ``coarse_layout_weights``, ``coarsen_on_layout_weights``,
-     ``negative_selection_range``, ``negative_sample_scale``,
-     ``negative_sample_scale_adaptation_samples``, ``exclude_graph_neighbors``,
-     and ``nearest_neighbor_backend``.
+   - If ``nearest_neighbor_backend`` is neither ``"auto"`` nor ``"pynndescent"``
+     in UMAP 0.6.
    - If ``metric`` is not one of ``"l1"``, ``"cityblock"``,
      ``"taxicab"``, ``"manhattan"``, ``"euclidean"``, ``"l2"``, ``"sqeuclidean"``,
      ``"canberra"``, ``"minkowski"``, ``"chebyshev"``, ``"linf"``, ``"cosine"``,
@@ -667,6 +662,13 @@ UMAP
 
    - Parallelism during the optimization stage introduces numerical imprecision,
      which can lead to differences between CPU and GPU results.
+
+   - UMAP 0.6 options for modern sampling, initialization rescaling, and recursive
+     initialization have no effect on the supported legacy pipeline and are not
+     validated during GPU fitting. This does not change GPU results, but invalid
+     values may raise errors later when fitted state is synchronized to CPU,
+     for example when accessing ``embedding_``. Using the modern pipeline always
+     falls back to CPU.
 
    - UMAP model-combination operators (``+``, ``-``, and ``*``) are not supported.
 
