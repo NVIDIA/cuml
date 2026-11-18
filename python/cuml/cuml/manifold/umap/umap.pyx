@@ -973,8 +973,37 @@ class UMAP(
 
     @classmethod
     def _params_from_cpu(cls, model):
-        if isinstance(model.init, str) and model.init not in _INITS:
-            raise UnsupportedOnGPU(f"`init={model.init!r}` is not supported")
+        init = model.init
+        if hasattr(model, "compatibility_layout"):
+            # Resolve the public parameters without changing them (including
+            # the upstream warning when the compatibility policy is implicit).
+            model._resolve_layout_parameters()
+            if not model._compatibility_layout:
+                raise UnsupportedOnGPU("The UMAP 0.6 layout pipeline is not supported")
+
+            # Do not silently discard explicit requests for new layout/search
+            # options, even when upstream only uses them in the modern pipeline.
+            defaults = {
+                "negative_selection_range": 200_000,
+                "negative_sample_scale": None,
+                "exclude_graph_neighbors": False,
+                "negative_sample_scale_adaptation_samples": 128,
+                "recursive_coarsening_ratio": 4,
+                "nearest_neighbor_backend": "auto",
+                "coarse_layout_weights": "transition",
+                "coarsen_on_layout_weights": True,
+                "init_rescale": "isotropic",
+                "init_scale_factor": 1.0,
+                "recursive_init_kwds": None,
+            }
+            for name, default in defaults.items():
+                value = getattr(model, name)
+                if value != default or type(value) is not type(default):
+                    raise UnsupportedOnGPU(f"`{name}={value!r}` is not supported")
+            init = model._init
+
+        if isinstance(init, str) and init not in _INITS:
+            raise UnsupportedOnGPU(f"`init={init!r}` is not supported")
 
         try:
             coerce_metric(model.metric)
@@ -989,6 +1018,9 @@ class UMAP(
 
         if model.densmap:
             raise UnsupportedOnGPU("`densmap=True` is not supported")
+
+        if isinstance(model.n_epochs, (list, tuple, np.ndarray)):
+            raise UnsupportedOnGPU("A sequence of `n_epochs` is not supported")
 
         precomputed_knn = model.precomputed_knn[:2]
         if all(item is None for item in precomputed_knn):
@@ -1008,7 +1040,7 @@ class UMAP(
             "repulsion_strength": model.repulsion_strength,
             "negative_sample_rate": model.negative_sample_rate,
             "transform_queue_size": model.transform_queue_size,
-            "init": model.init,
+            "init": init,
             "a": model.a,
             "b": model.b,
             "target_n_neighbors": model.target_n_neighbors,
@@ -1028,7 +1060,7 @@ class UMAP(
         if not isinstance(init, str):
             init = cp.asnumpy(init)
 
-        return {
+        params = {
             "n_neighbors": self.n_neighbors,
             "n_components": self.n_components,
             "metric": self.metric,
@@ -1051,6 +1083,9 @@ class UMAP(
             "random_state": self.random_state,
             "precomputed_knn": precomputed_knn,
         }
+        if "compatibility_layout" in self._get_cpu_class()._get_param_names():
+            params["compatibility_layout"] = True
+        return params
 
     def _attrs_from_cpu(self, model):
         if scipy.sparse.issparse(model._raw_data):
@@ -1065,12 +1100,15 @@ class UMAP(
             ),
             "graph_": model.graph_.tocoo(),
             "_raw_data": raw_data,
-            "_input_hash": model._input_hash,
+            # cuML uses joblib hashes, while UMAP 0.6 uses BLAKE2. Rehash
+            # the stored training data rather than copying an incompatible hash.
+            "_input_hash": _joblib_hash(raw_data),
             "_sparse_data": model._sparse_data,
             "_a": model._a,
             "_b": model._b,
             "_n_neighbors": model._n_neighbors,
             "n_features_in_": model._raw_data.shape[1],
+            "_supervised": model._supervised,
             **super()._attrs_from_cpu(model),
         }
 
@@ -1128,6 +1166,11 @@ class UMAP(
             "_knn_search_index": None,
             **super()._attrs_to_cpu(model),
         }
+
+        if hasattr(model, "compatibility_layout"):
+            # UMAP 0.6 supports legacy joblib hashes when this marker is absent
+            # or None. Clear it even when synchronizing into an already-fit model.
+            attrs["_input_hash_algorithm"] = None
 
         # Transfer _sigmas and _rhos if available (needed for inverse_transform)
         if hasattr(self, "_sigmas") and self._sigmas is not None:
