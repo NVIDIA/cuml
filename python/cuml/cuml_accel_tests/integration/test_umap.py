@@ -373,7 +373,7 @@ def test_umap_cpu_gpu_hash_roundtrip(data, sparse_input):
     gpu = GPUUMAP.from_sklearn(cpu)
     assert_array_equal(gpu.transform(X), cpu.embedding_)
     restored = gpu.as_sklearn()
-    assert_array_equal(restored.transform(X), cpu.embedding_)
+    assert_array_equal(restored.transform(X.copy()), cpu.embedding_)
     if UMAP_060:
         assert restored.compatibility_layout is True
         assert restored._input_hash_algorithm == cpu._input_hash_algorithm
@@ -423,6 +423,22 @@ def test_umap_two_step_layout_change(data, method):
     getattr(model, method)(data)
     assert model._gpu is None
     assert np.isfinite(model.embedding_).all()
+
+
+@pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6 content hashing")
+@pytest.mark.parametrize("hash_input", [False, True])
+def test_umap_sparse_gpu_export_content_hash(data, hash_input):
+    from umap.umap_ import _INPUT_HASH_ALGORITHM
+
+    X = sparse.csr_matrix(data)
+    gpu = GPUUMAP(n_epochs=20, random_state=42, hash_input=hash_input).fit(X)
+    cpu = gpu.as_sklearn()
+    assert cpu._input_hash_algorithm == _INPUT_HASH_ALGORITHM
+    assert_array_equal(cpu.transform(X.copy()), gpu.embedding_)
+    # Conversion of unchanged data can translate the digest without changing
+    # which training values it identifies.
+    restored = GPUUMAP.from_sklearn(cpu).as_sklearn()
+    assert_array_equal(restored.transform(X.copy()), gpu.embedding_)
 
 
 def _restore_simulated_legacy_model(model):

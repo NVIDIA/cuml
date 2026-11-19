@@ -1153,8 +1153,19 @@ class UMAP(
         if cupyx.scipy.sparse.issparse(raw_data) or isinstance(raw_data, cp.ndarray):
             raw_data = raw_data.get()
 
-        if (input_hash := getattr(self, "_input_hash", None)) is None:
-            input_hash = _joblib_hash(raw_data)
+        algorithm = getattr(self, "_input_hash_algorithm", "cuml-joblib")
+        input_hash = getattr(self, "_input_hash", None)
+        if hasattr(model, "compatibility_layout") and algorithm in (None, "cuml-joblib"):
+            # A content hash avoids joblib's sensitivity to CSR cached flags.
+            # With no stored fingerprint, compute the content hash directly.
+            # Otherwise translate only if current data matches the fit-time hash.
+            if input_hash is None or _hash_input(raw_data, algorithm) == input_hash:
+                from umap.umap_ import _INPUT_HASH_ALGORITHM
+
+                algorithm = _INPUT_HASH_ALGORITHM
+                input_hash = _hash_input(raw_data, algorithm)
+        elif input_hash is None:
+            input_hash = _hash_input(raw_data, algorithm)
 
         if (knn_dists := getattr(self, "_knn_dists", None)) is not None:
             knn_dists = cp.asnumpy(knn_dists)
@@ -1194,7 +1205,6 @@ class UMAP(
         if hasattr(model, "compatibility_layout"):
             # Preserve upstream hash schemes, including when synchronizing
             # into a model that previously used a different algorithm.
-            algorithm = getattr(self, "_input_hash_algorithm", "cuml-joblib")
             attrs["_input_hash_algorithm"] = (
                 None if algorithm == "cuml-joblib" else algorithm
             )
