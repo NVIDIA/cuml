@@ -678,7 +678,6 @@ dependencies:
           - ipython>=7.32.0
           - jsonschema
           - msgspec
-          - nltk
           # 'nvidia-ml-py' provides the 'pynvml' module
           - nvidia-ml-py>=12
           - *onnxruntime
