@@ -182,31 +182,34 @@ def cuda_ptr(X):
     return None
 
 
-_SVD_THRESH = 1e-10
-_EIG_THRESH = _SVD_THRESH**2
-_ridge_transform = cp.ElementwiseKernel(
-    "T x, T s, T alpha",
+_ridge_transform_kernel = cp.ElementwiseKernel(
+    "T x, T s, T alpha, T thresh",
     "T out",
-    f"out = s < {_SVD_THRESH} ? 0 : x * s / (s * s + alpha)",
+    "out = s < thresh ? 0 : x * s / (s * s + alpha)",
     "_ridge_transform",
 )
-_threshold_divide = cp.ElementwiseKernel(
+_ridge_transform_no_alpha_kernel = cp.ElementwiseKernel(
     "T x, T s, T thresh",
     "T out",
     "out = s < thresh ? 0 : x / s",
-    "_threshold_divide",
+    "_ridge_transform_no_alpha",
 )
 
 
-def _fit_cholesky_or_lu(X, y, alpha, fit_intercept, solver):
-    """Fits a least-squares problem using a cholesky or LU decomposition.
+def _ridge_transform(x, s, alpha=None):
+    """Computes `x * s / (s * s + alpha)`, with `s < thresh` values set to 0.
+    The thresh is determined dynamically based on `s.max()`."""
+    # 1e-12 factor borrowed from sklearn
+    thresh = x.dtype.type(min(float(s.max()) * 1e-12, 1e-12))
+    if alpha is None or (alpha == 0).all():
+        # Small optimization in the case of all-zero alpha
+        return _ridge_transform_no_alpha_kernel(x, s, thresh)
+    return _ridge_transform_kernel(x, s, alpha, thresh)
 
-    See `fit_least_squares` for parameters."""
+
+def _fit_cholesky(X, y, alpha, warn_if_singular=True):
+    """Fits a least-squares problem using a cholesky decomposition."""
     X_is_sparse = cp_sp.issparse(X)
-
-    # Sanity checking, should be caught earlier in fit_least_squares
-    assert solver in ("cholesky", "lu")
-    assert not (X_is_sparse and fit_intercept)
 
     n_samples, n_features = X.shape
     n_targets = y.shape[1]
@@ -224,18 +227,16 @@ def _fit_cholesky_or_lu(X, y, alpha, fit_intercept, solver):
         """Returns the `w` solution of `A @ w = B`"""
         try:
             with cupyx.errstate(linalg="raise"):
-                if solver == "lu":
-                    return cp.linalg.solve(A, B)
-                else:
-                    return cupyx.lapack.posv(A, B)
+                return cupyx.lapack.posv(A, B)
         except cp.linalg.LinAlgError:
-            warnings.warn(
-                f"Singular matrix encountered in {solver!r} solver, falling back "
-                "to 'eig' solver."
-            )
+            if warn_if_singular:
+                warnings.warn(
+                    "Singular matrix encountered in 'cholesky' solver, falling back "
+                    "to 'eig' solver."
+                )
 
         w, q = cp.linalg.eigh(A)
-        return q.dot(_threshold_divide(q.T.dot(B), w[:, None], _EIG_THRESH))
+        return _ridge_transform(q, w).dot(q.T.dot(B))
 
     if (alpha == alpha[0]).all():
         # uniform alpha, only one _solve needed
@@ -267,6 +268,7 @@ def fit_least_squares(
     max_iter=None,
     may_mutate_X=False,
     may_mutate_y=False,
+    cholesky_warn_if_singular=True,
 ):
     """Fit a (possibly regularized) least-squares problem.
 
@@ -283,7 +285,7 @@ def fit_least_squares(
     alpha : float or cp.ndarray
         Ridge regularization strength. Must be a non-negative float. Defaults
         to 0 for no regularization (a LinearRegression).
-    solver : {'svd', 'cholesky', 'lu', 'lsmr', 'nnls'}
+    solver : {'svd', 'cholesky', 'lsmr', 'nnls'}
         The solver to use.
     tol : float
         Tolerance, used by the LSMR and NNLS solvers.
@@ -293,6 +295,8 @@ def fit_least_squares(
         Whether to allow mutating X inplace to save memory when possible.
     may_mutate_y : bool
         Whether to allow mutating y inplace to save memory when possible.
+    cholesky_warn_if_singular : bool
+        Whether to warn if a singular X is found within the `cholesky` solver.
 
     Returns
     -------
@@ -306,11 +310,11 @@ def fit_least_squares(
     """
     y_1d = y.ndim == 1
     if X_is_sparse := cp_sp.issparse(X):
-        if solver not in ("lu", "cholesky", "lsmr"):
+        if solver not in ("cholesky", "lsmr"):
             raise ValueError(f"{solver=!r} doesn't support sparse inputs")
-        if fit_intercept and solver in ("lu", "cholesky"):
+        if fit_intercept and solver == "cholesky":
             raise ValueError(
-                f"{solver=!r} with sparse X and {fit_intercept=} is not supported"
+                "{solver=!r} with sparse X and {fit_intercept=} is not supported"
             )
         # Centering and lsmr are much faster with CSR/CSC inputs
         if X.format not in ("csr", "csc"):
@@ -336,15 +340,13 @@ def fit_least_squares(
     if solver == "svd":
         # Solve using SVD method
         u, s, vh = cp.linalg.svd(X, full_matrices=False)
-        if (alpha == 0).all():
-            # Small optimization in the case of all-zero alpha
-            temp = _threshold_divide(u.T.dot(y), s[:, None], _SVD_THRESH)
-        else:
-            temp = _ridge_transform(u.T.dot(y), s[:, None], alpha)
+        temp = _ridge_transform(u.T.dot(y), s[:, None], alpha)
         coef = vh.T.dot(temp).T
         n_iter = None
-    elif solver in ("cholesky", "lu"):
-        coef = _fit_cholesky_or_lu(X, y, alpha, fit_intercept, solver)
+    elif solver == "cholesky":
+        coef = _fit_cholesky(
+            X, y, alpha, warn_if_singular=cholesky_warn_if_singular
+        )
         n_iter = None
     elif solver == "lsmr":
         if X_is_sparse and fit_intercept:

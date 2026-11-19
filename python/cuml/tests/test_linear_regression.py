@@ -11,7 +11,6 @@ from hypothesis import assume, example, given
 from hypothesis import strategies as st
 from hypothesis import target
 from sklearn.linear_model import LinearRegression as skLinearRegression
-from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 import cuml
@@ -32,7 +31,7 @@ from cuml.testing.utils import array_difference, array_equal
 
 @given(
     datatype=dataset_dtypes(),
-    algorithm=st.sampled_from(["eig", "svd", "lu", "lsmr"]),
+    algorithm=st.sampled_from(["eig", "svd", "cholesky", "lsmr"]),
     nrows=st.integers(min_value=1000, max_value=5000),
     column_info=st.sampled_from([[20, 10], [100, 50]]),
     ntargets=st.integers(min_value=1, max_value=2),
@@ -53,7 +52,7 @@ from cuml.testing.utils import array_difference, array_equal
 )
 @example(
     datatype=np.float32,
-    algorithm="lu",
+    algorithm="cholesky",
     nrows=3000,
     column_info=[50, 20],
     ntargets=3,
@@ -68,7 +67,7 @@ from cuml.testing.utils import array_difference, array_equal
 def test_linear_regression_model(
     datatype, algorithm, nrows, column_info, ntargets
 ):
-    assume(ntargets == 1 or algorithm in ("lu", "svd", "lsmr"))
+    assume(ntargets == 1 or algorithm in ("cholesky", "svd", "lsmr"))
 
     ncols, n_info = column_info
     X_train, X_test, y_train, y_test = make_regression_dataset(
@@ -94,7 +93,9 @@ def test_linear_regression_model(
 @given(
     ntargets=st.integers(min_value=1, max_value=2),
     datatype=dataset_dtypes(),
-    algorithm=st.sampled_from(["eig", "svd", "qr", "svd-qr", "lu", "lsmr"]),
+    algorithm=st.sampled_from(
+        ["eig", "svd", "qr", "svd-qr", "cholesky", "lsmr"]
+    ),
     fit_intercept=st.booleans(),
     distribution=st.sampled_from(["lognormal", "exponential", "uniform"]),
 )
@@ -115,7 +116,7 @@ def test_linear_regression_model(
 @example(
     ntargets=2,
     datatype=np.float32,
-    algorithm="lu",
+    algorithm="cholesky",
     fit_intercept=True,
     distribution="exponential",
 )
@@ -133,7 +134,7 @@ def test_weighted_linear_regression(
     max_weight = 10
     noise = 20
 
-    assume(ntargets == 1 or algorithm in ("svd", "lu", "lsmr"))
+    assume(ntargets == 1 or algorithm in ("svd", "cholesky", "lsmr"))
 
     X_train, X_test, y_train, y_test = make_regression_dataset(
         datatype, nrows, ncols, n_info, noise=noise, n_targets=ntargets
@@ -173,7 +174,7 @@ def test_weighted_linear_regression(
     np.testing.assert_almost_equal(cu_score, sk_score)
 
 
-@pytest.mark.parametrize("algorithm", ["lu", "lsmr", "svd", "eig"])
+@pytest.mark.parametrize("algorithm", ["cholesky", "lsmr", "svd", "eig"])
 def test_linear_regression_short_wide(algorithm):
     X, y = make_regression(n_samples=80, n_features=200, random_state=42)
 
@@ -188,19 +189,25 @@ def test_linear_regression_short_wide(algorithm):
     np.testing.assert_allclose(sk_pred, cu_pred, atol=atol)
 
 
-def test_linear_regression_lu_singular_matrix():
-    X, y = make_regression(n_samples=2000, n_features=100, random_state=42)
-    # Some colinear features
-    X[:, ::10] = X[:, 0:1]
+@pytest.mark.parametrize("kind", ["colinear", "square", "small-values"])
+def test_linear_regression_cholesky_edge_cases(kind):
+    if kind == "colinear":
+        X, y = make_regression(n_samples=2000, n_features=100, random_state=42)
+        X[:, ::10] = X[:, 0:1]
+    elif kind == "square":
+        X, y = make_regression(n_samples=50, n_features=50, random_state=42)
+    else:
+        assert kind == "small-values"
+        X, y = make_regression(n_samples=50, n_features=10, random_state=42)
+        X *= np.sqrt(1e-13 / X.max())
 
     sk_model = sklearn.linear_model.LinearRegression().fit(X, y)
-    with pytest.warns(UserWarning, match="Singular matrix encountered"):
-        cu_model = cuml.LinearRegression(algorithm="lu").fit(X, y)
+    with warnings.catch_warnings():
+        # No warning raised for LinearRegression
+        warnings.filterwarnings("error", category=UserWarning, module="cuml.*")
+        cu_model = cuml.LinearRegression(algorithm="cholesky").fit(X, y)
 
-    sk_pred = sk_model.predict(X)
-    cu_pred = cu_model.predict(X)
-
-    assert r2_score(sk_pred, cu_pred) >= 0.98
+    np.testing.assert_allclose(cu_model.coef_, sk_model.coef_, atol=1e-4)
 
 
 def test_linear_regression_single_column():
@@ -300,7 +307,7 @@ def test_linreg_predict_mixed_dtypes(train_dtype, test_dtype):
 
 @pytest.mark.filterwarnings("ignore:Changing solver.*:UserWarning")
 @given(
-    algo=st.sampled_from(["eig", "qr", "svd", "svd-qr", "lu", "lsmr"]),
+    algo=st.sampled_from(["eig", "qr", "svd", "svd-qr", "cholesky", "lsmr"]),
     n_targets=st.integers(min_value=1, max_value=2),
     fit_intercept=st.booleans(),
     weighted=st.booleans(),
@@ -310,8 +317,8 @@ def test_linreg_predict_mixed_dtypes(train_dtype, test_dtype):
 @example(algo="svd-qr", n_targets=1, fit_intercept=True, weighted=False)
 @example(algo="svd", n_targets=1, fit_intercept=True, weighted=False)
 @example(algo="svd", n_targets=2, fit_intercept=False, weighted=True)
-@example(algo="lu", n_targets=1, fit_intercept=True, weighted=False)
-@example(algo="lu", n_targets=2, fit_intercept=False, weighted=True)
+@example(algo="cholesky", n_targets=1, fit_intercept=True, weighted=False)
+@example(algo="cholesky", n_targets=2, fit_intercept=False, weighted=True)
 @example(algo="lsmr", n_targets=1, fit_intercept=True, weighted=False)
 @example(algo="lsmr", n_targets=2, fit_intercept=False, weighted=False)
 def test_linear_regression_input_mutation(
@@ -324,7 +331,7 @@ def test_linear_regression_input_mutation(
     # Only "svd" and "lsmr" support n_targets > 1. While we do fallback
     # automatically (with a warning), there's no need to have hypothesis
     # explore those cases.
-    assume(n_targets == 1 or algo in ("lu", "lsmr", "svd"))
+    assume(n_targets == 1 or algo in ("cholesky", "lsmr", "svd"))
 
     X, y = make_regression(n_targets=n_targets, random_state=42)
     if weighted:
@@ -367,7 +374,7 @@ def test_linear_regression_input_mutation(
         # `eig` sometimes mutates and sometimes doesn't, the others always do
         if algo != "eig":
             assert not cp.array_equal(X, X_orig)
-    elif algo in ("lu", "svd", "lsmr") and (fit_intercept or weighted):
+    elif algo in ("cholesky", "svd", "lsmr") and (fit_intercept or weighted):
         # The cupy solvers also mutates in this case
         assert not cp.array_equal(X, X_orig)
     else:
@@ -377,7 +384,7 @@ def test_linear_regression_input_mutation(
 
 @pytest.mark.parametrize(
     "algorithm, fit_intercept",
-    [("lsmr", True), ("lsmr", False), ("lu", False)],
+    [("lsmr", True), ("lsmr", False), ("cholesky", False)],
 )
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("weighted", [True, False])
