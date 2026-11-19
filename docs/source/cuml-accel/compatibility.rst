@@ -637,8 +637,9 @@ UMAP
 
    ``UMAP`` will fall back to CPU in the following cases:
 
-   - If ``init`` is neither ``"random"`` nor ``"spectral"``, unless it is
-     ``"auto"`` resolving to ``"spectral"`` with UMAP 0.6.
+   - If ``init`` is neither a valid initialization array nor ``"random"`` or
+     ``"spectral"``, unless it is ``"auto"`` resolving to ``"spectral"`` with
+     UMAP 0.6.
    - If ``compatibility_layout`` is ``False`` or ``optimizer`` is ``"adam"``
      or ``"momentum"`` with UMAP 0.6.
    - If ``nearest_neighbor_backend`` is neither ``"auto"`` nor ``"pynndescent"``
