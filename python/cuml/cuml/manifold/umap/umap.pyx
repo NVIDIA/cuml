@@ -60,6 +60,21 @@ def _joblib_hash(X):
     return joblib.hash(X)
 
 
+def _hash_input(X, algorithm):
+    """Hash input using the scheme recorded at fit time."""
+    if algorithm == "cuml-joblib":
+        return _joblib_hash(X)
+    if cupyx.scipy.sparse.issparse(X) or isinstance(X, cp.ndarray):
+        X = X.get()
+    if algorithm is None:
+        return joblib.hash(X)
+    from umap.umap_ import _INPUT_HASH_ALGORITHM, _input_data_hash
+
+    if algorithm != _INPUT_HASH_ALGORITHM:
+        raise UnsupportedOnGPU(f"Unsupported UMAP input hash algorithm: {algorithm!r}")
+    return _input_data_hash(X, n_jobs=1)
+
+
 def find_ab_params(spread=1.0, min_dist=0.1):
     """Fit a & b parameters for UMAP.
 
@@ -1103,9 +1118,10 @@ class UMAP(
             ),
             "graph_": model.graph_.tocoo(),
             "_raw_data": raw_data,
-            # cuML uses joblib hashes, while UMAP 0.6 uses BLAKE2. Rehash
-            # the stored training data rather than copying an incompatible hash.
-            "_input_hash": _joblib_hash(raw_data),
+            # Preserve fit-time identity even if the caller mutated retained
+            # training data before conversion. Never hash it again on import.
+            "_input_hash": model._input_hash,
+            "_input_hash_algorithm": getattr(model, "_input_hash_algorithm", None),
             "_sparse_data": model._sparse_data,
             "_a": model._a,
             "_b": model._b,
@@ -1171,9 +1187,12 @@ class UMAP(
         }
 
         if hasattr(model, "compatibility_layout"):
-            # UMAP 0.6 supports legacy joblib hashes when this marker is absent
-            # or None. Clear it even when synchronizing into an already-fit model.
-            attrs["_input_hash_algorithm"] = None
+            # Preserve upstream hash schemes, including when synchronizing
+            # into a model that previously used a different algorithm.
+            algorithm = getattr(self, "_input_hash_algorithm", "cuml-joblib")
+            attrs["_input_hash_algorithm"] = (
+                None if algorithm == "cuml-joblib" else algorithm
+            )
 
         # Transfer _sigmas and _rhos if available (needed for inverse_transform)
         if hasattr(self, "_sigmas") and self._sigmas is not None:
@@ -1465,6 +1484,7 @@ class UMAP(
         self._sigmas = sigmas
         self._rhos = rhos
 
+        self._input_hash_algorithm = "cuml-joblib"
         if self.hash_input:
             self._input_hash = _joblib_hash(X)
         else:
@@ -1529,6 +1549,9 @@ class UMAP(
         """
         check_is_fitted(self)
 
+        # Preserve host CSR metadata for legacy joblib fingerprints: conversion
+        # through CuPy can change cached flags included in joblib.hash.
+        hash_source = X
         X = check_inputs(
             self,
             X,
@@ -1537,8 +1560,12 @@ class UMAP(
             accept_sparse="csr",
         )
         X_input_sparse = is_sparse(X)
+        if not (scipy.sparse.issparse(hash_source) and hash_source.dtype == np.float32):
+            hash_source = X
 
-        if self.hash_input and _joblib_hash(X) == self._input_hash:
+        if self.hash_input and _hash_input(
+            hash_source, getattr(self, "_input_hash_algorithm", "cuml-joblib")
+        ) == self._input_hash:
             return self.embedding_
 
         if self._sparse_data and not X_input_sparse:
