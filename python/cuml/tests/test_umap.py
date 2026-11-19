@@ -1651,6 +1651,22 @@ def test_inverse_transform_sparse_error():
         umap_model.inverse_transform(embedding_np[:10])
 
 
+@pytest.mark.parametrize("sparse_format", ["csr", "coo", "csc"])
+def test_sparse_transform_training_cache(sparse_format):
+    X = np.random.default_rng(42).normal(size=(50, 4)).astype("float32")
+    X = getattr(sp, f"{sparse_format}_matrix")(X)
+    model = cuUMAP(
+        n_neighbors=5,
+        n_epochs=20,
+        random_state=42,
+        hash_input=True,
+        output_type="numpy",
+    ).fit(X)
+    # Fit normalizes sparse inputs to CSR. Transform must hash the same
+    # representation, except when preserving original host CSR metadata.
+    np.testing.assert_array_equal(model.transform(X.copy()), model.embedding_)
+
+
 def test_inverse_transform_dimension_mismatch():
     """Test that inverse_transform raises error for wrong embedding dimension."""
     X, _ = make_blobs(
