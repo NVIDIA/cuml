@@ -376,10 +376,37 @@ def test_umap_cpu_gpu_hash_roundtrip(data, sparse_input):
     assert_array_equal(restored.transform(X), cpu.embedding_)
     if UMAP_060:
         assert restored.compatibility_layout is True
-        assert restored._input_hash_algorithm is None
-    # Synchronizing into a previously CPU-fit model must clear its BLAKE2 marker.
+        assert restored._input_hash_algorithm == cpu._input_hash_algorithm
+    # Synchronizing must preserve the fit-time hash scheme.
     gpu._sync_attrs_to_cpu(cpu)
     assert_array_equal(cpu.transform(X), restored.embedding_)
+
+
+@pytest.mark.parametrize("legacy_hash", [False, True])
+@pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6")
+def test_umap_import_preserves_fit_time_hash(data, legacy_hash):
+    X = data.copy()
+    cpu = UMAP._cpu_class(
+        compatibility_layout=True, n_epochs=20, n_jobs=1, random_state=42
+    ).fit(X)
+    if legacy_hash:
+        cpu._input_hash = joblib.hash(cpu._raw_data)
+        cpu._input_hash_algorithm = None
+    digest = cpu._input_hash
+    original = X.copy()
+    X[0, 0] += 10
+    assert np.shares_memory(cpu._raw_data, X)
+    gpu = GPUUMAP.from_sklearn(cpu)
+    assert gpu._input_hash == digest
+    assert_array_equal(gpu.transform(original), cpu.embedding_)
+    assert not np.array_equal(gpu.transform(X), cpu.embedding_)
+    restored = gpu.as_sklearn()
+    assert restored._input_hash == digest
+    assert restored._input_hash_algorithm == cpu._input_hash_algorithm
+    # Refitting must reset the imported hashing policy.
+    gpu.fit(original)
+    assert gpu._input_hash_algorithm == "cuml-joblib"
+    assert_array_equal(gpu.transform(original), gpu.embedding_)
 
 
 def _restore_simulated_legacy_model(model):
