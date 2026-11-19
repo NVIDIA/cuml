@@ -409,6 +409,22 @@ def test_umap_import_preserves_fit_time_hash(data, legacy_hash):
     assert_array_equal(gpu.transform(original), gpu.embedding_)
 
 
+@pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6")
+@pytest.mark.parametrize("method", ["fit", "fit_transform"])
+def test_umap_two_step_layout_change(data, method):
+    model = UMAP(compatibility_layout=True, n_epochs=10, n_jobs=1).fit(data)
+    model.set_params(optimizer="adam")
+    assert model.get_params()["optimizer"] == "adam"
+    with pytest.raises(
+        ValueError, match="requires compatibility_layout=False"
+    ):
+        getattr(model, method)(data)
+    model.set_params(compatibility_layout=False)
+    getattr(model, method)(data)
+    assert model._gpu is None
+    assert np.isfinite(model.embedding_).all()
+
+
 def _restore_simulated_legacy_model(model):
     """Restore 0.5-shaped state, not a pickle produced by an older release."""
     state = model.__getstate__().copy()

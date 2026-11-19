@@ -1003,7 +1003,12 @@ class UMAP(
         if hasattr(model, "compatibility_layout"):
             # Resolve the public parameters without changing them (including
             # the upstream warning when the compatibility policy is implicit).
-            model._resolve_layout_parameters()
+            try:
+                model._resolve_layout_parameters()
+            except ValueError as exc:
+                # Parameter synchronization also runs during set_params. Allow
+                # intermediate configurations and let CPU fit validate them.
+                raise UnsupportedOnGPU(str(exc)) from exc
             if not model._compatibility_layout:
                 raise UnsupportedOnGPU("The UMAP 0.6 layout pipeline is not supported")
 
@@ -1204,7 +1209,23 @@ class UMAP(
 
     def _sync_attrs_to_cpu(self, model):
         super()._sync_attrs_to_cpu(model)
-        # _validate_parameters constructs the rest of umap.UMAP's internal state
+        # _validate_parameters constructs the rest of umap.UMAP's internal state.
+        # set_params may temporarily request an invalid layout combination.
+        # Reconstruct the fitted GPU layout without validating that intermediate
+        # request; restore public parameters for upstream validation on refit.
+        if hasattr(model, "compatibility_layout"):
+            from umap.umap_ import _resolve_layout_options
+
+            try:
+                _resolve_layout_options(model.compatibility_layout, model.optimizer)
+            except ValueError:
+                layout, optimizer = model.compatibility_layout, model.optimizer
+                try:
+                    model.compatibility_layout, model.optimizer = True, "compatibility"
+                    model._validate_parameters()
+                finally:
+                    model.compatibility_layout, model.optimizer = layout, optimizer
+                return
         model._validate_parameters()
 
     def __init__(
