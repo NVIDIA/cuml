@@ -207,7 +207,12 @@ def test_linear_regression_cholesky_edge_cases(kind):
         warnings.filterwarnings("error", category=UserWarning, module="cuml.*")
         cu_model = cuml.LinearRegression(algorithm="cholesky").fit(X, y)
 
-    np.testing.assert_allclose(cu_model.coef_, sk_model.coef_, atol=1e-4)
+    sk_pred = sk_model.predict(X)
+    cu_pred = cu_model.predict(X)
+    np.testing.assert_allclose(sk_pred, cu_pred, atol=1e-4)
+
+    if kind != "colinear":
+        np.testing.assert_allclose(cu_model.coef_, sk_model.coef_, atol=1e-4)
 
 
 def test_linear_regression_single_column():
