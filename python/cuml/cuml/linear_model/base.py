@@ -240,7 +240,7 @@ def _fit_cholesky(X, y, alpha, warn_if_singular=True):
                 )
 
         w, q = cp.linalg.eigh(A)
-        return _ridge_transform(q, w).dot(q.T.dot(B))
+        return q.dot(_ridge_transform(q.T.dot(B), w[:, None]))
 
     if (alpha == alpha[0]).all():
         # uniform alpha, only one _solve needed
