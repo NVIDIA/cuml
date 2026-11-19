@@ -1591,7 +1591,11 @@ class UMAP(
             accept_sparse="csr",
         )
         X_input_sparse = is_sparse(X)
-        if not (scipy.sparse.issparse(hash_source) and hash_source.dtype == np.float32):
+        if not (
+            scipy.sparse.issparse(hash_source)
+            and hash_source.format == "csr"
+            and hash_source.dtype == np.float32
+        ):
             hash_source = X
 
         if self.hash_input and _hash_input(
