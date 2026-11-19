@@ -131,7 +131,7 @@ def pytest_addoption(parser):
     - --run_unit: Run unit tests
     - --run_memleak: Run memleak tests
     """
-    group = parser.getgroup("cuML Custom Options")
+    group = parser.getgroup("cuML options")
 
     group.addoption(
         "--run_stress",

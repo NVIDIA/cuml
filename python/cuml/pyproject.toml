@@ -16,63 +16,6 @@ select = [
 # PyPI hard limit is 1GiB, but try to keep this as small as possible
 max_allowed_size_compressed = '15Mi'
 
-[tool.pytest.ini_options]
-addopts = "--tb=native --import-mode=append -r fExX"
-
-markers = [
-  "unit: Quickest tests focused on accuracy and correctness",
-  "quality: More intense tests than unit with increased runtimes",
-  "stress: Longest running tests focused on stressing hardware compute resources",
-  "mg: Multi-GPU tests",
-  "memleak: Test that checks for memory leaks",
-  "ucx: Run _only_ Dask UCXX tests",
-]
-
-testpaths = [
-  "cuml/tests",
-  "cuml/tests/dask",
-  "cuml/tests/experimental",
-  "cuml/tests/explainer",
-  "cuml/tests/stemmer_tests",
-]
-
-filterwarnings = [
-  "error::FutureWarning",
-  "error::DeprecationWarning",
-  "error:::cudf",
-  "ignore:[^.]*ABCs[^.]*:DeprecationWarning:patsy[.*]",
-  "ignore:(.*)alias(.*):DeprecationWarning:hdbscan[.*]",
-  # From sklearn
-  "ignore:A column-vector y was passed:sklearn.exceptions.DataConversionWarning",
-  "ignore::sklearn.exceptions.SkipTestWarning",
-  # sklearn 1.6 renamed force_all_finite to ensure_all_finite
-  "ignore:'force_all_finite' was renamed to 'ensure_all_finite'.*:FutureWarning",
-  # From dask-glm
-  "ignore:pkg_resources is deprecated as an API:DeprecationWarning",
-  "ignore:Deprecated call to `pkg_resources.declare_namespace:DeprecationWarning",
-  "ignore:`rcond` parameter will change to the default:FutureWarning",
-  "ignore:Dask configuration key 'fuse_ave_width':FutureWarning",
-  # From dask/distributed
-  "ignore:Dask annotations .* detected:UserWarning",
-  "ignore:Sending large graph of size:UserWarning",
-  # From hdbscan
-  "ignore:Conversion of an array with ndim > 0:DeprecationWarning",
-  # From umap-learn
-  "ignore:Tensorflow not installed.*:ImportWarning:umap",
-  # From sklearn estimator checks
-  "ignore:Estimator .* does not inherit from.*:UserWarning",
-  # TargetEncoder combination mode deprecation (will change to 2D output in 26.04)
-  "ignore:TargetEncoder currently returns 1D output:FutureWarning",
-  # From numba - GPU under-utilization warnings in tests with small data
-  "ignore::numba.core.errors.NumbaPerformanceWarning",
-  # numba-cuda makes use of deprecated cuda.core.experimental apis
-  "ignore:The cuda.core.experimental namespace is deprecated:DeprecationWarning",
-  # Allow informational benchmark warnings (pytest-benchmark plugin)
-  "default::pytest_benchmark.logger.PytestBenchmarkWarning",
-  # sklearn's parametrize_with_checks passes a generator to parametrize
-  "ignore:Passing a non-Collection iterable:pytest.PytestRemovedIn10Warning",
-]
-
 [project]
 name = "cuml"
 dynamic = ["version"]

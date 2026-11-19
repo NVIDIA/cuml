@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Support invoking test_python_singlegpu.sh outside the script directory
@@ -21,13 +21,15 @@ trap "EXITCODE=1" ERR
 set +e
 
 rapids-logger "pytest cuml single GPU"
-timeout -v --signal=SIGINT --kill-after=60s 1h ./ci/run_cuml_singlegpu_pytests.sh \
+timeout -v --signal=SIGINT --kill-after=60s 1h python -m pytest --cuml-suite=standard \
+  --cache-clear --durations=100 --durations-min=1 \
   --numprocesses=8 \
   --dist=worksteal \
   --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml.xml"
 
   rapids-logger "pytest cuml accelerator"
-timeout -v --signal=SIGINT --kill-after=60s 15m ./ci/run_cuml_singlegpu_accel_pytests.sh \
+timeout -v --signal=SIGINT --kill-after=60s 15m python -m pytest --cuml-suite=accel \
+  --cache-clear --durations=100 --durations-min=1 \
   --numprocesses=8 \
   --dist=worksteal \
   --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-accel.xml"

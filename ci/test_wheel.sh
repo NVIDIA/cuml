@@ -64,7 +64,8 @@ rapids-logger "Testing libcuml linkage"
 python -m pytest --cache-clear python/libcuml/tests/test_libcuml_linkage.py -v
 
 rapids-logger "pytest cuml single GPU"
-timeout -v --signal=SIGINT --kill-after=60s 1h ./ci/run_cuml_singlegpu_pytests.sh \
+timeout -v --signal=SIGINT --kill-after=60s 1h python -m pytest --cuml-suite=standard \
+  --cache-clear --durations=100 --durations-min=1 \
   --numprocesses=8 \
   --dist=worksteal \
   -k 'not test_sparse_pca_inputs' \
@@ -72,14 +73,16 @@ timeout -v --signal=SIGINT --kill-after=60s 1h ./ci/run_cuml_singlegpu_pytests.s
 
 if [[ "${RAPIDS_DEPENDENCIES:-}" == "nightly" ]]; then
   rapids-logger "pytest cuml accelerator"
-  timeout -v --signal=SIGINT --kill-after=60s 15m ./ci/run_cuml_singlegpu_accel_pytests.sh \
+  timeout -v --signal=SIGINT --kill-after=60s 15m python -m pytest --cuml-suite=accel \
+    --cache-clear --durations=100 --durations-min=1 \
     --numprocesses=8 \
     --dist=worksteal \
     --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-accel.xml"
 fi
 
 # Run test_sparse_pca_inputs separately
-timeout -v --signal=SIGINT --kill-after=60s 10m ./ci/run_cuml_singlegpu_pytests.sh \
+timeout -v --signal=SIGINT --kill-after=60s 10m python -m pytest --cuml-suite=standard \
+  --cache-clear --durations=100 --durations-min=1 \
   -k 'test_sparse_pca_inputs' \
   --junitxml="${RAPIDS_TESTS_DIR}/junit-cuml-sparse-pca.xml"
 

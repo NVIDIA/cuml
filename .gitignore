@@ -87,10 +87,10 @@ cpp/Doxyfile
 compile_commands.json
 .clangd/
 
-# generally prefer 'pyproject.toml' to 'pytest.ini' for pytest options
+# Prefer pyproject.toml; allow the isolated runner regression-test config.
 # ref: https://github.com/NVIDIA/cuml/pull/6201
 pytest.ini
-!python/cuml/cuml_accel_tests/upstream/pytest.ini
+!ci/tests/pytest.ini
 
 # testing
 python/cuml/cuml_accel_tests/upstream/umap/umap-upstream
