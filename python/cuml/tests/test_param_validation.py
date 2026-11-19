@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+import array
+import collections
 import math
 
 import cupy as cp
@@ -67,8 +69,13 @@ from cuml.testing.utils import get_all_base_subclasses
                 cp.zeros(3),
                 pd.Series([1.0]),
                 np.array(1.0),
+                range(3),
+                array.array("d", [1.0]),
+                collections.deque([1.0]),
+                {1.0},
+                {"a": 1.0},
             ],
-            [1.0, np.float64(1.0), "abc", None],
+            [1.0, np.float64(1.0), "abc", b"abc", None, (i for i in [1.0])],
         ),
         (Callable(), [len, lambda: 1], [1, "len"]),
         (

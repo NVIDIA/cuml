@@ -244,15 +244,21 @@ class _None(Constraint):
 
 
 class ArrayLike(Constraint):
-    """A list, tuple or array (numpy, cupy, pandas, ...)."""
+    """A collection or an array (numpy, cupy, pandas, ...), not a scalar.
+
+    Like sklearn's "array-like", anything with a length is accepted.
+    """
 
     def accepts(self, value) -> bool:
-        if isinstance(value, (list, tuple)):
-            return True
-        return not np.isscalar(value) and (
-            hasattr(value, "__array__")
-            or hasattr(value, "__array_interface__")
-            or hasattr(value, "__cuda_array_interface__")
+        if np.isscalar(value):
+            return False
+        return hasattr(value, "__len__") or any(
+            hasattr(value, attr)
+            for attr in (
+                "__array__",
+                "__array_interface__",
+                "__cuda_array_interface__",
+            )
         )
 
     def __str__(self):
