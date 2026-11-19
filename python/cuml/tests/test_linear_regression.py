@@ -189,17 +189,21 @@ def test_linear_regression_short_wide(algorithm):
     np.testing.assert_allclose(sk_pred, cu_pred, atol=atol)
 
 
-@pytest.mark.parametrize("kind", ["colinear", "square", "small-values"])
+@pytest.mark.parametrize(
+    "kind", ["colinear", "square", "small-values", "uniform"]
+)
 def test_linear_regression_cholesky_edge_cases(kind):
     if kind == "colinear":
         X, y = make_regression(n_samples=2000, n_features=100, random_state=42)
         X[:, ::10] = X[:, 0:1]
     elif kind == "square":
         X, y = make_regression(n_samples=50, n_features=50, random_state=42)
-    else:
-        assert kind == "small-values"
+    elif kind == "small-values":
         X, y = make_regression(n_samples=50, n_features=10, random_state=42)
         X *= np.sqrt(1e-13 / X.max())
+    elif kind == "uniform":
+        X = np.ones((3, 2), dtype="float32")
+        y = np.array([1, 2, 3], dtype="float32")
 
     sk_model = sklearn.linear_model.LinearRegression().fit(X, y)
     with warnings.catch_warnings():

@@ -196,11 +196,15 @@ _ridge_transform_no_alpha_kernel = cp.ElementwiseKernel(
 )
 
 
-def _ridge_transform(x, s, alpha=None):
+def _ridge_transform(x, s, alpha=None, thresh=None):
     """Computes `x * s / (s * s + alpha)`, with `s < thresh` values set to 0.
-    The thresh is determined dynamically based on `s.max()`."""
-    # 1e-12 factor borrowed from sklearn
-    thresh = x.dtype.type(min(float(s.max()) * 1e-12, 1e-12))
+    The default thresh is determined dynamically based on `s.max()`."""
+    max_s = float(s.max())
+    if thresh is None:
+        # 1e-12 ratio borrowed from sklearn
+        thresh = x.dtype.type(
+            1e-12 if max_s <= 0 else min(1e-12, 1e-12 * max_s)
+        )
     if alpha is None or (alpha == 0).all():
         # Small optimization in the case of all-zero alpha
         return _ridge_transform_no_alpha_kernel(x, s, thresh)
@@ -340,7 +344,8 @@ def fit_least_squares(
     if solver == "svd":
         # Solve using SVD method
         u, s, vh = cp.linalg.svd(X, full_matrices=False)
-        temp = _ridge_transform(u.T.dot(y), s[:, None], alpha)
+        # 1e-15 threshold borrowed from sklearn
+        temp = _ridge_transform(u.T.dot(y), s[:, None], alpha, thresh=1e-15)
         coef = vh.T.dot(temp).T
         n_iter = None
     elif solver == "cholesky":

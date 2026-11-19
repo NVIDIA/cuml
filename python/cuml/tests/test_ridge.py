@@ -173,6 +173,14 @@ def test_ridge_cholesky_edge_cases(kind):
     np.testing.assert_allclose(cu_model.coef_, sk_model.coef_, atol=1e-4)
 
 
+def test_ridge_svd_small_values():
+    X = np.diag([1, 1e-14])
+    y = np.array([0, 1])
+    cu_model = cuml.Ridge(alpha=0, solver="svd", fit_intercept=False).fit(X, y)
+    sol = np.array([0, 1e14])
+    np.testing.assert_allclose(cu_model.coef_, sol)
+
+
 @pytest.mark.parametrize(
     "solver, fit_intercept",
     [("lsmr", True), ("lsmr", False), ("cholesky", False)],
