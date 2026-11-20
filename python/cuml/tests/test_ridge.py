@@ -158,16 +158,27 @@ def test_ridge_cholesky_singular_matrix(n_targets, alpha):
     np.testing.assert_allclose(sk_pred, cu_pred, atol=1e-4)
 
 
-@pytest.mark.parametrize("n", [4, 3, 2])
-def test_ridge_cholesky_singular_small_eigs(n):
-    eigs = [0, 1e-6, 1e-9, 1][:n]
-    X = np.diag(eigs).astype("float32")
-    y = X.sum(axis=0)
-    kws = {"alpha": 0, "fit_intercept": False, "solver": "cholesky"}
-    sk_model = sklearn.linear_model.Ridge(**kws).fit(X, y)
-    with pytest.warns(UserWarning, match="Singular matrix encountered"):
-        cu_model = cuml.Ridge(**kws).fit(X, y)
-    np.testing.assert_allclose(cu_model.coef_, sk_model.coef_)
+@pytest.mark.parametrize("kind", ["square", "small-values"])
+def test_ridge_cholesky_edge_cases(kind):
+    if kind == "square":
+        X, y = make_regression(n_samples=50, n_features=50, random_state=42)
+        alpha = 1
+    elif kind == "small-values":
+        X, y = make_regression(n_samples=50, n_features=10, random_state=42)
+        X *= np.sqrt(1e-13 / X.max())
+        alpha = 1e-19
+
+    sk_model = sklearn.linear_model.Ridge(alpha=alpha).fit(X, y)
+    cu_model = cuml.Ridge(solver="cholesky", alpha=alpha).fit(X, y)
+    np.testing.assert_allclose(cu_model.coef_, sk_model.coef_, atol=1e-4)
+
+
+def test_ridge_svd_small_values():
+    X = np.diag([1, 1e-14])
+    y = np.array([0, 1])
+    cu_model = cuml.Ridge(alpha=0, solver="svd", fit_intercept=False).fit(X, y)
+    sol = np.array([0, 1e14])
+    np.testing.assert_allclose(cu_model.coef_, sol)
 
 
 @pytest.mark.parametrize(

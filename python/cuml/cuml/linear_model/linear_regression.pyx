@@ -86,7 +86,7 @@ class LinearRegression(InteropMixin,
 
     Parameters
     ----------
-    algorithm : {'auto', 'lu', 'eig', 'svd', 'lsmr', 'nnls', 'qr', 'svd-qr', 'svd-jacobi'}, \
+    algorithm : {'auto', 'cholesky', 'eig', 'svd', 'lsmr', 'nnls', 'qr', 'svd-qr', 'svd-jacobi'}, \
                 default='auto'
         The algorithm to use when fitting:
 
@@ -94,7 +94,7 @@ class LinearRegression(InteropMixin,
           selects 'eig' if supported, falling back to 'lsmr' if X is sparse,
           and 'svd' otherwise.
 
-        - 'lu': uses an LU decomposition of the covariance matrix,
+        - 'cholesky': uses a cholesky decomposition of the covariance matrix,
           falling back to an eigendecomposition if that's singular. This is
           typically the fastest dense solver, and is competitive for sparse
           matrices. It doesn't support sparse ``X`` when ``fit_intercept=True``.
@@ -369,7 +369,7 @@ class LinearRegression(InteropMixin,
         sample_weight_is_copy = cuda_ptr(sample_weight) != cuda_ptr(sample_weight_orig)
 
         if self.algorithm not in (
-            "auto", "lu", "eig", "svd", "lsmr", "nnls", "qr", "svd-qr", "svd-jacobi"
+            "auto", "cholesky", "eig", "svd", "lsmr", "nnls", "qr", "svd-qr", "svd-jacobi"
         ):
             raise ValueError(f"algorithm={self.algorithm!r} is not supported")
 
@@ -377,10 +377,10 @@ class LinearRegression(InteropMixin,
         fallback_reason = None
         if self.positive:
             solver = "nnls"
-        elif self.algorithm == "lu" and sp.issparse(X) and self.fit_intercept:
+        elif self.algorithm == "cholesky" and sp.issparse(X) and self.fit_intercept:
             solver = "lsmr"
             fallback_reason = "sparse X with `fit_intercept=True`"
-        elif self.algorithm in ("lu", "lsmr"):
+        elif self.algorithm in ("cholesky", "lsmr"):
             solver = self.algorithm
         elif sp.issparse(X):
             solver = "lsmr"
@@ -423,6 +423,7 @@ class LinearRegression(InteropMixin,
                 may_mutate_X=X_is_copy or not self.copy_X,
                 may_mutate_y=y_is_copy,
                 solver=solver,
+                cholesky_warn_if_singular=False,
             )
 
         self.coef_ = coef
