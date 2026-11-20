@@ -556,3 +556,158 @@ def test_as_sklearn_missing_category_matches_cuml(multi_feature_mode):
     np.testing.assert_allclose(
         sklearn_model.transform(X_new), encoder.transform(X_new), rtol=1e-5
     )
+
+
+def test_independent_fit_transform_all_null_target_category():
+    """With smooth=0 a category whose targets are all null has no encoding
+    of its own; its training rows fall back to `y_stat_val`, not NaN."""
+    X = np.array(["a", "a", "c", "b", "b"], dtype=object)[:, None]
+    y = np.array([1.0, 1.0, 4.0, np.nan, np.nan])
+
+    encoder = TargetEncoder(
+        smooth=0, multi_feature_mode="independent", output_type="numpy"
+    )
+    train_encoded = encoder.fit_transform(X, y)
+
+    assert encoder.y_stat_val == 2.0
+    np.testing.assert_allclose(
+        train_encoded, np.array([1.0, 1.0, 4.0, 2.0, 2.0])[:, None]
+    )
+
+
+@pytest.mark.parametrize("path", ["host", "device"])
+@pytest.mark.parametrize(
+    "dtype, big", [("int64", 2**53), ("uint64", 2**63 + 2**11)]
+)
+def test_independent_integer_categories_beyond_float64_with_null(
+    monkeypatch, path, dtype, big
+):
+    """Integer categories that are distinct but equal as float64, in a
+    column that also has a null, keep their own encodings in `categories_`,
+    in the per-category encodings, in `transform` and in the sklearn
+    export."""
+    import cuml.preprocessing._target_encoder as te
+
+    limit = 1 << 62 if path == "host" else 0
+    monkeypatch.setattr(te, "_host_lookup_max_categories", lambda _: limit)
+
+    keys = [big, big + 1, None, big, big + 1, 7, None, 7]
+    y = [0.0, 1.0, 0.5, 0.25, 0.75, 2.0, 1.5, 3.0]
+    smooth = 0.5
+    mean = np.mean(y)
+
+    def expected(key):
+        ys = [y_i for k, y_i in zip(keys, y) if k == key]
+        return (sum(ys) + smooth * mean) / (len(ys) + smooth)
+
+    encoder = TargetEncoder(
+        smooth=smooth, multi_feature_mode="independent", output_type="numpy"
+    )
+    encoder.fit(
+        cudf.DataFrame({"a": cudf.Series(keys, dtype=dtype)}),
+        cudf.Series(y),
+    )
+
+    (categories,) = encoder.categories_
+    assert categories[:-1].tolist() == [7, big, big + 1]
+    assert np.isnan(categories[-1])
+    (encodings,) = encoder._encodings_per_feature
+    np.testing.assert_allclose(
+        encodings, [expected(k) for k in [7, big, big + 1, None]]
+    )
+
+    # Not the training input, so `transform` does not return the cached
+    # training encodings
+    new_keys = [big + 1, None, 3, big, 7]
+    want = [
+        expected(big + 1),
+        expected(None),
+        mean,
+        expected(big),
+        expected(7),
+    ]
+    X_new = cudf.DataFrame({"a": cudf.Series(new_keys, dtype=dtype)})
+    np.testing.assert_allclose(encoder.transform(X_new).ravel(), want)
+
+    sklearn_model = encoder.as_sklearn()
+    assert sklearn_model.categories_[0][:3].tolist() == [7, big, big + 1]
+    np.testing.assert_allclose(
+        sklearn_model.transform(
+            pandas.DataFrame({"a": new_keys}, dtype=object)
+        ),
+        np.array(want)[:, None],
+    )
+
+
+def test_integer_categories_with_null_stay_float64():
+    """Integer categories with a null that float64 holds exactly stay
+    float64, as in sklearn, so the sklearn export accepts numeric input."""
+    keys = [3, 1, None, 3, 2, 1]
+    y = [0.0, 1.0, 0.5, 0.25, 1.0, 0.75]
+    encoder = TargetEncoder(
+        smooth=0, multi_feature_mode="independent", output_type="numpy"
+    )
+    encoder.fit(
+        cudf.DataFrame({"a": cudf.Series(keys, dtype="int64")}),
+        cudf.Series(y),
+    )
+
+    (categories,) = encoder.categories_
+    assert categories.dtype == np.float64
+    np.testing.assert_array_equal(categories, [1.0, 2.0, 3.0, np.nan])
+    np.testing.assert_allclose(
+        encoder._encodings_per_feature[0], [0.875, 1.0, 0.125, 0.5]
+    )
+
+    X_new = pandas.DataFrame({"a": [2.0, np.nan, 3.0, 5.0]})
+    np.testing.assert_allclose(
+        encoder.as_sklearn().transform(X_new),
+        np.array([1.0, 0.5, 0.125, np.mean(y)])[:, None],
+    )
+
+
+@pytest.mark.parametrize(
+    "dtype, limit",
+    [
+        ("int32", 100_000),
+        ("uint64", 100_000),
+        ("float64", 75_000),
+        ("object", 50_000),
+        ("bool", 50_000),
+    ],
+)
+def test_host_lookup_max_categories(dtype, limit):
+    from cuml.preprocessing._target_encoder import _host_lookup_max_categories
+
+    assert _host_lookup_max_categories(np.dtype(dtype)) == limit
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        pytest.param([3, 1, None, 3, 2, 1], id="int64-null"),
+        pytest.param([2**53, 2**53 + 1, None, 2**53, 7, 7], id="int64-2**53"),
+        pytest.param([1.5, np.nan, 2.5, 1.5, 0.5, 2.5], id="float-nan"),
+        pytest.param(["b", None, "a", "b", "c", "a"], id="str-null"),
+    ],
+)
+def test_category_encodings_device_path_matches_host(monkeypatch, keys):
+    """Large category tables are resolved with a device merge; it must give
+    the same per-category encodings as the host lookup."""
+    import cuml.preprocessing._target_encoder as te
+
+    dtype = "int64" if isinstance(keys[0], int) else None
+    X = cudf.DataFrame({"a": cudf.Series(keys, dtype=dtype)})
+    y = cudf.Series([0.0, 1.0, 0.5, 0.25, 1.0, 0.75])
+
+    encodings = []
+    for limit in (1 << 62, 0):
+        monkeypatch.setattr(
+            te, "_host_lookup_max_categories", lambda _, limit=limit: limit
+        )
+        encoder = TargetEncoder(smooth=0.5, multi_feature_mode="independent")
+        encoder.fit(X, y)
+        (enc,) = encoder._encodings_per_feature
+        assert len(enc) == len(encoder.categories_[0])
+        encodings.append(enc)
+    np.testing.assert_array_equal(encodings[0], encodings[1])
