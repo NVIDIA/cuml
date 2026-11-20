@@ -62,12 +62,10 @@ def _joblib_hash(X):
 
 def _hash_input(X, algorithm):
     """Hash input using the scheme recorded at fit time."""
-    if algorithm == "cuml-joblib":
+    if algorithm is None:
         return _joblib_hash(X)
     if cupyx.scipy.sparse.issparse(X) or isinstance(X, cp.ndarray):
         X = X.get()
-    if algorithm is None:
-        return joblib.hash(X)
     from umap.umap_ import _INPUT_HASH_ALGORITHM, _input_data_hash
 
     if algorithm != _INPUT_HASH_ALGORITHM:
@@ -1148,9 +1146,9 @@ class UMAP(
         if cupyx.scipy.sparse.issparse(raw_data) or isinstance(raw_data, cp.ndarray):
             raw_data = raw_data.get()
 
-        algorithm = getattr(self, "_input_hash_algorithm", "cuml-joblib")
+        algorithm = getattr(self, "_input_hash_algorithm", None)
         input_hash = getattr(self, "_input_hash", None)
-        if hasattr(model, "compatibility_layout") and algorithm in (None, "cuml-joblib"):
+        if hasattr(model, "compatibility_layout") and algorithm is None:
             # A content hash avoids joblib's sensitivity to CSR cached flags.
             # With no stored fingerprint, compute the content hash directly.
             # Otherwise translate only if current data matches the fit-time hash.
@@ -1200,9 +1198,7 @@ class UMAP(
         if hasattr(model, "compatibility_layout"):
             # Preserve upstream hash schemes, including when synchronizing
             # into a model that previously used a different algorithm.
-            attrs["_input_hash_algorithm"] = (
-                None if algorithm == "cuml-joblib" else algorithm
-            )
+            attrs["_input_hash_algorithm"] = algorithm
 
         # Transfer _sigmas and _rhos if available (needed for inverse_transform)
         if hasattr(self, "_sigmas") and self._sigmas is not None:
@@ -1510,7 +1506,7 @@ class UMAP(
         self._sigmas = sigmas
         self._rhos = rhos
 
-        self._input_hash_algorithm = "cuml-joblib"
+        self._input_hash_algorithm = None
         if self.hash_input:
             self._input_hash = _joblib_hash(X)
         else:
@@ -1585,7 +1581,7 @@ class UMAP(
         X_input_sparse = is_sparse(X)
 
         if self.hash_input and _hash_input(
-            X, getattr(self, "_input_hash_algorithm", "cuml-joblib")
+            X, getattr(self, "_input_hash_algorithm", None)
         ) == self._input_hash:
             return self.embedding_
 
