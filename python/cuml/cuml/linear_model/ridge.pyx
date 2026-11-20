@@ -89,8 +89,8 @@ class Ridge(InteropMixin,
     solver : {'auto', 'cholesky', 'eig', 'svd', 'lsmr'}, default='auto'
         The solver to use when fitting:
 
-        - 'auto': will select 'eig' if supported, falling back to 'lsmr' if X
-          is sparse, and 'svd' otherwise.
+        - 'auto': will select 'cholesky' for dense ``X``, and 'lsmr' for
+          sparse ``X``.
 
         - 'cholesky': uses a cholesky decomposition of the covariance matrix,
           falling back to an eigendecomposition if that's singular. This is
@@ -394,6 +394,7 @@ class Ridge(InteropMixin,
         X_is_copy = cuda_ptr(X) != cuda_ptr(X_orig)
         y_is_copy = cuda_ptr(y) != cuda_ptr(y_orig)
         sample_weight_is_copy = cuda_ptr(sample_weight) != cuda_ptr(sample_weight_orig)
+        X_is_sparse = sp.issparse(X)
 
         n_targets = 1 if y.ndim == 1 else y.shape[1]
 
@@ -433,14 +434,9 @@ class Ridge(InteropMixin,
                     "solver='svd' or solver='auto' instead"
                 )
         elif solver == "auto":
-            if sp.issparse(X):
-                solver = "lsmr"
-            elif X.shape[1] == 1 or n_targets != 1:
-                solver = "svd"
-            else:
-                solver = "eig"
+            solver = "lsmr" if X_is_sparse else "cholesky"
 
-        if sp.issparse(X):
+        if X_is_sparse:
             if solver not in ("lsmr", "cholesky"):
                 raise ValueError(
                     f"{solver=!r} doesn't support sparse X, please select "
