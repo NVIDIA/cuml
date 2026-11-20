@@ -81,6 +81,15 @@
   condition: umap-learn>=0.6.0
   tests:
   - "umap.tests.test_umap_on_iris::test_umap_compatibility_transform_on_iris_modified_dtype"
+- reason: GPU fitting does not validate n_jobs because it does not control GPU execution
+  marker: cuml_accel_n_jobs_validation
+  tests:
+  - "umap.tests.test_umap_validation_params::test_umap_bad_n_jobs"
+- reason: Test also checks invalid n_jobs, which does not control GPU execution and is not validated
+  marker: cuml_accel_n_jobs_validation
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_validation_params::test_umap_bad_nearest_neighbor_backend"
 - reason: UMAP using removed numpy function `in1d`
   marker: cuml_accel_no_numpy_in1d
   condition: umap-learn<=0.5.7 and numpy>=2.4

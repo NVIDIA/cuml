@@ -994,11 +994,6 @@ class UMAP(
 
     @classmethod
     def _params_from_cpu(cls, model):
-        # n_jobs does not control GPU execution, but invalid values must still
-        # be rejected by upstream rather than silently ignored.
-        if model.n_jobs == 0 or model.n_jobs < -1:
-            raise UnsupportedOnGPU("Invalid `n_jobs` requires CPU validation")
-
         init = model.init
         if hasattr(model, "compatibility_layout"):
             # Resolve the public parameters without changing them (including
