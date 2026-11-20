@@ -8,7 +8,6 @@ import cupyx.scipy.sparse as sp
 import numpy as np
 
 from cuml.common.doc_utils import generate_docstring
-from cuml.common.sparse import is_sparse
 from cuml.internals.base import Base, get_handle
 from cuml.internals.interop import InteropMixin
 from cuml.internals.mixins import (
@@ -91,8 +90,7 @@ class LinearRegression(InteropMixin,
         The algorithm to use when fitting:
 
         - 'auto': will select 'nnls' if ``positive=True``. Otherwise it
-          selects 'eig' if supported, falling back to 'lsmr' if X is sparse,
-          and 'svd' otherwise.
+          selects 'cholesky' for dense ``X`` and 'lsmr' for sparse ``X``.
 
         - 'cholesky': uses a cholesky decomposition of the covariance matrix,
           falling back to an eigendecomposition if that's singular. This is
@@ -258,9 +256,7 @@ class LinearRegression(InteropMixin,
         may_mutate_sample_weight=False,
     ):
         """Fit a LinearRegression using a libcuml solver"""
-        cdef int algo = (
-            Algo.EIG if self.algorithm == "auto" else Algo.parse(self.algorithm)
-        )
+        cdef int algo = Algo.parse(self.algorithm)
 
         # All libcuml solvers require F-ordered X, and mutate the inputs.
         X = cp.array(X, order="F", copy=None if may_mutate_X else True)
@@ -337,21 +333,15 @@ class LinearRegression(InteropMixin,
         Fit the model with X and y.
 
         """
-        X_orig, y_orig, sample_weight_orig = X, y, sample_weight
         if self.positive and self.algorithm not in ("auto", "nnls"):
             raise ValueError(
                 "`positive=True` requires `algorithm='auto'` or "
                 f"`algorithm='nnls'`, got `algorithm={self.algorithm!r}`."
             )
-        if not self.positive and self.algorithm == "nnls":
+        elif self.algorithm == "nnls" and not self.positive:
             raise ValueError("`algorithm='nnls'` requires `positive=True`.")
-        if self.positive and is_sparse(X):
-            raise TypeError(
-                "`positive=True` requires dense `X`, but sparse data was "
-                "passed. Use '.toarray()' to explicitly convert it to a "
-                "dense array."
-            )
 
+        X_orig, y_orig, sample_weight_orig = X, y, sample_weight
         X, y, sample_weight = check_inputs(
             self,
             X,
@@ -367,6 +357,7 @@ class LinearRegression(InteropMixin,
         X_is_copy = cuda_ptr(X) != cuda_ptr(X_orig)
         y_is_copy = cuda_ptr(y) != cuda_ptr(y_orig)
         sample_weight_is_copy = cuda_ptr(sample_weight) != cuda_ptr(sample_weight_orig)
+        X_is_sparse = sp.issparse(X)
 
         if self.algorithm not in (
             "auto", "cholesky", "eig", "svd", "lsmr", "nnls", "qr", "svd-qr", "svd-jacobi"
@@ -377,12 +368,14 @@ class LinearRegression(InteropMixin,
         fallback_reason = None
         if self.positive:
             solver = "nnls"
-        elif self.algorithm == "cholesky" and sp.issparse(X) and self.fit_intercept:
+        elif self.algorithm == "auto":
+            solver = "lsmr" if X_is_sparse else "cholesky"
+        elif self.algorithm == "cholesky" and X_is_sparse and self.fit_intercept:
             solver = "lsmr"
             fallback_reason = "sparse X with `fit_intercept=True`"
         elif self.algorithm in ("cholesky", "lsmr"):
             solver = self.algorithm
-        elif sp.issparse(X):
+        elif X_is_sparse:
             solver = "lsmr"
             fallback_reason = "sparse X"
         elif X.shape[1] == 1:
