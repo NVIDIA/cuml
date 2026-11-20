@@ -1662,8 +1662,7 @@ def test_sparse_transform_training_cache(sparse_format):
         hash_input=True,
         output_type="numpy",
     ).fit(X)
-    # Fit normalizes sparse inputs to CSR. Transform must hash the same
-    # representation, except when preserving original host CSR metadata.
+    # Fit and transform both hash the validated CSR representation.
     np.testing.assert_array_equal(model.transform(X.copy()), model.embedding_)
 
 
