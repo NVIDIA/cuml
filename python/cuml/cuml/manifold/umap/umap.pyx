@@ -1037,7 +1037,7 @@ class UMAP(
         if model.disconnection_distance is not None:
             raise UnsupportedOnGPU("Explicit `disconnection_distance` is not supported")
 
-        if isinstance(model.n_epochs, (list, tuple, np.ndarray)):
+        if model.n_epochs is not None and not np.isscalar(model.n_epochs):
             raise UnsupportedOnGPU("A sequence of `n_epochs` is not supported")
 
         precomputed_knn = model.precomputed_knn[:2]
