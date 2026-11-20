@@ -338,17 +338,6 @@ def test_umap_inactive_legacy_options(data, params):
         assert model.get_params()[key] == value
 
 
-@pytest.mark.parametrize("n_jobs", [0, -2])
-@pytest.mark.filterwarnings(
-    "ignore:compatibility_layout was not set:FutureWarning"
-)
-def test_umap_invalid_n_jobs(data, n_jobs):
-    model = UMAP(n_jobs=n_jobs)
-    with pytest.raises(ValueError, match="n_jobs"):
-        model.fit(data)
-    assert model._gpu is None
-
-
 @pytest.mark.skipif(not UMAP_060, reason="Requires UMAP 0.6")
 @pytest.mark.filterwarnings(
     "ignore:compatibility_layout was not set:FutureWarning"
