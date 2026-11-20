@@ -86,33 +86,6 @@ def _run_record(suite: Suite, argv: list[str]) -> dict[str, Any]:
     }
 
 
-def _generate_data(case: ResolvedCase, backend: Backend) -> tuple[Any, Any]:
-    """Generate case inputs and convert them for the backend."""
-    X, y = generate_data(case)
-    return backend.convert_data(case, X, y)
-
-
-def _partition_data(
-    case: ResolvedCase, backend: Backend
-) -> tuple[Any, Any, Any, Any]:
-    """Partition generated inputs into training and measurement data."""
-    # TODO: Split host inputs before backend conversion, or provide a backend
-    # row-slicing hook. Dask-cuDF does not support these positional slices,
-    # so categorical inference fails even when only y is selected.
-    X, y = _generate_data(case, backend)
-    if case.lifecycle == "fit":
-        return None, None, X, y
-    split = case.training_rows
-    return X[:split], y[:split], X[split:], y[split:]
-
-
-def _inputs(
-    selection: tuple[str, ...], inputs: dict[str, Any]
-) -> tuple[Any, ...]:
-    """Select ordered estimator arguments from named inputs."""
-    return tuple(inputs[name] for name in selection)
-
-
 def _base_result(
     suite: Suite,
     case: ResolvedCase,
@@ -160,23 +133,50 @@ def _prepare_case(
     spec: EstimatorSpec,
     client: Any = None,
 ) -> _PreparedCase:
-    """Load the estimator class and prepare partitioned case inputs."""
+    """Partition host data, then convert and materialize only required inputs."""
     estimator_class = backend.load_estimator(spec)
-    X_train, y_train, X, y = _partition_data(case, backend)
-    operation_args = _inputs(case.input_selection, {"X": X, "y": y})
-    fit_args = (
-        ()
-        if case.lifecycle == "fit"
-        else _inputs(case.fit_input_selection, {"X": X_train, "y": y_train})
+    provider = suite.provider_spec
+
+    # Generate and partition host data.
+    X, y = generate_data(case)
+    is_fit = case.lifecycle == "fit"
+    if is_fit:
+        measured = {"X": X, "y": y}
+    else:
+        split = case.training_rows
+        train = {"X": X[:split], "y": y[:split]}
+        measured = {"X": X[split:], "y": y[split:]}
+
+    # Convert only selected inputs, applying provider-specific requirements.
+    x_representation = (
+        "csr"
+        if case.input_format == "csr"
+        else "dataframe"
+        if case.dataset == "categorical"
+        else "array"
     )
-    # Keep materialized inputs alive in the prepared case across every warmup
-    # and measurement, rather than rerunning a lazy conversion graph.
-    prepared_inputs = backend.prepare_inputs(operation_args + fit_args, client)
-    split = len(operation_args)
+
+    def convert(inputs, selection):
+        return tuple(
+            provider.convert_data(
+                inputs[name],
+                estimator=case.estimator,
+                role=name,
+                representation=x_representation if name == "X" else "array",
+            )
+            for name in selection
+        )
+
+    operation_args = convert(measured, case.input_selection)
+    fit_args = () if is_fit else convert(train, case.fit_input_selection)
+
+    # Materialize both groups together, then restore their boundary.
+    prepared = backend.prepare_inputs(operation_args + fit_args, client)
+    boundary = len(operation_args)
     return _PreparedCase(
         estimator_class=estimator_class,
-        operation_args=prepared_inputs[:split],
-        fit_args=None if case.lifecycle == "fit" else prepared_inputs[split:],
+        operation_args=prepared[:boundary],
+        fit_args=None if is_fit else prepared[boundary:],
     )
 
 
