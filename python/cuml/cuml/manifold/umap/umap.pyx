@@ -1580,9 +1580,6 @@ class UMAP(
         """
         check_is_fitted(self)
 
-        # Preserve host CSR metadata for legacy joblib fingerprints: conversion
-        # through CuPy can change cached flags included in joblib.hash.
-        hash_source = X
         X = check_inputs(
             self,
             X,
@@ -1591,15 +1588,9 @@ class UMAP(
             accept_sparse="csr",
         )
         X_input_sparse = is_sparse(X)
-        if not (
-            scipy.sparse.issparse(hash_source)
-            and hash_source.format == "csr"
-            and hash_source.dtype == np.float32
-        ):
-            hash_source = X
 
         if self.hash_input and _hash_input(
-            hash_source, getattr(self, "_input_hash_algorithm", "cuml-joblib")
+            X, getattr(self, "_input_hash_algorithm", "cuml-joblib")
         ) == self._input_hash:
             return self.embedding_
 
