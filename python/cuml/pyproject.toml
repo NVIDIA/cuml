@@ -65,9 +65,10 @@ filterwarnings = [
   "ignore:TargetEncoder currently returns 1D output:FutureWarning",
   # From numba - GPU under-utilization warnings in tests with small data
   "ignore::numba.core.errors.NumbaPerformanceWarning",
-  # Temporary workaround for numba-cuda-mlir's unit-less NaT initialization.
-  # Remove once the fix in NVIDIA/numba-cuda-mlir#481 is available in CI.
+  # Temporary workaround for MLIR's unit-less NaT: NVIDIA/numba-cuda-mlir#481.
   "ignore:^The 'generic' unit for NumPy timedelta is deprecated,:DeprecationWarning:^numba_cuda_mlir\\.numba_cuda\\.np\\.npdatetime_helpers$",
+  # Legacy numba-cuda has the same issue: NVIDIA/numba-cuda#922.
+  "ignore:^The 'generic' unit for NumPy timedelta is deprecated,:DeprecationWarning:^numba\\.cuda\\.np\\.npdatetime_helpers$",
   # numba-cuda makes use of deprecated cuda.core.experimental apis
   "ignore:The cuda.core.experimental namespace is deprecated:DeprecationWarning",
   # Allow informational benchmark warnings (pytest-benchmark plugin)
