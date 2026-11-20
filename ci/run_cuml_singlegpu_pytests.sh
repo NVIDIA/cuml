@@ -5,4 +5,4 @@
 # Support invoking run_cuml_singlegpu_pytests.sh outside the script directory
 cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/../python/cuml/tests || exit 1
 
-python -m pytest --cache-clear --durations=100 --durations-min=1 --ignore=dask "$@" .
+python -m pytest --cache-clear --durations=100 --durations-min=1 "$@" .
