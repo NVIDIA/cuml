@@ -4,45 +4,16 @@
 #
 
 import os
-import tempfile
 from datetime import timedelta
-from math import ceil
 
 import cudf.pandas
 import cupy as cp
 import hypothesis
 import numpy as np
-import pynvml
 import pytest
 from sklearn import datasets
 
 from cuml.testing.datasets import make_text_classification_dataset
-
-
-def _set_cuda_cache_path_per_xdist_worker(config):
-    """Use a dedicated CUDA JIT cache directory per pytest-xdist worker.
-
-    Avoids concurrent access to the same cache from multiple worker processes.
-    Must run before any CUDA runtime initialization.
-    """
-    workerinput = getattr(config, "workerinput", None)
-    if workerinput is None:
-        return
-    workerid = workerinput["workerid"]
-    safe = "".join(
-        c if c.isalnum() or c in "-_" else "_" for c in str(workerid)
-    )
-    if existing := os.environ.get("CUDA_CACHE_PATH"):
-        cache_dir = os.path.join(existing, safe)
-    else:
-        cache_dir = os.path.join(
-            tempfile.gettempdir(),
-            "cuml-pytest-cuda-cache",
-            safe,
-        )
-    os.makedirs(cache_dir, exist_ok=True)
-    os.environ["CUDA_CACHE_PATH"] = cache_dir
-
 
 # =============================================================================
 # Pytest Configuration
@@ -50,6 +21,7 @@ def _set_cuda_cache_path_per_xdist_worker(config):
 
 # Add the import here for any plugins that should be loaded EVERY TIME
 pytest_plugins = [
+    "cuml.testing.plugins.gpu_test_config",
     "cuml.testing.plugins.quick_run_plugin",
     "cuml.testing.plugins.restart_corrupted_xdist_worker",
 ]
@@ -249,18 +221,12 @@ def pytest_configure(config):
 
     This function:
     1. Adds custom markers
-    2. Records the available GPU memory
-    3. Loads appropriate hypothesis profiles based on test execution context
+    2. Loads appropriate hypothesis profiles based on test execution context
     """
-    _set_cuda_cache_path_per_xdist_worker(config)
     config.addinivalue_line(
         "markers",
         "cudf_pandas: mark test as requiring the cudf.pandas wrapper",
     )
-    # max_gpu_memory: Capacity of the GPU memory in GB
-    pytest.max_gpu_memory = _get_gpu_memory()
-    pytest.adapt_stress_test = "CUML_ADAPT_STRESS_TESTS" in os.environ
-
     # Load special hypothesis profiles for either quality or stress tests.
     # Note that the profile can be manually overwritten with the
     # --hypothesis-profile command line option in which case the settings
@@ -281,74 +247,6 @@ def pytest_pyfunc_call(pyfuncitem):
     """
     if "cudf_pandas" in pyfuncitem.keywords and not cudf.pandas.LOADED:
         pytest.skip("Test requires cudf.pandas accelerator")
-
-
-def _get_pynvml_device_handle(device_id=0):
-    """Get GPU handle from device index or UUID.
-
-    Parameters
-    ----------
-    device_id: int or str
-        The index or UUID of the device from which to obtain the handle.
-
-    Raises
-    ------
-    ValueError
-        If acquiring the device handle for the device specified failed.
-    pynvml.NVMLError
-        If any NVML error occurred while initializing.
-
-    Returns
-    -------
-    A pynvml handle to the device.
-
-    Examples
-    --------
-    >>> _get_pynvml_device_handle(device_id=0)
-
-    >>> _get_pynvml_device_handle(device_id="GPU-9fb42d6f-7d6b-368f-f79c-3c3e784c93f6")
-    """
-    pynvml.nvmlInit()
-
-    try:
-        if device_id and not str(device_id).isnumeric():
-            # This means device_id is UUID.
-            # This works for both MIG and non-MIG device UUIDs.
-            handle = pynvml.nvmlDeviceGetHandleByUUID(str.encode(device_id))
-            if pynvml.nvmlDeviceIsMigDeviceHandle(handle):
-                # Additionally get parent device handle
-                # if the device itself is a MIG instance
-                handle = pynvml.nvmlDeviceGetDeviceHandleFromMigDeviceHandle(
-                    handle
-                )
-        else:
-            handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
-        return handle
-    except pynvml.NVMLError:
-        raise ValueError(f"Invalid device index or UUID: {device_id}")
-
-
-def _get_gpu_memory(device_index=0):
-    """Return total memory of CUDA device with index or with device identifier UUID.
-
-    Parameters
-    ----------
-    device_index: int or str
-        The index or UUID of the device from which to obtain the total memory.
-
-    Returns
-    -------
-    The total memory of the CUDA Device in GB, or ``None`` for devices that do not
-    have a dedicated memory resource, as is usually the case for system on a chip (SoC)
-    devices.
-    """
-    handle = _get_pynvml_device_handle(device_index)
-
-    try:
-        # Return total memory in GB
-        return ceil(pynvml.nvmlDeviceGetMemoryInfo(handle).total / 2**30)
-    except pynvml.NVMLError_NotSupported:
-        return None
 
 
 # =============================================================================
@@ -413,13 +311,7 @@ def random_seed(request):
 
 @pytest.fixture(scope="session")
 def sparse_text_dataset():
-    """Generate a sparse text-like dataset similar to 20 newsgroups.
-
-    Returns
-    -------
-    tuple
-        (X, Y) where X is a sparse feature matrix and Y is a cupy target vector
-    """
+    """Return a sparse text-like dataset and a CuPy target vector."""
     X, y = make_text_classification_dataset()
     return X, cp.array(y)
 
