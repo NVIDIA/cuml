@@ -404,7 +404,7 @@ def test_umap_import_preserves_fit_time_hash(data, legacy_hash):
     assert restored._input_hash_algorithm == cpu._input_hash_algorithm
     # Refitting must reset the imported hashing policy.
     gpu.fit(original)
-    assert gpu._input_hash_algorithm == "cuml-joblib"
+    assert gpu._input_hash_algorithm is None
     assert_array_equal(gpu.transform(original), gpu.embedding_)
 
 
