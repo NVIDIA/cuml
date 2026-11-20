@@ -16,6 +16,14 @@ function(find_and_configure_treelite)
       list(APPEND TREELITE_LIBS treelite::treelite)
     else()
       list(APPEND TREELITE_LIBS treelite::treelite_static)
+      # Installed Treelite packages may only provide the shared library.
+      find_package(Treelite ${PKG_VERSION} QUIET CONFIG)
+      if(NOT TARGET treelite::treelite_static)
+        message(STATUS
+          "Downloading Treelite to use Treelite static lib; "
+          "current env only offers shared Treelite lib")
+        set(CPM_DOWNLOAD_Treelite ON)
+      endif()
     endif()
 
     rapids_cpm_find(Treelite ${PKG_VERSION}
