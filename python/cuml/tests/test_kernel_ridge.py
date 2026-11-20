@@ -20,6 +20,16 @@ from cuml import KernelRidge as cuKernelRidge
 from cuml.metrics import PAIRWISE_KERNEL_FUNCTIONS, pairwise_kernels
 from cuml.testing.utils import as_cupy, as_numpy, as_type
 
+legacy_cuda_numpy_xfail = pytest.mark.xfail(
+    not hasattr(np, "row_stack"),
+    reason=(
+        "Legacy numba-cuda requires np.row_stack: "
+        "https://github.com/NVIDIA/numba-cuda/issues/907"
+    ),
+    raises=AttributeError,
+    strict=True,
+)
+
 
 def gradient_norm(model, X, y, K, sw=None):
     if sw is None:
@@ -85,7 +95,13 @@ def test_pairwise_kernels_precomputed():
         pairwise_kernels(X1, Y, metric="precomputed")
 
 
-@pytest.mark.parametrize("compiler", ["numba.cuda", "numba_cuda_mlir.cuda"])
+@pytest.mark.parametrize(
+    "compiler",
+    [
+        pytest.param("numba.cuda", marks=legacy_cuda_numpy_xfail),
+        "numba_cuda_mlir.cuda",
+    ],
+)
 def test_pairwise_kernels_custom(compiler):
     cuda = pytest.importorskip(compiler)
 
@@ -93,28 +109,12 @@ def test_pairwise_kernels_custom(compiler):
     X = rng.uniform(size=(4, 3))
     Y = rng.uniform(size=(2, 3))
 
+    @cuda.jit(device=True)
     def my_metric(x, y, b=0.0, a=0.0):
         total = 0.0
         for i in range(len(x)):
             total += abs(y[i] - x[i])
         return total + a - b
-
-    try:
-        # Load the registry eagerly so only its known import failure is xfailed.
-        importlib.import_module(f"{cuda.__name__}.np.arrayobj")
-    except AttributeError as exc:
-        if (
-            compiler == "numba.cuda"
-            and not hasattr(np, "row_stack")
-            and str(exc) == "module 'numpy' has no attribute 'row_stack'"
-        ):
-            pytest.xfail(
-                "Legacy numba-cuda requires np.row_stack: "
-                "https://github.com/NVIDIA/numba-cuda/issues/907"
-            )
-        raise
-
-    my_metric = cuda.jit(device=True)(my_metric)
 
     # Basic operation with only X
     sol = sklearn.metrics.pairwise_kernels(X, metric=my_metric.py_func)
