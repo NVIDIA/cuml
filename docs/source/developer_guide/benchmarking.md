@@ -216,6 +216,24 @@ Each provider saves its results file after every case, including failures.
 The results JSON Schema is packaged at
 `cuml/benchmark/schemas/benchmark-result.schema.json`.
 
+## Optional quality scoring
+
+Add a registered scorer to a case; omit `scoring` to collect timings only:
+
+```yaml
+scoring:
+  name: r2
+  evaluation_rows: 1024
+  parameters: {force_finite: false}  # Optional scorer arguments.
+```
+
+Fitting cases require held-out `evaluation_rows`, profile-scaled with a minimum
+of 32. Changing this size can change training data and workload IDs. For
+`predict`, omit it: scoring reuses measured predictions on held-out inputs.
+
+Scoring runs outside timing and records quality metrics alongside each
+measurement. Invalid scores fail the case; low finite scores do not.
+
 ## Resume a run
 
 ```bash

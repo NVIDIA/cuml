@@ -22,8 +22,9 @@ from typing import Any, Callable
 from ._subprocess import SubprocessExited, SubprocessTimeout, run_in_subprocess
 from ._utils import _failure, _gpu_components, _jsonable, _now, atomic_write
 from .backends.base import Backend
-from .datasets import generate_data
+from .datasets import generate_data, partition_data
 from .providers.base import EstimatorSpec
+from .scoring import SCORERS, EvaluationContext, evaluate
 from .suite import ResolvedCase, Suite, SuiteError, Workload
 
 logger = logging.getLogger("cuml.benchmark")
@@ -78,6 +79,11 @@ def _run_record(suite: Suite, argv: list[str]) -> dict[str, Any]:
                         "warmups": c.warmups,
                         "repetitions": c.repetitions,
                         "timeout_sec": c.timeout_sec,
+                        **(
+                            {"scoring": c.scoring.descriptor()}
+                            if c.scoring
+                            else {}
+                        ),
                     }
                     for c in suite.cases
                 ],
@@ -110,6 +116,11 @@ def _base_result(
                 "timeout_sec": case.timeout_sec,
                 "resolved_dataset_parameters": dict(case.dataset_parameters),
                 "tags": list(case.tags),
+                **(
+                    {"scoring": case.scoring.descriptor()}
+                    if case.scoring
+                    else {}
+                ),
             }
         },
     }
@@ -124,6 +135,8 @@ class _PreparedCase:
     estimator_class: type[Any]
     operation_args: tuple[Any, ...]
     fit_args: tuple[Any, ...] | None
+    evaluation_X: Any = None
+    evaluation_y: Any = None
 
 
 def _prepare_case(
@@ -138,14 +151,8 @@ def _prepare_case(
     provider = suite.provider_spec
 
     # Generate and partition host data.
-    X, y = generate_data(case)
+    partitions = partition_data(case, *generate_data(case))
     is_fit = case.lifecycle == "fit"
-    if is_fit:
-        measured = {"X": X, "y": y}
-    else:
-        split = case.training_rows
-        train = {"X": X[:split], "y": y[:split]}
-        measured = {"X": X[split:], "y": y[split:]}
 
     # Convert only selected inputs, applying provider-specific requirements.
     x_representation = (
@@ -167,16 +174,36 @@ def _prepare_case(
             for name in selection
         )
 
-    operation_args = convert(measured, case.input_selection)
-    fit_args = () if is_fit else convert(train, case.fit_input_selection)
+    operation_args = convert(partitions.measured, case.input_selection)
+    fit_args = (
+        ()
+        if is_fit
+        else convert(partitions.training, case.fit_input_selection)
+    )
 
-    # Materialize both groups together, then restore their boundary.
-    prepared = backend.prepare_inputs(operation_args + fit_args, client)
-    boundary = len(operation_args)
+    evaluation_args = ()
+    if is_fit and case.scoring is not None:
+        scorer = SCORERS[case.scoring.name]
+        evaluation_args = convert(
+            partitions.evaluation, scorer.input_selection
+        )
+
+    # Materialize all inputs together, then restore their group boundaries.
+    prepared = backend.prepare_inputs(
+        operation_args + fit_args + evaluation_args, client
+    )
+    operation_end = len(operation_args)
+    fit_end = operation_end + len(fit_args)
+    evaluation_X = evaluation_y = None
+    if case.scoring is not None:
+        evaluation_X = prepared[fit_end] if is_fit else prepared[0]
+        evaluation_y = partitions.evaluation["y"]
     return _PreparedCase(
         estimator_class=estimator_class,
-        operation_args=prepared[:boundary],
-        fit_args=None if is_fit else prepared[boundary:],
+        operation_args=prepared[:operation_end],
+        fit_args=None if is_fit else prepared[operation_end:fit_end],
+        evaluation_X=evaluation_X,
+        evaluation_y=evaluation_y,
     )
 
 
@@ -209,15 +236,17 @@ def _run_observation(
     role: str,
     repetition: int,
     sequence: int,
-) -> dict[str, Any]:
-    """Measure one synchronized operation and record verification results."""
+) -> tuple[dict[str, Any], Any]:
+    """Measure an operation and return its observation and output for scoring."""
     with backend.instrumentation(suite, role, repetition) as verification:
         backend.synchronize()
         start = time.perf_counter()
         output = getattr(estimator, case.operation)(*prepared.operation_args)
-        backend.synchronize(output)
+        # Fitting can return the estimator itself, not a lazy output. Probing
+        # distributed estimators for a Dask graph triggers remote lookups.
+        backend.synchronize(None if output is estimator else output)
         elapsed = time.perf_counter() - start
-    return {
+    observation = {
         "id": f"{role}-{repetition}",
         "sequence": sequence,
         "role": role,
@@ -228,6 +257,7 @@ def _run_observation(
         "metrics": [],
         "extensions": dict(verification.extensions),
     }
+    return observation, output
 
 
 def _record_case_failure(
@@ -294,7 +324,7 @@ def _benchmark_case(
                         backend, prepared, case, client, result
                     )
                 set_phase("warmup" if role == "warmup" else "timed_execution")
-                observation = _run_observation(
+                observation, output = _run_observation(
                     backend,
                     suite,
                     case,
@@ -318,6 +348,30 @@ def _benchmark_case(
                 if observation["outcome"]["status"] == "failed":
                     result["outcome"] = copy.deepcopy(observation["outcome"])
                     return result
+                if role == "measurement" and case.scoring is not None:
+                    set_phase("scoring")
+                    try:
+                        observation["metrics"] = evaluate(
+                            case.scoring,
+                            EvaluationContext(
+                                estimator=estimator,
+                                output=output,
+                                X=prepared.evaluation_X,
+                                y=prepared.evaluation_y,
+                                operation=case.operation,
+                            ),
+                        )
+                        backend.synchronize()
+                    except Exception as exc:
+                        error = _failure(exc, "scoring")
+                        observation["outcome"] = error
+                        observation["extensions"].setdefault(EXTENSION, {})[
+                            "traceback"
+                        ] = traceback.format_exc()
+                        result["outcome"] = copy.deepcopy(error)
+                        return result
+                # Do not retain outputs across repetitions (especially on GPU).
+                del output
         result["outcome"] = {"status": "success"}
         return result
     except Exception as exc:
