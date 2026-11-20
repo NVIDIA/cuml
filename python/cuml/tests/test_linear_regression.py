@@ -193,6 +193,7 @@ def test_linear_regression_short_wide(algorithm):
     "kind", ["colinear", "square", "small-float64", "small-float32", "uniform"]
 )
 def test_linear_regression_cholesky_edge_cases(kind):
+    kws = {}
     if kind == "colinear":
         X, y = make_regression(n_samples=2000, n_features=100, random_state=42)
         X[:, ::10] = X[:, 0:1]
@@ -205,15 +206,16 @@ def test_linear_regression_cholesky_edge_cases(kind):
         # Almost zero, 1e-12 * eig.max() will underflow to 0
         X = np.diag([0, 1e-18]).astype("float32")
         y = np.zeros(2, dtype="float32")
+        kws = {"fit_intercept": False}
     elif kind == "uniform":
         X = np.ones((3, 2), dtype="float32")
         y = np.array([1, 2, 3], dtype="float32")
 
-    sk_model = sklearn.linear_model.LinearRegression().fit(X, y)
+    sk_model = sklearn.linear_model.LinearRegression(**kws).fit(X, y)
     with warnings.catch_warnings():
         # No warning raised for LinearRegression
         warnings.filterwarnings("error", category=UserWarning, module="cuml.*")
-        cu_model = cuml.LinearRegression(algorithm="cholesky").fit(X, y)
+        cu_model = cuml.LinearRegression(algorithm="cholesky", **kws).fit(X, y)
 
     sk_pred = sk_model.predict(X)
     cu_pred = cu_model.predict(X)
