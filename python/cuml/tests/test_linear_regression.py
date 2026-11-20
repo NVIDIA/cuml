@@ -190,7 +190,7 @@ def test_linear_regression_short_wide(algorithm):
 
 
 @pytest.mark.parametrize(
-    "kind", ["colinear", "square", "small-values", "uniform"]
+    "kind", ["colinear", "square", "small-float64", "small-float32", "uniform"]
 )
 def test_linear_regression_cholesky_edge_cases(kind):
     if kind == "colinear":
@@ -198,9 +198,13 @@ def test_linear_regression_cholesky_edge_cases(kind):
         X[:, ::10] = X[:, 0:1]
     elif kind == "square":
         X, y = make_regression(n_samples=50, n_features=50, random_state=42)
-    elif kind == "small-values":
+    elif kind == "small-float64":
         X, y = make_regression(n_samples=50, n_features=10, random_state=42)
         X *= np.sqrt(1e-13 / X.max())
+    elif kind == "small-float32":
+        # Almost zero, 1e-12 * eig.max() will underflow to 0
+        X = np.diag([0, 1e-18]).astype("float32")
+        y = np.zeros(2, dtype="float32")
     elif kind == "uniform":
         X = np.ones((3, 2), dtype="float32")
         y = np.array([1, 2, 3], dtype="float32")

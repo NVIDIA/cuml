@@ -199,12 +199,11 @@ _ridge_transform_no_alpha_kernel = cp.ElementwiseKernel(
 def _ridge_transform(x, s, alpha=None, thresh=None):
     """Computes `x * s / (s * s + alpha)`, with `s < thresh` values set to 0.
     The default thresh is determined dynamically based on `s.max()`."""
-    max_s = float(s.max())
     if thresh is None:
         # 1e-12 ratio borrowed from sklearn
-        thresh = x.dtype.type(
-            1e-12 if max_s <= 0 else min(1e-12, 1e-12 * max_s)
-        )
+        thresh = x.dtype.type(float(s.max()) * 1e-12)
+        if thresh <= 0:
+            thresh = x.dtype.type(1e-12)
     if alpha is None or (alpha == 0).all():
         # Small optimization in the case of all-zero alpha
         return _ridge_transform_no_alpha_kernel(x, s, thresh)
