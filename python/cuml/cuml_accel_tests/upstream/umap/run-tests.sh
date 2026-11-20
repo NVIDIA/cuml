@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # This script runs the umap tests with the cuml.accel plugin.
@@ -25,10 +25,14 @@ fi
 git -C "$UMAP_REPO" fetch --tags
 git -C "$UMAP_REPO" checkout "$UMAP_TAG"
 
+# UMAP 0.6 warns about its future layout default. Its stacklevel can attribute
+# this upstream warning to cuML, where pytest.ini would promote it to an error.
+# Filter only this migration notice; explicit pytest.warns checks still apply.
 # Run upstream tests
 pytest -p cuml.accel \
     "${UMAP_REPO}/umap/tests/" \
     --rootdir="${UMAP_REPO}" \
     --config-file="${THIS_DIRECTORY}/../pytest.ini" \
     --xfail-list="${THIS_DIRECTORY}/xfail-list.yaml" \
+    -W 'ignore:compatibility_layout was not set, so UMAP is using the legacy:FutureWarning' \
     "$@"
