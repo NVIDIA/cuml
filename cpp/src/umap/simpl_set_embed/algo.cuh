@@ -30,6 +30,7 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/random.h>
 #include <thrust/reduce.h>
 #include <thrust/shuffle.h>
 #include <thrust/sort.h>
