@@ -441,14 +441,11 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
   std::vector<double> accumulated_importances(n_cols, 0.0);
 
   for (const auto& tree : forest->trees) {
+    if (tree->sparsetree.empty()) continue;
+
     std::vector<double> finite_importances(n_cols, 0.0);
     std::vector<double> infinite_importances(n_cols, 0.0);
     bool has_infinite_importance = false;
-
-    if (tree->sparsetree.empty()) continue;
-    int root_sample_count = tree->sparsetree[0].InstanceCount();
-
-    if (root_sample_count <= 0) continue;
 
     // Some criteria can produce +inf split metrics on extreme inputs. Raw
     // normalization would then divide inf by inf and return NaN importances;

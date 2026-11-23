@@ -548,15 +548,12 @@ class RfSpecialisedTest {
 
   void TestMinImpurity()
   {
-    const bool counts_are_weights = !params.sample_weight || params.bootstrap;
     for (int i = 0u; i < forest->rf_params.n_trees; i++) {
       const auto& tree = forest->trees[i]->sparsetree;
       for (const auto& n : tree) {
         if (n.IsLeaf()) { continue; }
 
-        auto gain = double(n.BestMetric());
-        if (counts_are_weights) { gain *= double(n.InstanceCount()) / tree[0].InstanceCount(); }
-        EXPECT_GT(gain, params.min_impurity_decrease);
+        EXPECT_GT(n.WeightedImpurityDecrease(), params.min_impurity_decrease);
       }
     }
   }
@@ -799,8 +796,8 @@ TEST(RfTests, FeatureImportancesHandleInfiniteMetrics)
   tree->num_outputs   = 1;
   const auto inf      = std::numeric_limits<float>::infinity();
   using Node          = SparseTreeNode<float, float>;
-  tree->sparsetree    = {Node::CreateSplitNode(0, 0.5f, inf, inf, 1, 8),
-                         Node::CreateSplitNode(1, 1.5f, inf, inf, 3, 4),
+  tree->sparsetree    = {Node::CreateSplitNode(0, 0.5f, inf, 1, 8),
+                         Node::CreateSplitNode(1, 1.5f, inf, 3, 4),
                          Node::CreateLeafNode(4),
                          Node::CreateLeafNode(2),
                          Node::CreateLeafNode(2)};
@@ -1351,8 +1348,10 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
   thrust::device_vector<DT::Split<DataT>> split(1);
   thrust::device_vector<int> mutex(1);
 
-  // Four zeros and four twos have variance 1. The best split must exceed 0.75;
-  DT::RegressionObjectiveFunction<DataT, DataT> objective{1, 1, CRITERION::MSE, len, DataT{0.75}};
+  // Four zeros and four twos split into pure leaves. With half the root weight,
+  // the winning split contributes 0.5 to the whole-tree impurity decrease.
+  DT::RegressionObjectiveFunction<DataT, DataT> objective{
+    1, 1, CRITERION::MSE, 2 * len, DataT{0.375}};
   objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
                                                                quantiles.data().get(),
                                                                split.data().get(),
@@ -1376,7 +1375,7 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
   EXPECT_EQ(h_split.quesval, DataT{3});
   EXPECT_EQ(h_split.split_start, 3);
   EXPECT_EQ(h_split.split_end, 3);
-  EXPECT_EQ(h_split.best_metric_val, DataT{1});
+  EXPECT_EQ(h_split.weighted_impurity_decrease, 0.5);
 }
 
 template <typename T>
@@ -1539,7 +1538,7 @@ Tree #0
   EXPECT_TRUE(get_rf_detailed_text(forest_ptr).find(expected_start_text) != std::string::npos);
   EXPECT_TRUE(get_rf_detailed_text(forest_ptr).find(expected_end_text) != std::string::npos);
   std::string expected_json = R"([
-{"nodeid": 0, "split_feature": 0, "split_threshold": 3, "gain": 0.055555582, "instance_count": 6, "yes": 1, "no": 2, "children": [
+{"nodeid": 0, "split_feature": 0, "split_threshold": 3, "gain": 0.055555582046508789, "instance_count": 6, "yes": 1, "no": 2, "children": [
   {"nodeid": 1, "leaf_value": [0.666666687, 0.333333343], "instance_count": 3},
   {"nodeid": 2, "leaf_value": [0.333333343, 0.666666687], "instance_count": 3}
 ]}

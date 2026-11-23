@@ -38,16 +38,12 @@ DI std::int64_t CountLeft(BinT const* hist,
 template <typename DataT>
 struct Split {
   typedef Split<DataT> SplitT;
-  /** start with this as the initial gain */
-  static constexpr DataT Min = -std::numeric_limits<DataT>::max();
 
   /** threshold to compare in this node */
   DataT quesval;
   /** feature index */
   std::int64_t colid;
-  /** best info gain on this node */
-  DataT best_metric_val;
-  /** contribution to whole-tree impurity decrease, used to rank different nodes */
+  /** whole-tree impurity decrease used to rank splits within and across nodes */
   double weighted_impurity_decrease;
   /** global number of samples in the left child */
   std::int64_t global_nLeft;
@@ -60,8 +56,8 @@ struct Split {
 
   HDI Split()
   {
-    quesval = best_metric_val  = Min;
-    weighted_impurity_decrease = 0.0;
+    quesval                    = std::numeric_limits<DataT>::lowest();
+    weighted_impurity_decrease = -std::numeric_limits<double>::infinity();
     colid                      = -1;
     global_nLeft               = 0;
     local_nLeft                = 0;
@@ -73,7 +69,6 @@ struct Split {
   {
     quesval                    = other.quesval;
     colid                      = other.colid;
-    best_metric_val            = other.best_metric_val;
     weighted_impurity_decrease = other.weighted_impurity_decrease;
     global_nLeft               = other.global_nLeft;
     local_nLeft                = other.local_nLeft;
@@ -111,7 +106,6 @@ struct Split {
 
   DI bool replace_with(DataT other_quesval,
                        std::int64_t other_colid,
-                       DataT other_best_metric_val,
                        double other_weighted_impurity_decrease,
                        std::int64_t other_global_nLeft,
                        std::int64_t other_split_start,
@@ -119,7 +113,6 @@ struct Split {
   {
     quesval                    = other_quesval;
     colid                      = other_colid;
-    best_metric_val            = other_best_metric_val;
     weighted_impurity_decrease = other_weighted_impurity_decrease;
     global_nLeft               = other_global_nLeft;
     local_nLeft                = 0;
@@ -146,33 +139,29 @@ struct Split {
    *
    * local_nLeft is intentionally not accepted here: split selection is based
    * on global counts, and local counts are filled just before partitioning.
-   * Compare local gain; carry weighted impurity decrease for host scheduling.
    */
   DI bool update(DataT other_quesval,
                  std::int64_t other_colid,
-                 DataT other_best_metric_val,
                  double other_weighted_impurity_decrease,
                  std::int64_t other_global_nLeft,
                  std::int64_t other_split_start,
                  std::int64_t other_split_end)
   {
     // Primary ordering: higher gain wins; lower or unordered gain loses.
-    if (other_best_metric_val > best_metric_val) {
+    if (other_weighted_impurity_decrease > weighted_impurity_decrease) {
       return replace_with(other_quesval,
                           other_colid,
-                          other_best_metric_val,
                           other_weighted_impurity_decrease,
                           other_global_nLeft,
                           other_split_start,
                           other_split_end);
     }
-    if (other_best_metric_val != best_metric_val) { return false; }
+    if (other_weighted_impurity_decrease != weighted_impurity_decrease) { return false; }
 
     // Equal gain: preserve the existing deterministic feature tie-break.
     if (other_colid > colid) {
       return replace_with(other_quesval,
                           other_colid,
-                          other_best_metric_val,
                           other_weighted_impurity_decrease,
                           other_global_nLeft,
                           other_split_start,
@@ -185,7 +174,6 @@ struct Split {
     // reduction.
     if (can_merge_equivalent_split_range(other_global_nLeft, other_split_start, other_split_end)) {
       merge_equivalent_split_range(other_quesval, other_split_start, other_split_end);
-      weighted_impurity_decrease = other_weighted_impurity_decrease;
       return true;
     }
 
@@ -194,7 +182,6 @@ struct Split {
     if (other_quesval > quesval) {
       return replace_with(other_quesval,
                           other_colid,
-                          other_best_metric_val,
                           other_weighted_impurity_decrease,
                           other_global_nLeft,
                           other_split_start,
@@ -206,14 +193,12 @@ struct Split {
 
   DI bool update(DataT other_quesval,
                  std::int64_t other_colid,
-                 DataT other_best_metric_val,
                  double other_weighted_impurity_decrease,
                  std::int64_t other_global_nLeft,
                  std::int64_t other_bin)
   {
     return update(other_quesval,
                   other_colid,
-                  other_best_metric_val,
                   other_weighted_impurity_decrease,
                   other_global_nLeft,
                   other_bin,
@@ -231,12 +216,11 @@ struct Split {
       auto id  = lane + i;
       auto qu  = raft::shfl(quesval, id);
       auto co  = raft::shfl(colid, id);
-      auto be  = raft::shfl(best_metric_val, id);
       auto imp = raft::shfl(weighted_impurity_decrease, id);
       auto gnl = raft::shfl(global_nLeft, id);
       auto bs  = raft::shfl(split_start, id);
       auto bn  = raft::shfl(split_end, id);
-      update(qu, co, be, imp, gnl, bs, bn);
+      update(qu, co, imp, gnl, bs, bn);
     }
   }
 
@@ -278,21 +262,18 @@ struct Split {
         SplitT split_reg;
         split_reg.quesval                    = split->quesval;
         split_reg.colid                      = split->colid;
-        split_reg.best_metric_val            = split->best_metric_val;
         split_reg.weighted_impurity_decrease = split->weighted_impurity_decrease;
         split_reg.global_nLeft               = split->global_nLeft;
         split_reg.split_start                = split->split_start;
         split_reg.split_end                  = split->split_end;
         if (split_reg.update(quesval,
                              colid,
-                             best_metric_val,
                              weighted_impurity_decrease,
                              global_nLeft,
                              split_start,
                              split_end)) {
           split->quesval                    = split_reg.quesval;
           split->colid                      = split_reg.colid;
-          split->best_metric_val            = split_reg.best_metric_val;
           split->weighted_impurity_decrease = split_reg.weighted_impurity_decrease;
           split->global_nLeft               = split_reg.global_nLeft;
           split->split_start                = split_reg.split_start;
@@ -322,13 +303,13 @@ void initSplit(Split<DataT>* splits, std::int64_t len, cudaStream_t s)
 template <typename DataT, int TPB = 256>
 void printSplits(Split<DataT>* splits, std::int64_t len, cudaStream_t s)
 {
-  auto op = [] __device__(Split<DataT> * ptr, std::int64_t idx) {
+  auto op = [] __device__(Split<DataT>* ptr, std::int64_t idx) {
     printf(
-      "quesval = %e, colid = %lld, best_metric_val = %e, global_nLeft = %lld, "
+      "quesval = %e, colid = %lld, weighted_impurity_decrease = %e, global_nLeft = %lld, "
       "local_nLeft = %lld, split_range = [%lld, %lld]\n",
       ptr->quesval,
       static_cast<long long>(ptr->colid),
-      ptr->best_metric_val,
+      ptr->weighted_impurity_decrease,
       static_cast<long long>(ptr->global_nLeft),
       static_cast<long long>(ptr->local_nLeft),
       static_cast<long long>(ptr->split_start),

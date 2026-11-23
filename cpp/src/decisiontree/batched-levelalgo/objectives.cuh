@@ -205,10 +205,9 @@ class ClassificationObjectiveFunction {
       if (nLeft >= static_cast<std::int64_t>(min_samples_leaf) &&
           nRight >= static_cast<std::int64_t>(min_samples_leaf)) {
         auto gain = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
-        // Use weighted gain for the threshold; store local gain.
         auto weighted_impurity_decrease = gain * weight_fraction;
         if (weighted_impurity_decrease > min_impurity_decrease) {
-          sp.update(squantiles[i], col, gain, weighted_impurity_decrease, nLeft, i);
+          sp.update(squantiles[i], col, weighted_impurity_decrease, nLeft, i);
         }
       }
     }
@@ -446,10 +445,9 @@ class RegressionObjectiveFunction {
       if (nLeft >= static_cast<std::int64_t>(min_samples_leaf) &&
           nRight >= static_cast<std::int64_t>(min_samples_leaf)) {
         auto gain = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
-        // Use weighted gain for the threshold; store local gain.
         auto weighted_impurity_decrease = gain * weight_fraction;
         if (weighted_impurity_decrease > min_impurity_decrease) {
-          sp.update(squantiles[i], col, gain, weighted_impurity_decrease, nLeft, i);
+          sp.update(squantiles[i], col, weighted_impurity_decrease, nLeft, i);
         }
       }
     }
