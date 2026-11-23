@@ -266,12 +266,8 @@ struct Split {
         split_reg.global_nLeft               = split->global_nLeft;
         split_reg.split_start                = split->split_start;
         split_reg.split_end                  = split->split_end;
-        if (split_reg.update(quesval,
-                             colid,
-                             weighted_impurity_decrease,
-                             global_nLeft,
-                             split_start,
-                             split_end)) {
+        if (split_reg.update(
+              quesval, colid, weighted_impurity_decrease, global_nLeft, split_start, split_end)) {
           split->quesval                    = split_reg.quesval;
           split->colid                      = split_reg.colid;
           split->weighted_impurity_decrease = split_reg.weighted_impurity_decrease;
@@ -303,7 +299,7 @@ void initSplit(Split<DataT>* splits, std::int64_t len, cudaStream_t s)
 template <typename DataT, int TPB = 256>
 void printSplits(Split<DataT>* splits, std::int64_t len, cudaStream_t s)
 {
-  auto op = [] __device__(Split<DataT>* ptr, std::int64_t idx) {
+  auto op = [] __device__(Split<DataT> * ptr, std::int64_t idx) {
     printf(
       "quesval = %e, colid = %lld, weighted_impurity_decrease = %e, global_nLeft = %lld, "
       "local_nLeft = %lld, split_range = [%lld, %lld]\n",

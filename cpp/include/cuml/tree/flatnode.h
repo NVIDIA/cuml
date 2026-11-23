@@ -59,7 +59,9 @@ struct SparseTreeNode {
       colid, quesval, weighted_impurity_decrease, left_child_id, instance_count};
   }
   FLATNODE_HD static SparseTreeNode CreateLeafNode(std::int64_t instance_count)
-  { return SparseTreeNode{0, 0, 0.0, -1, instance_count}; }
+  {
+    return SparseTreeNode{0, 0, 0.0, -1, instance_count};
+  }
   FLATNODE_HD bool IsLeaf() const { return left_child_id == -1; }
   bool operator==(const SparseTreeNode& other) const
   {
