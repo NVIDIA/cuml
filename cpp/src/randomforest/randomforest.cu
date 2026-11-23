@@ -456,9 +456,8 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
     // signal is which features received positive infinite contributions.
     for (const auto& node : tree->sparsetree) {
       if (!node.IsLeaf()) {
-        int feature_id = node.ColumnId();
-        double contribution =
-          static_cast<double>(node.BestMetric()) * static_cast<double>(node.InstanceCount());
+        auto feature_id     = node.ColumnId();
+        double contribution = node.WeightedImpurityDecrease();
         if (std::isfinite(contribution)) {
           if (contribution > 0.0) { finite_importances[feature_id] += contribution; }
         } else if (std::isinf(contribution) && contribution > 0.0) {

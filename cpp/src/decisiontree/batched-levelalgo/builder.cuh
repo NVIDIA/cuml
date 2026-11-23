@@ -153,6 +153,7 @@ class NodeQueue {
       tree->sparsetree.at(item.idx) = NodeT::CreateSplitNode(split.colid,
                                                              split.quesval,
                                                              split.best_metric_val,
+                                                             split.weighted_impurity_decrease,
                                                              int64_t(tree->sparsetree.size()),
                                                              parent_count);
       tree->leaf_counter++;
