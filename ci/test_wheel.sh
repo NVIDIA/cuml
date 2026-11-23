@@ -15,6 +15,7 @@ mkdir -p "${RAPIDS_TESTS_DIR}"
 # generate constraints, the constraints will limit the version of the
 # dependencies that can be installed later on when installing the wheel
 rapids-generate-pip-constraints test_python "${PIP_CONSTRAINT}"
+source ./ci/use_wheels_from_prs.sh
 
 python -m venv libcuml-env
 . libcuml-env/bin/activate

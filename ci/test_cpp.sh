@@ -12,6 +12,8 @@ cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/../
 rapids-logger "Configuring conda strict channel priority"
 conda config --set channel_priority strict
 
+source ./ci/use_conda_packages_from_prs.sh
+
 rapids-logger "Downloading artifacts from previous jobs"
 CPP_CHANNEL=$(rapids-download-from-github "$(rapids-artifact-name conda_cpp libcuml cuml --cuda "$RAPIDS_CUDA_VERSION")")
 
@@ -20,6 +22,8 @@ rapids-dependency-file-generator \
   --output conda \
   --file-key test_cpp \
   --matrix "cuda=${RAPIDS_CUDA_VERSION%.*};arch=$(arch)" \
+  --prepend-channel "${LIBNVFOREST_CHANNEL}" \
+  --prepend-channel "${NVFOREST_CHANNEL}" \
   --prepend-channel "${CPP_CHANNEL}" | tee env.yaml
 
 rapids-mamba-retry env create --yes -f env.yaml -n test
