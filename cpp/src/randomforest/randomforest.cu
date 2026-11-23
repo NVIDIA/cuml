@@ -437,7 +437,7 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
 {
   if (forest->n_features == 0) { return; }
 
-  int n_cols = forest->n_features;
+  auto n_cols = forest->n_features;
   std::vector<double> accumulated_importances(n_cols, 0.0);
 
   for (const auto& tree : forest->trees) {
@@ -469,28 +469,24 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
     }
     const auto& tree_importances =
       has_infinite_importance ? infinite_importances : finite_importances;
-    double sum = 0.0;
-    for (int i = 0; i < n_cols; i++) {
-      sum += tree_importances[i];
-    }
+    double sum =
+      std::accumulate(tree_importances.cbegin(), tree_importances.cend(), 0.0, std::plus{});
 
     if (sum > 0) {
-      for (int i = 0; i < n_cols; i++) {
+      for (decltype(n_cols) i = 0; i < n_cols; i++) {
         accumulated_importances[i] += tree_importances[i] / sum;
       }
     }
   }
 
-  double sum = 0.0;
-  for (auto i = 0; i < n_cols; i++) {
-    sum += accumulated_importances[i];
-  }
+  double sum = std::accumulate(
+    accumulated_importances.cbegin(), accumulated_importances.cend(), 0.0, std::plus{});
   if (sum > 0) {
-    for (auto i = 0; i < n_cols; i++) {
+    for (decltype(n_cols) i = 0; i < n_cols; i++) {
       importances[i] = T(accumulated_importances[i] / sum);
     }
   } else {
-    for (auto i = 0; i < n_cols; i++) {
+    for (decltype(n_cols) i = 0; i < n_cols; i++) {
       importances[i] = T(0);
     }
   }
