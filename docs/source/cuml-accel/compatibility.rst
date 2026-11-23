@@ -652,6 +652,10 @@ UMAP
      ``"euclidean"``.
    - If ``unique`` is ``True``.
    - If ``densmap`` is ``True``.
+   - If ``transform_mode`` is not ``"embedding"``.
+   - If ``output_dens`` is ``True``.
+   - If ``output_metric`` is neither ``"euclidean"`` nor ``"l2"``.
+   - If ``output_metric_kwds`` is nonempty.
    - If ``disconnection_distance`` is not ``None``.
    - If ``n_epochs`` is a sequence.
    - If ``ensure_all_finite`` is not ``True``.
@@ -670,6 +674,9 @@ UMAP
      results, but invalid values may raise errors later when fitted state is
      synchronized to CPU, for example when accessing ``embedding_``. The new
      UMAP 0.6 pipeline always falls back to CPU.
+
+   - Calling ``update`` after GPU fitting is not supported. To incrementally
+     update a model, fit it on CPU with ``cuml.accel`` disabled.
 
    - UMAP model-combination operators (``+``, ``-``, and ``*``) are not supported.
 

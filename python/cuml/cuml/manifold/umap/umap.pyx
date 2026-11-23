@@ -1032,6 +1032,18 @@ class UMAP(
         if model.densmap:
             raise UnsupportedOnGPU("`densmap=True` is not supported")
 
+        if model.transform_mode != "embedding":
+            raise UnsupportedOnGPU("Only `transform_mode='embedding'` is supported")
+
+        if model.output_dens:
+            raise UnsupportedOnGPU("`output_dens=True` is not supported")
+
+        if model.output_metric not in ("euclidean", "l2"):
+            raise UnsupportedOnGPU("Only Euclidean `output_metric` is supported")
+
+        if model.output_metric_kwds:
+            raise UnsupportedOnGPU("`output_metric_kwds` is not supported")
+
         if model.disconnection_distance is not None:
             raise UnsupportedOnGPU("Explicit `disconnection_distance` is not supported")
 
