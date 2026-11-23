@@ -1395,7 +1395,7 @@ def test_ensemble_estimator_length():
         ),
     ],
 )
-def test_rf_unweighted_feature_importance(
+def test_rf_feature_importance(
     estimator, make_data, data_params, target_dtype
 ):
     # Without shuffling, the three informative features are columns 0, 1, 2.
@@ -1426,7 +1426,7 @@ def test_rf_unweighted_feature_importance(
     ],
     ids=["regression-mse", "classification-gini", "classification-entropy"],
 )
-def test_rf_weighted_feature_importance(
+def test_rf_feature_importance_weighted(
     cu_estimator, sk_estimator, criterion, y
 ):
     # x0 is the unique best root split; x1 separates the two right-hand rows.
