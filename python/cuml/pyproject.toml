@@ -122,7 +122,6 @@ test = [
     "jsonschema",
     "lightgbm",
     "msgspec",
-    "nltk",
     "numba-cuda-mlir>=0.3.0",
     "numba-cuda>=0.22.2",
     "nvidia-ml-py>=12",

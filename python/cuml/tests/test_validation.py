@@ -984,50 +984,10 @@ def test_check_array_return_index(kind, ndim, mem_type):
     assert (cp.asnumpy(index) == np.array([1, 3, 5])).all()
 
 
-def xfail_cudf_ext_dtype_bug(*args, strict=True):
-    # TODO: when the test starts xpassing once cudf fixes the issue, remove and
-    # simplify the parametrization below.
-    return pytest.param(
-        *args,
-        marks=pytest.mark.xfail(
-            reason=(
-                "cudf's to_cupy/to_numpy fails on extension dtypes, see "
-                "https://github.com/NVIDIA/cudf/issues/23723"
-            ),
-            strict=strict,
-        ),
-    )
-
-
-@pytest.mark.parametrize(
-    "kind,mem_type,ndim,dtype",
-    [
-        xfail_cudf_ext_dtype_bug("cudf", "host", 1, None, strict=False),
-        xfail_cudf_ext_dtype_bug("cudf", "device", 1, None),
-        xfail_cudf_ext_dtype_bug("cudf", None, 1, None),
-        ("pandas", "host", 1, None),
-        ("pandas", "device", 1, None),
-        ("pandas", None, 1, None),
-        xfail_cudf_ext_dtype_bug("cudf", "host", 1, "float32"),
-        xfail_cudf_ext_dtype_bug("cudf", "device", 1, "float32"),
-        xfail_cudf_ext_dtype_bug("cudf", None, 1, "float32"),
-        ("pandas", "host", 1, "float32"),
-        ("pandas", "device", 1, "float32"),
-        ("pandas", None, 1, "float32"),
-        xfail_cudf_ext_dtype_bug("cudf", "host", 2, None),
-        xfail_cudf_ext_dtype_bug("cudf", "device", 2, None),
-        xfail_cudf_ext_dtype_bug("cudf", None, 2, None),
-        ("pandas", "host", 2, None),
-        ("pandas", "device", 2, None),
-        ("pandas", None, 2, None),
-        xfail_cudf_ext_dtype_bug("cudf", "host", 2, "float32"),
-        xfail_cudf_ext_dtype_bug("cudf", "device", 2, "float32"),
-        xfail_cudf_ext_dtype_bug("cudf", None, 2, "float32"),
-        ("pandas", "host", 2, "float32"),
-        ("pandas", "device", 2, "float32"),
-        ("pandas", None, 2, "float32"),
-    ],
-)
+@pytest.mark.parametrize("kind", ["cudf", "pandas"])
+@pytest.mark.parametrize("mem_type", ["host", "device", None])
+@pytest.mark.parametrize("ndim", [1, 2])
+@pytest.mark.parametrize("dtype", [None, "float32"])
 def test_check_array_dataframe_extension_dtype(kind, mem_type, ndim, dtype):
     xdf = cudf if kind == "cudf" else pd
     array = xdf.Series([1, 2, None], index=[1, 3, 5], dtype="Int32")
