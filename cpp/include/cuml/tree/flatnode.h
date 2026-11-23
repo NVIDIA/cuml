@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <cstdint>
+#include <cstdint>  // for int64_t
 
 // We want to define some functions as usable on device
 // But need to guard against this file being compiled by a host compiler
@@ -25,7 +25,7 @@ struct SparseTreeNode {
  private:
   std::int64_t colid                = 0;
   DataT quesval                     = DataT(0);
-  double weighted_impurity_decrease = 0.0;  // Local gain times node weight / root weight.
+  DataT weighted_impurity_decrease = 0.0;  // Local gain times node weight / root weight.
   std::int64_t left_child_id        = -1;
   std::int64_t instance_count       = 0;
   FLATNODE_HD SparseTreeNode(std::int64_t colid,

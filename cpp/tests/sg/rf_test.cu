@@ -1511,7 +1511,7 @@ INSTANTIATE_TEST_CASE_P(RfTests,
 
 //------------------------------------------------------------------------------------------------------
 
-TEST(RfTest, TextDump)
+TEST(RfTests, TextDump)
 {
   RF_params rf_params = set_rf_params(2, 2, 1.0, 2, 1, 2, 0.0, false, 1, 1.0, 0, GINI, 1, 128);
   auto forest         = std::make_shared<RandomForestMetaData<float, int>>();
@@ -1538,7 +1538,7 @@ Tree #0
   EXPECT_TRUE(get_rf_detailed_text(forest_ptr).find(expected_start_text) != std::string::npos);
   EXPECT_TRUE(get_rf_detailed_text(forest_ptr).find(expected_end_text) != std::string::npos);
   std::string expected_json = R"([
-{"nodeid": 0, "split_feature": 0, "split_threshold": 3, "gain": 0.055555582046508789, "instance_count": 6, "yes": 1, "no": 2, "children": [
+{"nodeid": 0, "split_feature": 0, "split_threshold": 3, "gain": 0.055555582, "instance_count": 6, "yes": 1, "no": 2, "children": [
   {"nodeid": 1, "leaf_value": [0.666666687, 0.333333343], "instance_count": 3},
   {"nodeid": 2, "leaf_value": [0.333333343, 0.666666687], "instance_count": 3}
 ]}

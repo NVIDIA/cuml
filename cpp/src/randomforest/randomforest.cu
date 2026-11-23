@@ -454,7 +454,7 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
     for (const auto& node : tree->sparsetree) {
       if (!node.IsLeaf()) {
         auto feature_id     = node.ColumnId();
-        double contribution = node.WeightedImpurityDecrease();
+        auto contribution   = node.WeightedImpurityDecrease();
         if (std::isfinite(contribution)) {
           if (contribution > 0.0) { finite_importances[feature_id] += contribution; }
         } else if (std::isinf(contribution) && contribution > 0.0) {
