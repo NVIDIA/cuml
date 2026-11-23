@@ -23,11 +23,11 @@
 template <typename DataT, typename LabelT>
 struct SparseTreeNode {
  private:
-  std::int64_t colid                = 0;
-  DataT quesval                     = DataT(0);
+  std::int64_t colid               = 0;
+  DataT quesval                    = DataT(0);
   DataT weighted_impurity_decrease = 0.0;  // Local gain times node weight / root weight.
-  std::int64_t left_child_id        = -1;
-  std::int64_t instance_count       = 0;
+  std::int64_t left_child_id       = -1;
+  std::int64_t instance_count      = 0;
   FLATNODE_HD SparseTreeNode(std::int64_t colid,
                              DataT quesval,
                              double weighted_impurity_decrease,
