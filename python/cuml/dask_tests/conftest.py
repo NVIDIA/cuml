@@ -6,6 +6,7 @@ import pytest
 from cuml.testing.datasets import make_text_classification_dataset
 
 pytest_plugins = [
+    "cuml.testing.plugins.test_categories",
     "cuml.testing.plugins.gpu_test_config",
     "cuml.testing.plugins.restart_corrupted_xdist_worker",
 ]
