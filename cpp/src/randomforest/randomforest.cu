@@ -16,12 +16,13 @@
 #include <treelite/tree.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <memory>
+#include <numeric>  // for accumulate
 #include <sstream>
 #include <string>
 #include <type_traits>
+#include <variant>  // for visit
 #include <vector>
 
 namespace ML {
@@ -29,28 +30,31 @@ namespace ML {
 using namespace std;
 namespace tl = treelite;
 
+/**
+ * @brief Return a detailed text dump of all trees in the random forest.
+ * @tparam T: data type for input data (float or double).
+ * @tparam L: data type for labels (int type for classification, T type for regression).
+ * @param[in] forest: CPU pointer to RandomForestMetaData struct.
+ */
 template <class T, class L>
-std::string _get_rf_text(const RandomForestMetaData<T, L>* forest)
+std::string get_rf_detailed_text(const RandomForestMetaData<T, L>* forest)
 {
-  if (!forest) {
-    return "Empty forest";
-  } else {
-    default_logger().set_pattern("%v");
-    std::ostringstream oss;
-    oss << "Forest has " << forest->rf_params.n_trees << " trees, "
-        << "max_depth " << forest->rf_params.tree_params.max_depth << ", and max_leaves "
-        << forest->rf_params.tree_params.max_leaves << "\n";
-    for (int i = 0; i < forest->rf_params.n_trees; i++) {
-      oss << "Tree #" << i << "\n";
-      oss << DT::get_tree_text<T, L>(forest->trees[i].get()) << "\n";
-    }
-    default_logger().set_pattern(default_pattern());
-    return oss.str();
+  if (!forest) { return "Empty forest"; }
+  default_logger().set_pattern("%v");
+  std::ostringstream oss;
+  oss << "Forest has " << forest->rf_params.n_trees << " trees, "
+      << "max_depth " << forest->rf_params.tree_params.max_depth << ", and max_leaves "
+      << forest->rf_params.tree_params.max_leaves << "\n";
+  for (int i = 0; i < forest->rf_params.n_trees; i++) {
+    oss << "Tree #" << i << "\n";
+    oss << DT::get_tree_text<T, L>(forest->trees[i].get()) << "\n";
   }
+  default_logger().set_pattern(default_pattern());
+  return oss.str();
 }
 
 template <class T, class L>
-std::string _get_rf_json(const RandomForestMetaData<T, L>* forest)
+std::string get_rf_json(const RandomForestMetaData<T, L>* forest)
 {
   if (!forest) { return "[]"; }
   std::ostringstream oss;
@@ -61,24 +65,6 @@ std::string _get_rf_json(const RandomForestMetaData<T, L>* forest)
   }
   oss << "\n]";
   return oss.str();
-}
-
-/**
- * @brief Print detailed view of all trees in the random forest.
- * @tparam T: data type for input data (float or double).
- * @tparam L: data type for labels (int type for classification, T type for regression).
- * @param[in] forest: CPU pointer to RandomForestMetaData struct.
- */
-template <class T, class L>
-std::string get_rf_detailed_text(const RandomForestMetaData<T, L>* forest)
-{
-  return _get_rf_text(forest);
-}
-
-template <class T, class L>
-std::string get_rf_json(const RandomForestMetaData<T, L>* forest)
-{
-  return _get_rf_json(forest);
 }
 
 template <class T, class L>
@@ -229,7 +215,6 @@ void fit_treelite(const raft::handle_t& user_handle,
                   int n_unique_labels,
                   RF_params rf_params,
                   bool* bootstrap_masks,
-                  value_t* feature_importances,
                   rapids_logger::level_enum verbosity,
                   const double* sample_weight,
                   bool input_row_major)
@@ -247,11 +232,6 @@ void fit_treelite(const raft::handle_t& user_handle,
       bootstrap_masks,
       sample_weight,
       input_row_major);
-
-  // Compute feature importances if requested
-  if (feature_importances != nullptr) {
-    compute_feature_importances(&metadata, feature_importances);
-  }
 
   build_treelite_forest(model, &metadata, n_cols);
 }
@@ -399,7 +379,6 @@ void fit_treelite(const raft::handle_t& user_handle,
                   label_t* labels,
                   RF_params rf_params,
                   bool* bootstrap_masks,
-                  value_t* feature_importances,
                   rapids_logger::level_enum verbosity,
                   const double* sample_weight,
                   bool input_row_major)
@@ -417,76 +396,58 @@ void fit_treelite(const raft::handle_t& user_handle,
       sample_weight,
       input_row_major);
 
-  // Compute feature importances if requested
-  if (feature_importances != nullptr) {
-    compute_feature_importances(&metadata, feature_importances);
-  }
-
   build_treelite_forest(model, &metadata, n_cols);
 }
 
 /** @} */
 
-// Functions' specializations
-
-/**
- * @brief Compute the feature importances of the trained RandomForest model.
- */
-template <class T, class L>
-void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* importances)
+template <class T>
+void compute_feature_importances(tl::Model const& model, T* importances)
 {
-  if (forest->n_features == 0) { return; }
-
-  auto n_cols = forest->n_features;
-  std::vector<double> accumulated_importances(n_cols, 0.0);
-
-  for (const auto& tree : forest->trees) {
-    if (tree->sparsetree.empty()) continue;
-
-    std::vector<double> finite_importances(n_cols, 0.0);
-    std::vector<double> infinite_importances(n_cols, 0.0);
-    bool has_infinite_importance = false;
-
-    // Some criteria can produce +inf split metrics on extreme inputs. Raw
-    // normalization would then divide inf by inf and return NaN importances;
-    // when that happens, finite contributions are negligible and the useful
-    // signal is which features received positive infinite contributions.
-    for (const auto& node : tree->sparsetree) {
-      if (!node.IsLeaf()) {
-        auto feature_id   = node.ColumnId();
-        auto contribution = node.WeightedImpurityDecrease();
-        if (std::isfinite(contribution)) {
-          if (contribution > 0.0) { finite_importances[feature_id] += contribution; }
-        } else if (std::isinf(contribution) && contribution > 0.0) {
-          infinite_importances[feature_id] += 1.0;
-          has_infinite_importance = true;
+  const int n_features = model.num_feature;
+  std::vector<double> forest_gains(n_features, 0.0);
+  std::vector<double> tree_gains(n_features);
+  bool has_splits = false;
+  std::visit(
+    [&](const auto& preset) {
+      for (const auto& tree : preset.trees) {
+        if (tree.num_nodes <= 1) { continue; }
+        has_splits = true;
+        std::fill(tree_gains.begin(), tree_gains.end(), 0.0);
+        bool has_infinite_gain = false;
+        for (int node = 0; node < tree.num_nodes; ++node) {
+          if (tree.IsLeaf(node)) { continue; }
+          RAFT_EXPECTS(tree.HasGain(node), "Random forest split is missing its gain");
+          auto fidx = tree.SplitIndex(node);
+          RAFT_EXPECTS(fidx >= 0 && fidx < n_features, "Invalid split feature index");
+          auto gain = tree.Gain(node);
+          if (!std::isfinite(gain)) {
+            // With infinite gains, only their count per feature contributes in this tree.
+            if (!has_infinite_gain) { std::fill(tree_gains.begin(), tree_gains.end(), 0.0); }
+            has_infinite_gain = true;
+            tree_gains[fidx] += 1.0;
+          } else if (!has_infinite_gain) {
+            tree_gains[fidx] += gain;
+          }
+        }
+        const double sum     = std::accumulate(tree_gains.begin(), tree_gains.end(), 0.0);
+        const double divisor = sum > 0 ? sum : 1.0;
+        for (int i = 0; i < n_features; ++i) {
+          forest_gains[i] += tree_gains[i] / divisor;
         }
       }
-    }
-    const auto& tree_importances =
-      has_infinite_importance ? infinite_importances : finite_importances;
-    double sum =
-      std::accumulate(tree_importances.cbegin(), tree_importances.cend(), 0.0, std::plus{});
+    },
+    model.variant_);
 
-    if (sum > 0) {
-      for (decltype(n_cols) i = 0; i < n_cols; i++) {
-        accumulated_importances[i] += tree_importances[i] / sum;
-      }
-    }
-  }
-
-  double sum = std::accumulate(
-    accumulated_importances.cbegin(), accumulated_importances.cend(), 0.0, std::plus{});
-  if (sum > 0) {
-    for (decltype(n_cols) i = 0; i < n_cols; i++) {
-      importances[i] = T(accumulated_importances[i] / sum);
-    }
-  } else {
-    for (decltype(n_cols) i = 0; i < n_cols; i++) {
-      importances[i] = T(0);
-    }
+  const double sum = std::accumulate(forest_gains.begin(), forest_gains.end(), 0.0);
+  // sklearn returns zeros for a forest of stumps, but NaNs when all splits have zero gain.
+  for (int i = 0; i < n_features; ++i) {
+    importances[i] = has_splits ? T(forest_gains[i] / sum) : T(0);
   }
 }
+
+template CUML_EXPORT void compute_feature_importances(tl::Model const&, float*);
+template CUML_EXPORT void compute_feature_importances(tl::Model const&, double*);
 
 template CUML_EXPORT std::string get_rf_detailed_text<float, int>(
   const RandomForestClassifierF* forest);
@@ -511,16 +472,6 @@ template CUML_EXPORT void build_treelite_forest<float, float>(
 template CUML_EXPORT void build_treelite_forest<double, double>(
   TreeliteModelHandle* model, const RandomForestMetaData<double, double>* forest, int num_features);
 
-// Template instantiations for get functions
-template CUML_EXPORT void compute_feature_importances<float, int>(
-  const RandomForestMetaData<float, int>* forest, float* importances);
-template CUML_EXPORT void compute_feature_importances<double, int>(
-  const RandomForestMetaData<double, int>* forest, double* importances);
-template CUML_EXPORT void compute_feature_importances<float, float>(
-  const RandomForestMetaData<float, float>* forest, float* importances);
-template CUML_EXPORT void compute_feature_importances<double, double>(
-  const RandomForestMetaData<double, double>* forest, double* importances);
-
 // Template instantiations for fit_treelite
 template CUML_EXPORT void fit_treelite<float, int>(const raft::handle_t& user_handle,
                                                    TreeliteModelHandle* model,
@@ -531,7 +482,6 @@ template CUML_EXPORT void fit_treelite<float, int>(const raft::handle_t& user_ha
                                                    int n_unique_labels,
                                                    RF_params rf_params,
                                                    bool* bootstrap_masks,
-                                                   float* feature_importances,
                                                    rapids_logger::level_enum verbosity,
                                                    const double* sample_weight,
                                                    bool input_row_major);
@@ -544,7 +494,6 @@ template CUML_EXPORT void fit_treelite<double, int>(const raft::handle_t& user_h
                                                     int n_unique_labels,
                                                     RF_params rf_params,
                                                     bool* bootstrap_masks,
-                                                    double* feature_importances,
                                                     rapids_logger::level_enum verbosity,
                                                     const double* sample_weight,
                                                     bool input_row_major);
@@ -556,7 +505,6 @@ template CUML_EXPORT void fit_treelite<float, float>(const raft::handle_t& user_
                                                      float* labels,
                                                      RF_params rf_params,
                                                      bool* bootstrap_masks,
-                                                     float* feature_importances,
                                                      rapids_logger::level_enum verbosity,
                                                      const double* sample_weight,
                                                      bool input_row_major);
@@ -568,7 +516,6 @@ template CUML_EXPORT void fit_treelite<double, double>(const raft::handle_t& use
                                                        double* labels,
                                                        RF_params rf_params,
                                                        bool* bootstrap_masks,
-                                                       double* feature_importances,
                                                        rapids_logger::level_enum verbosity,
                                                        const double* sample_weight,
                                                        bool input_row_major);

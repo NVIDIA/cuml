@@ -56,6 +56,11 @@ cdef extern from "cuml/ensemble/randomforest_mg_utils.hpp" namespace "ML::detail
     ) except + nogil
 
 
+cdef extern from "treelite/tree.h" namespace "treelite":
+    cdef cppclass Model:
+        pass
+
+
 cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
     cdef enum CRITERION:
         GINI,
@@ -87,6 +92,8 @@ cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
         int max_batch_size
     ) except +
 
+    void compute_feature_importances[T](const Model& model, T* importances) except +
+
     cdef void fit_treelite[T, L](
         handle_t& handle,
         TreeliteModelHandle* model,
@@ -97,7 +104,6 @@ cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
         int n_unique_labels,
         RF_params params,
         bool* bootstrap_masks,
-        T* feature_importances,
         level_enum verbosity,
         const double* sample_weight,
         bool input_row_major
@@ -112,7 +118,6 @@ cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
         L* labels,
         RF_params params,
         bool* bootstrap_masks,
-        T* feature_importances,
         level_enum verbosity,
         const double* sample_weight,
         bool input_row_major
@@ -298,9 +303,6 @@ class BaseRandomForestModel(InteropMixin, Base):
             attrs["oob_decision_function_"] = cp.asarray(model.oob_decision_function_)
         if hasattr(model, 'oob_prediction_'):
             attrs["oob_prediction_"] = cp.asarray(model.oob_prediction_)
-        # Note: feature_importances_ is NOT transferred from sklearn to cuML
-        # because cuML caches the weighted impurity decrease directly (WeightedImpurityDecrease()) which
-        # is not available in sklearn models created via treelite export
         return attrs
 
     def _attrs_to_cpu(self, model):
@@ -321,9 +323,6 @@ class BaseRandomForestModel(InteropMixin, Base):
             attrs["oob_decision_function_"] = self.oob_decision_function_.get(order="A")
         if hasattr(self, 'oob_prediction_'):
             attrs["oob_prediction_"] = self.oob_prediction_.get(order="A")
-        # Note: feature_importances_ is NOT transferred from cuML to sklearn
-        # because sklearn's computation requires tree impurities that aren't
-        # available in sklearn models created via treelite export
         return attrs
 
     def __init__(
@@ -399,12 +398,24 @@ class BaseRandomForestModel(InteropMixin, Base):
         state.pop("_nvforest_model", None)
         return state
 
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
     def __len__(self):
         """Return the number of estimators in the ensemble."""
         return self.n_estimators
+
+    @property
+    def feature_importances_(self):
+        """Normalized mean decrease in impurity across the trees."""
+        tl_model = self.as_treelite()
+        importances = np.empty(tl_model.num_feature, dtype=tl_model.input_type)
+        cdef const Model* model = <const Model*><uintptr_t>tl_model.handle.value
+        cdef uintptr_t output = importances.ctypes.data
+        if importances.dtype == np.float32:
+            with nogil:
+                compute_feature_importances(model[0], <float*> output)
+        else:
+            with nogil:
+                compute_feature_importances(model[0], <double*> output)
+        return importances
 
     def as_treelite(self):
         """
@@ -445,14 +456,14 @@ class BaseRandomForestModel(InteropMixin, Base):
             A forest inference model which can be used to perform
             inferencing on the random forest model.
         """
+        check_is_fitted(self)
+
         handle = get_handle()
         cdef handle_t* handle_ = <handle_t*><uintptr_t>handle.getHandle()
         cdef cudaStream_t stream = handle_.get_stream().get()
 
-        check_is_fitted(self)
-
         return nvforest.load_from_treelite_model(
-            tl_model=treelite.Model.deserialize_bytes(self._treelite_model_bytes),
+            tl_model=self.as_treelite(),
             device="gpu",
             layout=layout,
             default_chunk_size=default_chunk_size,
@@ -602,9 +613,6 @@ class BaseRandomForestModel(InteropMixin, Base):
             masks_ptr_val = bootstrap_masks_cp.data.ptr
             bootstrap_masks_ptr = <bool*> masks_ptr_val
 
-        cdef object feature_importances = np.empty(n_cols, dtype=X.dtype)
-        cdef uintptr_t feature_importances_ptr = <uintptr_t> feature_importances.ctypes.data
-
         with nogil:
             if is_classifier:
                 if is_float32:
@@ -618,7 +626,6 @@ class BaseRandomForestModel(InteropMixin, Base):
                         n_classes,
                         params,
                         bootstrap_masks_ptr,
-                        <float*> feature_importances_ptr,
                         verbose,
                         <const double*> sample_weight_ptr,
                         input_row_major
@@ -634,7 +641,6 @@ class BaseRandomForestModel(InteropMixin, Base):
                         n_classes,
                         params,
                         bootstrap_masks_ptr,
-                        <double*> feature_importances_ptr,
                         verbose,
                         <const double*> sample_weight_ptr,
                         input_row_major
@@ -650,7 +656,6 @@ class BaseRandomForestModel(InteropMixin, Base):
                         <float*> y_ptr,
                         params,
                         bootstrap_masks_ptr,
-                        <float*> feature_importances_ptr,
                         verbose,
                         <const double*> sample_weight_ptr,
                         input_row_major
@@ -665,7 +670,6 @@ class BaseRandomForestModel(InteropMixin, Base):
                         <double*> y_ptr,
                         params,
                         bootstrap_masks_ptr,
-                        <double*> feature_importances_ptr,
                         verbose,
                         <const double*> sample_weight_ptr,
                         input_row_major
@@ -680,13 +684,16 @@ class BaseRandomForestModel(InteropMixin, Base):
         # is fixed we could instead store the loaded model and use that instead.
         cdef const char* tl_bytes = NULL
         cdef size_t tl_bytes_len
-        safe_treelite_call(
-            TreeliteSerializeModelToBytes(tl_handle, &tl_bytes, &tl_bytes_len),
-            "Failed to serialize Treelite model to bytes:"
-        )
-        safe_treelite_call(
-            TreeliteFreeModel(tl_handle), "Failed to free Treelite model:"
-        )
+        try:
+            safe_treelite_call(
+                TreeliteSerializeModelToBytes(tl_handle, &tl_bytes, &tl_bytes_len),
+                "Failed to serialize Treelite model to bytes:"
+            )
+            model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
+        finally:
+            safe_treelite_call(
+                TreeliteFreeModel(tl_handle), "Failed to free Treelite model:"
+            )
 
         self._n_samples = parameter_n_rows
         self._n_samples_bootstrap = (
@@ -694,7 +701,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             else max(round(self._n_samples * self.max_samples), 1)
         )
         self.n_outputs_ = 1
-        self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
+        self._treelite_model_bytes = model_bytes
         # Reload nvforest model
         self._nvforest_model = self.as_nvforest()
 
@@ -702,7 +709,6 @@ class BaseRandomForestModel(InteropMixin, Base):
         if self.oob_score:
             self._compute_oob_score(X, y, bootstrap_masks_cp)
 
-        self.feature_importances_ = feature_importances
         return self
 
     def _allreduce_validation_status(self, int local_status):

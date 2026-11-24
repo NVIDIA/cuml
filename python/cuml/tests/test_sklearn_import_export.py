@@ -867,14 +867,15 @@ def test_random_forest_classifier(random_state, oob_score):
         n_samples=200, n_features=5, n_informative=3, random_state=random_state
     )
 
+    weights = np.linspace(0.5, 1.5, len(y)) if oob_score else None
     cu_model = cuml.RandomForestClassifier(
         oob_score=oob_score,
         max_depth=None,
-    ).fit(X, y)
+    ).fit(X, y, sample_weight=weights)
     sk_model = sklearn.ensemble.RandomForestClassifier(
         oob_score=oob_score,
         max_depth=None,
-    ).fit(X, y)
+    ).fit(X, y, sample_weight=weights)
 
     sk_model2 = cu_model.as_sklearn()
     cu_model2 = cuml.RandomForestClassifier.from_sklearn(sk_model)
@@ -893,10 +894,9 @@ def test_random_forest_classifier(random_state, oob_score):
 
     # Ensure params/attrs roundtrip
     # Exclude classes_ due to dtype differences between implementations
-    # Exclude feature_importances_ because sklearn can't compute them from
-    # treelite-exported models
-    assert_roundtrip_consistency(
-        cu_model, cu_model2, exclude=("classes_", "feature_importances_")
+    assert_roundtrip_consistency(cu_model, cu_model2, exclude=("classes_",))
+    np.testing.assert_allclose(
+        cu_model2.feature_importances_, sk_model.feature_importances_
     )
 
     # Verify OOB attributes are present when oob_score=True
@@ -952,23 +952,23 @@ def test_random_forest_regressor(random_state, oob_score):
     X, y = make_regression(n_samples=200, random_state=random_state)
     X = X.astype("float32")
 
+    weights = np.linspace(0.5, 1.5, len(y)) if oob_score else None
     cu_model = cuml.RandomForestRegressor(
         oob_score=oob_score,
         max_depth=None,
-    ).fit(X, y)
+    ).fit(X, y, sample_weight=weights)
     sk_model = sklearn.ensemble.RandomForestRegressor(
         oob_score=oob_score,
         max_depth=None,
-    ).fit(X, y)
+    ).fit(X, y, sample_weight=weights)
 
     sk_model2 = cu_model.as_sklearn()
     cu_model2 = cuml.RandomForestRegressor.from_sklearn(sk_model)
 
     # Ensure params/attrs roundtrip
-    # Exclude feature_importances_ because sklearn can't compute them from
-    # treelite-exported models
-    assert_roundtrip_consistency(
-        cu_model, cu_model2, exclude=("feature_importances_",)
+    assert_roundtrip_consistency(cu_model, cu_model2)
+    np.testing.assert_allclose(
+        cu_model2.feature_importances_, sk_model.feature_importances_
     )
 
     # Verify OOB attributes are present when oob_score=True
