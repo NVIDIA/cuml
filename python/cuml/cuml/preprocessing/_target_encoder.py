@@ -575,9 +575,15 @@ class TargetEncoder(InteropMixin, Base):
 
     def _category_encodings(self, encode_all, col, categories):
         """Look up categories in order, matching nulls and imputing the mean."""
-        key_col = encode_all[col]
-        if len(categories) > _host_lookup_max_categories(key_col.dtype):
+        if len(categories) > _host_lookup_max_categories(
+            encode_all[col].dtype
+        ):
             return self._category_encodings_device(encode_all, col, categories)
+        return self._category_encodings_host(encode_all, col, categories)
+
+    def _category_encodings_host(self, encode_all, col, categories):
+        """Look up small category tables with a host index."""
+        key_col = encode_all[col]
         missing = key_col.isna()
         key_missing = missing.to_numpy()
         # Exclude nulls before to_pandas() to preserve integer key precision.
