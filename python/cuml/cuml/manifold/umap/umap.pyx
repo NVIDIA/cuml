@@ -993,6 +993,7 @@ class UMAP(
     @classmethod
     def _params_from_cpu(cls, model):
         init = model.init
+        # XXX: Drop the attribute guard once minimum umap-learn is >=0.6.0.
         if hasattr(model, "compatibility_layout"):
             # Resolve the public parameters without changing them (including
             # the upstream warning when the compatibility policy is implicit).
@@ -1111,6 +1112,7 @@ class UMAP(
             "random_state": self.random_state,
             "precomputed_knn": precomputed_knn,
         }
+        # XXX: Set unconditionally once minimum umap-learn is >=0.6.0.
         if "compatibility_layout" in self._get_cpu_class()._get_param_names():
             params["compatibility_layout"] = True
         return params
@@ -1158,6 +1160,8 @@ class UMAP(
 
         algorithm = getattr(self, "_input_hash_algorithm", None)
         input_hash = getattr(self, "_input_hash", None)
+        # XXX: Drop only the attribute guard once minimum umap-learn is >=0.6.0;
+        # only joblib hashes need conversion to the upstream content hash.
         if hasattr(model, "compatibility_layout") and algorithm is None:
             # A content hash avoids joblib's sensitivity to CSR cached flags.
             # With no stored fingerprint, compute the content hash directly.
@@ -1205,6 +1209,7 @@ class UMAP(
             **super()._attrs_to_cpu(model),
         }
 
+        # XXX: Set unconditionally once minimum umap-learn is >=0.6.0.
         if hasattr(model, "compatibility_layout"):
             # Preserve upstream hash schemes, including when synchronizing
             # into a model that previously used a different algorithm.
@@ -1224,6 +1229,7 @@ class UMAP(
         # set_params may temporarily request an invalid layout combination.
         # Reconstruct the fitted GPU layout without validating that intermediate
         # request; restore public parameters for upstream validation on refit.
+        # XXX: Drop the attribute guard once minimum umap-learn is >=0.6.0.
         if hasattr(model, "compatibility_layout"):
             from umap.umap_ import _resolve_layout_options
 
