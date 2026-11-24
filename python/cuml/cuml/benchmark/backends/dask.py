@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ..suite import Suite
 
 from .base import InputRepresentation
-from .cuml import CumlBackend, NativeCumlBackend
+from .cuml import CumlBackend
 
 
 def _wait_for_futures(distributed: Any, value: Any) -> None:
@@ -40,16 +40,11 @@ class DaskBackend(CumlBackend):
         """Convert one structural representation to distributed device storage."""
         if representation == "csr":
             raise ValueError("Dask CSR inputs are not supported yet")
-        if representation in {"dataframe", "series"}:
-            local = NativeCumlBackend.convert_data(
-                self, value, representation=representation
-            )
+        if representation != "array":
+            host = super().convert_data(value, representation=representation)
+            local = importlib.import_module("cudf").from_pandas(host)
             return importlib.import_module("dask_cudf").from_cudf(
                 local, npartitions=2
-            )
-        if representation != "array":
-            raise ValueError(
-                f"Unsupported input representation {representation!r}"
             )
         da = importlib.import_module("dask.array")
         cp = importlib.import_module("cupy")

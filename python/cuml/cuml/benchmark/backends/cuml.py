@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ..suite import Suite
 
-from .base import Backend, GPUBackend, InputRepresentation, VerificationResult
+from .base import GPUBackend, InputRepresentation, VerificationResult
 
 
 def _git_output(root: Path, *args: str) -> str:
@@ -133,19 +133,12 @@ class NativeCumlBackend(CumlBackend):
         """Convert a structural representation to device storage."""
         if representation == "array":
             return importlib.import_module("cupy").asarray(value)
+        host = super().convert_data(value, representation=representation)
         if representation == "csr":
-            host = Backend.convert_data(self, value, representation="csr")
             return importlib.import_module("cupyx.scipy.sparse").csr_matrix(
                 host
             )
-        if representation in {"dataframe", "series"}:
-            host = Backend.convert_data(
-                self, value, representation=representation
-            )
-            return importlib.import_module("cudf").from_pandas(host)
-        raise ValueError(
-            f"Unsupported input representation {representation!r}"
-        )
+        return importlib.import_module("cudf").from_pandas(host)
 
     def prepare_inputs(
         self, inputs: tuple[Any, ...], runtime: Any = None

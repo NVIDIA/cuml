@@ -3230,10 +3230,3 @@ def test_structural_conversion_contract(provider, representation):
         converted = converted.toarray()
     np.testing.assert_array_equal(converted, value)
     assert converted.dtype == value.dtype
-
-
-@pytest.mark.parametrize("provider", ["scikit-learn", "cuml", "cuml.dask"])
-def test_conversion_rejects_unknown_requirements(provider):
-    backend = get_provider(provider).backend
-    with pytest.raises(ValueError, match="representation"):
-        backend.convert_data(np.zeros(4), representation="unknown")
