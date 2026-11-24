@@ -299,7 +299,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         if hasattr(model, 'oob_prediction_'):
             attrs["oob_prediction_"] = cp.asarray(model.oob_prediction_)
         # Note: feature_importances_ is NOT transferred from sklearn to cuML
-        # because cuML caches the impurity decrease directly (BestMetric()) which
+        # because cuML caches the weighted impurity decrease directly (WeightedImpurityDecrease()) which
         # is not available in sklearn models created via treelite export
         return attrs
 
