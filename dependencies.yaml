@@ -298,6 +298,10 @@ dependencies:
       - output_types: [conda, requirements, constraints]
         packages:
           - pre-commit
+          - pytest
+      - output_types: conda
+        packages:
+          - just>=1.55.0
   clang_tidy:
     common:
       - output_types: [conda, requirements, constraints]
