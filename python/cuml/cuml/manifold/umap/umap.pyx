@@ -1128,8 +1128,6 @@ class UMAP(
             ),
             "graph_": model.graph_.tocoo(),
             "_raw_data": raw_data,
-            # Preserve fit-time identity even if the caller mutated retained
-            # training data before conversion. Never hash it again on import.
             "_input_hash": model._input_hash,
             "_input_hash_algorithm": getattr(model, "_input_hash_algorithm", None),
             "_sparse_data": model._sparse_data,
