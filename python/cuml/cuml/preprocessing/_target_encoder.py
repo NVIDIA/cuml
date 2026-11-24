@@ -541,13 +541,16 @@ class TargetEncoder(InteropMixin, Base):
         if train["y"].has_nulls:
             # Exclude null targets, matching groupby count/sum.
             valid = ~cp.isnan(y)
-            counts = cp.bincount(codes[valid], minlength=n_buckets)
-            sums = cp.bincount(
-                codes[valid], weights=y[valid], minlength=n_buckets
-            )
+            codes_valid, y_valid = codes[valid], y[valid]
         else:
-            counts = cp.bincount(codes, minlength=n_buckets)
-            sums = cp.bincount(codes, weights=y, minlength=n_buckets)
+            codes_valid, y_valid = codes, y
+        # Performance-critical replacement for cp.bincount: factorize already
+        # bounds the codes, so pre-sized scatter adds avoid bincount's validation
+        # and histogram overhead, which dominate high-cardinality fits.
+        counts = cp.zeros(n_buckets, dtype="int64")
+        sums = cp.zeros(n_buckets, dtype="float64")
+        cp.add.at(counts, codes_valid, 1)
+        cp.add.at(sums, codes_valid, y_valid)
 
         smooth = self.smooth
         mean = float(self.mean)
