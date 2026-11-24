@@ -32,19 +32,15 @@ from cuml.preprocessing.encoders import (
     _safe_is_nan,
 )
 
-# Above this many categories, `TargetEncoder._category_encodings` resolves
-# the encodings with a device merge instead of a host lookup. The host lookup
-# avoids the merge's fixed cost, which dominates wide inputs with few
-# categories, but grows with the number of categories, fastest for strings.
-# Limits by key dtype, from benchmarks on RTX PRO 6000 Blackwell, DGX Spark
-# and H100 with the default and `cuml.accel` allocators.
+# Host/device lookup crossover limits, benchmarked on RTX PRO 6000 Blackwell,
+# DGX Spark, and H100 with default and cuml.accel memory allocators.
 _HOST_LOOKUP_MAX_INT_CATEGORIES = 100_000
 _HOST_LOOKUP_MAX_FLOAT_CATEGORIES = 75_000
 _HOST_LOOKUP_MAX_OTHER_CATEGORIES = 50_000
 
 
 def _host_lookup_max_categories(dtype):
-    """The most categories with keys of `dtype` to look up on the host."""
+    """Return the host lookup limit for a key dtype."""
     kind = getattr(dtype, "kind", "O")
     if kind in "iu":
         return _HOST_LOOKUP_MAX_INT_CATEGORIES
@@ -495,7 +491,6 @@ class TargetEncoder(InteropMixin, Base):
                 encode_all_i = self._compute_single_feature_encoding_median(
                     df, col
                 )
-                # Merge encoding into df for this feature
                 df = df.merge(
                     encode_all_i.rename(columns={"out": out_col_i}),
                     on=col,
@@ -506,8 +501,7 @@ class TargetEncoder(InteropMixin, Base):
                 merged = True
             else:
                 encode_all_i, encoded = self._encode_single_feature(df, col)
-                # A category with no non-null targets encodes as NaN when
-                # smooth=0; impute it as the merge path does
+                # All-null target groups yield NaN when smooth=0.
                 df[out_col_i] = cp.where(
                     cp.isnan(encoded), self.y_stat_val, encoded
                 )
@@ -523,29 +517,17 @@ class TargetEncoder(InteropMixin, Base):
             result_cols.append(out_col_i)
 
         if merged:
-            # Merges do not preserve row order; restore the original order
             df = df.sort_values("id").reset_index(drop=True)
         else:
-            # `df` is stored as `self.train`. A frame only modified in place
-            # keeps the column metadata it was constructed with, which under
-            # cudf.pandas holds proxied pandas objects that cannot be
-            # pickled; the merge path happened to rebuild it. Reassigning
-            # the labels normalizes the metadata (0.8 ms at 195k rows).
+            # Normalize cudf.pandas column labels so self.train is picklable.
             df.columns = list(df.columns)
         res = df[result_cols].to_cupy()
         return res, df
 
     def _encode_single_feature(self, train, col):
-        """Smoothed mean encoding of one feature, by factorizing it.
+        """Return a smoothed-mean table and row-aligned encodings.
 
-        Returns the per-category table (``col``, ``out``), with a null row
-        for a missing category if one is present, and the per-row encodings
-        aligned with ``train``.
-
-        This replaces two groupbys and two merges per column with a
-        factorize, two ``bincount`` calls and a gather. The cudf operations
-        each cost tens of milliseconds of fixed overhead regardless of row
-        count, which dominated ``fit_transform`` on wide inputs.
+        Missing feature values share a null key in the table.
         """
         codes, uniques = train[col].factorize()
         codes = cp.asarray(codes)
@@ -557,7 +539,7 @@ class TargetEncoder(InteropMixin, Base):
 
         y = train["y"].to_cupy(na_value=np.nan)
         if train["y"].has_nulls:
-            # Match the groupby semantics: null targets count for nothing
+            # Exclude null targets, matching groupby count/sum.
             valid = ~cp.isnan(y)
             counts = cp.bincount(codes[valid], minlength=n_buckets)
             sums = cp.bincount(
@@ -589,37 +571,22 @@ class TargetEncoder(InteropMixin, Base):
         return encode_all
 
     def _category_encodings(self, encode_all, col, categories):
-        """Encodings of `categories` in order, falling back to the mean.
-
-        `encode_all` has one row per category, so this is a small table.
-        It is resolved on the host: a cudf merge plus sort here costs tens
-        of milliseconds of fixed overhead per column, which dominated
-        ``fit_transform`` on wide inputs. A missing category (NaN/None) is
-        matched to the null key in `encode_all` explicitly, since NaN does
-        not compare equal to itself.
-        """
+        """Look up categories in order, matching nulls and imputing the mean."""
         key_col = encode_all[col]
         if len(categories) > _host_lookup_max_categories(key_col.dtype):
             return self._category_encodings_device(encode_all, col, categories)
         missing = key_col.isna()
         key_missing = missing.to_numpy()
-        # Drop the null key before leaving the device: an integer column
-        # with a null comes back from to_pandas() as float64, which merges
-        # distinct keys above 2**53 into one and makes the index non-unique.
+        # Exclude nulls before to_pandas() to preserve integer key precision.
         keys = key_col[~missing].to_pandas()
         vals = encode_all["out"].to_numpy(dtype="float64", na_value=np.nan)
         mean = float(self.mean)
 
         cats = np.asarray(categories)
         cat_missing = np.asarray(pd.isna(cats), dtype=bool)
-        # Vectorized lookup: a Python loop over the categories costs about
-        # 0.4 s per feature at a million categories. `encode_all` comes from
-        # a groupby, so its keys are unique.
         lookup = cats
         if keys.dtype.kind in "iu" and cats.dtype.kind == "f":
-            # `categories_` of an integer column with a null is float64.
-            # Compare as integers: it is about 3x faster than a float
-            # lookup, and missing categories are excluded from `hit` below.
+            # Match integer keys without coercing them to float.
             lookup = np.where(cat_missing, 0, cats).astype(keys.dtype)
         pos = pd.Index(keys).get_indexer(lookup)
         hit = (pos >= 0) & ~cat_missing
@@ -627,22 +594,14 @@ class TargetEncoder(InteropMixin, Base):
         out[hit] = vals[~key_missing][pos[hit]]
         if cat_missing.any() and key_missing.any():
             out[cat_missing] = vals[key_missing][0]
-        # `out` of an empty group can be NaN for some statistics; the merge
-        # path filled those with the mean as well.
         return np.where(np.isnan(out), mean, out)
 
     def _category_encodings_device(self, encode_all, col, categories):
-        """`_category_encodings` as a cudf merge, for large category tables.
-
-        Its fixed cost is higher than the host lookup's, but it does not
-        grow with the number of categories on the host.
-        """
+        """Look up large category tables with a device merge."""
         cats = _cats_to_series(categories)
         key_dtype = encode_all[col].dtype
         if key_dtype.kind in "iu" and cats.dtype.kind == "f":
-            # `categories_` of an integer column with a null is float64;
-            # merging float64 against the integer keys would match distinct
-            # keys above 2**53 more than once.
+            # Avoid merge fanout from float coercion of large integer keys.
             cats = cats.astype(key_dtype)
         table = cudf.DataFrame({col: cats, "pos": cp.arange(len(cats))})
         table = table.merge(encode_all[[col, "out"]], on=col, how="left")
