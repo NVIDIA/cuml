@@ -1158,7 +1158,7 @@ class UMAP(
         if cupyx.scipy.sparse.issparse(raw_data) or isinstance(raw_data, cp.ndarray):
             raw_data = raw_data.get()
 
-        algorithm = getattr(self, "_input_hash_algorithm", None)
+        algorithm = self._input_hash_algorithm
         input_hash = getattr(self, "_input_hash", None)
         # XXX: Drop only the attribute guard once minimum umap-learn is >=0.6.0;
         # only joblib hashes need conversion to the upstream content hash.
@@ -1597,7 +1597,7 @@ class UMAP(
         X_input_sparse = is_sparse(X)
 
         if self.hash_input and _hash_input(
-            X, getattr(self, "_input_hash_algorithm", None)
+            X, self._input_hash_algorithm
         ) == self._input_hash:
             return self.embedding_
 
