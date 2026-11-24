@@ -138,7 +138,7 @@ def function_name(param1, param2):
 For more details, refer to the [NumPy docstring style guide](https://numpydoc.readthedocs.io/en/stable/format.html).
 
 ## Testing and Unit Testing
-We use [pytest](https://docs.pytest.org/en/latest/) for writing and running tests. To see existing examples, refer to any of the `test_*.py` files in the folder `cuml/tests`.
+We use [pytest](https://docs.pytest.org/en/latest/) for writing and running tests. To see existing examples, refer to any of the `test_*.py` files in `python/cuml/tests`.
 
 ### Test Organization
 - Keep all tests for a single estimator in one file, with exceptions for:
@@ -235,14 +235,15 @@ Control via these pytest options:
    - Document test assumptions and requirements
 
 ### Running Tests
-Use a prepared environment with a compatible cuML build. From the repository
-root, `python -m pytest` runs the standard single-GPU test suite.
+Use a prepared environment with a compatible cuML build. `python -m pytest`
+runs the standard single-GPU test suite.
 
 ```bash
-python -m pytest                                  # standard single-GPU test suite
-python -m pytest python/cuml/dask_tests           # Dask (TCP)
-python -m pytest python/cuml/dask_tests --run_ucx # Dask (UCXX)
-python -m pytest python/cuml/cuml_accel_tests     # Accel
+python -m pytest                                   # standard single-GPU test suite
+python -m pytest python/cuml/tests/test_kmeans.py  # specific test file
+python -m pytest python/cuml/dask_tests            # Dask (TCP)
+python -m pytest python/cuml/dask_tests --run_ucx  # Dask (UCXX)
+python -m pytest python/cuml/cuml_accel_tests      # Accel
 ```
 
 The standard suite runs unit tests by default. Use `--run_quality` for more

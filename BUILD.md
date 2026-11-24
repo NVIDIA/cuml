@@ -116,21 +116,20 @@ If you want a list of the available C++ tests:
 $ ctest --test-dir cpp/build -N
 ```
 
-To run single- and multi-GPU Python algorithm tests, from the repo root:
+To run single- and multi-GPU Python algorithm tests:
 ```bash
-$ cd python/cuml
-$ pytest -v tests dask_tests
+$ python -m pytest -v python/cuml/tests python/cuml/dask_tests
 ```
 
-To run only single-GPU algorithm tests:
+To run only single-GPU algorithm tests (the default suite):
 
 ```bash
-$ pytest tests
+$ python -m pytest
 ```
 
 If you want a list of the available Python tests:
 ```bash
-$ pytest tests dask_tests --collect-only
+$ python -m pytest python/cuml/tests python/cuml/dask_tests --collect-only
 ```
 
 **Note:** Some tests require `xgboost`. If running tests in conda devcontainers, you must install the `xgboost` conda package manually. See `dependencies.yaml` for version information.
@@ -236,22 +235,21 @@ From the repository root:
 $ python -m pip install --no-build-isolation --no-deps --config-settings rapidsai.disable-cuda=true python/cuml
 ```
 
-To run Python tests (optional):
+To run single- and multi-GPU Python algorithm tests:
 
 ```bash
-$ cd python/cuml
-$ pytest -v tests dask_tests
+$ python -m pytest -v python/cuml/tests python/cuml/dask_tests
 ```
 
-To run only single-GPU algorithm tests:
+To run only single-GPU algorithm tests (the default suite):
 
 ```bash
-$ pytest tests
+$ python -m pytest
 ```
 
-If you want a list of the available tests:
+If you want a list of the available Python tests:
 ```bash
-$ pytest tests dask_tests --collect-only
+$ python -m pytest python/cuml/tests python/cuml/dask_tests --collect-only
 ```
 
 ### Custom Build Options
