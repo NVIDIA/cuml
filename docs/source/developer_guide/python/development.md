@@ -254,6 +254,28 @@ Add `--run_unit` to include unit tests alongside either selection.
 Upstream accel tests require their explicit config, plugin, and xfail options;
 see the [upstream testing guide](https://github.com/NVIDIA/cuml/blob/main/python/cuml/cuml_accel_tests/upstream/README.md).
 
+#### Optional `just` shortcuts
+
+With [`just`](https://just.systems/) 1.55.0 or newer on `PATH`:
+
+```bash
+just                            # List recipes
+just test -k 'pca or kmeans'    # python -m pytest with unchanged arguments
+just test-accel                 # cuML accel suite
+just test-accel-sklearn -k pca  # Upstream scikit-learn with cuml.accel
+just test-dask                  # Dask suite
+just test-cudf-pandas           # Standard suite with -p cudf.pandas
+just build libcuml cuml --ccache
+```
+
+Recipes use the current prepared environment, run from the repository root,
+and forward arguments unchanged. Relative test and report paths are
+repository-relative. Suite recipes combine their predefined targets with any
+supplied targets. `test-accel-sklearn` also supplies the upstream config and
+official xfail list and requires scikit-learn's test dependencies.
+
+`just build` forwards targets and flags directly to the checkout's `build.sh`.
+
 ## Python-defined kernels
 
 When writing a kernel in python, prefer using the functionality provided by
