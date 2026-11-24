@@ -53,9 +53,9 @@ const static int NTHREADS_32   = 32;
 
 struct FunctionalSqrt {
   template <typename value_t>
-  __host__ __device__ float operator()(const value_t& x) const
+  __host__ __device__ value_t operator()(const value_t& x) const
   {
-    return pow(x, 0.5);
+    return sqrt(x);
   }
 };
 struct FunctionalSquare {

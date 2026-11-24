@@ -77,11 +77,11 @@ std::string get_node_text(const std::string& prefix,
     }
     oss << tree->vector_leaf[idx * tree->num_outputs + tree->num_outputs - 1];
 
-    oss << "], best_metric_val: " << node.BestMetric() << ")";
+    oss << "], best_metric_val: " << node.WeightedImpurityDecrease() << ")";
   } else {
     oss << "("
         << "colid: " << node.ColumnId() << ", quesval: " << node.QueryValue()
-        << ", best_metric_val: " << node.BestMetric() << ")";
+        << ", best_metric_val: " << node.WeightedImpurityDecrease() << ")";
   }
 
   if (!node.IsLeaf()) {
@@ -103,7 +103,7 @@ std::string get_node_json(const std::string& prefix, const TreeMetaDataNode<T, L
   if (!node.IsLeaf()) {
     oss << prefix << "{\"nodeid\": " << idx << ", \"split_feature\": " << node.ColumnId()
         << ", \"split_threshold\": " << to_string_high_precision(node.QueryValue())
-        << ", \"gain\": " << to_string_high_precision(node.BestMetric());
+        << ", \"gain\": " << to_string_high_precision(node.WeightedImpurityDecrease());
     oss << ", \"instance_count\": " << node.InstanceCount();
     oss << ", \"yes\": " << node.LeftChildId() << ", \"no\": " << (node.RightChildId())
         << ", \"children\": [\n";

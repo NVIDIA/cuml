@@ -20,7 +20,7 @@ ARGS=$*
 REPODIR=$(cd "$(dirname "$0")"; pwd)
 
 VALIDTARGETS="clean libcuml cuml cpp-mgtests prims bench prims-bench cppdocs pydocs"
-VALIDFLAGS="-v -g -n --allgpuarch --singlegpu --nolibcumltest --nvtx --show_depr_warn --codecov --ccache --configure-only --build-metrics --incl-cache-stats -h --help "
+VALIDFLAGS="-v -g -n --allgpuarch --singlegpu --nolibcumltest --nvtx --show_depr_warn --codecov --ccache --configure-only --static-treelite --build-metrics --incl-cache-stats -h --help "
 VALIDARGS="${VALIDTARGETS} ${VALIDFLAGS}"
 HELP="$0 [<target> ...] [<flag> ...]
  where <target> is:
@@ -64,7 +64,8 @@ CUML_BUILD_DIR=${REPODIR}/python/cuml/build
 PYTHON_DEPS_CLONE=${REPODIR}/python/external_repositories
 BUILD_DIRS="${LIBCUML_BUILD_DIR} ${CUML_BUILD_DIR} ${PYTHON_DEPS_CLONE}"
 
-CUDA_VERSION="${RAPIDS_CUDA_VERSION:-$(nvcc --version | sed -E -n 's/^.*release ([0-9]+\.[0-9]+).*$/\1/p')}"
+RAPIDS_CUDA_VERSION_MAJOR_MINOR="${RAPIDS_CUDA_VERSION%.*}"
+CUDA_VERSION="${RAPIDS_CUDA_VERSION_MAJOR_MINOR:-$(nvcc --version | sed -E -n 's/^.*release ([0-9]+\.[0-9]+).*$/\1/p')}"
 if [[ -z "$CUDA_VERSION" ]]; then
     echo "Could not determine CUDA version. Please set RAPIDS_CUDA_VERSION or make sure your \$PATH contains a valid nvcc."
     exit 1
@@ -162,6 +163,7 @@ LONG_ARGUMENT_LIST=(
     "ccache"
     "nolibcumltest"
     "configure-only"
+    "static-treelite"
     "build-metrics"
     "incl-cache-stats"
 )
