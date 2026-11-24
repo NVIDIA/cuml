@@ -2627,7 +2627,7 @@ def test_dask_dbscan_uses_local_input(monkeypatch):
     )
     monkeypatch.setattr(backend, "load_estimator", lambda spec: object)
     prepared = harness._prepare_case(
-        backend, _suite(case, provider="cuml.dask"), case, spec
+        _suite(case, provider="cuml.dask"), case, spec
     )
     assert prepared.operation_args[0] is X
 
@@ -3170,7 +3170,6 @@ def test_harness_converts_selected_host_partitions(monkeypatch, inference):
         provider.backend, "load_estimator", lambda spec: object
     )
     prepared = harness._prepare_case(
-        provider.backend,
         _suite(case),
         case,
         provider.estimator_spec("PCA"),

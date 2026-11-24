@@ -127,15 +127,15 @@ class _PreparedCase:
 
 
 def _prepare_case(
-    backend: Backend,
     suite: Suite,
     case: ResolvedCase,
     spec: EstimatorSpec,
     client: Any = None,
 ) -> _PreparedCase:
     """Partition host data, then convert and materialize only required inputs."""
-    estimator_class = backend.load_estimator(spec)
     provider = suite.provider_spec
+    backend = provider.backend
+    estimator_class = backend.load_estimator(spec)
 
     # Generate and partition host data.
     X, y = generate_data(case)
@@ -273,7 +273,7 @@ def _benchmark_case(
 
     try:
         set_phase("preparation")
-        prepared = _prepare_case(backend, suite, case, spec, client)
+        prepared = _prepare_case(suite, case, spec, client)
         is_training = case.lifecycle == "fit"
         if not is_training:
             set_phase("setup")
