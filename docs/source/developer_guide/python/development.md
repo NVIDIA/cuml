@@ -235,8 +235,9 @@ Control via these pytest options:
    - Document test assumptions and requirements
 
 ### Running Tests
-Use a prepared environment with a compatible cuML build. `python -m pytest`
-runs the standard single-GPU test suite.
+Use a prepared environment with a compatible cuML build. Run the commands below
+from the repository root; `python -m pytest` runs the standard single-GPU test
+suite.
 
 ```bash
 python -m pytest                                   # standard single-GPU test suite
