@@ -1,11 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import warnings
+
 import cupy as cp
-import cupyx.scipy.sparse
+import cupyx.scipy.sparse as cp_sp
 import cupyx.scipy.sparse.linalg
 import numpy as np
 
 from cuml.common.doc_utils import generate_docstring
+from cuml.common.sparse import sparse_gram
 from cuml.internals.outputs import mlfunc
 from cuml.internals.validation import check_inputs, check_is_fitted
 from cuml.solvers.nnls import _nnls
@@ -112,7 +115,7 @@ def center_and_scale(
     sample_weight_sqrt : cupy.ndarray or None, shape (n_samples,)
         The sqrt of the ``sample_weight``, or None if unweighted.
     """
-    X_is_sparse = cupyx.scipy.sparse.issparse(X)
+    X_is_sparse = cp_sp.issparse(X)
 
     # Ensure 2D
     if X.ndim == 1:
@@ -179,18 +182,81 @@ def cuda_ptr(X):
     return None
 
 
-_ridge_transform = cp.ElementwiseKernel(
-    "T x, T s, T alpha",
+_ridge_transform_kernel = cp.ElementwiseKernel(
+    "T x, T s, T alpha, T thresh",
     "T out",
-    "out = s < 1e-10 ? 0 : x * s / (s * s + alpha)",
+    "out = s < thresh ? 0 : x * s / (s * s + alpha)",
     "_ridge_transform",
 )
-_ridge_transform_zero_alpha = cp.ElementwiseKernel(
-    "T x, T s",
+_ridge_transform_no_alpha_kernel = cp.ElementwiseKernel(
+    "T x, T s, T thresh",
     "T out",
-    "out = s < 1e-10 ? 0 : x / s",
-    "_ridge_transform_zero_alpha",
+    "out = s < thresh ? 0 : x / s",
+    "_ridge_transform_no_alpha",
 )
+
+
+def _ridge_transform(x, s, alpha=None, thresh=None):
+    """Computes `x * s / (s * s + alpha)`, with `s < thresh` values set to 0.
+    The default thresh is determined dynamically based on `s.max()`."""
+    if thresh is None:
+        # 1e-12 ratio borrowed from sklearn
+        thresh = x.dtype.type(float(s.max()) * 1e-12)
+        if thresh <= 0:
+            thresh = x.dtype.type(1e-12)
+    if alpha is None or (alpha == 0).all():
+        # Small optimization in the case of all-zero alpha
+        return _ridge_transform_no_alpha_kernel(x, s, thresh)
+    return _ridge_transform_kernel(x, s, alpha, thresh)
+
+
+def _fit_cholesky(X, y, alpha, warn_if_singular=True):
+    """Fits a least-squares problem using a cholesky decomposition."""
+    X_is_sparse = cp_sp.issparse(X)
+
+    n_samples, n_features = X.shape
+    n_targets = y.shape[1]
+
+    if dual := n_samples < n_features:
+        N = n_samples
+        A = sparse_gram(X, transpose=True) if X_is_sparse else X.dot(X.T)
+        B = y
+    else:
+        N = n_features
+        A = sparse_gram(X) if X_is_sparse else X.T.dot(X)
+        B = X.T.dot(y)
+
+    def _solve(A, B):
+        """Returns the `w` solution of `A @ w = B`"""
+        try:
+            with cupyx.errstate(linalg="raise"):
+                return cupyx.lapack.posv(A, B)
+        except cp.linalg.LinAlgError:
+            if warn_if_singular:
+                warnings.warn(
+                    "Singular matrix encountered in 'cholesky' solver, falling back "
+                    "to 'eig' solver."
+                )
+
+        w, q = cp.linalg.eigh(A)
+        return q.dot(_ridge_transform(q.T.dot(B), w[:, None]))
+
+    if (alpha == alpha[0]).all():
+        # uniform alpha, only one _solve needed
+        if alpha[0] != 0.0:
+            A.flat[:: N + 1] += alpha[0]
+        coefs = _solve(A, B).T
+    else:
+        coefs = cp.empty((n_targets, N), dtype=X.dtype)
+        A_diag = cp.diag(A)
+        for i in range(n_targets):
+            A.flat[:: N + 1] = A_diag + alpha[i]
+            coefs[i, :] = _solve(A, B[:, i, None]).ravel()
+
+    if dual:
+        coefs = X.T.dot(coefs.T).T
+
+    return coefs
 
 
 def fit_least_squares(
@@ -205,6 +271,7 @@ def fit_least_squares(
     max_iter=None,
     may_mutate_X=False,
     may_mutate_y=False,
+    cholesky_warn_if_singular=True,
 ):
     """Fit a (possibly regularized) least-squares problem.
 
@@ -221,9 +288,8 @@ def fit_least_squares(
     alpha : float or cp.ndarray
         Ridge regularization strength. Must be a non-negative float. Defaults
         to 0 for no regularization (a LinearRegression).
-    solver : {'svd', 'lsmr', 'nnls'}
-        The solver to use. ``'nnls'`` constrains the coefficients to be
-        non-negative and requires a dense ``X``.
+    solver : {'svd', 'cholesky', 'lsmr', 'nnls'}
+        The solver to use.
     tol : float
         Tolerance, used by the LSMR and NNLS solvers.
     max_iter : int or None
@@ -232,6 +298,8 @@ def fit_least_squares(
         Whether to allow mutating X inplace to save memory when possible.
     may_mutate_y : bool
         Whether to allow mutating y inplace to save memory when possible.
+    cholesky_warn_if_singular : bool
+        Whether to warn if a singular X is found within the `cholesky` solver.
 
     Returns
     -------
@@ -244,7 +312,13 @@ def fit_least_squares(
         solver, None otherwise.
     """
     y_1d = y.ndim == 1
-    if X_is_sparse := cupyx.scipy.sparse.issparse(X):
+    if X_is_sparse := cp_sp.issparse(X):
+        if solver not in ("cholesky", "lsmr"):
+            raise ValueError(f"{solver=!r} doesn't support sparse inputs")
+        if fit_intercept and solver == "cholesky":
+            raise ValueError(
+                "{solver=!r} with sparse X and {fit_intercept=} is not supported"
+            )
         # Centering and lsmr are much faster with CSR/CSC inputs
         if X.format not in ("csr", "csc"):
             X = X.tocsr()
@@ -269,12 +343,14 @@ def fit_least_squares(
     if solver == "svd":
         # Solve using SVD method
         u, s, vh = cp.linalg.svd(X, full_matrices=False)
-        if (alpha == 0).all():
-            # Small optimization in the case of all-zero alpha
-            temp = _ridge_transform_zero_alpha(u.T.dot(y), s[:, None])
-        else:
-            temp = _ridge_transform(u.T.dot(y), s[:, None], alpha)
+        # 1e-15 threshold borrowed from sklearn
+        temp = _ridge_transform(u.T.dot(y), s[:, None], alpha, thresh=1e-15)
         coef = vh.T.dot(temp).T
+        n_iter = None
+    elif solver == "cholesky":
+        coef = _fit_cholesky(
+            X, y, alpha, warn_if_singular=cholesky_warn_if_singular
+        )
         n_iter = None
     elif solver == "lsmr":
         if X_is_sparse and fit_intercept:
@@ -282,13 +358,13 @@ def fit_least_squares(
             # fitting an intercept. We handle removing the offset within the
             # fit via a LinearOperator.
             if sqrt_weight is None:
-                A = cupyx.scipy.sparse.linalg.LinearOperator(
+                A = cp_sp.linalg.LinearOperator(
                     shape=X.shape,
                     matvec=lambda w: X.dot(w) - w.dot(X_offset),
                     rmatvec=lambda w: X.T.dot(w) - X_offset * w.sum(),
                 )
             else:
-                A = cupyx.scipy.sparse.linalg.LinearOperator(
+                A = cp_sp.linalg.LinearOperator(
                     shape=X.shape,
                     matvec=lambda w: X.dot(w) - sqrt_weight * w.dot(X_offset),
                     rmatvec=lambda w: X.T.dot(w)
@@ -303,7 +379,7 @@ def fit_least_squares(
 
         for i in range(y.shape[1]):
             b = y[:, i]
-            info = cupyx.scipy.sparse.linalg.lsmr(
+            info = cp_sp.linalg.lsmr(
                 A,
                 b,
                 damp=damp[i],
