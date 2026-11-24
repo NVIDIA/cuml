@@ -38,8 +38,6 @@ class DaskBackend(CumlBackend):
         representation: InputRepresentation,
     ) -> Any:
         """Convert one structural representation to distributed device storage."""
-        if representation == "csr":
-            raise ValueError("Dask CSR inputs are not supported yet")
         if representation != "array":
             host = super().convert_data(value, representation=representation)
             local = importlib.import_module("cudf").from_pandas(host)

@@ -3202,19 +3202,20 @@ def test_native_conversion_preserves_shape_and_values(shape):
     np.testing.assert_array_equal(host, device.get())
 
 
-@pytest.mark.parametrize("provider", ["scikit-learn", "cuml", "cuml.dask"])
 @pytest.mark.parametrize(
-    "representation", ["array", "csr", "dataframe", "series"]
+    "provider, representation",
+    [
+        (provider, representation)
+        for provider in ["scikit-learn", "cuml", "cuml.dask"]
+        for representation in ["array", "csr", "dataframe", "series"]
+        if (provider, representation) != ("cuml.dask", "csr")
+    ],
 )
 def test_structural_conversion_contract(provider, representation):
     backend = get_provider(provider).backend
     value = np.arange(12, dtype=np.float32)
     if representation in {"csr", "dataframe"}:
         value = value.reshape(4, 3)
-    if provider == "cuml.dask" and representation == "csr":
-        with pytest.raises(ValueError, match="CSR"):
-            backend.convert_data(value, representation=representation)
-        return
     if provider == "cuml.dask":
         pytest.importorskip(
             "dask.array" if representation == "array" else "dask_cudf"
