@@ -5,6 +5,8 @@
 import ctypes
 import warnings
 from collections import deque
+from functools import cache
+from importlib.metadata import version
 
 import cupy as cp
 import cupyx.scipy.sparse
@@ -12,6 +14,7 @@ import joblib
 import numpy as np
 import scipy.sparse
 import scipy.spatial
+from packaging.version import Version
 from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
@@ -44,6 +47,12 @@ from rmm.pylibrmm.memory_resource cimport get_current_device_resource
 
 cimport cuml.manifold.umap.lib as lib
 from cuml.metrics.distance_type cimport DistanceType
+
+
+@cache
+def umap_060():
+    """Whether the installed umap-learn supports the 0.6 API."""
+    return Version(version("umap-learn")) >= Version("0.6.0")
 
 
 def _joblib_hash(X):
@@ -993,8 +1002,7 @@ class UMAP(
     @classmethod
     def _params_from_cpu(cls, model):
         init = model.init
-        # XXX: Drop the attribute guard once minimum umap-learn is >=0.6.0.
-        if hasattr(model, "compatibility_layout"):
+        if umap_060():
             # Resolve the public parameters without changing them (including
             # the upstream warning when the compatibility policy is implicit).
             try:
@@ -1112,8 +1120,7 @@ class UMAP(
             "random_state": self.random_state,
             "precomputed_knn": precomputed_knn,
         }
-        # XXX: Set unconditionally once minimum umap-learn is >=0.6.0.
-        if "compatibility_layout" in self._get_cpu_class()._get_param_names():
+        if umap_060():
             params["compatibility_layout"] = True
         return params
 
@@ -1160,9 +1167,7 @@ class UMAP(
 
         algorithm = self._input_hash_algorithm
         input_hash = getattr(self, "_input_hash", None)
-        # XXX: Drop only the attribute guard once minimum umap-learn is >=0.6.0;
-        # only joblib hashes need conversion to the upstream content hash.
-        if hasattr(model, "compatibility_layout") and algorithm is None:
+        if umap_060() and algorithm is None:
             # A content hash avoids joblib's sensitivity to CSR cached flags.
             # With no stored fingerprint, compute the content hash directly.
             # Otherwise translate only if current data matches the fit-time hash.
@@ -1209,8 +1214,7 @@ class UMAP(
             **super()._attrs_to_cpu(model),
         }
 
-        # XXX: Set unconditionally once minimum umap-learn is >=0.6.0.
-        if hasattr(model, "compatibility_layout"):
+        if umap_060():
             # Preserve upstream hash schemes, including when synchronizing
             # into a model that previously used a different algorithm.
             attrs["_input_hash_algorithm"] = algorithm
@@ -1229,8 +1233,7 @@ class UMAP(
         # set_params may temporarily request an invalid layout combination.
         # Reconstruct the fitted GPU layout without validating that intermediate
         # request; restore public parameters for upstream validation on refit.
-        # XXX: Drop the attribute guard once minimum umap-learn is >=0.6.0.
-        if hasattr(model, "compatibility_layout"):
+        if umap_060():
             from umap.umap_ import _resolve_layout_options
 
             try:
