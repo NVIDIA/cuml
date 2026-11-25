@@ -27,5 +27,4 @@ dependencies:
 - llvm-openmp==20.1.8
 - ninja
 - sysroot_linux-64==2.28
-- tomli
 name: clang_tidy_cuda-129_arch-x86_64
