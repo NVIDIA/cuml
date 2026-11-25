@@ -7,6 +7,7 @@ import warnings
 import cudf
 import cupy as cp
 import numpy as np
+import pandas as pd
 from sklearn.utils import ClassifierTags
 
 from cuml.internals.base import Base
@@ -30,6 +31,22 @@ from cuml.preprocessing.encoders import (
     _compute_categories,
     _safe_is_nan,
 )
+
+# Host/device lookup crossover limits, benchmarked on RTX PRO 6000 Blackwell,
+# DGX Spark, and H100 with default and cuml.accel memory allocators.
+_HOST_LOOKUP_MAX_INT_CATEGORIES = 100_000
+_HOST_LOOKUP_MAX_FLOAT_CATEGORIES = 75_000
+_HOST_LOOKUP_MAX_OTHER_CATEGORIES = 50_000
+
+
+def _host_lookup_max_categories(dtype):
+    """Return the host lookup limit for a key dtype."""
+    kind = getattr(dtype, "kind", "O")
+    if kind in "iu":
+        return _HOST_LOOKUP_MAX_INT_CATEGORIES
+    if kind == "f":
+        return _HOST_LOOKUP_MAX_FLOAT_CATEGORIES
+    return _HOST_LOOKUP_MAX_OTHER_CATEGORIES
 
 
 class TargetEncoder(InteropMixin, Base):
@@ -465,6 +482,7 @@ class TargetEncoder(InteropMixin, Base):
         self._encodings_per_feature = []
         self.encode_all = []
         result_cols = []
+        merged = False
 
         for i, col in enumerate(x_cols):
             out_col_i = f"out_{i}"
@@ -473,9 +491,19 @@ class TargetEncoder(InteropMixin, Base):
                 encode_all_i = self._compute_single_feature_encoding_median(
                     df, col
                 )
+                df = df.merge(
+                    encode_all_i.rename(columns={"out": out_col_i}),
+                    on=col,
+                    how="left",
+                )
+                df[out_col_i] = df[out_col_i].nans_to_nulls()
+                df[out_col_i] = df[out_col_i].fillna(self.y_stat_val)
+                merged = True
             else:
-                encode_all_i = self._compute_single_feature_encoding(
-                    df, col, out_col_i
+                encode_all_i, encoded = self._encode_single_feature(df, col)
+                # All-null target groups yield NaN when smooth=0.
+                df[out_col_i] = cp.where(
+                    cp.isnan(encoded), self.y_stat_val, encoded
                 )
 
             self.encode_all.append(encode_all_i)
@@ -486,42 +514,56 @@ class TargetEncoder(InteropMixin, Base):
                     encode_all_i, col, self.categories_[i]
                 )
             )
-
-            # Merge encoding into df for this feature
-            df = df.merge(
-                encode_all_i.rename(columns={"out": out_col_i}),
-                on=col,
-                how="left",
-            )
-            df[out_col_i] = df[out_col_i].nans_to_nulls()
-            df[out_col_i] = df[out_col_i].fillna(self.y_stat_val)
             result_cols.append(out_col_i)
 
-        # Sort by original index and return results
-        df = df.sort_values("id").reset_index(drop=True)
+        if merged:
+            df = df.sort_values("id").reset_index(drop=True)
+        else:
+            # Normalize cudf.pandas column labels so self.train is picklable.
+            df.columns = list(df.columns)
         res = df[result_cols].to_cupy()
         return res, df
 
-    def _compute_single_feature_encoding(self, train, col, out_col):
-        """Compute target encoding for a single feature column."""
-        # Group by single feature and compute stats
-        df_count = train.groupby(col, as_index=False, dropna=False).agg(
-            {"y": "count"}
-        )
-        df_count.columns = [col, "y_count"]
+    def _encode_single_feature(self, train, col):
+        """Return a smoothed-mean table and row-aligned encodings.
 
-        df_sum = train.groupby(col, as_index=False, dropna=False).agg(
-            {"y": "sum"}
-        )
-        df_sum.columns = [col, "y_sum"]
+        Missing feature values share a null key in the table.
+        """
+        codes, uniques = train[col].factorize()
+        codes = cp.asarray(codes)
+        n_cats = len(uniques)
+        has_null = bool((codes < 0).any())
+        if has_null:
+            codes = cp.where(codes < 0, n_cats, codes)
+        n_buckets = n_cats + int(has_null)
 
-        df = df_sum.merge(df_count, on=col, how="left")
+        y = train["y"].to_cupy(na_value=np.nan)
+        if train["y"].has_nulls:
+            # Exclude null targets, matching groupby count/sum.
+            valid = ~cp.isnan(y)
+            codes_valid, y_valid = codes[valid], y[valid]
+        else:
+            codes_valid, y_valid = codes, y
+        # Performance-critical replacement for cp.bincount: factorize already
+        # bounds the codes, so pre-sized scatter adds avoid bincount's validation
+        # and histogram overhead, which dominate high-cardinality fits.
+        counts = cp.zeros(n_buckets, dtype="int64")
+        sums = cp.zeros(n_buckets, dtype="float64")
+        cp.add.at(counts, codes_valid, 1)
+        cp.add.at(sums, codes_valid, y_valid)
 
-        # Apply smoothing
         smooth = self.smooth
-        df["out"] = (df.y_sum + smooth * self.mean) / (df.y_count + smooth)
+        mean = float(self.mean)
+        out = (sums + smooth * mean) / (counts.astype(sums.dtype) + smooth)
 
-        return df[[col, "out"]]
+        keys = cudf.Series(uniques)
+        if has_null:
+            keys = cudf.concat(
+                [keys, cudf.Series([None], dtype=keys.dtype)],
+                ignore_index=True,
+            )
+        encode_all = cudf.DataFrame({col: keys, "out": out})
+        return encode_all, out[codes]
 
     def _compute_single_feature_encoding_median(self, train, col):
         """Compute median target encoding for a single feature column."""
@@ -532,24 +574,50 @@ class TargetEncoder(InteropMixin, Base):
         return encode_all
 
     def _category_encodings(self, encode_all, col, categories):
-        """Encodings of `categories` in order, falling back to the mean.
+        """Look up categories in order, matching nulls and imputing the mean."""
+        if len(categories) > _host_lookup_max_categories(
+            encode_all[col].dtype
+        ):
+            return self._category_encodings_device(encode_all, col, categories)
+        return self._category_encodings_host(encode_all, col, categories)
 
-        Uses a merge rather than comparing values so that a missing
-        category matches the missing key in `encode_all`.
-        """
-        # A missing category has to be null to match the null key in
-        # `encode_all`. `_cats_to_series` hardcodes `nan_as_null=True`
-        # (cudf's default) so the behavior doesn't switch when cudf.pandas
-        # is active.
-        cats = cudf.DataFrame(
-            {
-                col: _cats_to_series(categories),
-                "pos": cp.arange(len(categories)),
-            }
+    def _category_encodings_host(self, encode_all, col, categories):
+        """Look up small category tables with a host index."""
+        key_col = encode_all[col]
+        missing = key_col.isna()
+        key_missing = missing.to_numpy()
+        # Exclude nulls before to_pandas() to preserve integer key precision.
+        keys = key_col[~missing].to_pandas()
+        vals = encode_all["out"].to_numpy(dtype="float64", na_value=np.nan)
+        mean = float(self.mean)
+
+        cats = np.asarray(categories)
+        cat_missing = np.asarray(pd.isna(cats), dtype=bool)
+        lookup = cats
+        if keys.dtype.kind in "iu" and cats.dtype.kind == "f":
+            # Match integer keys without coercing them to float.
+            lookup = np.where(cat_missing, 0, cats).astype(keys.dtype)
+        pos = pd.Index(keys).get_indexer(lookup)
+        hit = (pos >= 0) & ~cat_missing
+        out = np.full(len(cats), mean, dtype="float64")
+        out[hit] = vals[~key_missing][pos[hit]]
+        if cat_missing.any() and key_missing.any():
+            out[cat_missing] = vals[key_missing][0]
+        return np.where(np.isnan(out), mean, out)
+
+    def _category_encodings_device(self, encode_all, col, categories):
+        """Look up large category tables with a device merge."""
+        cats = _cats_to_series(categories)
+        key_dtype = encode_all[col].dtype
+        if key_dtype.kind in "iu" and cats.dtype.kind == "f":
+            # Avoid merge fanout from float coercion of large integer keys.
+            cats = cats.astype(key_dtype)
+        table = cudf.DataFrame({col: cats, "pos": cp.arange(len(cats))})
+        table = table.merge(encode_all[[col, "out"]], on=col, how="left")
+        out = table.sort_values("pos")["out"].to_numpy(
+            dtype="float64", na_value=np.nan
         )
-        cats = cats.merge(encode_all[[col, "out"]], on=col, how="left")
-        out = cats.sort_values("pos")["out"].fillna(float(self.mean))
-        return out.to_numpy()
+        return np.where(np.isnan(out), float(self.mean), out)
 
     def _make_fold_column(self, n_samples, fold_ids):
         """
