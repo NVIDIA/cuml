@@ -10,13 +10,16 @@ import importlib
 import importlib.metadata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from .._utils import _version
 
 if TYPE_CHECKING:
     from ..providers.base import EstimatorSpec
-    from ..suite import ResolvedCase, Suite
+    from ..suite import Suite
+
+
+InputRepresentation = Literal["array", "csr", "dataframe", "series"]
 
 
 @dataclass
@@ -92,20 +95,33 @@ class Backend:
         return estimator.get_params(deep=False)
 
     def convert_data(
-        self, case: ResolvedCase, X: Any, y: Any
-    ) -> tuple[Any, Any]:
-        """Convert generated inputs to the backend's data representation.
+        self,
+        value: Any,
+        *,
+        representation: InputRepresentation,
+    ) -> Any:
+        """Convert a value to the requested backend-native representation.
+
+        Preserve the input dtype and row order.
 
         Parameters
         ----------
-        case : ResolvedCase
-            Case defining the input representation.
-        X : Any
-            Complete generated feature data.
-        y : Any
-            Complete generated target data.
+        value : Any
+            Input data to convert.
+        representation : {"array", "csr", "dataframe", "series"}
+            Target data representation.
         """
-        return X, y
+        if representation == "array":
+            return importlib.import_module("numpy").asarray(value)
+        if representation == "csr":
+            return importlib.import_module("scipy.sparse").csr_matrix(value)
+        if representation == "dataframe":
+            return importlib.import_module("pandas").DataFrame(value)
+        if representation == "series":
+            return importlib.import_module("pandas").Series(value)
+        raise ValueError(
+            f"Unsupported input representation {representation!r}"
+        )
 
     def prepare_inputs(
         self, inputs: tuple[Any, ...], runtime: Any = None
