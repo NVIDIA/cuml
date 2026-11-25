@@ -16,6 +16,10 @@ namespace raft {
 class handle_t;  // forward decl
 }
 
+namespace treelite {
+class Model;
+}
+
 namespace CUML_EXPORT ML {
 
 struct RF_params {
@@ -58,11 +62,6 @@ template <class T, class L>
 struct RandomForestMetaData {
   std::vector<std::shared_ptr<DT::TreeMetaDataNode<T, L>>> trees;
   RF_params rf_params;
-
-  /**
-   * Number of features in the training data.
-   */
-  int n_features = 0;
 };
 
 template <class T, class L>
@@ -77,14 +76,12 @@ void build_treelite_forest(TreeliteModelHandle* model,
                            int num_features);
 
 /**
- * @brief Compute the feature importances of the trained RandomForest model.
- * @tparam T: data type for input data (float or double).
- * @tparam L: data type for labels (int type for classification, T type for regression).
- * @param[in] forest: CPU pointer to RandomForestMetaData
- * @param[out] importances: output feature importance scores
+ * @brief Compute feature importances from the weighted split gains of a Treelite random forest.
+ * @param[in] model Treelite random forest.
+ * @param[out] importances Host output buffer of length equal to the model's feature count.
  */
-template <class T, class L>
-void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* importances);
+template <class T>
+void compute_feature_importances(const treelite::Model& model, T* importances);
 
 // ----------------------------- Classification ----------------------------------- //
 
@@ -129,7 +126,6 @@ void fit(const raft::handle_t& user_handle,
  * @param[in] n_unique_labels Number of unique classes in labels.
  * @param[in] rf_params Random forest training parameters.
  * @param[in] bootstrap_masks Optional bootstrap masks.
- * @param[out] feature_importances Output feature importances.
  * @param[in] verbosity Logging verbosity.
  * @param[in] sample_weight Optional per-row sample weights.
  * @param[in] input_row_major Whether input is row-major instead of column-major.
@@ -144,7 +140,6 @@ void fit_treelite(const raft::handle_t& user_handle,
                   int n_unique_labels,
                   RF_params rf_params,
                   bool* bootstrap_masks,
-                  T* feature_importances,
                   rapids_logger::level_enum verbosity,
                   const double* sample_weight = nullptr,
                   bool input_row_major        = false);
@@ -204,7 +199,6 @@ void fit(const raft::handle_t& user_handle,
  * @param[in] labels Training labels.
  * @param[in] rf_params Random forest training parameters.
  * @param[in] bootstrap_masks Optional bootstrap masks.
- * @param[out] feature_importances Output feature importances.
  * @param[in] verbosity Logging verbosity.
  * @param[in] sample_weight Optional per-row sample weights.
  * @param[in] input_row_major Whether input is row-major instead of column-major.
@@ -218,7 +212,6 @@ void fit_treelite(const raft::handle_t& user_handle,
                   L* labels,
                   RF_params rf_params,
                   bool* bootstrap_masks,
-                  T* feature_importances,
                   rapids_logger::level_enum verbosity,
                   const double* sample_weight = nullptr,
                   bool input_row_major        = false);

@@ -175,6 +175,7 @@ tl::Tree<T, T> build_treelite_tree(const DT::TreeMetaDataNode<T, L>& rf_tree,
         // Set node from current level as numerical node. Children IDs known.
         tl_tree.SetNumericalTest(
           tl_node_id, q_node.ColumnId(), q_node.QueryValue(), true, tl::Operator::kLE);
+        tl_tree.SetGain(tl_node_id, q_node.WeightedImpurityDecrease());
 
       } else {
         auto leaf_begin = rf_tree.vector_leaf.begin() + cuml_node_id * rf_tree.num_outputs;

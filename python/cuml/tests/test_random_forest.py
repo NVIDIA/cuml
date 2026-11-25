@@ -1421,16 +1421,23 @@ def test_rf_feature_importance(
     "cu_estimator,sk_estimator,criterion,y",
     [
         (curfr, skrfr, "mse", np.array([0, 1, 4, 8], dtype=np.float32)),
+        (curfr, skrfr, "poisson", np.array([1, 2, 5, 9], dtype=np.float32)),
         (curfc, skrfc, "gini", np.array([0, 0, 1, 2], dtype=np.int32)),
         (curfc, skrfc, "entropy", np.array([0, 0, 1, 2], dtype=np.int32)),
     ],
-    ids=["regression-mse", "classification-gini", "classification-entropy"],
+    ids=[
+        "regression-mse",
+        "regression-poisson",
+        "classification-gini",
+        "classification-entropy",
+    ],
 )
+@pytest.mark.parametrize("datatype", [np.float32, np.float64])
 def test_rf_feature_importance_weighted(
-    cu_estimator, sk_estimator, criterion, y
+    cu_estimator, sk_estimator, criterion, y, datatype
 ):
     # x0 is the unique best root split; x1 separates the two right-hand rows.
-    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
+    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=datatype)
     weights = np.array([9, 1, 1, 1], dtype=np.float64)
     cu_model = cu_estimator(
         n_estimators=1,
@@ -1445,9 +1452,44 @@ def test_rf_feature_importance_weighted(
     cu_model.fit(X, y, sample_weight=weights)
     sk_model.fit(X, y, sample_weight=weights)
 
+    native_importances = cu_model.feature_importances_
+    assert native_importances.dtype == X.dtype
     np.testing.assert_allclose(
-        cu_model.feature_importances_, sk_model.feature_importances_, rtol=1e-6
+        native_importances, sk_model.feature_importances_, rtol=1e-6
     )
+
+    imported = cu_estimator.from_sklearn(sk_model)
+    assert "feature_importances_" not in vars(cu_model)
+    assert "feature_importances_" not in vars(imported)
+    imported_importances = imported.feature_importances_
+    assert imported_importances.dtype == np.float64
+    np.testing.assert_allclose(
+        imported_importances, sk_model.feature_importances_, rtol=1e-6
+    )
+
+    # A refit with no splits has zero importances.
+    cu_model.set_params(min_samples_split=5).fit(X, y, sample_weight=weights)
+    np.testing.assert_array_equal(
+        cu_model.feature_importances_, np.zeros(X.shape[1])
+    )
+    sk_model.set_params(min_samples_split=5).fit(X, y, sample_weight=weights)
+    imported = cu_estimator.from_sklearn(sk_model)
+    np.testing.assert_array_equal(
+        imported.feature_importances_, sk_model.feature_importances_
+    )
+
+
+def test_rf_import_feature_importance_zero_gain():
+    # Either root split leaves the classes evenly divided in both children.
+    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
+    model = skrfc(n_estimators=1, bootstrap=False, max_depth=1, random_state=0)
+    model.fit(X, [0, 1, 1, 0])
+    assert model.estimators_[0].tree_.node_count == 3
+    imported = curfc.from_sklearn(model)
+    with np.errstate(invalid="ignore"):
+        np.testing.assert_array_equal(
+            imported.feature_importances_, model.feature_importances_
+        )
 
 
 def test_rf_feature_importance_exact_match_with_fixed_trees():

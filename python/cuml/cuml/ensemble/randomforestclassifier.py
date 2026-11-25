@@ -165,7 +165,11 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
         ``oob_decision_function_`` might contain NaN. This attribute exists
         only when ``oob_score`` is True.
     feature_importances_ : ndarray of shape (n_features,)
-        The impurity-based feature importances.
+        Impurity-based feature importances, computed on access from the
+        weighted split gains. When ``as_sklearn()`` exports a cuML-trained
+        forest, the sklearn trees use row counts for ``weighted_n_node_samples``
+        and zero leaf impurity. The reconstructed node impurities reproduce
+        the original weighted split gains.
 
     Notes
     -----
@@ -174,10 +178,6 @@ class RandomForestClassifier(ClassifierMixin, BaseRandomForestModel):
 
     For additional docs, see `scikitlearn's RandomForestClassifier
     <https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html>`_.
-
-    When converting to sklearn using `as_sklearn()`, the `feature_importances_` attribute will return
-    NaN values. If you need feature importances, save them before conversion:
-    `importances = cuml_model.feature_importances_`
 
     """
 

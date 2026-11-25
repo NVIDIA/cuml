@@ -71,8 +71,6 @@ template <typename T, typename L>
 void expect_forests_equal(RandomForestMetaData<T, L> const& distributed_forest,
                           RandomForestMetaData<T, L> const& single_node_forest)
 {
-  EXPECT_EQ(distributed_forest.n_features, single_node_forest.n_features);
-
   auto const& distributed_params = distributed_forest.rf_params;
   auto const& single_node_params = single_node_forest.rf_params;
   EXPECT_EQ(distributed_params.n_trees, single_node_params.n_trees);

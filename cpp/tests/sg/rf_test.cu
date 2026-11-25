@@ -646,7 +646,10 @@ class RfSpecialisedTest {
   {
     // Test feature importances for both regression and classification
     std::vector<DataT> importances(params.n_cols);
-    ML::compute_feature_importances(forest.get(), importances.data());
+    TreeliteModelHandle handle;
+    build_treelite_forest(&handle, forest.get(), params.n_cols);
+    std::unique_ptr<treelite::Model> model(static_cast<treelite::Model*>(handle));
+    ML::compute_feature_importances(*model, importances.data());
 
     // Basic checks for feature importances
     EXPECT_EQ(importances.size(), static_cast<size_t>(params.n_cols));
@@ -783,28 +786,25 @@ INSTANTIATE_TEST_CASE_P(RfTests,
 
 TEST(RfTests, FeatureImportancesHandleInfiniteMetrics)
 {
-  // This direct metadata fixture covers the old inf / inf normalization path,
-  // which returned NaN feature importances even though the splits were valid.
-  auto forest        = std::make_shared<RandomForestMetaData<float, float>>();
-  forest->n_features = 2;
+  auto model         = treelite::Model::Create<float, float>();
+  model->num_feature = 2;
+  auto& tree = std::get<treelite::ModelPreset<float, float>>(model->variant_).trees.emplace_back();
+  tree.Init();
+  for (int i = 0; i < 5; ++i) {
+    tree.AllocNode();
+  }
+  tree.SetChildren(0, 1, 2);
+  tree.SetChildren(1, 3, 4);
+  tree.SetNumericalTest(0, 0, 0.5f, true, treelite::Operator::kLE);
+  tree.SetNumericalTest(1, 1, 1.5f, true, treelite::Operator::kLE);
+  tree.SetGain(0, std::numeric_limits<double>::infinity());
+  tree.SetGain(1, std::numeric_limits<double>::infinity());
+  for (int i = 2; i < 5; ++i) {
+    tree.SetLeaf(i, 0.0f);
+  }
 
-  auto tree           = std::make_shared<DT::TreeMetaDataNode<float, float>>();
-  tree->treeid        = 0;
-  tree->depth_counter = 2;
-  tree->leaf_counter  = 3;
-  tree->train_time    = 0.0;
-  tree->num_outputs   = 1;
-  const auto inf      = std::numeric_limits<float>::infinity();
-  using Node          = SparseTreeNode<float, float>;
-  tree->sparsetree    = {Node::CreateSplitNode(0, 0.5f, inf, 1, 8),
-                         Node::CreateSplitNode(1, 1.5f, inf, 3, 4),
-                         Node::CreateLeafNode(4),
-                         Node::CreateLeafNode(2),
-                         Node::CreateLeafNode(2)};
-  forest->trees.push_back(tree);
-
-  std::vector<float> importances(forest->n_features);
-  ML::compute_feature_importances(forest.get(), importances.data());
+  std::vector<float> importances(model->num_feature);
+  ML::compute_feature_importances(*model, importances.data());
   EXPECT_TRUE(std::isfinite(importances[0]));
   EXPECT_TRUE(std::isfinite(importances[1]));
   EXPECT_FLOAT_EQ(importances[0], 0.5f);
