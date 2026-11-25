@@ -9,7 +9,8 @@ from cupyx.scipy.special import gammaln
 from cuml.internals.validation import check_array
 
 # Each GPU thread sums a segment of at most `_SEGMENT_LENGTH` terms. Longer
-# segments are used if there would otherwise be more than `_MAX_SEGMENTS`.
+# segments are used if there would otherwise be more than `_MAX_SEGMENTS`,
+# but every pair of marginal counts gets at least one segment.
 _SEGMENT_LENGTH = 256
 _MAX_SEGMENTS = 1 << 20
 
@@ -86,6 +87,11 @@ def expected_mutual_information(contingency, n_samples) -> float:
     if a.size <= 1 or b.size <= 1:
         return 0.0
 
+    # Classes (clusters) of equal size contribute equally, so only distinct
+    # sizes are paired. This bounds the number of pairs by about 2 * n_samples.
+    a, a_count = cp.unique(a, return_counts=True)
+    b, b_count = cp.unique(b, return_counts=True)
+
     # Number of terms (values of nij) for each pair of marginal counts
     n_terms = (
         cp.minimum(a[:, None], b[None, :])
@@ -112,12 +118,8 @@ def expected_mutual_information(contingency, n_samples) -> float:
         cp.arange(1, max(int(a.max()), int(b.max())) + 2, dtype=cp.float64)
     )
 
-    emi = _emi_kernel(
-        a[pair // b.size],
-        b[pair % b.size],
-        offset,
-        length,
-        n_samples,
-        gln_table,
-    )
+    i, j = pair // b.size, pair % b.size
+    emi = _emi_kernel(a[i], b[j], offset, length, n_samples, gln_table)
+    # Weight by the number of classes and clusters that have these sizes
+    emi *= a_count[i] * b_count[j]
     return float(emi.sum())

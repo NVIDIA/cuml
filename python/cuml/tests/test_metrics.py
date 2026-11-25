@@ -754,6 +754,32 @@ def test_expected_mutual_information_segment_length(
     np.testing.assert_allclose(emi, ref, **AMI_TOLERANCES)
 
 
+def test_expected_mutual_information_repeated_marginals(rng):
+    # Classes (clusters) of equal size are paired only once, with a weight
+    contingency = np.hstack(
+        [
+            np.diag(rng.randint(1, 4, size=300)),
+            np.diag(rng.randint(1, 4, size=300)),
+        ]
+    )
+    n_samples = int(contingency.sum())
+
+    emi = expected_mutual_information(contingency, n_samples)
+    ref = sk_expected_mutual_information(contingency, n_samples)
+    np.testing.assert_allclose(emi, ref, **AMI_TOLERANCES)
+
+
+def test_expected_mutual_information_many_clusters():
+    # With every sample in a class and a cluster of its own, EMI is exactly
+    # log(n_samples). An array with one entry per (class, cluster) pair would
+    # take terabytes here, so this fails unless equal sizes are paired once.
+    n_samples = 1_000_000
+    contingency = cp_sp.identity(n_samples, dtype=np.float64, format="csr")
+
+    emi = expected_mutual_information(contingency, n_samples)
+    np.testing.assert_allclose(emi, np.log(n_samples), **AMI_TOLERANCES)
+
+
 @pytest.mark.parametrize("n_samples", [50, stress_param(500000)])
 @pytest.mark.parametrize(
     "y_dtype", [np.int32, np.int64, np.float32, np.float64]
