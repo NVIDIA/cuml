@@ -159,8 +159,8 @@ class RandomForestRegressor(
         X : Dask cuDF DataFrame or CuPy backed Dask Array (n_rows, n_features)
             Distributed dense matrix (floats or doubles) of shape
             (n_samples, n_features).
-        y : Dask cuDF DataFrame or CuPy backed Dask Array (n_rows, 1)
-            Labels of training examples.
+        y : Dask cuDF Series/DataFrame or CuPy backed Dask Array
+            Targets of shape (n_samples,) or (n_samples, n_outputs).
             **y must be partitioned the same way as X**
         sample_weight : Dask cuDF Series or CuPy backed Dask Array, optional
             Non-negative weights of training examples, partitioned the same
@@ -218,7 +218,9 @@ class RandomForestRegressor(
 
         Returns
         -------
-        y : Dask cuDF dataframe or CuPy backed Dask Array (n_rows, 1)
+        y : Dask cuDF Series/DataFrame or CuPy backed Dask Array
+            Predictions of shape (n_samples,) for a single target or
+            (n_samples, n_outputs) for multiple targets.
         """
         return self._predict_using_nvforest(
             X,

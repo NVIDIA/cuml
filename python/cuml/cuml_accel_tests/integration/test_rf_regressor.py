@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -8,6 +8,8 @@ import pytest
 from sklearn.datasets import make_regression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
+
+from cuml.accel.profilers import profile
 
 
 @pytest.fixture(scope="module")
@@ -210,13 +212,25 @@ def test_rf_max_samples_reg(regression_data, max_samples):
     _ = r2_score(y, reg.predict(X))
 
 
-def test_oob_score(regression_data):
-    X, y = regression_data
+@pytest.mark.parametrize("n_targets", [1, 2])
+def test_oob_score(n_targets: int) -> None:
+    X, y = make_regression(
+        n_samples=300, n_features=20, n_targets=n_targets, random_state=42
+    )
+    y = y.astype(np.int32)
     reg = RandomForestRegressor(
         oob_score=True,
         n_estimators=50,
+        random_state=42,
     )
-    reg.fit(X, y)
+    with profile(quiet=True) as stats:
+        reg.fit(X, y)
+        predictions = reg.predict(X)
+        score = reg.score(X, y)
 
-    # Check attribute exists and is a float
-    assert isinstance(reg.oob_score_, float)
+    for method in ("fit", "predict", "score"):
+        calls = stats.method_calls[f"RandomForestRegressor.{method}"]
+        assert calls.gpu_calls == 1
+    assert predictions.shape == reg.oob_prediction_.shape == y.shape
+    assert score == pytest.approx(r2_score(y, predictions))
+    assert reg.oob_score_ == pytest.approx(r2_score(y, reg.oob_prediction_))

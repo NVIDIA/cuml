@@ -10,19 +10,23 @@
 
 #include <cuml/tree/algo_helper.h>
 
+#include <cuda/std/type_traits>
+
+#include <concepts>  // for floating_point
 #include <cstdint>
 #include <limits>
 #include <type_traits>
 
 namespace ML {
 namespace DT {
-template <typename DataT_, typename LabelT_, bool weighted_ = false>
+template <std::floating_point DataT_, typename LabelT_, bool weighted_ = false>
 class ClassificationObjectiveFunction {
  public:
   using DataT  = DataT_;
   using LabelT = LabelT_;
   using BinT   = std::conditional_t<weighted_, WeightedClassificationBin, ClassificationBin>;
-  static constexpr bool weighted = weighted_;
+  static constexpr auto kSentinel = -std::numeric_limits<DataT>::max();
+  static constexpr bool weighted  = weighted_;
   // Used to handle leaf histogram shared memory allocation.
   static constexpr int default_shmem_kib          = 48;
   static constexpr int max_leaf_outputs_per_block = default_shmem_kib * 1024 / sizeof(BinT);
@@ -55,8 +59,7 @@ class ClassificationObjectiveFunction {
     auto left_weight    = WeightAt(hist, i, n_bins);
     auto right_weight   = total_weight - left_weight;
 
-    if (total_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0)
-      return -std::numeric_limits<DataT>::max();
+    if (total_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0) return kSentinel;
 
     auto invLen   = One / DataT(total_weight);
     auto invLeft  = One / DataT(left_weight);
@@ -94,8 +97,7 @@ class ClassificationObjectiveFunction {
     auto left_weight  = WeightAt(hist, i, n_bins);
     auto right_weight = total_weight - left_weight;
 
-    if (total_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0)
-      return -std::numeric_limits<DataT>::max();
+    if (total_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0) return kSentinel;
 
     auto gain{DataT(0.0)};
     auto invLeft{DataT(1.0) / DataT(left_weight)};
@@ -137,12 +139,12 @@ class ClassificationObjectiveFunction {
   {
     if (nLeft < static_cast<std::int64_t>(min_samples_leaf) ||
         nRight < static_cast<std::int64_t>(min_samples_leaf))
-      return -std::numeric_limits<DataT>::max();
+      return kSentinel;
 
     switch (criterion) {
       case CRITERION::GINI: return GiniGain(hist, i, n_bins, len, nLeft, nRight);
       case CRITERION::ENTROPY: return EntropyGain(hist, i, n_bins, len, nLeft, nRight);
-      default: return -std::numeric_limits<DataT>::max();
+      default: return kSentinel;
     }
   }
 
@@ -160,6 +162,19 @@ class ClassificationObjectiveFunction {
   }
 
   DI std::int64_t NumClasses() const { return nclasses; }
+
+  DI std::int64_t NumSamples(BinT const* cdf, std::int64_t n_bins) const
+  {
+    // Each row contributes to exactly one class channel.
+    return detail::CountLeft(cdf, n_bins - 1, n_bins, nclasses);
+  }
+
+  template <typename DatasetT>
+  DI void IncrementHistogram(
+    BinT* histogram, int n_bins, int bin, const DatasetT& dataset, std::int64_t row) const
+  {
+    IncrementHistogram(histogram, n_bins, bin, dataset.labels[row], dataset, row);
+  }
 
   template <typename DatasetT>
   DI void IncrementHistogram(BinT* histogram,
@@ -233,7 +248,10 @@ class ClassificationObjectiveFunction {
   }
 };
 
-template <typename DataT_, typename LabelT_, bool weighted_ = false>
+template <std::floating_point DataT_,
+          typename LabelT_,
+          bool weighted_       = false,
+          typename OutputCount = std::int64_t>
 class RegressionObjectiveFunction {
  public:
   using DataT  = DataT_;
@@ -241,8 +259,10 @@ class RegressionObjectiveFunction {
   using BinT   = std::conditional_t<weighted_, WeightedRegressionBin, RegressionBin>;
   static constexpr bool weighted                  = weighted_;
   static constexpr int max_leaf_outputs_per_block = 1;
+  static constexpr auto kSentinel                 = -std::numeric_limits<DataT>::max();
 
  private:
+  OutputCount num_outputs;
   std::int64_t min_samples_leaf;
   CRITERION criterion;
   DataT min_impurity_decrease;
@@ -260,8 +280,7 @@ class RegressionObjectiveFunction {
     auto left_weight   = hist[i].Weight();
     auto right_weight  = parent_weight - left_weight;
 
-    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0)
-      return -std::numeric_limits<DataT>::max();
+    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0) return kSentinel;
 
     auto invLen           = DataT(1.0) / DataT(parent_weight);
     auto label_sum        = DataT(hist[n_bins - 1].LabelSum());
@@ -287,8 +306,7 @@ class RegressionObjectiveFunction {
     auto left_weight   = hist[i].Weight();
     auto right_weight  = parent_weight - left_weight;
 
-    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0)
-      return -std::numeric_limits<DataT>::max();
+    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0) return kSentinel;
 
     auto invLen          = DataT(1) / DataT(parent_weight);
     auto label_sum       = DataT(hist[n_bins - 1].LabelSum());
@@ -296,8 +314,7 @@ class RegressionObjectiveFunction {
     auto right_label_sum = DataT(hist[n_bins - 1].LabelSum() - hist[i].LabelSum());
 
     // label sum cannot be non-positive
-    if (label_sum <= eps_ || left_label_sum <= eps_ || right_label_sum <= eps_)
-      return -std::numeric_limits<DataT>::max();
+    if (label_sum <= eps_ || left_label_sum <= eps_ || right_label_sum <= eps_) return kSentinel;
 
     DataT parent_obj = -label_sum * raft::log(label_sum * invLen);
     DataT left_obj   = -left_label_sum * raft::log(left_label_sum / DataT(left_weight));
@@ -319,8 +336,7 @@ class RegressionObjectiveFunction {
     auto left_weight   = hist[i].Weight();
     auto right_weight  = parent_weight - left_weight;
 
-    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0)
-      return -std::numeric_limits<DataT>::max();
+    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0) return kSentinel;
 
     auto invLen          = DataT(1) / DataT(parent_weight);
     auto label_sum       = DataT(hist[n_bins - 1].LabelSum());
@@ -328,8 +344,7 @@ class RegressionObjectiveFunction {
     auto right_label_sum = DataT(hist[n_bins - 1].LabelSum() - hist[i].LabelSum());
 
     // label sum cannot be non-positive
-    if (label_sum <= eps_ || left_label_sum <= eps_ || right_label_sum <= eps_)
-      return -std::numeric_limits<DataT>::max();
+    if (label_sum <= eps_ || left_label_sum <= eps_ || right_label_sum <= eps_) return kSentinel;
 
     DataT parent_obj = DataT(parent_weight) * raft::log(label_sum * invLen);
     DataT left_obj   = DataT(left_weight) * raft::log(left_label_sum / DataT(left_weight));
@@ -351,16 +366,14 @@ class RegressionObjectiveFunction {
     auto left_weight   = hist[i].Weight();
     auto right_weight  = parent_weight - left_weight;
 
-    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0)
-      return -std::numeric_limits<DataT>::max();
+    if (parent_weight <= 0.0 || left_weight <= 0.0 || right_weight <= 0.0) return kSentinel;
 
     auto label_sum       = DataT(hist[n_bins - 1].LabelSum());
     auto left_label_sum  = DataT(hist[i].LabelSum());
     auto right_label_sum = DataT(hist[n_bins - 1].LabelSum() - hist[i].LabelSum());
 
     // label sum cannot be non-positive
-    if (label_sum <= eps_ || left_label_sum <= eps_ || right_label_sum <= eps_)
-      return -std::numeric_limits<DataT>::max();
+    if (label_sum <= eps_ || left_label_sum <= eps_ || right_label_sum <= eps_) return kSentinel;
 
     DataT parent_obj = -DataT(parent_weight) * DataT(parent_weight) / label_sum;
     DataT left_obj   = -DataT(left_weight) * DataT(left_weight) / left_label_sum;
@@ -381,54 +394,89 @@ class RegressionObjectiveFunction {
   {
     if (nLeft < static_cast<std::int64_t>(min_samples_leaf) ||
         nRight < static_cast<std::int64_t>(min_samples_leaf))
-      return -std::numeric_limits<DataT>::max();
+      return kSentinel;
 
-    switch (criterion) {
-      case CRITERION::MSE: return MSEGain(hist, i, n_bins, len, nLeft, nRight);
-      case CRITERION::POISSON: return PoissonGain(hist, i, n_bins, len, nLeft, nRight);
-      case CRITERION::GAMMA: return GammaGain(hist, i, n_bins, len, nLeft, nRight);
-      case CRITERION::INVERSE_GAUSSIAN:
-        return InverseGaussianGain(hist, i, n_bins, len, nLeft, nRight);
-      default: return -std::numeric_limits<DataT>::max();
+    // Each target has its own contiguous CDF histogram. Average the gains so
+    // duplicating targets does not change the impurity-decrease threshold.
+    double total_gain = 0.0;
+    for (std::int64_t target = 0; target < num_outputs; ++target) {
+      auto const* target_hist = hist + target * n_bins;
+      DataT target_gain;
+      switch (criterion) {
+        case CRITERION::MSE:
+          target_gain = MSEGain(target_hist, i, n_bins, len, nLeft, nRight);
+          break;
+        case CRITERION::POISSON:
+          target_gain = PoissonGain(target_hist, i, n_bins, len, nLeft, nRight);
+          break;
+        case CRITERION::GAMMA:
+          target_gain = GammaGain(target_hist, i, n_bins, len, nLeft, nRight);
+          break;
+        case CRITERION::INVERSE_GAUSSIAN:
+          target_gain = InverseGaussianGain(target_hist, i, n_bins, len, nLeft, nRight);
+          break;
+        default: return kSentinel;
+      }
+      // An invalid target invalidates the whole split; never average the sentinel.
+      if (target_gain == kSentinel) { return target_gain; }
+      total_gain += target_gain;
     }
+    return DataT(total_gain / num_outputs);
   }
 
-  HDI RegressionObjectiveFunction(std::int64_t,
+  HDI RegressionObjectiveFunction(OutputCount num_outputs,
                                   std::int64_t min_samples_leaf,
                                   CRITERION criterion,
                                   double root_weight,
                                   DataT min_impurity_decrease = DataT{0})
-    : min_samples_leaf(min_samples_leaf),
+    : num_outputs(num_outputs),
+      min_samples_leaf(min_samples_leaf),
       criterion(criterion),
       min_impurity_decrease(min_impurity_decrease),
       root_weight(root_weight)
   {
   }
 
-  DI std::int64_t NumClasses() const { return 1; }
+  DI std::int64_t NumClasses() const { return num_outputs; }
+
+  auto AsSingleOutput() const
+  {
+    using One = cuda::std::integral_constant<std::int64_t, 1>;
+    return RegressionObjectiveFunction<DataT, LabelT, weighted, One>(
+      One{}, min_samples_leaf, criterion, root_weight, min_impurity_decrease);
+  }
+
+  DI std::int64_t NumSamples(BinT const* cdf, std::int64_t n_bins) const
+  {
+    // Every target channel contains the same sampled rows. Count them only once.
+    return static_cast<std::int64_t>(cdf[n_bins - 1].Count());
+  }
 
   template <typename DatasetT>
-  DI void IncrementHistogram(BinT* histogram,
-                             int n_bins,
-                             int bin,
-                             LabelT label,
-                             const DatasetT& dataset,
-                             std::int64_t row) const
+  DI void IncrementHistogram(
+    BinT* histogram, int n_bins, int bin, const DatasetT& dataset, std::int64_t row) const
   {
     double weight = 1.0;
     if constexpr (weighted) {
       weight = dataset.sample_weight == nullptr ? 1.0 : double(dataset.sample_weight[row]);
     }
-    BinT::IncrementHistogram(histogram, n_bins, bin, label, weight);
+    for (std::int64_t target = 0; target < num_outputs; ++target) {
+      auto label = dataset.labels[row + target * dataset.n_rows];
+      BinT::IncrementHistogram(histogram + target * n_bins, n_bins, bin, label, weight);
+    }
   }
 
   template <bool single_tile, typename DatasetT>
   DI void IncrementLeafHistogram(
     BinT* histogram, int output_begin, int, const DatasetT& dataset, std::int64_t row) const
   {
-    // Every row contributes its label to the leaf's regression statistics.
-    auto label = dataset.labels[row + std::int64_t(output_begin) * dataset.n_rows];
-    IncrementHistogram(histogram, 1, 0, label, dataset, row);
+    // Targets are column-major; each block accumulates exactly one target.
+    auto label    = dataset.labels[row + std::int64_t(output_begin) * dataset.n_rows];
+    double weight = 1.0;
+    if constexpr (weighted) {
+      weight = dataset.sample_weight == nullptr ? 1.0 : double(dataset.sample_weight[row]);
+    }
+    BinT::IncrementHistogram(histogram, 1, 0, label, weight);
   }
 
   DI Split<DataT> Gain(BinT const* shist,
@@ -438,14 +486,16 @@ class RegressionObjectiveFunction {
                        std::int64_t n_bins) const
   {
     Split<DataT> sp;
+    // All regression targets contain the same rows and weights. Use one target's
+    // node weight, without summing it across targets.
     auto weight_fraction = shist[n_bins - 1].Weight() / root_weight;
     for (std::int64_t i = threadIdx.x; i < n_bins; i += blockDim.x) {
       auto nLeft  = detail::CountLeft(shist, i, n_bins, std::int64_t{1});
       auto nRight = len - nLeft;
       if (nLeft >= static_cast<std::int64_t>(min_samples_leaf) &&
           nRight >= static_cast<std::int64_t>(min_samples_leaf)) {
-        auto gain                       = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
-        auto weighted_impurity_decrease = gain * weight_fraction;
+        auto average_gain               = GainPerSplit(shist, i, n_bins, len, nLeft, nRight);
+        auto weighted_impurity_decrease = average_gain * weight_fraction;
         if (weighted_impurity_decrease > min_impurity_decrease) {
           sp.update(squantiles[i], col, weighted_impurity_decrease, nLeft, i);
         }

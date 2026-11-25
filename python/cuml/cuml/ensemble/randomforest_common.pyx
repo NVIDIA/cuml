@@ -87,7 +87,7 @@ cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
         int max_batch_size
     ) except +
 
-    cdef void fit_treelite[T, L](
+    cdef void fit_rf_classifier[T, L](
         handle_t& handle,
         TreeliteModelHandle* model,
         T* values,
@@ -103,13 +103,14 @@ cdef extern from "cuml/ensemble/randomforest.hpp" namespace "ML" nogil:
         bool input_row_major
     ) except +
 
-    cdef void fit_treelite[T, L](
+    cdef void fit_rf_regressor[T, L](
         handle_t& handle,
         TreeliteModelHandle* model,
         T* values,
         int n_rows,
         int n_cols,
         L* labels,
+        int n_outputs,
         RF_params params,
         bool* bootstrap_masks,
         T* feature_importances,
@@ -500,6 +501,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         )
         cdef level_enum verbose = <level_enum> self._verbose_level
         cdef int n_classes = self.n_classes_ if is_classifier else 0
+        cdef int n_outputs = 1 if is_classifier or y.ndim == 1 else y.shape[1]
         cdef bool input_row_major = not X.flags.f_contiguous
 
         cdef int max_depth_c
@@ -608,7 +610,7 @@ class BaseRandomForestModel(InteropMixin, Base):
         with nogil:
             if is_classifier:
                 if is_float32:
-                    fit_treelite(
+                    fit_rf_classifier(
                         handle_[0],
                         &tl_handle,
                         <float*> X_ptr,
@@ -624,7 +626,7 @@ class BaseRandomForestModel(InteropMixin, Base):
                         input_row_major
                     )
                 else:
-                    fit_treelite(
+                    fit_rf_classifier(
                         handle_[0],
                         &tl_handle,
                         <double*> X_ptr,
@@ -641,13 +643,14 @@ class BaseRandomForestModel(InteropMixin, Base):
                     )
             else:
                 if is_float32:
-                    fit_treelite(
+                    fit_rf_regressor(
                         handle_[0],
                         &tl_handle,
                         <float*> X_ptr,
                         n_rows,
                         n_cols,
                         <float*> y_ptr,
+                        n_outputs,
                         params,
                         bootstrap_masks_ptr,
                         <float*> feature_importances_ptr,
@@ -656,13 +659,14 @@ class BaseRandomForestModel(InteropMixin, Base):
                         input_row_major
                     )
                 else:
-                    fit_treelite(
+                    fit_rf_regressor(
                         handle_[0],
                         &tl_handle,
                         <double*> X_ptr,
                         n_rows,
                         n_cols,
                         <double*> y_ptr,
+                        n_outputs,
                         params,
                         bootstrap_masks_ptr,
                         <double*> feature_importances_ptr,
@@ -693,7 +697,7 @@ class BaseRandomForestModel(InteropMixin, Base):
             self._n_samples if self.max_samples is None
             else max(round(self._n_samples * self.max_samples), 1)
         )
-        self.n_outputs_ = 1
+        self.n_outputs_ = n_outputs
         self._treelite_model_bytes = <bytes>(tl_bytes[:tl_bytes_len])
         # Reload nvforest model
         self._nvforest_model = self.as_nvforest()
@@ -778,15 +782,14 @@ class BaseRandomForestModel(InteropMixin, Base):
         """
         # Get per-tree predictions using nvForest
         nvforest_model = self._get_inference_nvforest_model()
-        # Per tree predictions shape: (n_samples, n_trees) for regression
-        #                          or (n_samples, n_trees, n_classes) for classification
+        # Per-tree predictions have an extra output dimension for vector
+        # regression and classification, but not for scalar regression.
         per_tree_preds = nvforest_model.predict_per_tree(X)
 
         n_samples = X.shape[0]
 
         # Determine output shape based on prediction dimensionality
-        # For regression: (n_samples,)
-        # For classification: (n_samples, n_classes)
+        # Preserve any target/class dimension after the tree dimension.
         output_shape = (n_samples,) + per_tree_preds.shape[2:]
         oob_predictions = cp.zeros(output_shape, dtype=cp.float64, order="C")
         oob_counts = cp.zeros(n_samples, dtype=cp.int32, order="C")
@@ -850,25 +853,26 @@ class BaseRandomForestModel(InteropMixin, Base):
                     r2_score(y_valid, predictions_valid)
                 )
             else:
-                y_valid = y_valid.astype(cp.float64, copy=False)
-                local_mean_stats = cp.empty(2, dtype=cp.float64)
-                local_mean_stats[0] = y_valid.sum()
-                local_mean_stats[1] = y_valid.size
+                y_valid = y_valid.astype(cp.float64, copy=False).reshape(
+                    -1, self.n_outputs_
+                )
+                predictions_valid = predictions_valid.reshape(-1, self.n_outputs_)
+                # Reduce target sums and the number of valid rows, not elements.
+                local_mean_stats = cp.empty(self.n_outputs_ + 1, dtype=cp.float64)
+                local_mean_stats[:-1] = y_valid.sum(axis=0)
+                local_mean_stats[-1] = y_valid.shape[0]
                 mean_stats = self._allreduce_oob_stats(local_mean_stats)
-                global_mean = mean_stats[0] / mean_stats[1]
-                local_score_stats = cp.empty(2, dtype=cp.float64)
-                local_score_stats[0] = cp.sum(
-                    (y_valid - predictions_valid) ** 2
-                )
-                local_score_stats[1] = cp.sum(
-                    (y_valid - global_mean) ** 2
-                )
+                global_mean = mean_stats[:-1] / cp.maximum(mean_stats[-1], 1)
+                local_score_stats = cp.stack((
+                    cp.sum((y_valid - predictions_valid) ** 2, axis=0),
+                    cp.sum((y_valid - global_mean) ** 2, axis=0),
+                ))
                 score_stats = self._allreduce_oob_stats(local_score_stats)
-                if score_stats[0] == 0:
-                    self.oob_score_ = 1.0
-                elif score_stats[1] == 0:
-                    self.oob_score_ = 0.0
-                else:
-                    self.oob_score_ = float(
-                        1 - score_stats[0] / score_stats[1]
-                    )
+                numerator, denominator = score_stats
+                # Match r2_score(force_finite=True) independently for each target.
+                scores = cp.ones(self.n_outputs_, dtype=cp.float64)
+                nonzero_error = numerator != 0
+                valid_score = nonzero_error & (denominator != 0)
+                scores[valid_score] = 1 - numerator[valid_score] / denominator[valid_score]
+                scores[nonzero_error & (denominator == 0)] = 0.0
+                self.oob_score_ = float(scores.mean())

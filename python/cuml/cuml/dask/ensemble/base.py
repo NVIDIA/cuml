@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
+import numpy as np
 from dask.distributed import get_worker
 from raft_dask.common.comms import Comms, get_raft_comm_state
 
@@ -107,8 +108,14 @@ class BaseRandomForestModel(object):
 
     def _predict_using_nvforest(self, X, delayed, **kwargs):
         data = DistributedDataHandler.create(X, client=self.client)
+        n_outputs = self.n_outputs_
+        output_shape = (np.nan, n_outputs) if n_outputs > 1 else (np.nan,)
         return self._predict(
-            X, delayed=delayed, output_collection_type=data.datatype, **kwargs
+            X,
+            delayed=delayed,
+            output_collection_type=data.datatype,
+            output_shape=output_shape,
+            **kwargs,
         )
 
     def _get_params(self, deep):

@@ -222,7 +222,6 @@ To compare results between estimators, we recommend comparing scores like
    - If ``sample_weight`` is passed to ``fit`` or ``score``.
    - If ``X`` is sparse.
    - If ``X`` contains missing values (represented as ``NaN``).
-   - If ``y`` is a multi-output target.
 
 
 .. dropdown:: ``IsolationForest``

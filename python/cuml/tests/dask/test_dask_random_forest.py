@@ -24,6 +24,7 @@ from cuml.dask.ensemble import RandomForestClassifier as cuRFC_mg
 from cuml.dask.ensemble import RandomForestRegressor as cuRFR_mg
 from cuml.ensemble import RandomForestClassifier as cuRFC_sg
 from cuml.ensemble import RandomForestRegressor as cuRFR_sg
+from cuml.testing.utils import array_equal, as_numpy
 
 
 def _prep_training_data(c, X_train, y_train, partitions_per_worker):
@@ -47,6 +48,10 @@ def _get_treelite_bytes(model):
 
 def _get_rank_local_oob_score(model):
     return model.oob_score_
+
+
+def _get_rank_local_oob_prediction(model):
+    return as_numpy(model.oob_prediction_)
 
 
 @pytest.mark.parametrize("partitions_per_worker", [3])
@@ -110,7 +115,11 @@ def test_rf_classification_multi_class(partitions_per_worker, cluster):
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 @pytest.mark.parametrize("partitions_per_worker", [5])
-def test_rf_regression_dask_nvforest(partitions_per_worker, dtype, client):
+@pytest.mark.parametrize("n_targets", [1, 3])
+@pytest.mark.parametrize("input_type", ["cupy", "cudf"])
+def test_rf_regression_dask_nvforest(
+    partitions_per_worker, dtype, client, n_targets, input_type
+):
     n_workers = len(client.scheduler_info(n_workers=-1)["workers"])
 
     # Use CUDA_VISIBLE_DEVICES to control the number of workers
@@ -118,6 +127,7 @@ def test_rf_regression_dask_nvforest(partitions_per_worker, dtype, client):
         n_samples=n_workers * 4000,
         n_features=20,
         n_informative=10,
+        n_targets=n_targets,
         random_state=123,
     )
 
@@ -137,23 +147,39 @@ def test_rf_regression_dask_nvforest(partitions_per_worker, dtype, client):
     workers = client.has_what().keys()
     n_partitions = partitions_per_worker * len(workers)
 
-    X_cudf = cudf.DataFrame(pd.DataFrame(X_train))
-    X_train_df = dask_cudf.from_cudf(X_cudf, npartitions=n_partitions)
-
-    y_cudf = cudf.Series(y_train)
-    y_train_df = dask_cudf.from_cudf(y_cudf, npartitions=n_partitions)
-    X_cudf_test = cudf.DataFrame(pd.DataFrame(X_test))
-    X_test_df = dask_cudf.from_cudf(X_cudf_test, npartitions=n_partitions)
+    if input_type == "cudf":
+        X_train_df = dask_cudf.from_cudf(
+            cudf.DataFrame(X_train), npartitions=n_partitions
+        )
+        targets = (
+            cudf.Series(y_train) if n_targets == 1 else cudf.DataFrame(y_train)
+        )
+        y_train_df = dask_cudf.from_cudf(targets, npartitions=n_partitions)
+        X_test_df = dask_cudf.from_cudf(
+            cudf.DataFrame(X_test), npartitions=n_partitions
+        )
+    else:
+        chunks = len(X_train) // n_partitions
+        X_train_df, y_train_df, X_test_df = [
+            from_array(cp.asarray(a), chunks=(chunks,) + a.shape[1:])
+            for a in (X_train, y_train, X_test)
+        ]
 
     cuml_mod = cuRFR_mg(**cu_rf_params)
     cuml_mod.fit(X_train_df, y_train_df)
 
-    cuml_mod_predict = cuml_mod.predict(X_test_df)
-    cuml_mod_predict = cp.asnumpy(cp.array(cuml_mod_predict.compute()))
-
-    acc_score = r2_score(y_test, cuml_mod_predict)
-
-    assert acc_score >= 0.59
+    for delayed in (False, True):
+        predictions = cuml_mod.predict(X_test_df, delayed=delayed)
+        assert predictions.ndim == predictions._meta.ndim == y_test.ndim
+        if input_type == "cupy" and n_targets > 1:
+            assert predictions.shape[1] == n_targets
+            assert predictions.chunks[1] == (n_targets,)
+        actual = predictions.compute()
+        assert actual.shape == y_test.shape
+        assert array_equal(
+            actual, cuml_mod.get_combined_model().predict(X_test)
+        )
+        assert r2_score(y_test, as_numpy(actual)) >= 0.59
 
 
 def test_rf_regression_nan_on_one_worker(client):
@@ -663,18 +689,18 @@ def test_rf_weighted_bootstrap_all_zero_weights(client, weight_type):
         model.fit(X, y, **fit_kwargs)
 
 
-@pytest.mark.parametrize("mode", ["classification", "regression"])
-def test_random_forest_oob_score(client, mode):
+@pytest.mark.parametrize(
+    "mode,n_targets",
+    [("classification", 1), ("regression", 1), ("regression", 3)],
+)
+def test_random_forest_oob_score(client, mode, n_targets):
     """
     Ensure that Out-of-bag (OOB) scoring is correct.
     Distributed RF must perform an all-reduce over OOB estimates from each rank.
-    Test: The first rank gets an easy dataset (X, y), while the second rank
-          gets a noisy dataset (X, y). Two ranks will perform all-reduce to
-          obtain the global OOB score.
+    The first rank gets an easy dataset (X, y). When a second worker is
+    available, it gets a noisy dataset to exercise global score aggregation.
     """
     workers = list(client.scheduler_info(n_workers=-1)["workers"])[:2]
-    if len(workers) < 2:
-        pytest.skip("This test requires at least two workers")
 
     n_samples_per_worker = 500
     if mode == "classification":
@@ -694,6 +720,7 @@ def test_random_forest_oob_score(client, mode):
             n_samples=n_samples_per_worker,
             n_features=10,
             n_informative=8,
+            n_targets=n_targets,
             random_state=42,
         )
         model_cls = cuRFR_mg
@@ -704,21 +731,28 @@ def test_random_forest_oob_score(client, mode):
     if mode == "classification":
         y_noisy = rng.integers(0, 2, n_samples_per_worker)
     else:
-        y_noisy = rng.uniform(0, 2, n_samples_per_worker)
+        y_noisy = rng.uniform(0, 2, y_easy.shape)
 
     X_partitions = []
     y_partitions = []
+    target_parts = []
     for worker, X_part, y_part in zip(
         workers, [X_easy, X_noisy], [y_easy, y_noisy]
     ):
         X_part = X_part.astype(np.float32)
         y_part = y_part.astype(y_dtype)
+        if n_targets > 1:
+            y_part *= np.array([1, 10, 100], dtype=y_dtype)
+            # A perfectly predicted constant target contributes R²=1.
+            y_part[:, 0] = 7
+        target_parts.append(y_part)
+        y_cudf = (
+            cudf.Series(y_part) if n_targets == 1 else cudf.DataFrame(y_part)
+        )
         X_future = client.scatter(
             cudf.DataFrame(X_part), workers=[worker], hash=False
         )
-        y_future = client.scatter(
-            cudf.Series(y_part), workers=[worker], hash=False
-        )
+        y_future = client.scatter(y_cudf, workers=[worker], hash=False)
         with dask.annotate(workers=[worker]):
             X_partitions.append(
                 dask_cudf.from_delayed(
@@ -726,9 +760,7 @@ def test_random_forest_oob_score(client, mode):
                 )
             )
             y_partitions.append(
-                dask_cudf.from_delayed(
-                    [y_future], meta=cudf.Series(y_part).iloc[:0]
-                )
+                dask_cudf.from_delayed([y_future], meta=y_cudf.iloc[:0])
             )
 
     X = dask_cudf.concat(X_partitions)
@@ -754,10 +786,24 @@ def test_random_forest_oob_score(client, mode):
             for worker in workers
         ]
     )
-    assert model.oob_score_ == pytest.approx(rank_oob_scores[0])
-    assert model.oob_score_ == pytest.approx(rank_oob_scores[1])
+    for score in rank_oob_scores:
+        assert model.oob_score_ == pytest.approx(score)
 
     if mode == "regression":
+        predictions = client.gather(
+            [
+                client.submit(
+                    _get_rank_local_oob_prediction,
+                    model.rfs[worker],
+                    workers=[worker],
+                )
+                for worker in workers
+            ]
+        )
+        expected = r2_score(
+            np.concatenate(target_parts), np.concatenate(predictions)
+        )
+        assert model.oob_score_ == pytest.approx(expected, abs=1e-6)
         with pytest.raises(
             NotImplementedError,
             match=".*oob_prediction_ is not yet supported.*",

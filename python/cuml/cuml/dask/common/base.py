@@ -231,6 +231,7 @@ class DelayedParallelFunc(object):
         output_futures=False,
         output_dtype=None,
         output_collection_type=None,
+        output_shape=None,
         **kwargs,
     ):
         """
@@ -267,6 +268,10 @@ class DelayedParallelFunc(object):
             dask.array or a dask_cudf.DataFrame. If None, will use the same
             collection type as used in the input of fit.
             Unused if output_futures=True.
+
+        output_shape : tuple, optional
+            Shape of each output partition for CuPy-backed Dask arrays. Use
+            np.nan for unknown dimensions. Defaults to n_dims unknown dimensions.
 
         Returns
         -------
@@ -345,11 +350,13 @@ class DelayedParallelFunc(object):
 
         if output_collection_type == "cupy":
             # todo: add parameter for option of not checking directly
-            shape = (np.nan,) * n_dims
+            shape = (
+                (np.nan,) * n_dims if output_shape is None else output_shape
+            )
             preds_arr = [
                 dask.array.from_delayed(
                     pred,
-                    meta=cp.zeros(1, dtype=dtype),
+                    meta=cp.empty((0,) * len(shape), dtype=dtype),
                     shape=shape,
                     dtype=dtype,
                 )

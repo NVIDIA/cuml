@@ -31,7 +31,7 @@ class _RandomForestMixin:
                 ) from None
             raise
 
-        if y is not None:
+        if y is not None and isinstance(self, RandomForestClassifier):
             y = check_array(
                 y,
                 mem_type=None,
@@ -41,7 +41,7 @@ class _RandomForestMixin:
                 input_name="y",
             )
             if len(y.shape) > 1 and y.shape[1] > 1:
-                if isinstance(self, RandomForestClassifier) and self.oob_score:
+                if self.oob_score:
                     raise ValueError(
                         "The type of target cannot be used to compute OOB estimates"
                     )
