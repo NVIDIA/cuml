@@ -29,6 +29,14 @@ class LinearRegression(ProxyBase):
     _gpu_class = cuml.linear_model.LinearRegression
     _not_implemented_attributes = frozenset(("rank_", "singular_"))
 
+    def _gpu_fit(self, X, y, sample_weight=None):
+        if self.positive and is_sparse(X):
+            raise UnsupportedOnGPU(
+                "Sparse inputs are not supported with `positive=True`"
+            )
+        self._gpu.fit(X, y, sample_weight=sample_weight)
+        return self
+
 
 class LogisticRegression(ProxyBase):
     _gpu_class = cuml.linear_model.LogisticRegression

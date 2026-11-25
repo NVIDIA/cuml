@@ -115,7 +115,6 @@ void launchBuildLeafHistogramsKernel(ObjectiveT objective,
                                      const InstanceRange* instance_ranges,
                                      typename ObjectiveT::BinT* leaf_histograms,
                                      int batch_size,
-                                     size_t smem_size,
                                      cudaStream_t builder_stream);
 
 template <typename ObjectiveT, typename DataT>

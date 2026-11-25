@@ -17,11 +17,16 @@
 #
 import datetime
 import glob
+import itertools
 import os
 import sys
 import textwrap
+import tomllib
 import xml.etree.ElementTree as ET
 
+import jinja2
+import yaml
+from packaging.requirements import InvalidRequirement, Requirement
 from packaging.version import Version
 
 import cuml
@@ -33,6 +38,72 @@ import cuml
 sys.path.insert(0, os.path.abspath("sphinxext"))
 
 from github_link import make_linkcode_resolve  # noqa
+
+
+# -- Render supported_versions.rst from its template ------------------------
+
+
+def _constraints(requirements):
+    """Map package name to its version constraint.
+
+    Entries that aren't PEP 508 requirements (conda-only syntax such as
+    ``doxygen=1.18.0``) are skipped. So are packages listed with different
+    constraints. Using either in the template fails the build.
+    """
+    found = {}
+    for text in requirements:
+        try:
+            requirement = Requirement(text)
+        except InvalidRequirement:
+            continue
+        found.setdefault(requirement.name, set()).add(requirement.specifier)
+    # SpecifierSet's str() sorts alphabetically, put lower bounds first
+    return {
+        name: ",".join(
+            sorted(
+                map(str, specifiers.pop()),
+                key=lambda s: (not s.startswith(">"), s),
+            )
+        )
+        for name, specifiers in found.items()
+        if len(specifiers) == 1
+    }
+
+
+def render_supported_versions():
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.join(here, "..", "..")
+    with open(
+        os.path.join(root, "python", "cuml", "pyproject.toml"), "rb"
+    ) as f:
+        project = tomllib.load(f)["project"]
+    pip = itertools.chain(
+        project["dependencies"], *project["optional-dependencies"].values()
+    )
+    conda = []
+    for path in glob.glob(
+        os.path.join(root, "conda", "environments", "all_cuda-*.yaml")
+    ):
+        with open(path) as f:
+            dependencies = yaml.safe_load(f)["dependencies"]
+        # Skip the 'pip:' sub-list
+        conda += [d for d in dependencies if isinstance(d, str)]
+
+    with open(os.path.join(here, "supported_versions.rst.template")) as f:
+        template = jinja2.Template(
+            f.read(),
+            undefined=jinja2.StrictUndefined,
+            keep_trailing_newline=True,
+        )
+    with open(os.path.join(here, "supported_versions.rst"), "w") as f:
+        f.write(
+            template.render(
+                versions=_constraints(pip), conda_versions=_constraints(conda)
+            )
+        )
+
+
+render_supported_versions()
 
 
 # -- General configuration ------------------------------------------------

@@ -548,15 +548,12 @@ class RfSpecialisedTest {
 
   void TestMinImpurity()
   {
-    const bool counts_are_weights = !params.sample_weight || params.bootstrap;
     for (int i = 0u; i < forest->rf_params.n_trees; i++) {
       const auto& tree = forest->trees[i]->sparsetree;
       for (const auto& n : tree) {
         if (n.IsLeaf()) { continue; }
 
-        auto gain = double(n.BestMetric());
-        if (counts_are_weights) { gain *= double(n.InstanceCount()) / tree[0].InstanceCount(); }
-        EXPECT_GT(gain, params.min_impurity_decrease);
+        EXPECT_GT(n.WeightedImpurityDecrease(), params.min_impurity_decrease);
       }
     }
   }
@@ -797,13 +794,13 @@ TEST(RfTests, FeatureImportancesHandleInfiniteMetrics)
   tree->leaf_counter  = 3;
   tree->train_time    = 0.0;
   tree->num_outputs   = 1;
-  tree->sparsetree    = {SparseTreeNode<float, float>::CreateSplitNode(
-                        0, 0.5f, std::numeric_limits<float>::infinity(), 1, 8),
-                         SparseTreeNode<float, float>::CreateSplitNode(
-                        1, 1.5f, std::numeric_limits<float>::infinity(), 3, 4),
-                         SparseTreeNode<float, float>::CreateLeafNode(4),
-                         SparseTreeNode<float, float>::CreateLeafNode(2),
-                         SparseTreeNode<float, float>::CreateLeafNode(2)};
+  const auto inf      = std::numeric_limits<float>::infinity();
+  using Node          = SparseTreeNode<float, float>;
+  tree->sparsetree    = {Node::CreateSplitNode(0, 0.5f, inf, 1, 8),
+                         Node::CreateSplitNode(1, 1.5f, inf, 3, 4),
+                         Node::CreateLeafNode(4),
+                         Node::CreateLeafNode(2),
+                         Node::CreateLeafNode(2)};
   forest->trees.push_back(tree);
 
   std::vector<float> importances(forest->n_features);
@@ -890,42 +887,34 @@ TEST(RfTests, EmptyGlobalRowsRejected)
                raft::exception);
 }
 
-TEST(RfTests, HighClassCountSplitHistogramFallsBackToGlobalMemory)
+TEST(RfTests, HighClassCountHistograms)
 {
-  constexpr std::size_t n_rows = 640;
-  constexpr std::size_t n_cols = 4;
-  constexpr int n_classes      = 80;
-  constexpr int max_n_bins     = 256;
-
-  auto stream_pool = std::make_shared<rmm::cuda_stream_pool>(1);
-  raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread}, stream_pool);
-  thrust::device_vector<float> X(n_rows * n_cols);
-  thrust::device_vector<int> y(n_rows);
-
-  Datasets::make_blobs(handle,
-                       X.data().get(),
-                       y.data().get(),
-                       n_rows,
-                       n_cols,
-                       n_classes,
-                       false,
-                       nullptr,
-                       nullptr,
-                       5.0,
-                       false,
-                       -10.0f,
-                       10.0f,
-                       1234);
-
-  auto forest = std::make_shared<RandomForestMetaData<float, int>>();
-  auto rf_params =
-    set_rf_params(2, -1, 1.0f, max_n_bins, 1, 2, 0.0f, false, 1, 1.0f, 1234, CRITERION::GINI, 1, 4);
-  auto forest_ptr = forest.get();
-
+  auto n_classes = 8194, n_rows = 8194;  // n_classes == n_rows makes y easy to construct
+  raft::handle_t handle(cuda::stream_ref{cudaStreamPerThread},
+                        std::make_shared<rmm::cuda_stream_pool>(1));
+  thrust::device_vector<float> X(thrust::make_counting_iterator(0),
+                                 thrust::make_counting_iterator(n_rows));
+  thrust::device_vector<int> y(thrust::make_counting_iterator(0),
+                               thrust::make_counting_iterator(n_classes));
+  RandomForestClassifierF forest;
+  // Two bins force the split histogram into global memory; 8194 classes require leaf tiling.
+  auto params = set_rf_params(1, -1, 1.0, 2, 1, 2, 0.0, false, 1, 1.0, 0, GINI, 1, 4);
   ASSERT_NO_THROW(
-    fit(handle, forest_ptr, X.data().get(), n_rows, n_cols, y.data().get(), n_classes, rf_params));
-  ASSERT_EQ(forest->trees.size(), 1);
-  EXPECT_GT(forest->trees.front()->depth_counter, 0);
+    fit(handle, &forest, X.data().get(), n_rows, 1, y.data().get(), n_classes, params));
+  ASSERT_EQ(forest.trees.size(), 1);
+  const auto& tree = *forest.trees.front();
+  ASSERT_EQ(tree.sparsetree.size(), 3);
+  ASSERT_EQ(tree.vector_leaf.size(), 3 * n_rows);
+  const auto& root = tree.sparsetree.front();
+  for (auto node : {root.LeftChildId(), root.RightChildId()}) {
+    const auto& leaf = tree.sparsetree.at(node);
+    EXPECT_TRUE(leaf.IsLeaf());
+    for (int label = 0; label < n_classes; ++label) {
+      bool in_leaf = (label <= root.QueryValue()) == (node == root.LeftChildId());
+      EXPECT_FLOAT_EQ(tree.vector_leaf[node * n_classes + label],
+                      in_leaf ? 1.0f / leaf.InstanceCount() : 0.0f);
+    }
+  }
 }
 
 TEST(RfTests, InvalidSampleWeightThrows)
@@ -1359,8 +1348,10 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
   thrust::device_vector<DT::Split<DataT>> split(1);
   thrust::device_vector<int> mutex(1);
 
-  // Four zeros and four twos have variance 1. The best split must exceed 0.75;
-  DT::RegressionObjectiveFunction<DataT, DataT> objective{1, 1, CRITERION::MSE, len, DataT{0.75}};
+  // Four zeros and four twos split into pure leaves. With half the root weight,
+  // the winning split contributes 0.5 to the whole-tree impurity decrease.
+  DT::RegressionObjectiveFunction<DataT, DataT> objective{
+    1, 1, CRITERION::MSE, 2 * len, DataT{0.375}};
   objectiveGainKernel<<<1, 32, 0, handle.get_stream().get()>>>(hist.data().get(),
                                                                quantiles.data().get(),
                                                                split.data().get(),
@@ -1384,7 +1375,7 @@ TEST(RFEquivalentSplitRangeTest, RegressionChoosesUpperMiddleBin)
   EXPECT_EQ(h_split.quesval, DataT{3});
   EXPECT_EQ(h_split.split_start, 3);
   EXPECT_EQ(h_split.split_end, 3);
-  EXPECT_EQ(h_split.best_metric_val, DataT{1});
+  EXPECT_EQ(h_split.weighted_impurity_decrease, 0.5);
 }
 
 template <typename T>
@@ -1520,7 +1511,7 @@ INSTANTIATE_TEST_CASE_P(RfTests,
 
 //------------------------------------------------------------------------------------------------------
 
-TEST(RfTest, TextDump)
+TEST(RfTests, TextDump)
 {
   RF_params rf_params = set_rf_params(2, 2, 1.0, 2, 1, 2, 0.0, false, 1, 1.0, 0, GINI, 1, 128);
   auto forest         = std::make_shared<RandomForestMetaData<float, int>>();
@@ -1547,7 +1538,7 @@ Tree #0
   EXPECT_TRUE(get_rf_detailed_text(forest_ptr).find(expected_start_text) != std::string::npos);
   EXPECT_TRUE(get_rf_detailed_text(forest_ptr).find(expected_end_text) != std::string::npos);
   std::string expected_json = R"([
-{"nodeid": 0, "split_feature": 0, "split_threshold": 3, "gain": 0.055555582, "instance_count": 6, "yes": 1, "no": 2, "children": [
+{"nodeid": 0, "split_feature": 0, "split_threshold": 3, "gain": 0.055555582046508789, "instance_count": 6, "yes": 1, "no": 2, "children": [
   {"nodeid": 1, "leaf_value": [0.666666687, 0.333333343], "instance_count": 3},
   {"nodeid": 2, "leaf_value": [0.333333343, 0.666666687], "instance_count": 3}
 ]}

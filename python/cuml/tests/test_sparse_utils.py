@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 import cupy as cp
@@ -15,6 +15,7 @@ from cuml.common.sparse import (
     csr_row_normalize_l1,
     csr_row_normalize_l2,
     sparse_cov_and_mean,
+    sparse_gram,
 )
 
 
@@ -39,6 +40,30 @@ def test_csr_norms(norm, ref_norm, dtype, seed, shape):
     assert cp.any(cp.not_equal(X_csr_gpu.todense(), cp.array(X)))
 
     cp.testing.assert_array_almost_equal(X_csr_gpu.todense(), X_csr.todense())
+
+
+@pytest.mark.parametrize("n_cols", [1, 100, 1000])
+@pytest.mark.parametrize("n_rows", [2, 100, 1000])
+@pytest.mark.parametrize("density", [0.2, 0.4, 0.6])
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+@pytest.mark.parametrize("format", ["csr", "coo"])
+@pytest.mark.parametrize("transpose", [True, False])
+def test_sparse_gram(n_cols, n_rows, density, dtype, format, transpose):
+    X = cp_sp.random(
+        n_rows,
+        n_cols,
+        density=density,
+        format=format,
+        dtype=dtype,
+        random_state=42,
+    )
+    X_dense = X.todense()
+    sol = X_dense.dot(X_dense.T) if transpose else X_dense.T.dot(X_dense)
+    res = sparse_gram(X, transpose=transpose)
+    assert res.dtype == dtype
+    cp.testing.assert_allclose(
+        res, sol, atol=1e-2 if res.dtype == "f4" else 1e-4
+    )
 
 
 @pytest.mark.parametrize("n_cols", [1, 100, 1000])

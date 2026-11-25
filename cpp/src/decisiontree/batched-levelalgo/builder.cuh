@@ -7,13 +7,15 @@
 
 #include "dataset.h"  // for Dataset
 #include "kernels/builder_kernels.cuh"
+#include "quantiles.h"  // for Quantiles
+#include "split.cuh"    // for Split
 
 #include <common/Timer.h>
 
 #include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/common/pinned_host_vector.hpp>
 #include <cuml/tree/decisiontree.hpp>
-#include <cuml/tree/flatnode.h>
+#include <cuml/tree/flatnode.h>  // for SparseTreeNode
 
 #include <raft/core/handle.hpp>
 #include <raft/core/nvtx.hpp>
@@ -152,7 +154,7 @@ class NodeQueue {
       // parent
       tree->sparsetree.at(item.idx) = NodeT::CreateSplitNode(split.colid,
                                                              split.quesval,
-                                                             split.best_metric_val,
+                                                             split.weighted_impurity_decrease,
                                                              int64_t(tree->sparsetree.size()),
                                                              parent_count);
       tree->leaf_counter++;
@@ -785,14 +787,12 @@ struct Builder {
       auto leaf_histogram_bytes = ML::checked_mul<std::size_t>(sizeof(BinT), leaf_histogram_count);
       auto leaf_batch_size      = ML::narrow_cast<int>(batch_size);
       RAFT_CUDA_TRY(cudaMemsetAsync(histograms, 0, leaf_histogram_bytes, builder_stream));
-      size_t smem_size = ML::checked_mul<std::size_t>(sizeof(BinT), dataset.num_outputs);
       launchBuildLeafHistogramsKernel(objective,
                                       dataset,
                                       d_tree.data(),
                                       d_instance_ranges.data(),
                                       histograms,
                                       leaf_batch_size,
-                                      smem_size,
                                       builder_stream);
       RAFT_CUDA_TRY(cudaPeekAtLastError());
 

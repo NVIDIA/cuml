@@ -1119,7 +1119,7 @@ class KMeans(
         cdef handle_t* handle_ = <handle_t*><size_t>handle.getHandle()
         cdef lib.KMeansParams params
         _kmeans_init_params(self, params)
-        params.metric = DistanceType.L2SqrtExpanded
+        params.metric = DistanceType.L2SqrtUnexpanded
 
         cdef bool values_f32 = X.dtype == cp.float32
         cdef bool indices_i32 = _kmeans_indices_i32(n_rows, n_cols)
