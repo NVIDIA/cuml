@@ -23,6 +23,7 @@ from cuml.internals.outputs import (
     infer_output_type,
     mlfunc,
 )
+from cuml.internals.param_validation import InvalidParameterError
 from cuml.internals.validation import check_inputs
 
 OUTPUT_TYPES = ["numpy", "cupy", "cudf", "pandas"]
@@ -259,8 +260,11 @@ def test_invalid_estimator_output_type():
     with pytest.raises(ValueError, match="`output_type='invalid'`"):
         model.components_
 
-    # Method raises appropriately
-    with pytest.raises(ValueError, match="`output_type='invalid'`"):
+    # Fit-like methods validate parameters before doing any work
+    with pytest.raises(
+        InvalidParameterError,
+        match="The 'output_type' parameter of DBSCAN must be",
+    ):
         model.fit_predict(X)
 
 

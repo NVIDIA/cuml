@@ -11,7 +11,7 @@ from sklearn.utils.metaestimators import available_if
 from cuml.common.doc_utils import generate_docstring
 from cuml.internals.base import Base
 from cuml.internals.mixins import ClassifierMixin
-from cuml.internals.outputs import ClassLabels, mlfunc
+from cuml.internals.outputs import ClassLabels, exit_internal_context, mlfunc
 from cuml.internals.validation import check_inputs, check_is_fitted
 
 
@@ -163,9 +163,10 @@ class OneVsRestClassifier(_BaseMulticlassClassifier):
                 if sample_weight is None
                 else {"sample_weight": sample_weight}
             )
-            self.estimators_.append(
-                clone(self.estimator).fit(X, target, **fit_kwargs)
-            )
+            # Exit the internal context so the user's estimator is validated
+            with exit_internal_context():
+                est = clone(self.estimator).fit(X, target, **fit_kwargs)
+            self.estimators_.append(est)
         return self
 
     @generate_docstring(
@@ -322,9 +323,11 @@ class OneVsOneClassifier(_BaseMulticlassClassifier):
                     if sample_weight is None
                     else {"sample_weight": sample_weight[idx]}
                 )
-                self.estimators_.append(
-                    clone(self.estimator).fit(Xi, yi, **fit_kwargs)
-                )
+                # Exit the internal context so the user's estimator is
+                # validated
+                with exit_internal_context():
+                    est = clone(self.estimator).fit(Xi, yi, **fit_kwargs)
+                self.estimators_.append(est)
         return self
 
     @generate_docstring(

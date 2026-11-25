@@ -15,6 +15,7 @@ import scipy.sparse as sp
 from cupy.cuda import Stream
 
 from cuml.internals.global_settings import GlobalSettings
+from cuml.internals.param_validation import validate_params
 
 __all__ = (
     "check_output_type",
@@ -29,6 +30,9 @@ __all__ = (
 
 
 OUTPUT_TYPES = ("input", "numpy", "cupy", "cudf", "pandas")
+
+# Methods that validate an estimator's hyperparameters when called by a user
+FIT_LIKE_METHODS = ("fit", "fit_transform", "fit_predict", "partial_fit")
 
 
 def check_output_type(output_type: str) -> str:
@@ -723,6 +727,12 @@ def mlfunc(
       ``_input_type`` to support cases like ``output_type="input"``. To enable
       this for a method set ``set_input_type=True``.
 
+    - Fit-like methods (``fit``, ``fit_transform``, ``fit_predict`` and
+      ``partial_fit``) on estimators validate the estimator's hyperparameters
+      against its ``_parameter_constraints``. This is skipped when called
+      from within another ``mlfunc``, where the caller is responsible for
+      passing valid parameters.
+
     - Inference methods should preserve the index of the input in the output.
       To enable this for a method, set ``preserve_index=True``.
 
@@ -789,6 +799,8 @@ def mlfunc(
     if model_arg is not None:
         model_arg = _get_param(sig, model_arg)
 
+    validate = model_arg is not None and func.__name__ in FIT_LIKE_METHODS
+
     # Normalize array_arg to str | None
     if array_arg is ...:
         array_arg = int(
@@ -836,6 +848,9 @@ def mlfunc(
             index = None
 
         with enter_internal_context() as was_external:
+            if validate and was_external:
+                validate_params(model)
+
             if set_input_type is True:
                 model._set_output_type(array)
 
