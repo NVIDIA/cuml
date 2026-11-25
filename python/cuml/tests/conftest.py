@@ -21,7 +21,7 @@ from cuml.testing.datasets import make_text_classification_dataset
 
 # Add the import here for any plugins that should be loaded EVERY TIME
 pytest_plugins = [
-    "cuml.testing.plugins.test_categories",
+    "cuml.testing.plugins.categories",
     "cuml.testing.plugins.gpu_test_config",
     "cuml.testing.plugins.quick_run_plugin",
     "cuml.testing.plugins.restart_corrupted_xdist_worker",
