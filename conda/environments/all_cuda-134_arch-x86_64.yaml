@@ -34,6 +34,7 @@ dependencies:
 - ipython>=7.32.0
 - joblib>=0.11
 - jsonschema
+- just>=1.55.0
 - libcublas-dev
 - libcufft-dev
 - libcurand-dev

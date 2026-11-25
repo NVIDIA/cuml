@@ -9,6 +9,7 @@ files:
       cuda: ["12.9", "13.4"]
       arch: [x86_64, aarch64]
     includes:
+      - checks
       - common_build
       - cuda
       - cutile_python
