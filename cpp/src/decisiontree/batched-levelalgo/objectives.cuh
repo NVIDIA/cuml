@@ -19,7 +19,7 @@
 
 namespace ML {
 namespace DT {
-template <typename DataT_, typename LabelT_, bool weighted_ = false>
+template <std::floating_point DataT_, typename LabelT_, bool weighted_ = false>
 class ClassificationObjectiveFunction {
  public:
   using DataT  = DataT_;
