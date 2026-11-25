@@ -556,3 +556,86 @@ def test_as_sklearn_missing_category_matches_cuml(multi_feature_mode):
     np.testing.assert_allclose(
         sklearn_model.transform(X_new), encoder.transform(X_new), rtol=1e-5
     )
+
+
+def test_independent_fit_transform_all_null_target_category():
+    """All-null target groups fall back to y_stat_val when smooth=0."""
+    X = np.array(["a", "a", "c", "b", "b"], dtype=object)[:, None]
+    y = np.array([1.0, 1.0, 4.0, np.nan, np.nan])
+
+    encoder = TargetEncoder(
+        smooth=0, multi_feature_mode="independent", output_type="numpy"
+    )
+    train_encoded = encoder.fit_transform(X, y)
+
+    assert encoder.y_stat_val == 2.0
+    np.testing.assert_allclose(
+        train_encoded, np.array([1.0, 1.0, 4.0, 2.0, 2.0])[:, None]
+    )
+
+
+@pytest.mark.parametrize(
+    "dtype, big", [("int64", 2**53), ("uint64", 2**63 + 2**11)]
+)
+def test_independent_fit_integer_keys_beyond_float64_with_null(dtype, big):
+    """Nullable large integer keys must not cause a non-unique lookup index."""
+    keys = [big, big + 1, None, big, big + 1, 7]
+    X = cudf.DataFrame({"a": cudf.Series(keys, dtype=dtype)})
+    y = cudf.Series([0.0, 1.0, 0.5, 0.0, 1.0, 0.25])
+
+    encoder = TargetEncoder(
+        smooth=0, multi_feature_mode="independent", output_type="numpy"
+    )
+    encoder.fit(X, y)
+
+    (encodings,) = encoder._encodings_per_feature
+    assert len(encodings) == len(encoder.categories_[0])
+    np.testing.assert_allclose(
+        encoder.transform(X).ravel(), [0.0, 1.0, 0.5, 0.0, 1.0, 0.25]
+    )
+
+
+@pytest.mark.parametrize(
+    "dtype, limit",
+    [
+        ("int32", 100_000),
+        ("uint64", 100_000),
+        ("float64", 75_000),
+        ("object", 50_000),
+        ("bool", 50_000),
+    ],
+)
+def test_host_lookup_max_categories(dtype, limit):
+    from cuml.preprocessing._target_encoder import _host_lookup_max_categories
+
+    assert _host_lookup_max_categories(np.dtype(dtype)) == limit
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        pytest.param([3, 1, None, 3, 2, 1], id="int64-null"),
+        pytest.param([2**53, 2**53 + 1, None, 2**53, 7, 7], id="int64-2**53"),
+        pytest.param([1.5, np.nan, 2.5, 1.5, 0.5, 2.5], id="float-nan"),
+        pytest.param(["b", None, "a", "b", "c", "a"], id="str-null"),
+    ],
+)
+def test_category_encodings_device_path_matches_host(monkeypatch, keys):
+    """Host and device lookups return the same encodings."""
+    import cuml.preprocessing._target_encoder as te
+
+    dtype = "int64" if isinstance(keys[0], int) else None
+    X = cudf.DataFrame({"a": cudf.Series(keys, dtype=dtype)})
+    y = cudf.Series([0.0, 1.0, 0.5, 0.25, 1.0, 0.75])
+
+    encodings = []
+    for limit in (1 << 62, 0):
+        monkeypatch.setattr(
+            te, "_host_lookup_max_categories", lambda _, limit=limit: limit
+        )
+        encoder = TargetEncoder(smooth=0.5, multi_feature_mode="independent")
+        encoder.fit(X, y)
+        (enc,) = encoder._encodings_per_feature
+        assert len(enc) == len(encoder.categories_[0])
+        encodings.append(enc)
+    np.testing.assert_array_equal(encodings[0], encodings[1])
