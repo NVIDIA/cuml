@@ -562,6 +562,77 @@ else:
         return np.array(x, dtype=dtype, order=order or "K", copy=bool(copy))
 
 
+# Thresholds for the device-side reorder in `_host_to_device`. They mirror
+# the upstream CuPy fix (cupy/cupy#10425) and are measured on the output, i.e.
+# after any dtype conversion:
+# - Below `_H2D_REORDER_MIN_BYTES` the host transpose in `cp.array` is cheaper
+#   than the extra allocation and kernel launch, so those inputs keep the
+#   plain `cp.array` path.
+# - Above it, the input is copied in blocks of at most `_H2D_REORDER_BLOCK_BYTES`
+#   (or one slice, if a single slice is larger), which bounds the temporary
+#   device memory to one block on top of the output.
+_H2D_REORDER_MIN_BYTES = 256 << 10  # 256 KiB
+_H2D_REORDER_BLOCK_BYTES = 32 << 20  # 32 MiB
+
+
+def _host_to_device(array, dtype=None, order=None, copy=None):
+    """Move a host array to the device without reordering it on the host.
+
+    ``cp.array(numpy_array, order="F")`` on a C-contiguous input (or the
+    reverse) performs the transpose on the host, single-threaded, while
+    filling the pinned staging buffer. That runs at 0.2 to 0.4 GB/s, so a
+    1 GB input takes seconds to reach the device; transferring the bytes
+    as they are and transposing on the device costs the same as a plain
+    copy. Dtype conversion is left to ``cp.array`` as before.
+    """
+    if (
+        isinstance(array, np.ndarray)
+        and array.ndim >= 2
+        and order in ("C", "F")
+    ):
+        c_in = array.flags.c_contiguous
+        f_in = array.flags.f_contiguous
+        reorder = (order == "F" and c_in and not f_in) or (
+            order == "C" and f_in and not c_in
+        )
+        if reorder:
+            # Bytes on the device, after any dtype conversion
+            # (e.g. uint8 -> float32 is 4x the host bytes).
+            itemsize = (
+                array.dtype.itemsize
+                if dtype is None
+                else np.dtype(dtype).itemsize
+            )
+            nbytes = array.size * itemsize
+            reorder = nbytes >= _H2D_REORDER_MIN_BYTES
+        if reorder:
+            # Slice along the axis that is contiguous in the input's own
+            # layout (first for C, last for F) so each block is one
+            # contiguous host region; assigning it into the differently
+            # ordered output is one transpose kernel on the device.
+            axis = 0 if c_in else array.ndim - 1
+            n = array.shape[axis]
+            step = max(1, _H2D_REORDER_BLOCK_BYTES // (nbytes // n))
+            out = None
+            for start in range(0, n, step):
+                idx = [slice(None)] * array.ndim
+                idx[axis] = slice(start, start + step)
+                idx = tuple(idx)
+                block = cp.array(array[idx], dtype=dtype, copy=None)
+                if out is None:
+                    # Take the dtype `cp.array` chose (e.g. native byte
+                    # order for big-endian input); `cp.empty` rejects
+                    # non-native byte orders.
+                    out = cp.empty(array.shape, dtype=block.dtype, order=order)
+                out[idx] = block
+                # Free this block before the next one is allocated, so that
+                # only `out` and one block are resident at a time.
+                del block
+            return out
+    # XXX: using cp.array for compat with cupy < 14
+    return cp.array(array, dtype=dtype, order=order, copy=copy)
+
+
 def check_array(
     array,
     *,
@@ -826,7 +897,7 @@ def check_array(
                 copy=copy and (cudf.pandas.LOADED or mem_type != "device"),
             )
             if mem_type == "device":
-                array = cp.asarray(array, dtype=dtype, order=order)
+                array = _host_to_device(array, dtype=dtype, order=order)
             elif (
                 mem_type is None
                 and cudf.pandas.LOADED
@@ -837,7 +908,7 @@ def check_array(
                 # of `to_numpy` in cudf.pandas returns a proxy array that's
                 # remains on device, so we're not paying a device<>host
                 # roundtrip cost here.
-                array = cp.asarray(array, dtype=dtype, order=order)
+                array = _host_to_device(array, dtype=dtype, order=order)
             else:
                 array = np.asarray(array, dtype=dtype, order=order)
         elif hasattr(array, "__cuda_array_interface__"):
@@ -854,8 +925,7 @@ def check_array(
         else:
             # Handle all other inputs
             if mem_type == "device":
-                # XXX: using cp.array for compat with cupy < 14
-                array = cp.array(
+                array = _host_to_device(
                     array, dtype=dtype, order=order, copy=(copy or None)
                 )
             else:

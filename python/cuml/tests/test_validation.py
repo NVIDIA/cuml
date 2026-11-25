@@ -2200,3 +2200,223 @@ def test_check_cudf_unsupported_object_inputs(kind):
         match="An object dtype X argument must be composed of",
     ):
         check_cudf(X, input_name="X")
+
+
+def _set_reorder_thresholds(monkeypatch, min_bytes, block_bytes):
+    """Shrink the device-side reorder thresholds so small test inputs take
+    the reorder path and are split into several blocks."""
+    from cuml.internals import validation
+
+    monkeypatch.setattr(validation, "_H2D_REORDER_MIN_BYTES", min_bytes)
+    monkeypatch.setattr(validation, "_H2D_REORDER_BLOCK_BYTES", block_bytes)
+
+
+def _spy_on_cp_array(monkeypatch):
+    """Patch `cp.array` to record each call's kwargs, the size of every array
+    it returns, and how many of the arrays it returned earlier are alive at
+    each call."""
+    import weakref
+
+    real = cp.array
+    calls, refs, sizes, alive_at_call = [], [], [], []
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs)
+        alive_at_call.append(sum(r() is not None for r in refs))
+        out = real(*args, **kwargs)
+        refs.append(weakref.ref(out))
+        sizes.append(out.nbytes)
+        return out
+
+    monkeypatch.setattr(cp, "array", spy)
+    return calls, sizes, alive_at_call
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+@pytest.mark.parametrize("dtype", [None, "float32", "float64"])
+@pytest.mark.parametrize("byteorder", ["<", ">"])
+@pytest.mark.parametrize("reorder", [False, True])
+def test_check_array_host_reorder_matches_cupy(
+    monkeypatch, in_order, out_order, dtype, byteorder, reorder
+):
+    """A NumPy input in the opposite layout lands on the device with the
+    values, dtype and order `cp.array` would give, big-endian included,
+    whether or not it takes the device-side reorder path."""
+    if reorder:
+        _set_reorder_thresholds(monkeypatch, 0, 64)
+    X = np.asarray(
+        np.arange(60, dtype="float32").reshape(12, 5),
+        dtype=f"{byteorder}f4",
+        order=in_order,
+    )
+    out = check_array(X, dtype=dtype, order=out_order, mem_type="device")
+    monkeypatch.undo()
+    expected = cp.array(X, dtype=dtype, order=out_order)
+    assert isinstance(out, cp.ndarray)
+    assert out.dtype == expected.dtype
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, expected)
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+@pytest.mark.parametrize(
+    "dtype, n_slices, expect_reorder",
+    [
+        # Exactly 256 KiB of float32 output: the reorder path.
+        ("float32", 1024, True),
+        # One slice (256 bytes) short of 256 KiB: the plain `cp.array` path.
+        ("float32", 1023, False),
+        # 64 KiB of uint8 on the host but 256 KiB once converted to float32:
+        # the threshold applies to the output.
+        ("uint8", 1024, True),
+    ],
+)
+def test_host_to_device_min_bytes(
+    monkeypatch, in_order, out_order, dtype, n_slices, expect_reorder
+):
+    """Inputs below 256 KiB (measured after dtype conversion) keep the
+    original single `cp.array(..., order=order)` call; larger ones are
+    copied in their own layout and reordered on the device."""
+    from cuml.internals import validation
+
+    assert validation._H2D_REORDER_MIN_BYTES == 256 * 1024
+    shape = (n_slices, 64) if in_order == "C" else (64, n_slices)
+    X = np.asarray(
+        np.arange(n_slices * 64).reshape(shape) % 251,
+        dtype=dtype,
+        order=in_order,
+    )
+    calls, _, _ = _spy_on_cp_array(monkeypatch)
+    out = validation._host_to_device(X, dtype="float32", order=out_order)
+    monkeypatch.undo()
+
+    assert len(calls) == 1
+    if expect_reorder:
+        # One block in the input's layout; the reorder happens on the device.
+        assert calls[0].get("order") is None
+    else:
+        assert calls[0]["order"] == out_order
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, cp.asarray(X, dtype="float32"))
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+@pytest.mark.parametrize(
+    "n_slices, expected_blocks",
+    [
+        # 8192 slices of 4 KiB fill one 32 MiB block exactly.
+        (8192, [32 << 20]),
+        # One more slice spills into a short final block.
+        (8193, [32 << 20, 4 << 10]),
+    ],
+)
+def test_host_to_device_block_bytes(
+    monkeypatch, in_order, out_order, n_slices, expected_blocks
+):
+    """Blocks hold as many whole slices as fit in 32 MiB."""
+    from cuml.internals import validation
+
+    assert validation._H2D_REORDER_BLOCK_BYTES == 32 * 1024 * 1024
+    # Slices along the input's contiguous axis are 1024 float32 = 4 KiB.
+    shape = (n_slices, 1024) if in_order == "C" else (1024, n_slices)
+    X = np.asarray(
+        np.random.default_rng(0).random(shape, dtype="float32"),
+        order=in_order,
+    )
+    _, sizes, _ = _spy_on_cp_array(monkeypatch)
+    out = validation._host_to_device(X, order=out_order)
+    monkeypatch.undo()
+
+    assert sizes == expected_blocks
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, cp.asarray(X))
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+@pytest.mark.parametrize("shape", [(7, 3), (5, 4, 3)])
+def test_host_to_device_reorders_in_blocks(
+    monkeypatch, in_order, out_order, shape
+):
+    """The device-side reorder gives the same result when split into many
+    blocks, including a short final block."""
+    from cuml.internals import validation
+
+    _set_reorder_thresholds(monkeypatch, 0, 30)
+    X = np.asarray(
+        np.random.default_rng(0).random(shape), dtype="float32", order=in_order
+    )
+    out = validation._host_to_device(X, order=out_order)
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, cp.asarray(X))
+
+
+def test_host_to_device_slice_larger_than_block(monkeypatch):
+    """A single slice larger than the block target is still copied, one
+    slice per block."""
+    from cuml.internals import validation
+
+    _set_reorder_thresholds(monkeypatch, 0, 16)
+    X = np.arange(10 * 8, dtype="float32").reshape(10, 8)
+    _, sizes, _ = _spy_on_cp_array(monkeypatch)
+    out = validation._host_to_device(X, order="F")
+    monkeypatch.undo()
+
+    assert sizes == [32] * 10
+    assert_contiguity(out, "F")
+    cp.testing.assert_array_equal(out, cp.asarray(X))
+
+
+def test_host_to_device_blocks_sized_by_converted_dtype(monkeypatch):
+    """Blocks are budgeted by their size after dtype conversion, not by the
+    size of the host input they came from."""
+    from cuml.internals import validation
+
+    _set_reorder_thresholds(monkeypatch, 0, 64)
+    X = np.arange(40 * 8, dtype="uint8").reshape(40, 8)
+    _, sizes, _ = _spy_on_cp_array(monkeypatch)
+    out = validation._host_to_device(X, dtype="float32", order="F")
+    monkeypatch.undo()
+
+    # Each uint8 row is 8 bytes on the host but 32 bytes as float32, so a
+    # 64 byte budget allows 2 rows per block, not 8.
+    assert len(sizes) == 20
+    assert max(sizes) <= 64
+    assert_contiguity(out, "F")
+    cp.testing.assert_array_equal(out, cp.asarray(X, dtype="float32"))
+
+
+def test_host_to_device_frees_each_block_before_the_next(monkeypatch):
+    """Only the output and one block are resident on the device at a time:
+    every earlier block has been freed when the next one is allocated."""
+    from cuml.internals import validation
+
+    _set_reorder_thresholds(monkeypatch, 0, 64)
+    X = np.arange(40 * 8, dtype="float32").reshape(40, 8)
+    _, sizes, alive_at_call = _spy_on_cp_array(monkeypatch)
+    out = validation._host_to_device(X, order="F")
+    monkeypatch.undo()
+
+    assert len(sizes) == 20
+    assert alive_at_call == [0] * 20
+    cp.testing.assert_array_equal(out, cp.asarray(X))
+
+
+@pytest.mark.parametrize("in_order, out_order", [("C", "F"), ("F", "C")])
+def test_check_array_reorders_on_the_device(monkeypatch, in_order, out_order):
+    """`check_array` sends an opposite-layout NumPy input to the device in
+    blocks in its own layout, rather than reordering it on the host first."""
+    _set_reorder_thresholds(monkeypatch, 0, 64)
+    # 40 slices of 8 float32 (32 bytes) along the input's contiguous axis,
+    # so a 64 byte budget gives 20 blocks of 2 slices.
+    shape = (40, 8) if in_order == "C" else (8, 40)
+    X = np.asarray(
+        np.arange(40 * 8, dtype="float32").reshape(shape), order=in_order
+    )
+    _, sizes, _ = _spy_on_cp_array(monkeypatch)
+    out = check_array(X, order=out_order, mem_type="device")
+    monkeypatch.undo()
+
+    assert len(sizes) == 20
+    assert max(sizes) <= 64
+    assert_contiguity(out, out_order)
+    cp.testing.assert_array_equal(out, cp.asarray(X))
