@@ -63,7 +63,7 @@ cuML has limited support for multi-GPU and multi-node operations. The following 
 It is recommended to use conda for environment/package management. If doing so, development environment .yaml files are located in `conda/environments/all_*.yaml`. These files contain most of the dependencies mentioned above. To create a development environment named `cuml_dev`, you can use the following commands (adjust the YAML filename to match your CUDA version and architecture):
 
 ```bash
-conda create -n cuml_dev python=3.14
+conda create -n cuml_dev python=3.15
 conda env update -n cuml_dev --file=conda/environments/all_cuda-134_arch-$(uname -m).yaml
 conda activate cuml_dev
 ```
