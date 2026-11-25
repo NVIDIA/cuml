@@ -369,26 +369,14 @@ def test_cholesky_sparse_invalid_fit_intercept():
 
 
 def test_solver_auto():
-    # 1 feature defaults to svd
-    X, y = make_regression(n_features=1, random_state=42)
-    model = cuml.Ridge().fit(X, y)
-    assert model.solver_ == "svd"
-
-    # multi-target defaults to svd
-    X, y = make_regression(n_targets=3, random_state=42)
-    model = cuml.Ridge().fit(X, y)
-    assert model.solver_ == "svd"
-
-    # sparse defaults to lsmr
-    model = cuml.Ridge().fit(sp.csr_matrix(X), y)
-    assert model.solver_ == "lsmr"
-    model = cuml.Ridge().fit(cp_sp.csr_matrix(cp.asarray(X)), y)
-    assert model.solver_ == "lsmr"
-
-    # otherwise defaults to eig
+    # dense defaults to cholesky
     X, y = make_regression(random_state=42)
     model = cuml.Ridge().fit(X, y)
-    assert model.solver_ == "eig"
+    assert model.solver_ == "cholesky"
+
+    # sparse defaults to lsmr
+    model = cuml.Ridge().fit(cp_sp.csr_matrix(cp.asarray(X)), y)
+    assert model.solver_ == "lsmr"
 
 
 @pytest.mark.parametrize("solver", ["eig", "svd", "cholesky", "lsmr"])
