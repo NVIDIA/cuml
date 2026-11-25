@@ -5,7 +5,7 @@
 # cmake-format: on
 # =============================================================================
 
-cmake_minimum_required(VERSION 4.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 4.3 FATAL_ERROR)
 
 include(../cmake/rapids_config.cmake)
 
@@ -464,7 +464,9 @@ if(BUILD_CUML_CPP_LIBRARY)
 
   # todo: separate solvers better
   if(all_algo OR solvers_algo)
-    target_sources(cuml_objs PRIVATE src/solver/lars.cu src/solver/solver.cu)
+    target_sources(
+      cuml_objs PRIVATE src/solver/lars.cu src/solver/solver.cu src/solver/nnls_batched.cu
+    )
   endif()
 
   if(all_algo OR spectralclustering_algo)

@@ -20,6 +20,16 @@ from cuml import KernelRidge as cuKernelRidge
 from cuml.metrics import PAIRWISE_KERNEL_FUNCTIONS, pairwise_kernels
 from cuml.testing.utils import as_cupy, as_numpy, as_type
 
+legacy_cuda_numpy_xfail = pytest.mark.xfail(
+    not hasattr(np, "row_stack"),
+    reason=(
+        "Legacy numba-cuda requires np.row_stack: "
+        "https://github.com/NVIDIA/numba-cuda/issues/907"
+    ),
+    raises=AttributeError,
+    strict=True,
+)
+
 
 def gradient_norm(model, X, y, K, sw=None):
     if sw is None:
@@ -85,7 +95,13 @@ def test_pairwise_kernels_precomputed():
         pairwise_kernels(X1, Y, metric="precomputed")
 
 
-@pytest.mark.parametrize("compiler", ["numba.cuda", "numba_cuda_mlir.cuda"])
+@pytest.mark.parametrize(
+    "compiler",
+    [
+        pytest.param("numba.cuda", marks=legacy_cuda_numpy_xfail),
+        "numba_cuda_mlir.cuda",
+    ],
+)
 def test_pairwise_kernels_custom(compiler):
     cuda = pytest.importorskip(compiler)
 

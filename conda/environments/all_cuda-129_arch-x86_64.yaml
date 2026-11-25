@@ -9,8 +9,9 @@ dependencies:
 - c-compiler
 - ccache
 - certifi
-- cmake>=4.0
+- cmake>=4.3,<4.5
 - cuda-bindings>=12.9.3,<13.0
+- cuda-core>=1.0.0,<2.0.0
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api
@@ -47,7 +48,6 @@ dependencies:
 - msgspec
 - nbsphinx
 - ninja
-- nltk
 - numba-cuda-mlir>=0.3.0
 - numba-cuda>=0.22.2
 - numpy>=2.0,<3.0
@@ -88,8 +88,8 @@ dependencies:
 - sphinx-llm>=1.1.0
 - sphinx-markdown-tables
 - sysroot_linux-64==2.28
-- treelite==4.*,>=4.8.1
 - treelite==4.8.1
+- treelite>=4.8.1,<5.0.0
 - umap-learn>=0.5.7,<0.5.13
 - xgboost>=3.3.0
 - pip:

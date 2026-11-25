@@ -437,18 +437,15 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
 {
   if (forest->n_features == 0) { return; }
 
-  int n_cols = forest->n_features;
+  auto n_cols = forest->n_features;
   std::vector<double> accumulated_importances(n_cols, 0.0);
 
   for (const auto& tree : forest->trees) {
+    if (tree->sparsetree.empty()) continue;
+
     std::vector<double> finite_importances(n_cols, 0.0);
     std::vector<double> infinite_importances(n_cols, 0.0);
     bool has_infinite_importance = false;
-
-    if (tree->sparsetree.empty()) continue;
-    int root_sample_count = tree->sparsetree[0].InstanceCount();
-
-    if (root_sample_count <= 0) continue;
 
     // Some criteria can produce +inf split metrics on extreme inputs. Raw
     // normalization would then divide inf by inf and return NaN importances;
@@ -456,9 +453,8 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
     // signal is which features received positive infinite contributions.
     for (const auto& node : tree->sparsetree) {
       if (!node.IsLeaf()) {
-        int feature_id = node.ColumnId();
-        double contribution =
-          static_cast<double>(node.BestMetric()) * static_cast<double>(node.InstanceCount());
+        auto feature_id   = node.ColumnId();
+        auto contribution = node.WeightedImpurityDecrease();
         if (std::isfinite(contribution)) {
           if (contribution > 0.0) { finite_importances[feature_id] += contribution; }
         } else if (std::isinf(contribution) && contribution > 0.0) {
@@ -469,28 +465,24 @@ void compute_feature_importances(const RandomForestMetaData<T, L>* forest, T* im
     }
     const auto& tree_importances =
       has_infinite_importance ? infinite_importances : finite_importances;
-    double sum = 0.0;
-    for (int i = 0; i < n_cols; i++) {
-      sum += tree_importances[i];
-    }
+    double sum =
+      std::accumulate(tree_importances.cbegin(), tree_importances.cend(), 0.0, std::plus{});
 
     if (sum > 0) {
-      for (int i = 0; i < n_cols; i++) {
+      for (decltype(n_cols) i = 0; i < n_cols; i++) {
         accumulated_importances[i] += tree_importances[i] / sum;
       }
     }
   }
 
-  double sum = 0.0;
-  for (auto i = 0; i < n_cols; i++) {
-    sum += accumulated_importances[i];
-  }
+  double sum = std::accumulate(
+    accumulated_importances.cbegin(), accumulated_importances.cend(), 0.0, std::plus{});
   if (sum > 0) {
-    for (auto i = 0; i < n_cols; i++) {
+    for (decltype(n_cols) i = 0; i < n_cols; i++) {
       importances[i] = T(accumulated_importances[i] / sum);
     }
   } else {
-    for (auto i = 0; i < n_cols; i++) {
+    for (decltype(n_cols) i = 0; i < n_cols; i++) {
       importances[i] = T(0);
     }
   }

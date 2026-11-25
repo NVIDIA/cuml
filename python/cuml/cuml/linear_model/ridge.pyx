@@ -59,6 +59,7 @@ cdef extern from "cuml/linear_model/glm.hpp" namespace "ML::GLM" nogil:
 _SOLVER_CUML_TO_SKLEARN = {
     "auto": "auto",
     "svd": "svd",
+    "cholesky": "cholesky",
     "eig": "cholesky",
     "lsmr": "lsqr",
 }
@@ -85,11 +86,16 @@ class Ridge(InteropMixin,
     fit_intercept : bool, default=True
         If True, Ridge tries to correct for the global mean of y.
         If False, the model expects that you have centered the data.
-    solver : {'auto', 'eig', 'svd', 'lsmr'}, default='auto'
+    solver : {'auto', 'cholesky', 'eig', 'svd', 'lsmr'}, default='auto'
         The solver to use when fitting:
 
         - 'auto': will select 'eig' if supported, falling back to 'lsmr' if X
           is sparse, and 'svd' otherwise.
+
+        - 'cholesky': uses a cholesky decomposition of the covariance matrix,
+          falling back to an eigendecomposition if that's singular. This is
+          typically the fastest dense solver, and is competitive for sparse
+          matrices. It doesn't support sparse ``X`` when ``fit_intercept=True``.
 
         - 'eig': uses an eigendecomposition of the covariance matrix. It is
           faster than SVD, but potentially unstable. It doesn't support
@@ -98,8 +104,9 @@ class Ridge(InteropMixin,
         - 'svd': uses an SVD decomposition. It's slower, but stable. It doesn't
           support sparse ``X``.
 
-        - 'lsmr': uses ``cupyx.scipy.sparse.linalg.lsmr``, an iterative algorithm.
-          It is typically the fastest, and supports all options.
+        - 'lsmr': uses ``cupyx.scipy.sparse.linalg.lsmr``, an iterative
+          algorithm. It is typically the fastest sparse solver, and competitive
+          for dense matrices. It supports all options.
 
     tol : float, default=1e-4
         The tolerance used by the ``lsmr`` solver. Has no impact on other solvers.
@@ -185,6 +192,8 @@ class Ridge(InteropMixin,
 
         if model.solver == "svd":
             solver = "svd"
+        elif model.solver == "cholesky":
+            solver = "cholesky"
         elif model.solver == "lsqr":
             solver = "lsmr"
         elif model.solver == "lbfgs":
@@ -216,7 +225,11 @@ class Ridge(InteropMixin,
         }
 
     def _attrs_from_cpu(self, model):
-        solver = {"svd": "svd", "lsqr": "lsmr"}.get(model.solver_, "eig")
+        solver = {
+            "svd": "svd",
+            "cholesky": "cholesky",
+            "lsqr": "lsmr",
+        }.get(model.solver_, "eig")
         return {
             "intercept_": (
                 model.intercept_
@@ -402,7 +415,7 @@ class Ridge(InteropMixin,
                 )
 
         # Validate and select solver
-        _SUPPORTED_SOLVERS = ["auto", "eig", "svd", "lsmr"]
+        _SUPPORTED_SOLVERS = ["auto", "cholesky", "eig", "svd", "lsmr"]
         if (solver := self.solver) not in _SUPPORTED_SOLVERS:
             raise ValueError(
                 f"Expected `solver` to be one of {_SUPPORTED_SOLVERS}, got {solver!r}"
@@ -427,11 +440,18 @@ class Ridge(InteropMixin,
             else:
                 solver = "eig"
 
-        if sp.issparse(X) and solver != "lsmr":
-            raise ValueError(
-                f"solver={solver!r} doesn't support sparse X, please select "
-                "solver='lsmr' or solver='auto' instead"
-            )
+        if sp.issparse(X):
+            if solver not in ("lsmr", "cholesky"):
+                raise ValueError(
+                    f"{solver=!r} doesn't support sparse X, please select "
+                    "'auto', 'lsmr', or 'cholesky' instead"
+                )
+            elif solver == "cholesky" and self.fit_intercept:
+                raise ValueError(
+                    "solver='cholesky' does not support fitting the intercept "
+                    "on sparse data. Please select 'auto' or 'lsmr', or set "
+                    "`fit_intercept=False`"
+                )
 
         # Perform fit
         if solver == "eig":
