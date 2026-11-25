@@ -30,6 +30,10 @@ CMakeLists.txt @NVIDIA/cuml-cmake-codeowners
 /.yamllint.yaml          @NVIDIA/adi-ci-codeowners
 /ci/                     @NVIDIA/adi-ci-codeowners
 
+# Developer workflow shortcuts and their tests.
+/justfile                    @NVIDIA/cuml-python-codeowners
+/ci/tests/test_justfile.py    @NVIDIA/cuml-python-codeowners
+
 #packaging code owners
 /.pre-commit-config.yaml @NVIDIA/adi-packaging-codeowners
 /.devcontainer/          @NVIDIA/adi-packaging-codeowners
