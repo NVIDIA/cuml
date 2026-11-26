@@ -817,7 +817,7 @@ class KernelCache {
   {
     int n = n_rows;
     raft::linalg::unaryOp(
-      vec_idx, ws_idx, n_ws, [n] __device__(math_t y) { return y < n ? y : y - n; }, stream);
+      vec_idx, ws_idx, n_ws, [n] __device__(int idx) { return idx < n ? idx : idx - n; }, stream);
   }
 
  private:

@@ -11,7 +11,7 @@
 
 #include "kernelcache.cuh"
 #include "smosolver.cuh"
-#include "svc_impl.cuh"
+#include "svm_input.cuh"
 
 #include <cuml/matrix/kernel_params.hpp>
 #include <cuml/svm/svm_model.h>
@@ -93,8 +93,7 @@ int svrFit(const raft::handle_t& handle,
            SvmModel<math_t>& model,
            const math_t* sample_weight)
 {
-  auto dense_view = raft::make_device_strided_matrix_view<math_t, int, raft::layout_f_contiguous>(
-    X, n_rows, n_cols, 0);
+  auto dense_view = makeDenseSvmInputView(X, n_rows, n_cols, kernel_params.kernel);
   return svrFitX(handle, dense_view, n_rows, n_cols, y, param, kernel_params, model, sample_weight);
 }
 
