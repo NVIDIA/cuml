@@ -12,6 +12,7 @@
 
 #include "kernelcache.cuh"
 #include "smosolver.cuh"
+#include "svm_input.cuh"
 
 #include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/matrix/kernel_params.hpp>
@@ -196,8 +197,7 @@ int svcFit(const raft::handle_t& handle,
            SvmModel<math_t>& model,
            const math_t* sample_weight)
 {
-  auto dense_view = raft::make_device_strided_matrix_view<math_t, int, raft::layout_f_contiguous>(
-    input, n_rows, n_cols, 0);
+  auto dense_view = makeDenseSvmInputView(input, n_rows, n_cols, kernel_params.kernel);
   return svcFitX(
     handle, dense_view, n_rows, n_cols, labels, param, kernel_params, model, sample_weight);
 }
@@ -443,8 +443,7 @@ void svcPredict(const raft::handle_t& handle,
                 math_t buffer_size,
                 bool predict_class)
 {
-  auto dense_view = raft::make_device_strided_matrix_view<math_t, int, raft::layout_f_contiguous>(
-    input, n_rows, n_cols, 0);
+  auto dense_view = makeDenseSvmInputView(input, n_rows, n_cols, kernel_params.kernel);
   svcPredictX(
     handle, dense_view, n_rows, n_cols, kernel_params, model, preds, buffer_size, predict_class);
 }
