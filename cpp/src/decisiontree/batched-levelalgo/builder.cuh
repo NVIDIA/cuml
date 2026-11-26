@@ -7,13 +7,15 @@
 
 #include "dataset.h"  // for Dataset
 #include "kernels/builder_kernels.cuh"
+#include "quantiles.h"  // for Quantiles
+#include "split.cuh"    // for Split
 
 #include <common/Timer.h>
 
 #include <cuml/common/checked_arithmetic.hpp>
 #include <cuml/common/pinned_host_vector.hpp>
 #include <cuml/tree/decisiontree.hpp>
-#include <cuml/tree/flatnode.h>
+#include <cuml/tree/flatnode.h>  // for SparseTreeNode
 
 #include <raft/core/handle.hpp>
 #include <raft/core/nvtx.hpp>
@@ -152,7 +154,7 @@ class NodeQueue {
       // parent
       tree->sparsetree.at(item.idx) = NodeT::CreateSplitNode(split.colid,
                                                              split.quesval,
-                                                             split.best_metric_val,
+                                                             split.weighted_impurity_decrease,
                                                              int64_t(tree->sparsetree.size()),
                                                              parent_count);
       tree->leaf_counter++;

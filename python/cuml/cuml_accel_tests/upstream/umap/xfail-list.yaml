@@ -12,17 +12,11 @@
   - "umap.tests.test_umap_ops::test_disconnected_data[False-hellinger-5]"
   - "umap.tests.test_umap_ops::test_disconnected_data[True-hellinger-1]"
   - "umap.tests.test_umap_ops::test_disconnected_data[True-hellinger-5]"
-  - "umap.tests.test_umap_ops::test_umap_graph_layout"
   - "umap.tests.test_umap_ops::test_umap_update"
   - "umap.tests.test_umap_ops::test_umap_update_large"
   - "umap.tests.test_umap_repeated_data::test_repeated_points_large_n"
   - "umap.tests.test_umap_validation_params::test_umap_bad_hellinger_data"
-  - "umap.tests.test_umap_validation_params::test_umap_bad_metrics"
   - "umap.tests.test_umap_validation_params::test_umap_bad_n_components"
-  - "umap.tests.test_umap_validation_params::test_umap_bad_n_jobs"
-  - "umap.tests.test_umap_validation_params::test_umap_bad_output_metric"
-  - "umap.tests.test_umap_validation_params::test_umap_bad_output_metric_no_grad"
-  - "umap.tests.test_umap_validation_params::test_umap_haversine_embed_to_highd"
   - "umap.tests.test_umap_validation_params::test_umap_negative_learning_rate"
   - "umap.tests.test_umap_validation_params::test_umap_negative_min_dist"
   - "umap.tests.test_umap_validation_params::test_umap_negative_n_epochs"
@@ -33,6 +27,11 @@
   - "umap.tests.test_umap_validation_params::test_umap_non_integer_n_components"
   - "umap.tests.test_umap_validation_params::test_umap_too_large_op"
   - "umap.tests.test_umap_validation_params::test_umap_too_many_neighbors_warns"
+- reason: Test requires bit-identical transforms between CPU fallback for list n_epochs and GPU execution for integer n_epochs
+  marker: cuml_accel_cross_backend_equality
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_on_iris::test_umap_transforms_with_n_epochs_list_on_iris[True]"
 - reason: Tests are flaky
   marker: cuml_accel_flaky
   strict: false
@@ -40,6 +39,52 @@
   - "umap.tests.test_umap_on_iris::test_precomputed_sparse_transform_on_iris"
   - "umap.tests.test_umap_on_iris::test_precomputed_transform_on_iris"
   - "umap.tests.test_umap_ops::test_umap_transform_embedding_stability"
+- reason: GPU fitting intentionally does not validate UMAP options inactive in the legacy pipeline
+  marker: cuml_accel_inactive_option_validation
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[1]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[3.0]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[3]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[5]"
+  - "umap.tests.test_umap_validation_params::test_umap_bad_recursive_coarsening_ratio[True]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[-1.0]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[0.0]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[1]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[True]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[inf]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_bad_initialization_scale_factor[nan]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_non_boolean_coarsen_on_layout_weights"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_coarse_layout_weights"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_initialization_rescaling[1]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_initialization_rescaling[None]"
+  - "umap.tests.test_umap_validation_params::test_umap_rejects_unknown_initialization_rescaling[unknown]"
+- reason: Legacy pickle test inspects private layout state; update also requires a CPU neighbor-search index unavailable after GPU conversion
+  marker: cuml_accel_legacy_pickle_update
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_layout_policy::test_models_pickled_before_0_6_still_transform_and_update"
+- reason: cuml.accel UMAP proxies do not implement model-combination operators (*, +, -)
+  marker: cuml_accel_model_combination
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_composite_models::test_composite_densmap_models[add]"
+  - "umap.tests.test_composite_models::test_composite_densmap_models[mul]"
+  - "umap.tests.test_composite_models::test_composite_densmap_models[sub]"
+- reason: Mutating embedding_ switches to CPU, but the GPU-converted model has no neighbor-search index for transforming new data
+  marker: cuml_accel_mutated_embedding_transform
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_on_iris::test_umap_compatibility_transform_on_iris_modified_dtype"
+- reason: GPU fitting does not validate n_jobs because it does not control GPU execution
+  marker: cuml_accel_n_jobs_validation
+  tests:
+  - "umap.tests.test_umap_validation_params::test_umap_bad_n_jobs"
+- reason: Test also checks invalid n_jobs, which does not control GPU execution and is not validated
+  marker: cuml_accel_n_jobs_validation
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_validation_params::test_umap_bad_nearest_neighbor_backend"
 - reason: UMAP using removed numpy function `in1d`
   marker: cuml_accel_no_numpy_in1d
   condition: umap-learn<=0.5.7 and numpy>=2.4
@@ -47,11 +92,55 @@
   - "umap.tests.test_aligned_umap::test_aligned_update"
   - "umap.tests.test_aligned_umap::test_aligned_update_params"
   - "umap.tests.test_aligned_umap::test_neighbor_local_neighbor_accuracy"
+- reason: Test modifies private upstream hash state and requires transform output object identity
+  marker: cuml_accel_private_hash_state
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_ops::test_transform_supports_legacy_joblib_input_hash"
+- reason: Test accesses private _raw_data to check output shape; warning, finite output, and GPU dispatch are covered by accel tests
+  marker: cuml_accel_private_inverse_state
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_inverse_transform::test_inverse_transform_outside_hull_uses_finite_extrapolation"
+- reason: Tests inspect private layout state that cuml.accel does not expose
+  marker: cuml_accel_private_layout_state
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_layout_policy::test_default_uses_legacy_pipeline_with_future_warning"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs0-expected0]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs1-expected1]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs2-expected2]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs3-expected3]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs4-expected4]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs5-expected5]"
+  - "umap.tests.test_layout_policy::test_explicit_choices_resolve_without_future_warning[kwargs6-expected6]"
+  - "umap.tests.test_layout_policy::test_unfitted_legacy_pickle_resolves_on_fit"
+- reason: Test inspects private _knn_search_index that cuml.accel does not expose; precomputed distances use CPU fallback
+  marker: cuml_accel_private_neighbor_index
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_on_iris::test_precomputed_transform_on_iris_force_approx"
+- reason: Test accesses private _sigmas that cuml.accel does not expose; explicit disconnection_distance uses CPU fallback
+  marker: cuml_accel_private_sigmas
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_ops::test_disconnection_distance_keeps_sigma_finite"
 - reason: Test fails with newer sklearn
   marker: cuml_accel_sklearn_pin
   condition: umap-learn<=0.5.8 and scikit-learn>=1.6
   tests:
   - "umap.tests.test_umap_validation_params::test_umap_custom_distance_w_grad"
+- reason: Transform cache test requires Python object identity across device/host conversion
+  marker: cuml_accel_transform_cache_identity
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_ops::test_transform_cache_uses_equal_input_copy_and_detects_mutation"
+- reason: CPU update requires a neighbor-search index unavailable after GPU model conversion
+  marker: cuml_accel_update_missing_search_index
+  condition: umap-learn>=0.6.0
+  tests:
+  - "umap.tests.test_umap_ops::test_umap_update_init_uses_graph_neighbors_with_ties"
+  - "umap.tests.test_umap_ops::test_umap_update_new_points_without_original_neighbors"
 - reason: Test fails with old scikit-learn OR old scipy, and doesn't test our umap anyway
   strict: false
   tests:

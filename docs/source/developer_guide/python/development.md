@@ -138,7 +138,7 @@ def function_name(param1, param2):
 For more details, refer to the [NumPy docstring style guide](https://numpydoc.readthedocs.io/en/stable/format.html).
 
 ## Testing and Unit Testing
-We use [pytest](https://docs.pytest.org/en/latest/) for writing and running tests. To see existing examples, refer to any of the `test_*.py` files in the folder `cuml/tests`.
+We use [pytest](https://docs.pytest.org/en/latest/) for writing and running tests. To see existing examples, refer to any of the `test_*.py` files in `python/cuml/tests`.
 
 ### Test Organization
 - Keep all tests for a single estimator in one file, with exceptions for:
@@ -235,24 +235,46 @@ Control via these pytest options:
    - Document test assumptions and requirements
 
 ### Running Tests
-Build from the repository root. Run Python tests from `python/cuml/` or one of its subdirectories so pytest picks up the package configuration.
+Use a prepared environment with a compatible cuML build. Run the commands below
+from the repository root; `python -m pytest` runs the standard single-GPU test
+suite.
 
 ```bash
-# From the repository root
-./build.sh
-
-# Then run Python tests
-cd python/cuml
-python -m pytest  # Run all configured Python tests
+python -m pytest                                   # standard single-GPU test suite
+python -m pytest python/cuml/tests/test_kmeans.py  # specific test file
+python -m pytest python/cuml/dask_tests            # Dask (TCP)
+python -m pytest python/cuml/dask_tests --run_ucx  # Dask (UCXX)
+python -m pytest python/cuml/cuml_accel_tests      # Accel
 ```
 
-Common options:
-- `python -m pytest cuml/tests/test_kmeans.py` - Run a specific file
-- `python -m pytest -k "test_kmeans"` - Run tests matching a pattern
-- `python -m pytest --run_unit` - Run only unit tests
-- `python -m pytest -v` - Verbose output
+The standard suite runs unit tests by default. Use `--run_quality` for more
+computationally intensive tests or `--run_stress` for the largest workloads.
+Add `--run_unit` to include unit tests alongside either selection.
 
-Running pytest from outside `python/cuml/` can result in import errors or missed pytest configuration.
+Upstream accel tests require their explicit config, plugin, and xfail options;
+see the [upstream testing guide](https://github.com/NVIDIA/cuml/blob/main/python/cuml/cuml_accel_tests/upstream/README.md).
+
+#### Optional `just` shortcuts
+
+With [`just`](https://just.systems/) 1.55.0 or newer on `PATH`:
+
+```bash
+just                            # List recipes
+just test -k 'pca or kmeans'    # python -m pytest with unchanged arguments
+just test-accel                 # cuML accel suite
+just test-accel-sklearn -k pca  # Upstream scikit-learn with cuml.accel
+just test-dask                  # Dask suite
+just test-cudf-pandas           # Standard suite with -p cudf.pandas
+just build libcuml cuml --ccache
+```
+
+Recipes use the current prepared environment, run from the repository root,
+and forward arguments unchanged. Relative test and report paths are
+repository-relative. Suite recipes combine their predefined targets with any
+supplied targets. `test-accel-sklearn` also supplies the upstream config and
+official xfail list and requires scikit-learn's test dependencies.
+
+`just build` forwards targets and flags directly to the checkout's `build.sh`.
 
 ## Python-defined kernels
 

@@ -28,3 +28,8 @@ rapids-github-fetch rapidsai/rapids-cmake cmake-format-rapids-cmake.json "${RAPI
 
 # Run pre-commit checks
 pre-commit run --all-files --show-diff-on-failure
+
+rapids-logger "Run justfile smoke tests"
+just --version
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+  python -m pytest -c /dev/null ci/tests/test_justfile.py -q

@@ -11,8 +11,9 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..suite import ResolvedCase, Suite
+    from ..suite import Suite
 
+from .base import InputRepresentation
 from .cuml import CumlBackend
 
 
@@ -31,48 +32,25 @@ class DaskBackend(CumlBackend):
     """Provide distributed inputs, estimators, and a multi-GPU runtime."""
 
     def convert_data(
-        self, case: ResolvedCase, X: Any, y: Any
-    ) -> tuple[Any, Any]:
-        """Convert generated inputs to partitioned Dask collections.
-
-        Parameters
-        ----------
-        case : ResolvedCase
-            Case defining the dataset shape and representation.
-        X : Any
-            Complete generated feature data.
-        y : Any
-            Complete generated target data.
-        """
-        # Distributed DBSCAN broadcasts a complete local array itself; it
-        # does not accept partitioned Dask collections.
-        if case.estimator == "DBSCAN":
-            return X, y
+        self,
+        value: Any,
+        *,
+        representation: InputRepresentation,
+    ) -> Any:
+        """Convert one structural representation to distributed device storage."""
+        if representation != "array":
+            host = super().convert_data(value, representation=representation)
+            local = importlib.import_module("cudf").from_pandas(host)
+            return importlib.import_module("dask_cudf").from_cudf(
+                local, npartitions=2
+            )
         da = importlib.import_module("dask.array")
         cp = importlib.import_module("cupy")
-        # TODO: Split training and inference data before backend conversion,
-        # then partition and distribute each using the runtime worker count.
-        # Fixed two-way chunking leaves every built-in inference input in one
-        # partition, so partition-parallel predictions use only one worker.
-        # Training also underutilizes clusters with more than two workers.
-        chunks = (max(1, case.generated_rows // 2), case.features)
-        if case.dataset == "categorical":
-            cudf = importlib.import_module("cudf")
-            dask_cudf = importlib.import_module("dask_cudf")
-            X = dask_cudf.from_cudf(cudf.from_pandas(X), npartitions=2)
-        else:
-            X = da.from_array(X, chunks=chunks).map_blocks(
-                cp.asarray, meta=cp.empty((0, 0), dtype=X.dtype)
-            )
-        if case.estimator == "LabelEncoder":
-            cudf = importlib.import_module("cudf")
-            dask_cudf = importlib.import_module("dask_cudf")
-            y = dask_cudf.from_cudf(cudf.Series(y), npartitions=2)
-        else:
-            y = da.from_array(y, chunks=(chunks[0],)).map_blocks(
-                cp.asarray, meta=cp.empty((0,), dtype=y.dtype)
-            )
-        return X, y
+        # TODO: Use the runtime worker count instead of fixed two-way chunking.
+        chunks = (max(1, value.shape[0] // 2), *value.shape[1:])
+        return da.from_array(value, chunks=chunks).map_blocks(
+            cp.asarray, meta=cp.empty((0,) * value.ndim, dtype=value.dtype)
+        )
 
     def prepare_inputs(
         self, inputs: tuple[Any, ...], runtime: Any = None

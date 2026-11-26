@@ -1380,75 +1380,73 @@ def test_ensemble_estimator_length():
     assert len(clf) == 3
 
 
-def test_rf_feature_importance_classifier():
-    """Test feature importance for Random Forest Classifier.
-
-    With shuffle=False, the first n_informative features are guaranteed to be
-    informative, and the rest are noise. A correctly working Random Forest should
-    always rank the informative features highest.
-    """
-    X, y = make_classification(
+@pytest.mark.parametrize(
+    "estimator,make_data,data_params,target_dtype",
+    [
+        pytest.param(
+            curfc,
+            make_classification,
+            {"n_redundant": 0, "n_repeated": 0, "n_classes": 2},
+            np.int32,
+            id="classifier",
+        ),
+        pytest.param(
+            curfr, make_regression, {"noise": 0.1}, np.float32, id="regressor"
+        ),
+    ],
+)
+def test_rf_feature_importance(
+    estimator, make_data, data_params, target_dtype
+):
+    # Without shuffling, the three informative features are columns 0, 1, 2.
+    X, y = make_data(
         n_samples=1000,
         n_features=10,
         n_informative=3,
-        n_redundant=0,
-        n_repeated=0,
-        n_classes=2,
         shuffle=False,
         random_state=42,
+        **data_params,
     )
-    X = X.astype(np.float32)
-    y = y.astype(np.int32)
+    model = estimator(n_estimators=50, max_depth=8, random_state=42)
+    model.fit(X.astype(np.float32), y.astype(target_dtype))
+    importances = model.feature_importances_
 
-    cu_clf = curfc(n_estimators=50, max_depth=8, random_state=42)
-    cu_clf.fit(X, y)
+    assert importances.shape == (X.shape[1],)
+    assert np.all(importances >= 0)
+    assert abs(importances.sum() - 1.0) < 1e-5
+    assert set(np.argsort(importances)[-3:]) == {0, 1, 2}
 
-    assert hasattr(cu_clf, "feature_importances_")
-    cu_importances = cu_clf.feature_importances_
 
-    assert len(cu_importances) == X.shape[1]
-    assert np.all(cu_importances >= 0)
-    assert np.abs(np.sum(cu_importances) - 1.0) < 1e-5  # Should sum to 1
-
-    top_features = set(np.argsort(cu_importances)[-3:])
-    assert top_features == {0, 1, 2}, (
-        f"Top 3 features {top_features} should be {{0, 1, 2}}. "
-        f"Importances: {cu_importances}"
+@pytest.mark.parametrize(
+    "cu_estimator,sk_estimator,criterion,y",
+    [
+        (curfr, skrfr, "mse", np.array([0, 1, 4, 8], dtype=np.float32)),
+        (curfc, skrfc, "gini", np.array([0, 0, 1, 2], dtype=np.int32)),
+        (curfc, skrfc, "entropy", np.array([0, 0, 1, 2], dtype=np.int32)),
+    ],
+    ids=["regression-mse", "classification-gini", "classification-entropy"],
+)
+def test_rf_feature_importance_weighted(
+    cu_estimator, sk_estimator, criterion, y
+):
+    # x0 is the unique best root split; x1 separates the two right-hand rows.
+    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
+    weights = np.array([9, 1, 1, 1], dtype=np.float64)
+    cu_model = cu_estimator(
+        n_estimators=1,
+        bootstrap=False,
+        max_depth=2,
+        max_features=1.0,
+        split_criterion=criterion,
+        n_bins=4,
+        n_streams=1,
     )
+    sk_model = sk_estimator(**_sklearn_fit_params(cu_model))
+    cu_model.fit(X, y, sample_weight=weights)
+    sk_model.fit(X, y, sample_weight=weights)
 
-
-def test_rf_feature_importance_regressor():
-    """Test feature importance for Random Forest Regressor.
-
-    With shuffle=False, the first n_informative features are guaranteed to be
-    informative, and the rest are noise. A correctly working Random Forest should
-    always rank the informative features highest.
-    """
-    X, y = make_regression(
-        n_samples=1000,
-        n_features=10,
-        n_informative=3,
-        noise=0.1,
-        shuffle=False,  # First 3 features are informative, rest are noise
-        random_state=42,
-    )
-    X = X.astype(np.float32)
-    y = y.astype(np.float32)
-
-    cu_reg = curfr(n_estimators=50, max_depth=8, random_state=42)
-    cu_reg.fit(X, y)
-
-    assert hasattr(cu_reg, "feature_importances_")
-    cu_importances = cu_reg.feature_importances_
-
-    assert len(cu_importances) == X.shape[1]
-    assert np.all(cu_importances >= 0)
-    assert np.abs(np.sum(cu_importances) - 1.0) < 1e-5  # Should sum to 1
-
-    top_features = set(np.argsort(cu_importances)[-3:])
-    assert top_features == {0, 1, 2}, (
-        f"Top 3 features {top_features} should be {{0, 1, 2}}. "
-        f"Importances: {cu_importances}"
+    np.testing.assert_allclose(
+        cu_model.feature_importances_, sk_model.feature_importances_, rtol=1e-6
     )
 
 

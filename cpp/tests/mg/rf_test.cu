@@ -116,8 +116,9 @@ void expect_forests_equal(RandomForestMetaData<T, L> const& distributed_forest,
       EXPECT_EQ(distributed_node.ColumnId(), single_node_node.ColumnId());
       expect_floating_values_equal(
         distributed_node.QueryValue(), single_node_node.QueryValue(), "split threshold");
-      expect_floating_values_equal(
-        distributed_node.BestMetric(), single_node_node.BestMetric(), "split metric");
+      expect_floating_values_equal<T>(distributed_node.WeightedImpurityDecrease(),
+                                      single_node_node.WeightedImpurityDecrease(),
+                                      "weighted impurity decrease");
       EXPECT_EQ(distributed_node.LeftChildId(), single_node_node.LeftChildId());
       EXPECT_EQ(distributed_node.InstanceCount(), single_node_node.InstanceCount());
       EXPECT_EQ(distributed_node.IsLeaf(), single_node_node.IsLeaf());
@@ -201,7 +202,9 @@ void expect_tree_limits(RandomForestMetaData<T, L> const& forest, RfMgTestParams
     EXPECT_LE(tree->depth_counter, params.max_depth);
     if (params.max_leaves > 0) { EXPECT_LE(tree->leaf_counter, params.max_leaves); }
     for (auto const& node : tree->sparsetree) {
-      if (!node.IsLeaf()) { EXPECT_GT(node.BestMetric(), params.min_impurity_decrease); }
+      if (!node.IsLeaf()) {
+        EXPECT_GT(node.WeightedImpurityDecrease(), params.min_impurity_decrease);
+      }
     }
   }
 }

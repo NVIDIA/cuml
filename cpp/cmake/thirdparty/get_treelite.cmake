@@ -16,6 +16,9 @@ function(find_and_configure_treelite)
       list(APPEND TREELITE_LIBS treelite::treelite)
     else()
       list(APPEND TREELITE_LIBS treelite::treelite_static)
+      message(STATUS
+        "Downloading Treelite to use Treelite static lib")
+      set(CPM_DOWNLOAD_Treelite ON)
     endif()
 
     rapids_cpm_find(Treelite ${PKG_VERSION}
