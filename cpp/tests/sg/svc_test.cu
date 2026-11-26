@@ -643,10 +643,54 @@ class SmoUpdateTest : public ::testing::Test {
   {
     SvmParameter param = getDefaultSvmParameter();
     SmoSolver<float> smo(handle, param, cuvs::distance::kernels::LINEAR, nullptr);
-    smo.UpdateF(f_dev.data(), n_rows, delta_alpha_dev.data(), n_ws, kernel_dev.data());
+    smo.UpdateF(f_dev.data(), n_rows, 0, n_rows, delta_alpha_dev.data(), n_ws, kernel_dev.data());
 
     float f_host_expected[] = {0.1f, 7.4505806e-9f, 0.3f, 0.2f, 0.5f, 0.4f};
-    devArrMatchHost(f_host_expected, f_dev.data(), n_rows, MLCommon::CompareApprox<math_t>(1e-6));
+    EXPECT_TRUE(devArrMatchHost(
+      f_host_expected, f_dev.data(), n_rows, MLCommon::CompareApprox<math_t>(1e-6), stream));
+  }
+
+  // For EPSILON_SVR, f has 2 * n_rows elements: f[i] and f[n_rows + i] both belong to
+  // training vector i. When the kernel tile does not fit into the kernel cache's tile byte
+  // limit, SmoSolver::Solve calls UpdateF once per batch of rows. Process the tile in two
+  // batches here and check that both halves of f get the same update as the unbatched case.
+  void RunSvrBatchedTest()
+  {
+    SvmParameter param = getDefaultSvmParameter();
+    param.svmType      = EPSILON_SVR;
+    SmoSolver<math_t> smo(handle, param, cuvs::distance::kernels::LINEAR, nullptr);
+
+    rmm::device_uvector<math_t> f_svr(2 * n_rows, stream);
+    RAFT_CUDA_TRY(cudaMemsetAsync(f_svr.data(), 0, f_svr.size() * sizeof(math_t), stream));
+    std::vector<math_t> delta_alpha_h(delta_alpha_host, delta_alpha_host + n_ws);
+    rmm::device_uvector<math_t> delta_alpha(n_ws, stream);
+    raft::update_device(delta_alpha.data(), delta_alpha_h.data(), n_ws, stream);
+
+    const int batch_offset[] = {0, 4};
+    const int batch_size[]   = {4, 2};
+    for (int b = 0; b < 2; b++) {
+      // Column-major [batch_size, n_ws] tile holding rows [offset, offset + batch_size)
+      std::vector<math_t> tile_host(batch_size[b] * n_ws);
+      for (int k = 0; k < n_ws; k++) {
+        for (int i = 0; i < batch_size[b]; i++) {
+          tile_host[k * batch_size[b] + i] = kernel_host[k * n_rows + batch_offset[b] + i];
+        }
+      }
+      rmm::device_uvector<math_t> tile_dev(tile_host.size(), stream);
+      raft::update_device(tile_dev.data(), tile_host.data(), tile_host.size(), stream);
+      smo.UpdateF(f_svr.data(),
+                  n_rows,
+                  batch_offset[b],
+                  batch_size[b],
+                  delta_alpha.data(),
+                  n_ws,
+                  tile_dev.data());
+    }
+
+    math_t f_host_expected[] = {
+      0.1f, 7.4505806e-9f, 0.3f, 0.2f, 0.5f, 0.4f, 0.1f, 7.4505806e-9f, 0.3f, 0.2f, 0.5f, 0.4f};
+    EXPECT_TRUE(devArrMatchHost(
+      f_host_expected, f_svr.data(), 2 * n_rows, MLCommon::CompareApprox<math_t>(1e-6), stream));
   }
 
   raft::handle_t handle;
@@ -663,6 +707,7 @@ class SmoUpdateTest : public ::testing::Test {
 
 TYPED_TEST_CASE(SmoUpdateTest, FloatTypes);
 TYPED_TEST(SmoUpdateTest, Update) { this->RunTest(); }
+TYPED_TEST(SmoUpdateTest, SvrBatchedUpdate) { this->RunSvrBatchedTest(); }
 
 template <typename math_t>
 class SmoBlockSolverTest : public ::testing::Test {

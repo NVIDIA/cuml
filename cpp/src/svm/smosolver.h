@@ -129,21 +129,33 @@ class SmoSolver {
              int max_inner_iter = 10000);
 
   /**
-   * @brief Update the f vector after a block solve step.
+   * @brief Update the f vector for one batch of rows after a block solve step.
    *
    * \f[ f_i = f_i + \sum_{k\in WS} K_{i,k} * \Delta \alpha_k, \f]
-   * where i = [0..n_train-1], WS is the set of workspace indices,
-   * and \f$K_{i,k}\f$ is the kernel function evaluated for training vector x_i and workspace vector
-   * x_k.
+   * for i = [offset..offset+batch_size-1], where WS is the set of workspace
+   * indices, and \f$K_{i,k}\f$ is the kernel function evaluated for training
+   * vector x_i and workspace vector x_k.
    *
-   * @param f size [n_train]
-   * @param n_rows
+   * For EPSILON_SVR every training vector appears twice, so f has 2 * n_rows
+   * elements, and the same kernel rows also update
+   * f[n_rows + offset..n_rows + offset+batch_size-1].
+   *
+   * @param f size [n_train], not offset by the batch
+   * @param n_rows number of training rows (n_train / 2 for SVR)
+   * @param offset index of the first row of this batch
+   * @param batch_size number of rows in this batch
    * @param delta_alpha size [n_ws]
    * @param n_ws
-   * @param cacheTile kernel function evaluated for the following set K[X,x_ws],
-   *   size [n_rows, n_ws]
+   * @param cacheTile kernel function evaluated for the following set
+   *   K[X[offset..offset+batch_size-1], x_ws], size [batch_size, n_ws]
    */
-  void UpdateF(math_t* f, int n_rows, const math_t* delta_alpha, int n_ws, const math_t* cacheTile);
+  void UpdateF(math_t* f,
+               int n_rows,
+               int offset,
+               int batch_size,
+               const math_t* delta_alpha,
+               int n_ws,
+               const math_t* cacheTile);
 
   /** @brief Initialize the problem to solve.
    *

@@ -193,7 +193,9 @@ void SmoSolver<math_t>::Solve(MatrixViewType matrix,
         raft::common::nvtx::pop_range();
         raft::common::nvtx::push_range("SmoSolver::UpdateF::updateBatch");
         // do (partial) update
-        UpdateF(f.data() + batch_descriptor.offset,
+        UpdateF(f.data(),
+                n_rows,
+                batch_descriptor.offset,
                 batch_descriptor.batch_size,
                 nz_da.data(),
                 nnz_da,
@@ -248,55 +250,53 @@ void SmoSolver<math_t>::Solve(MatrixViewType matrix,
 }
 
 /**
- * @brief Update the f vector after a block solve step.
+ * @brief Update the f vector for one batch of rows after a block solve step.
  *
- * \f[ f_i = f_i + \sum_{k\in WS} K_{i,k} * \Delta \alpha_k, \f]
- * where i = [0..n_train-1], WS is the set of workspace indices,
- * and \f$K_{i,k}\f$ is the kernel function evaluated for training vector x_i and workspace vector
- * x_k.
- *
- * @param f size [n_train]
- * @param n_rows
- * @param delta_alpha size [n_ws]
- * @param n_ws
- * @param cacheTile kernel function evaluated for the following set K[X,x_ws],
- *   size [n_rows, n_ws]
+ * See the declaration in smosolver.h for the parameter descriptions.
  */
 template <typename math_t>
-void SmoSolver<math_t>::UpdateF(
-  math_t* f, int n_rows, const math_t* delta_alpha, int n_ws, const math_t* cacheTile)
+void SmoSolver<math_t>::UpdateF(math_t* f,
+                                int n_rows,
+                                int offset,
+                                int batch_size,
+                                const math_t* delta_alpha,
+                                int n_ws,
+                                const math_t* cacheTile)
 {
   // multipliers used in the equation : f = 1*cachtile * delta_alpha + 1*f
   math_t one = 1;
   // #TODO: Call from public API when ready
   RAFT_CUBLAS_TRY(raft::linalg::detail::cublasgemv(handle.get_cublas_handle(),
                                                    CUBLAS_OP_N,
-                                                   n_rows,
+                                                   batch_size,
                                                    n_ws,
                                                    &one,
                                                    cacheTile,
-                                                   n_rows,
+                                                   batch_size,
                                                    delta_alpha,
                                                    1,
                                                    &one,
-                                                   f,
+                                                   f + offset,
                                                    1,
                                                    stream));
   if (svmType == EPSILON_SVR) {
-    // SVR has doubled the number of training vectors and we need to update
-    // alpha for both batches individually
+    // SVR has doubled the number of training vectors: f[i] and f[n_rows + i]
+    // both belong to training vector i, so the same kernel rows update both
+    // halves. The second half of this batch therefore starts at
+    // n_rows + offset, where n_rows is the full training row count (not the
+    // batch size).
     // #TODO: Call from public API when ready
     RAFT_CUBLAS_TRY(raft::linalg::detail::cublasgemv(handle.get_cublas_handle(),
                                                      CUBLAS_OP_N,
-                                                     n_rows,
+                                                     batch_size,
                                                      n_ws,
                                                      &one,
                                                      cacheTile,
-                                                     n_rows,
+                                                     batch_size,
                                                      delta_alpha,
                                                      1,
                                                      &one,
-                                                     f + n_rows,
+                                                     f + n_rows + offset,
                                                      1,
                                                      stream));
   }
