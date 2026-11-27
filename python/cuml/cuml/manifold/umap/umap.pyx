@@ -5,6 +5,8 @@
 import ctypes
 import warnings
 from collections import deque
+from functools import cache
+from importlib.metadata import version
 
 import cupy as cp
 import cupyx.scipy.sparse
@@ -12,6 +14,7 @@ import joblib
 import numpy as np
 import scipy.sparse
 import scipy.spatial
+from packaging.version import Version
 from sklearn.base import ClassNamePrefixFeaturesOutMixin
 
 from cuml.common.doc_utils import generate_docstring
@@ -46,6 +49,12 @@ cimport cuml.manifold.umap.lib as lib
 from cuml.metrics.distance_type cimport DistanceType
 
 
+@cache
+def umap_060():
+    """Whether the installed umap-learn supports the 0.6 API."""
+    return Version(version("umap-learn")) >= Version("0.6.0")
+
+
 def _joblib_hash(X):
     """A thin shim around joblib.hash"""
     if cupyx.scipy.sparse.issparse(X) or isinstance(X, cp.ndarray):
@@ -58,6 +67,19 @@ def _joblib_hash(X):
         # has no measurable impact on performance.
         X.has_sorted_indices
     return joblib.hash(X)
+
+
+def _hash_input(X, algorithm):
+    """Hash input using the scheme recorded at fit time."""
+    if algorithm is None:
+        return _joblib_hash(X)
+    if cupyx.scipy.sparse.issparse(X) or isinstance(X, cp.ndarray):
+        X = X.get()
+    from umap.umap_ import _INPUT_HASH_ALGORITHM, _input_data_hash
+
+    if algorithm != _INPUT_HASH_ALGORITHM:
+        raise UnsupportedOnGPU(f"Unsupported UMAP input hash algorithm: {algorithm!r}")
+    return _input_data_hash(X, n_jobs=1)
 
 
 def find_ab_params(spread=1.0, min_dist=0.1):
@@ -180,6 +202,12 @@ def _compute_inverse_neighborhoods(embedding_np, X_np, min_vertices):
             axis=2,
         )
         start_vertices[out_of_hull_mask] = np.argmin(dists, axis=1)
+        warnings.warn(
+            f"{np.sum(out_of_hull_mask)} inverse-transform point(s) lie outside "
+            "the embedding convex hull; using nearest-vertex extrapolation.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     # Build adjacency matrix from simplices
     simplices = deltri.simplices
@@ -973,8 +1001,31 @@ class UMAP(
 
     @classmethod
     def _params_from_cpu(cls, model):
-        if isinstance(model.init, str) and model.init not in _INITS:
-            raise UnsupportedOnGPU(f"`init={model.init!r}` is not supported")
+        init = model.init
+        if umap_060():
+            # Resolve the public parameters without changing them (including
+            # the upstream warning when the compatibility policy is implicit).
+            try:
+                model._resolve_layout_parameters()
+            except ValueError as exc:
+                # Parameter synchronization also runs during set_params. Allow
+                # intermediate configurations and let CPU fit validate them.
+                raise UnsupportedOnGPU(str(exc)) from exc
+            if not model._compatibility_layout:
+                raise UnsupportedOnGPU("The UMAP 0.6 layout pipeline is not supported")
+
+            # Modern sampling/rescaling and recursive-initialization options
+            # are inactive on this path. Deliberately ignore their values and
+            # validation rather than duplicating upstream's validation rules.
+            # Backend requests still require upstream eligibility checks.
+            if model.nearest_neighbor_backend not in ("auto", "pynndescent"):
+                raise UnsupportedOnGPU(
+                    f"`nearest_neighbor_backend={model.nearest_neighbor_backend!r}` is not supported"
+                )
+            init = model._init
+
+        if isinstance(init, str) and init not in _INITS:
+            raise UnsupportedOnGPU(f"`init={init!r}` is not supported")
 
         try:
             coerce_metric(model.metric)
@@ -989,6 +1040,24 @@ class UMAP(
 
         if model.densmap:
             raise UnsupportedOnGPU("`densmap=True` is not supported")
+
+        if model.transform_mode != "embedding":
+            raise UnsupportedOnGPU("Only `transform_mode='embedding'` is supported")
+
+        if model.output_dens:
+            raise UnsupportedOnGPU("`output_dens=True` is not supported")
+
+        if model.output_metric not in ("euclidean", "l2"):
+            raise UnsupportedOnGPU("Only Euclidean `output_metric` is supported")
+
+        if model.output_metric_kwds:
+            raise UnsupportedOnGPU("`output_metric_kwds` is not supported")
+
+        if model.disconnection_distance is not None:
+            raise UnsupportedOnGPU("Explicit `disconnection_distance` is not supported")
+
+        if model.n_epochs is not None and not np.isscalar(model.n_epochs):
+            raise UnsupportedOnGPU("A sequence of `n_epochs` is not supported")
 
         precomputed_knn = model.precomputed_knn[:2]
         if all(item is None for item in precomputed_knn):
@@ -1008,7 +1077,7 @@ class UMAP(
             "repulsion_strength": model.repulsion_strength,
             "negative_sample_rate": model.negative_sample_rate,
             "transform_queue_size": model.transform_queue_size,
-            "init": model.init,
+            "init": init,
             "a": model.a,
             "b": model.b,
             "target_n_neighbors": model.target_n_neighbors,
@@ -1028,7 +1097,7 @@ class UMAP(
         if not isinstance(init, str):
             init = cp.asnumpy(init)
 
-        return {
+        params = {
             "n_neighbors": self.n_neighbors,
             "n_components": self.n_components,
             "metric": self.metric,
@@ -1051,6 +1120,9 @@ class UMAP(
             "random_state": self.random_state,
             "precomputed_knn": precomputed_knn,
         }
+        if umap_060():
+            params["compatibility_layout"] = True
+        return params
 
     def _attrs_from_cpu(self, model):
         if scipy.sparse.issparse(model._raw_data):
@@ -1066,11 +1138,13 @@ class UMAP(
             "graph_": model.graph_.tocoo(),
             "_raw_data": raw_data,
             "_input_hash": model._input_hash,
+            "_input_hash_algorithm": getattr(model, "_input_hash_algorithm", None),
             "_sparse_data": model._sparse_data,
             "_a": model._a,
             "_b": model._b,
             "_n_neighbors": model._n_neighbors,
             "n_features_in_": model._raw_data.shape[1],
+            "_supervised": model._supervised,
             **super()._attrs_from_cpu(model),
         }
 
@@ -1091,8 +1165,19 @@ class UMAP(
         if cupyx.scipy.sparse.issparse(raw_data) or isinstance(raw_data, cp.ndarray):
             raw_data = raw_data.get()
 
-        if (input_hash := getattr(self, "_input_hash", None)) is None:
-            input_hash = _joblib_hash(raw_data)
+        algorithm = self._input_hash_algorithm
+        input_hash = getattr(self, "_input_hash", None)
+        if umap_060() and algorithm is None:
+            # A content hash avoids joblib's sensitivity to CSR cached flags.
+            # With no stored fingerprint, compute the content hash directly.
+            # Otherwise translate only if current data matches the fit-time hash.
+            if input_hash is None or _hash_input(raw_data, algorithm) == input_hash:
+                from umap.umap_ import _INPUT_HASH_ALGORITHM
+
+                algorithm = _INPUT_HASH_ALGORITHM
+                input_hash = _hash_input(raw_data, algorithm)
+        elif input_hash is None:
+            input_hash = _hash_input(raw_data, algorithm)
 
         if (knn_dists := getattr(self, "_knn_dists", None)) is not None:
             knn_dists = cp.asnumpy(knn_dists)
@@ -1129,6 +1214,11 @@ class UMAP(
             **super()._attrs_to_cpu(model),
         }
 
+        if umap_060():
+            # Preserve upstream hash schemes, including when synchronizing
+            # into a model that previously used a different algorithm.
+            attrs["_input_hash_algorithm"] = algorithm
+
         # Transfer _sigmas and _rhos if available (needed for inverse_transform)
         if hasattr(self, "_sigmas") and self._sigmas is not None:
             attrs["_sigmas"] = self._sigmas.get()
@@ -1139,7 +1229,23 @@ class UMAP(
 
     def _sync_attrs_to_cpu(self, model):
         super()._sync_attrs_to_cpu(model)
-        # _validate_parameters constructs the rest of umap.UMAP's internal state
+        # _validate_parameters constructs the rest of umap.UMAP's internal state.
+        # set_params may temporarily request an invalid layout combination.
+        # Reconstruct the fitted GPU layout without validating that intermediate
+        # request; restore public parameters for upstream validation on refit.
+        if umap_060():
+            from umap.umap_ import _resolve_layout_options
+
+            try:
+                _resolve_layout_options(model.compatibility_layout, model.optimizer)
+            except ValueError:
+                layout, optimizer = model.compatibility_layout, model.optimizer
+                try:
+                    model.compatibility_layout, model.optimizer = True, "compatibility"
+                    model._validate_parameters()
+                finally:
+                    model.compatibility_layout, model.optimizer = layout, optimizer
+                return
         model._validate_parameters()
 
     def __init__(
@@ -1419,6 +1525,7 @@ class UMAP(
         self._sigmas = sigmas
         self._rhos = rhos
 
+        self._input_hash_algorithm = None
         if self.hash_input:
             self._input_hash = _joblib_hash(X)
         else:
@@ -1492,7 +1599,9 @@ class UMAP(
         )
         X_input_sparse = is_sparse(X)
 
-        if self.hash_input and _joblib_hash(X) == self._input_hash:
+        if self.hash_input and _hash_input(
+            X, self._input_hash_algorithm
+        ) == self._input_hash:
             return self.embedding_
 
         if self._sparse_data and not X_input_sparse:
@@ -1617,6 +1726,8 @@ class UMAP(
         n_samples = X.shape[0]
         if X.shape[1] != self.n_components:
             raise ValueError(
+                "Inverse transform input must have the same number of dimensions "
+                "as the fitted embedding. "
                 f"X has {X.shape[1]} components, but UMAP is expecting "
                 f"{self.n_components} components as input"
             )

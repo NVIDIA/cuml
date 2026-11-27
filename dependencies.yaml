@@ -9,6 +9,7 @@ files:
       cuda: ["12.9", "13.4"]
       arch: [x86_64, aarch64]
     includes:
+      - checks
       - common_build
       - cuda
       - cutile_python
@@ -298,6 +299,10 @@ dependencies:
       - output_types: [conda, requirements, constraints]
         packages:
           - pre-commit
+          - pytest
+      - output_types: conda
+        packages:
+          - just>=1.55.0
   clang_tidy:
     common:
       - output_types: [conda, requirements, constraints]
@@ -696,7 +701,7 @@ dependencies:
           - rfc3986-validator
           - *scikit_learn
           - seaborn
-          - umap-learn>=0.5.7,<0.5.13
+          - umap-learn>=0.5.7,<0.6.1
           - pynndescent
           - lightgbm
           - shap

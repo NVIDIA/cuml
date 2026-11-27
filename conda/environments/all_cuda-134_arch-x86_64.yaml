@@ -34,6 +34,7 @@ dependencies:
 - ipython>=7.32.0
 - joblib>=0.11
 - jsonschema
+- just>=1.55.0
 - libcublas-dev
 - libcufft-dev
 - libcurand-dev
@@ -90,7 +91,7 @@ dependencies:
 - sysroot_linux-64==2.28
 - treelite==4.8.1
 - treelite>=4.8.1,<5.0.0
-- umap-learn>=0.5.7,<0.5.13
+- umap-learn>=0.5.7,<0.6.1
 - xgboost>=3.3.0
 - pip:
   - nvidia-sphinx-theme

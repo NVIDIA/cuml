@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..suite import ResolvedCase, Suite
+    from ..suite import Suite
 
-from .base import GPUBackend, VerificationResult
+from .base import GPUBackend, InputRepresentation, VerificationResult
 
 
 def _git_output(root: Path, *args: str) -> str:
@@ -125,17 +125,20 @@ class NativeCumlBackend(CumlBackend):
         return estimator
 
     def convert_data(
-        self, case: ResolvedCase, X: Any, y: Any
-    ) -> tuple[Any, Any]:
-        """Move generated dense, CSR, or categorical inputs onto the device."""
-        cp = importlib.import_module("cupy")
-        if case.input_format == "csr":
-            X = importlib.import_module("cupyx.scipy.sparse").csr_matrix(X)
-        elif case.dataset == "categorical":
-            X = importlib.import_module("cudf").from_pandas(X)
-        else:
-            X = cp.asarray(X)
-        return X, cp.asarray(y)
+        self,
+        value: Any,
+        *,
+        representation: InputRepresentation,
+    ) -> Any:
+        """Convert a structural representation to device storage."""
+        if representation == "array":
+            return importlib.import_module("cupy").asarray(value)
+        host = super().convert_data(value, representation=representation)
+        if representation == "csr":
+            return importlib.import_module("cupyx.scipy.sparse").csr_matrix(
+                host
+            )
+        return importlib.import_module("cudf").from_pandas(host)
 
     def prepare_inputs(
         self, inputs: tuple[Any, ...], runtime: Any = None

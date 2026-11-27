@@ -1,10 +1,26 @@
-# SPDX-FileCopyrightText: Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+import cupy as cp
 import pytest
+
+from cuml.testing.datasets import make_text_classification_dataset
+
+pytest_plugins = [
+    "cuml.testing.plugins.categories",
+    "cuml.testing.plugins.gpu_test_config",
+    "cuml.testing.plugins.restart_corrupted_xdist_worker",
+]
 
 enable_tcp_over_ucx = True
 enable_nvlink = False
 enable_infiniband = False
+
+
+@pytest.fixture(scope="session")
+def sparse_text_dataset():
+    """Return a sparse text-like dataset and a CuPy target vector."""
+    X, y = make_text_classification_dataset()
+    return X, cp.array(y)
 
 
 @pytest.fixture(scope="module")

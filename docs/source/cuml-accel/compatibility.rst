@@ -16,7 +16,7 @@ General Behavior
 
 **Compatibility**
    The accelerator is tested with ``scikit-learn`` versions 1.6 through 1.9.1,
-   ``umap-learn`` versions 0.5.7 through 0.5.12, and ``hdbscan`` versions 0.8.39
+   ``umap-learn`` versions 0.5.7 through 0.6.0, and ``hdbscan`` versions 0.8.39
    through 0.8.44. When ``cuml.accel`` detects a version outside these ranges,
    it issues a runtime warning and continues. The untested version will likely
    still work, but it has not been validated and may have subtle compatibility
@@ -637,15 +637,27 @@ UMAP
 
    ``UMAP`` will fall back to CPU in the following cases:
 
-   - If ``init`` is not ``"random"`` or ``"spectral"``.
-   - If ``metric`` is not one of the supported metrics (``"l1"``, ``"cityblock"``,
+   - If ``init`` is neither a valid initialization array nor ``"random"`` or
+     ``"spectral"``, unless it is ``"auto"`` resolving to ``"spectral"`` with
+     UMAP 0.6.
+   - If ``compatibility_layout`` is ``False`` or ``optimizer`` is ``"adam"``
+     or ``"momentum"`` with UMAP 0.6.
+   - If ``nearest_neighbor_backend`` is neither ``"auto"`` nor ``"pynndescent"``
+     with UMAP 0.6.
+   - If ``metric`` is not one of ``"l1"``, ``"cityblock"``,
      ``"taxicab"``, ``"manhattan"``, ``"euclidean"``, ``"l2"``, ``"sqeuclidean"``,
      ``"canberra"``, ``"minkowski"``, ``"chebyshev"``, ``"linf"``, ``"cosine"``,
-     ``"correlation"``, ``"hellinger"``, ``"hamming"``, ``"jaccard"``).
-   - If ``target_metric`` is not one of the supported metrics (``"categorical"``,
-     ``"l2"``, ``"euclidean"``).
-   - If ``unique=True``.
-   - If ``densmap=True``.
+     ``"correlation"``, ``"hellinger"``, ``"hamming"``, or ``"jaccard"``.
+   - If ``target_metric`` is not one of ``"categorical"``, ``"l2"``, or
+     ``"euclidean"``.
+   - If ``unique`` is ``True``.
+   - If ``densmap`` is ``True``.
+   - If ``transform_mode`` is not ``"embedding"``.
+   - If ``output_dens`` is ``True``.
+   - If ``output_metric`` is neither ``"euclidean"`` nor ``"l2"``.
+   - If ``output_metric_kwds`` is nonempty.
+   - If ``disconnection_distance`` is not ``None``.
+   - If ``n_epochs`` is a sequence.
    - If ``ensure_all_finite`` is not ``True``.
 
    Additional notes:
@@ -655,6 +667,18 @@ UMAP
 
    - Parallelism during the optimization stage introduces numerical imprecision,
      which can lead to differences between CPU and GPU results.
+
+   - UMAP 0.6 options for the new sampling methods, initialization rescaling, and
+     recursive initialization have no effect on the supported 0.5-compatible
+     pipeline and are not validated during GPU fitting. This does not change GPU
+     results, but invalid values may raise errors later when fitted state is
+     synchronized to CPU, for example when accessing ``embedding_``. The new
+     UMAP 0.6 pipeline always falls back to CPU.
+
+   - Calling ``update`` after GPU fitting is not supported. To incrementally
+     update a model, fit it on CPU with ``cuml.accel`` disabled.
+
+   - UMAP model-combination operators (``+``, ``-``, and ``*``) are not supported.
 
    - ONNX export via ``skl2onnx`` is not supported for this estimator.
 
