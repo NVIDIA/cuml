@@ -5,6 +5,9 @@
 
 from cuml.metrics._classification import accuracy_score, log_loss
 from cuml.metrics._ranking import precision_recall_curve, roc_auc_score
+from cuml.metrics.cluster._adjusted_mutual_info_score import (
+    adjusted_mutual_info_score,
+)
 from cuml.metrics.cluster.adjusted_rand_index import adjusted_rand_score
 from cuml.metrics.cluster.completeness_score import (
     cython_completeness_score as completeness_score,
@@ -47,6 +50,7 @@ __all__ = [
     "mean_absolute_error",
     "median_absolute_error",
     "accuracy_score",
+    "adjusted_mutual_info_score",
     "adjusted_rand_score",
     "roc_auc_score",
     "precision_recall_curve",

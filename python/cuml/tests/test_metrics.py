@@ -30,8 +30,14 @@ from sklearn.metrics import (
     precision_recall_curve as sklearn_precision_recall_curve,
 )
 from sklearn.metrics import roc_auc_score as sklearn_roc_auc_score
+from sklearn.metrics.cluster import (
+    adjusted_mutual_info_score as sk_adjusted_mutual_info_score,
+)
 from sklearn.metrics.cluster import adjusted_rand_score as sk_ars
 from sklearn.metrics.cluster import completeness_score as sk_completeness_score
+from sklearn.metrics.cluster import (
+    expected_mutual_information as sk_expected_mutual_information,
+)
 from sklearn.metrics.cluster import homogeneity_score as sk_homogeneity_score
 from sklearn.metrics.cluster import mutual_info_score as sk_mutual_info_score
 from sklearn.metrics.cluster import silhouette_samples as sk_silhouette_samples
@@ -56,8 +62,9 @@ from cuml.metrics import (
     precision_recall_curve,
     roc_auc_score,
 )
+from cuml.metrics.cluster import _expected_mutual_information as emi_module
 from cuml.metrics.cluster import adjusted_rand_score as cu_ars
-from cuml.metrics.cluster import entropy
+from cuml.metrics.cluster import entropy, expected_mutual_information
 from cuml.metrics.cluster import silhouette_samples as cu_silhouette_samples
 from cuml.metrics.cluster import silhouette_score as cu_silhouette_score
 from cuml.metrics.cluster import v_measure_score
@@ -558,6 +565,10 @@ def test_completeness_score_big_array(rng, input_range):
         (cuml.metrics.completeness_score, sk_completeness_score),
         (cuml.metrics.mutual_info_score, sk_mutual_info_score),
         (cuml.metrics.v_measure_score, sklearn_v_measure_score),
+        (
+            cuml.metrics.adjusted_mutual_info_score,
+            sk_adjusted_mutual_info_score,
+        ),
     ],
 )
 def test_cluster_metric_label_permutation_invariance(
@@ -568,6 +579,248 @@ def test_cluster_metric_label_permutation_invariance(
     ref = sk_metric([0, 0, 0, 1, 1, 0, 1], [1, 0, 1, 0, 1, 1, 0])
     assert_almost_equal(cu_metric(y_true, y_pred), ref, decimal=4)
     assert_almost_equal(cu_metric(y_true, 1 - y_pred), ref, decimal=4)
+
+
+AMI_AVERAGE_METHODS = ["min", "geometric", "arithmetic", "max"]
+# The expected mutual information is a sum of differences of large log-gamma
+# values, which limits the agreement with scikit-learn
+AMI_TOLERANCES = {"rtol": 1e-8, "atol": 1e-9}
+
+
+@pytest.mark.parametrize("average_method", AMI_AVERAGE_METHODS)
+@pytest.mark.parametrize(
+    "labels_true, labels_pred",
+    [
+        # perfect labelings, up to a permutation of the labels
+        ([0, 0, 1, 1], [0, 0, 1, 1]),
+        ([0, 0, 1, 1], [1, 1, 0, 0]),
+        # classes split across clusters
+        ([0, 0, 1, 1], [0, 0, 1, 2]),
+        ([0, 0, 1, 1], [0, 1, 0, 1]),
+        ([0, 0, 0, 1, 1, 1, 2, 2], [0, 0, 1, 1, 2, 2, 2, 0]),
+        # non-contiguous and negative labels
+        ([-7, -7, 3, 3, 100, 100], [50, 9, 9, 50, 50, -1]),
+        # a single class and/or a single cluster
+        ([0, 0, 1, 1], [0, 0, 0, 0]),
+        ([0, 0, 0, 0], [0, 1, 2, 3]),
+        ([0, 0, 0, 0], [1, 1, 1, 1]),
+        # no samples
+        ([], []),
+    ],
+)
+def test_adjusted_mutual_info_score(labels_true, labels_pred, average_method):
+    score = cuml.metrics.adjusted_mutual_info_score(
+        cp.asarray(labels_true, dtype=np.int32),
+        cp.asarray(labels_pred, dtype=np.int32),
+        average_method=average_method,
+    )
+    ref = sk_adjusted_mutual_info_score(
+        np.asarray(labels_true, dtype=np.int32),
+        np.asarray(labels_pred, dtype=np.int32),
+        average_method=average_method,
+    )
+    assert isinstance(score, float)
+    np.testing.assert_allclose(score, ref, **AMI_TOLERANCES)
+
+
+@pytest.mark.parametrize("average_method", AMI_AVERAGE_METHODS)
+@pytest.mark.parametrize(
+    "n_samples, n_classes, n_clusters",
+    [(100, 2, 2), (1000, 5, 20), (10_000, 100, 3), (100_000, 1000, 1000)],
+)
+@pytest.mark.parametrize("noise", [0.0, 0.3, 1.0])
+def test_adjusted_mutual_info_score_random(
+    rng, n_samples, n_classes, n_clusters, noise, average_method
+):
+    # Unbalanced classes with negative and non-contiguous labels
+    weights = rng.dirichlet(np.ones(n_classes))
+    a = 3 * rng.choice(n_classes, size=n_samples, p=weights) - n_classes
+    # The predicted labels follow the true ones, up to some random noise
+    b = np.where(
+        rng.uniform(size=n_samples) < noise,
+        rng.randint(0, n_clusters, size=n_samples),
+        a % n_clusters,
+    )
+    score = cuml.metrics.adjusted_mutual_info_score(
+        cp.asarray(a), cp.asarray(b), average_method=average_method
+    )
+    ref = sk_adjusted_mutual_info_score(a, b, average_method=average_method)
+    np.testing.assert_allclose(score, ref, **AMI_TOLERANCES)
+
+
+@pytest.mark.parametrize("average_method", AMI_AVERAGE_METHODS)
+@pytest.mark.parametrize(
+    "n_samples, n_classes", [(10, 3), (1000, 2), (1000, 50), (100_000, 300)]
+)
+def test_adjusted_mutual_info_score_perfect_match(
+    rng, n_samples, n_classes, average_method
+):
+    # Identical partitions, up to a permutation of the labels, must score
+    # exactly 1.0 regardless of rounding errors
+    for _ in range(10):
+        weights = rng.dirichlet(np.ones(n_classes))
+        a = rng.choice(n_classes, size=n_samples, p=weights)
+        b = rng.permutation(n_classes)[a] - 5
+        score = cuml.metrics.adjusted_mutual_info_score(
+            cp.asarray(a), cp.asarray(b), average_method=average_method
+        )
+        assert score == 1.0
+
+
+@pytest.mark.parametrize("average_method", AMI_AVERAGE_METHODS)
+@pytest.mark.parametrize(
+    "singletons, other",
+    [
+        ([0, 1, 2, 3], [0, 0, 1, 1]),
+        ([0, 1, 2, 3], [0, 1, 2, 2]),
+        ([5, 3, 4, 1, 0, 2], [7, 7, 7, 7, -1, 7]),
+    ],
+)
+def test_adjusted_mutual_info_score_singletons(
+    singletons, other, average_method
+):
+    # If only one labeling has every sample in a cluster of its own, MI and
+    # EMI both equal the entropy of the other labeling. AMI is then 0.0, except
+    # for the "min" average, where it is 0 / 0. Unlike in scikit-learn, where
+    # rounding decides the result of that case, NaN is returned.
+    for labels_true, labels_pred in [(singletons, other), (other, singletons)]:
+        score = cuml.metrics.adjusted_mutual_info_score(
+            labels_true, labels_pred, average_method=average_method
+        )
+        assert isinstance(score, float)
+        if average_method == "min":
+            assert np.isnan(score)
+        else:
+            assert score == 0.0
+
+    # Perfect matches and single clusters take precedence
+    single = [0] * len(singletons)
+    for labels_true, labels_pred, expected in [
+        (singletons, singletons[::-1], 1.0),
+        (singletons, single, 0.0),
+        (single, singletons, 0.0),
+    ]:
+        score = cuml.metrics.adjusted_mutual_info_score(
+            labels_true, labels_pred, average_method=average_method
+        )
+        assert score == expected
+
+
+@pytest.mark.parametrize(
+    "convert", [list, np.asarray, cp.asarray, pd.Series, cudf.Series]
+)
+@pytest.mark.parametrize("dtype", [np.int32, np.int64])
+def test_adjusted_mutual_info_score_input_types(rng, convert, dtype):
+    a = rng.randint(0, 5, 200).astype(dtype)
+    b = rng.randint(0, 8, 200).astype(dtype)
+    score = cuml.metrics.cluster.adjusted_mutual_info_score(
+        convert(a), convert(b)
+    )
+    ref = sk_adjusted_mutual_info_score(a, b)
+    np.testing.assert_allclose(score, ref, **AMI_TOLERANCES)
+
+
+def test_adjusted_mutual_info_score_symmetry(rng):
+    a = rng.randint(0, 10, 1000)
+    b = rng.randint(0, 25, 1000)
+    np.testing.assert_allclose(
+        cuml.metrics.adjusted_mutual_info_score(a, b),
+        cuml.metrics.adjusted_mutual_info_score(b, a),
+        **AMI_TOLERANCES,
+    )
+
+
+@pytest.mark.parametrize(
+    "labels_true, labels_pred",
+    [([0, 0, 1, 1], [0, 1, 0, 1]), ([0, 0, 0, 0], [0, 0, 0, 0])],
+)
+def test_adjusted_mutual_info_score_invalid_average_method(
+    labels_true, labels_pred
+):
+    with pytest.raises(ValueError, match="average_method"):
+        cuml.metrics.adjusted_mutual_info_score(
+            labels_true, labels_pred, average_method="harmonic"
+        )
+
+
+def test_adjusted_mutual_info_score_invalid_shapes():
+    with pytest.raises(ValueError):
+        cuml.metrics.adjusted_mutual_info_score([0, 0, 1], [0, 1])
+    with pytest.raises(ValueError, match="1D"):
+        cuml.metrics.adjusted_mutual_info_score([[0, 1], [1, 0]], [0, 1])
+
+
+@pytest.mark.parametrize(
+    "convert",
+    [
+        np.asarray,
+        cp.asarray,
+        scipy.sparse.csr_matrix,
+        scipy.sparse.coo_matrix,
+        lambda x: cp_sp.csr_matrix(cp.asarray(x, dtype=np.float64)),
+    ],
+    ids=["numpy", "cupy", "scipy-csr", "scipy-coo", "cupyx-csr"],
+)
+@pytest.mark.parametrize("dtype", [np.int32, np.int64])
+@pytest.mark.parametrize(
+    "shape", [(2, 2), (2, 7), (5, 3), (40, 60), (1, 5), (5, 1), (1, 1)]
+)
+def test_expected_mutual_information(rng, shape, dtype, convert):
+    contingency = rng.randint(0, 200, size=shape).astype(dtype)
+    # Make sure that there are zero entries, but no empty rows or columns
+    contingency[rng.uniform(size=shape) < 0.3] = 0
+    contingency[:, 0] += 1
+    contingency[0, :] += 1
+    n_samples = int(contingency.sum())
+
+    emi = expected_mutual_information(convert(contingency), n_samples)
+    ref = sk_expected_mutual_information(contingency, n_samples)
+    assert isinstance(emi, float)
+    np.testing.assert_allclose(emi, ref, **AMI_TOLERANCES)
+
+
+@pytest.mark.parametrize("max_segments", [1, 7, 1000])
+def test_expected_mutual_information_segment_length(
+    rng, monkeypatch, max_segments
+):
+    # Segments are lengthened when there would otherwise be too many of them
+    monkeypatch.setattr(emi_module, "_MAX_SEGMENTS", max_segments)
+    contingency = rng.randint(1, 2000, size=(6, 9))
+    n_samples = int(contingency.sum())
+
+    emi = expected_mutual_information(contingency, n_samples)
+    ref = sk_expected_mutual_information(contingency, n_samples)
+    np.testing.assert_allclose(emi, ref, **AMI_TOLERANCES)
+
+
+def test_expected_mutual_information_repeated_marginals(rng, monkeypatch):
+    # Classes (clusters) of equal size are paired only once, with a weight
+    kernel = emi_module._emi_kernel
+    n_pairs = []
+
+    def counting_kernel(*args):
+        emi = kernel(*args)
+        n_pairs.append(emi.size)
+        return emi
+
+    monkeypatch.setattr(emi_module, "_emi_kernel", counting_kernel)
+    contingency = np.hstack(
+        [
+            np.diag(rng.randint(1, 4, size=300)),
+            np.diag(rng.randint(1, 4, size=300)),
+        ]
+    )
+    n_samples = int(contingency.sum())
+
+    emi = expected_mutual_information(contingency, n_samples)
+    ref = sk_expected_mutual_information(contingency, n_samples)
+    np.testing.assert_allclose(emi, ref, **AMI_TOLERANCES)
+
+    # The kernel computes one element per pair of distinct sizes here, and not
+    # one per (class, cluster) pair, of which there are 300 * 600
+    n_class_sizes = np.unique(contingency.sum(axis=1)).size
+    n_cluster_sizes = np.unique(contingency.sum(axis=0)).size
+    assert n_pairs == [n_class_sizes * n_cluster_sizes]
 
 
 @pytest.mark.parametrize("n_samples", [50, stress_param(500000)])

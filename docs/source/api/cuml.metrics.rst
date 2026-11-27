@@ -43,8 +43,10 @@ Clustering Metrics
    :toctree: generated/
    :template: base.rst
 
+   cluster.adjusted_mutual_info_score
    cluster.adjusted_rand_score
    cluster.entropy
+   cluster.expected_mutual_information
    cluster.homogeneity_score
    cluster.silhouette_score
    cluster.silhouette_samples

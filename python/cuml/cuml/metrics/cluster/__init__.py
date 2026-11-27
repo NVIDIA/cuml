@@ -3,6 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from cuml.metrics.cluster._adjusted_mutual_info_score import (
+    adjusted_mutual_info_score,
+)
+from cuml.metrics.cluster._expected_mutual_information import (
+    expected_mutual_information,
+)
 from cuml.metrics.cluster.adjusted_rand_index import adjusted_rand_score
 from cuml.metrics.cluster.completeness_score import (
     cython_completeness_score as completeness_score,
