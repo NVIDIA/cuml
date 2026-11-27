@@ -793,8 +793,17 @@ def test_expected_mutual_information_segment_length(
     np.testing.assert_allclose(emi, ref, **AMI_TOLERANCES)
 
 
-def test_expected_mutual_information_repeated_marginals(rng):
+def test_expected_mutual_information_repeated_marginals(rng, monkeypatch):
     # Classes (clusters) of equal size are paired only once, with a weight
+    kernel = emi_module._emi_kernel
+    n_pairs = []
+
+    def counting_kernel(*args):
+        emi = kernel(*args)
+        n_pairs.append(emi.size)
+        return emi
+
+    monkeypatch.setattr(emi_module, "_emi_kernel", counting_kernel)
     contingency = np.hstack(
         [
             np.diag(rng.randint(1, 4, size=300)),
@@ -807,16 +816,11 @@ def test_expected_mutual_information_repeated_marginals(rng):
     ref = sk_expected_mutual_information(contingency, n_samples)
     np.testing.assert_allclose(emi, ref, **AMI_TOLERANCES)
 
-
-def test_expected_mutual_information_many_clusters():
-    # With every sample in a class and a cluster of its own, EMI is exactly
-    # log(n_samples). An array with one entry per (class, cluster) pair would
-    # take terabytes here, so this fails unless equal sizes are paired once.
-    n_samples = 1_000_000
-    contingency = cp_sp.identity(n_samples, dtype=np.float64, format="csr")
-
-    emi = expected_mutual_information(contingency, n_samples)
-    np.testing.assert_allclose(emi, np.log(n_samples), **AMI_TOLERANCES)
+    # The kernel computes one element per pair of distinct sizes here, and not
+    # one per (class, cluster) pair, of which there are 300 * 600
+    n_class_sizes = np.unique(contingency.sum(axis=1)).size
+    n_cluster_sizes = np.unique(contingency.sum(axis=0)).size
+    assert n_pairs == [n_class_sizes * n_cluster_sizes]
 
 
 @pytest.mark.parametrize("n_samples", [50, stress_param(500000)])
