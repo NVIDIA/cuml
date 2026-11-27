@@ -667,6 +667,45 @@ def test_adjusted_mutual_info_score_perfect_match(
         assert score == 1.0
 
 
+@pytest.mark.parametrize("average_method", AMI_AVERAGE_METHODS)
+@pytest.mark.parametrize(
+    "singletons, other",
+    [
+        ([0, 1, 2, 3], [0, 0, 1, 1]),
+        ([0, 1, 2, 3], [0, 1, 2, 2]),
+        ([5, 3, 4, 1, 0, 2], [7, 7, 7, 7, -1, 7]),
+    ],
+)
+def test_adjusted_mutual_info_score_singletons(
+    singletons, other, average_method
+):
+    # If only one labeling has every sample in a cluster of its own, MI and
+    # EMI both equal the entropy of the other labeling. AMI is then 0.0, except
+    # for the "min" average, where it is 0 / 0. Unlike in scikit-learn, where
+    # rounding decides the result of that case, NaN is returned.
+    for labels_true, labels_pred in [(singletons, other), (other, singletons)]:
+        score = cuml.metrics.adjusted_mutual_info_score(
+            labels_true, labels_pred, average_method=average_method
+        )
+        assert isinstance(score, float)
+        if average_method == "min":
+            assert np.isnan(score)
+        else:
+            assert score == 0.0
+
+    # Perfect matches and single clusters take precedence
+    single = [0] * len(singletons)
+    for labels_true, labels_pred, expected in [
+        (singletons, singletons[::-1], 1.0),
+        (singletons, single, 0.0),
+        (single, singletons, 0.0),
+    ]:
+        score = cuml.metrics.adjusted_mutual_info_score(
+            labels_true, labels_pred, average_method=average_method
+        )
+        assert score == expected
+
+
 @pytest.mark.parametrize(
     "convert", [list, np.asarray, cp.asarray, pd.Series, cudf.Series]
 )

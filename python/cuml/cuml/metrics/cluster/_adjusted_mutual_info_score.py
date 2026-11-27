@@ -80,7 +80,10 @@ def adjusted_mutual_info_score(
         The AMI returns a value of 1 when the two partitions are identical
         (i.e. perfectly matched). Random partitions (independent labellings)
         have an expected AMI around 0 on average hence can be negative. The
-        value is in adjusted nats (based on the natural logarithm).
+        value is in adjusted nats (based on the natural logarithm). The AMI is
+        undefined, and ``nan`` is returned, if ``average_method='min'`` and
+        exactly one of the two partitions has every sample in a cluster of its
+        own, unless the other one consists of a single cluster.
 
     See Also
     --------
@@ -121,6 +124,12 @@ def adjusted_mutual_info_score(
     # If there is only one class or one cluster return 0.0
     if n_classes == 1 or n_clusters == 1:
         return 0.0
+    # If exactly one labelling has every sample in a cluster of its own, MI and
+    # EMI both equal the entropy of the other labelling, hence AMI is 0.0. For
+    # the "min" average, that entropy is also the normalizer and AMI is 0 / 0.
+    # Return NaN then, unlike scikit-learn, where rounding decides the result.
+    if (n_classes == n_samples) != (n_clusters == n_samples):
+        return math.nan if average_method == "min" else 0.0
 
     # cupyx.scipy.sparse doesn't support integral dtypes
     contingency = cp_sp.coo_matrix(
