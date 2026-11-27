@@ -822,7 +822,7 @@ class NeighborsBase(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base
         if self._fit_method not in ("ivfflat", "ivfpq"):
             return
         indices = cp.asarray(indices)
-        if bool(cp.any((indices < 0) | (indices >= self.n_samples_fit_))):
+        if cp.any((indices < 0) | (indices >= self.n_samples_fit_)):
             raise ValueError(
                 "Approximate search returned missing neighbors; increase "
                 "algo_params['n_probes'] or reduce n_neighbors."
