@@ -249,6 +249,7 @@ class KNeighborsClassifier(ClassifierMixin, FMajorInputTagMixin, NeighborsBase):
         # Get KNN results - always get distances to compute weights
         distances, indices = self.kneighbors(X, return_distance=True)
         indices = cp.ascontiguousarray(indices, dtype=cp.int64)
+        self._validate_internal_neighbor_indices(indices)
         cdef size_t n_rows = indices.shape[0]
 
         # Allocate array for predictions
@@ -304,6 +305,7 @@ class KNeighborsClassifier(ClassifierMixin, FMajorInputTagMixin, NeighborsBase):
         # Get KNN results - always get distances to compute weights
         distances, indices = self.kneighbors(X, return_distance=True)
         indices = cp.ascontiguousarray(indices, dtype=cp.int64)
+        self._validate_internal_neighbor_indices(indices)
         cdef size_t n_rows = indices.shape[0]
 
         if self._y.ndim == 1 or self._y.shape[1] == 1:

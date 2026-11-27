@@ -23,6 +23,7 @@ import cuml
 from cuml.datasets import make_blobs
 from cuml.internals import logger  # noqa: F401
 from cuml.metrics import pairwise_distances as cuPW
+from cuml.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from cuml.neighbors import NearestNeighbors as cuKNN
 from cuml.testing.utils import (
     array_equal,
@@ -266,9 +267,7 @@ def test_ivfpq_training_rows(n_rows, n_lists, train_fraction, expected):
 def test_ivfpq_required_training_rows(
     n_lists, pq_bits, pq_dim, codebook_kind, expected
 ):
-    from cuml.neighbors.nearest_neighbors import (
-        _ivfpq_required_training_rows,
-    )
+    from cuml.neighbors.nearest_neighbors import _ivfpq_required_training_rows
 
     assert (
         _ivfpq_required_training_rows(n_lists, pq_bits, pq_dim, codebook_kind)
@@ -287,6 +286,68 @@ def test_ivf_numpy_training_fraction(algorithm):
     )
     assert params["kmeans_trainset_fraction"] == 0.5
     assert params["n_lists"] == math.isqrt(200000)
+
+
+@pytest.mark.parametrize("algorithm", ["ivfflat", "ivfpq"])
+@pytest.mark.parametrize(
+    "fraction", [-0.5, 0, 1.5, np.nan, np.inf, -np.inf, "invalid"]
+)
+def test_ivf_invalid_training_fraction(algorithm, fraction):
+    from cuml.neighbors.nearest_neighbors import _normalize_ivf_params
+
+    with pytest.raises(ValueError, match="kmeans_trainset_fraction"):
+        _normalize_ivf_params(
+            algorithm, {"kmeans_trainset_fraction": fraction}, n_rows=32
+        )
+
+
+@pytest.mark.parametrize("algorithm", ["ivfflat", "ivfpq"])
+def test_ivf_negative_training_fraction_rejected_before_build(algorithm):
+    X, _ = make_blobs(n_samples=32, n_features=8, random_state=42)
+    model = cuKNN(
+        algorithm=algorithm,
+        algo_params={"kmeans_trainset_fraction": -0.5},
+    )
+    with pytest.raises(ValueError, match="kmeans_trainset_fraction"):
+        model.fit(X)
+
+
+@pytest.mark.parametrize("algorithm,n_rows", [("ivfflat", 64), ("ivfpq", 512)])
+@pytest.mark.parametrize("estimator", ["classifier", "regressor"])
+def test_ivf_missing_neighbors_rejected_before_label_access(
+    algorithm, n_rows, estimator
+):
+    X, y = make_blobs(
+        n_samples=n_rows,
+        n_features=8,
+        centers=4,
+        cluster_std=0.1,
+        random_state=42,
+    )
+    model_type = (
+        KNeighborsClassifier
+        if estimator == "classifier"
+        else KNeighborsRegressor
+    )
+    model = model_type(
+        algorithm=algorithm,
+        n_neighbors=n_rows,
+        algo_params={"n_lists": 4, "n_probes": 1},
+    ).fit(X, y)
+    _, indices = model.kneighbors(X[:1])
+    assert bool(cp.any(indices >= n_rows))
+    with pytest.raises(ValueError, match="n_probes"):
+        model.predict(X[:1])
+    if estimator == "classifier":
+        with pytest.raises(ValueError, match="n_probes"):
+            model.predict_proba(X[:1])
+
+    control = model_type(
+        algorithm=algorithm,
+        n_neighbors=8,
+        algo_params={"n_lists": 4, "n_probes": 4},
+    ).fit(X, y)
+    assert control.predict(X[:1]).shape[0] == 1
 
 
 @pytest.mark.parametrize(
@@ -488,7 +549,7 @@ def test_ivf_legacy_param_names_warn(algorithm, algo_params):
 
     with pytest.warns(
         FutureWarning,
-        match=r"deprecated in 26\.12.*removed in 27\.02",
+        match=r"deprecated in 27\.02.*removed in 27\.04",
     ):
         cuKNN(
             algorithm=algorithm,

@@ -458,8 +458,8 @@ def _normalize_ivf_params(algo, params, n_rows=None):
     if algo == "ivfpq" and "usePrecomputedTables" in params:
         # rapids-pre-commit-hooks: disable[verify-hardcoded-version]
         warnings.warn(
-            "'usePrecomputedTables' was deprecated in 26.12 and will be "
-            "removed in 27.02. It is ignored because cuVS IVF-PQ has no "
+            "'usePrecomputedTables' was deprecated in 27.02 and will be "
+            "removed in 27.04. It is ignored because cuVS IVF-PQ has no "
             "equivalent parameter.",
             FutureWarning,
             stacklevel=3,
@@ -478,8 +478,8 @@ def _normalize_ivf_params(algo, params, n_rows=None):
 
         # rapids-pre-commit-hooks: disable[verify-hardcoded-version]
         warnings.warn(
-            f"'{old}' was deprecated in 26.12 and will be removed in "
-            f"27.02. Use '{new}' instead.",
+            f"'{old}' was deprecated in 27.02 and will be removed in "
+            f"27.04. Use '{new}' instead.",
             FutureWarning,
             stacklevel=3,
         )
@@ -499,9 +499,17 @@ def _normalize_ivf_params(algo, params, n_rows=None):
     out = {**defaults, **params}
     # cuVS receives this value as a double. Promote NumPy scalars before
     # multiplying by the row count so float16 cannot overflow first.
-    out["kmeans_trainset_fraction"] = float(
-        out["kmeans_trainset_fraction"]
-    )
+    try:
+        fraction = float(out["kmeans_trainset_fraction"])
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(
+            "kmeans_trainset_fraction must be finite and in (0, 1]"
+        ) from exc
+    if not math.isfinite(fraction) or not 0.0 < fraction <= 1.0:
+        raise ValueError(
+            "kmeans_trainset_fraction must be finite and in (0, 1]"
+        )
+    out["kmeans_trainset_fraction"] = fraction
 
     if n_rows is not None and "n_lists" not in params:
         # The cuVS default targets large datasets. For smaller inputs, scale
@@ -808,6 +816,17 @@ class NeighborsBase(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base
     def _effective_p(self):
         """The `p` value to use, based on `effective_metric_params_` or `p`"""
         return self.effective_metric_params_.get("p", self.p)
+
+    def _validate_internal_neighbor_indices(self, indices):
+        """Reject incomplete IVF results before indexing fitted data."""
+        if self._fit_method not in ("ivfflat", "ivfpq"):
+            return
+        indices = cp.asarray(indices)
+        if bool(cp.any((indices < 0) | (indices >= self.n_samples_fit_))):
+            raise ValueError(
+                "Approximate search returned missing neighbors; increase "
+                "algo_params['n_probes'] or reduce n_neighbors."
+            )
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1284,8 +1303,8 @@ class NearestNeighbors(NeighborsBase):
               of k-means training rows
             - n_probes: (int, default=20) lists searched per query
             - kmeans_n_iters: (int, default=20) k-means iterations
-            - kmeans_trainset_fraction: (float, default=0.5) fraction of the
-              dataset used to train k-means
+            - kmeans_trainset_fraction: (float, default=0.5) fraction in
+              (0, 1] of the dataset used to train k-means
             - conservative_memory_allocation: (bool, default=False) allocate
               only the memory required by the current index
 
@@ -1296,8 +1315,8 @@ class NearestNeighbors(NeighborsBase):
               of k-means training rows
             - n_probes: (int, default=20) lists searched per query
             - kmeans_n_iters: (int, default=20) k-means iterations
-            - kmeans_trainset_fraction: (float, default=0.5) fraction of the
-              dataset used to train k-means
+            - kmeans_trainset_fraction: (float, default=0.5) fraction in
+              (0, 1] of the dataset used to train k-means
             - pq_dim: (int, default=0) product-quantization dimensionality;
               zero selects the value heuristically
             - pq_bits: (int, default=8) bits per PQ encoded element;
@@ -1323,12 +1342,12 @@ class NearestNeighbors(NeighborsBase):
             - max_internal_batch_size: (int, default=4096) internal search
               batch size
 
-        .. deprecated:: 26.12
+        .. deprecated:: 27.02
             The IVF parameter names ``nlist``, ``nprobe``, ``M``, and
-            ``n_bits`` were deprecated in 26.12 and will be removed in
-            27.02. Use ``n_lists``, ``n_probes``, ``pq_dim``, and
+            ``n_bits`` were deprecated in 27.02 and will be removed in
+            27.04. Use ``n_lists``, ``n_probes``, ``pq_dim``, and
             ``pq_bits`` instead. ``usePrecomputedTables`` was also
-            deprecated in 26.12 and will be removed in 27.02; it is ignored
+            deprecated in 27.02 and will be removed in 27.04; it is ignored
             because cuVS IVF-PQ has no equivalent option.
 
         Subspace IVF-PQ codebooks need at least ``2**pq_bits`` training

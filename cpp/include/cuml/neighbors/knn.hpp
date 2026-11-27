@@ -133,7 +133,7 @@ struct IVFParam : knnIndexParam {
   int nlist;
   int nprobe;
   uint32_t kmeans_n_iters             = 20;     ///< Number of k-means iterations.
-  double kmeans_trainset_fraction     = 0.5;    ///< Fraction used for k-means training.
+  double kmeans_trainset_fraction     = 0.5;    ///< Fraction in (0, 1] used for k-means training.
   bool conservative_memory_allocation = false;  ///< Allocate only required memory.
 };
 

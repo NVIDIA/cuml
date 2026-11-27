@@ -288,6 +288,7 @@ class LocalOutlierFactor(NeighborsBase):
         self.n_neighbors_ = min(self.n_neighbors, n_samples - 1)
 
         distances, indices = self.kneighbors(n_neighbors=self.n_neighbors_)
+        self._validate_internal_neighbor_indices(indices)
         self._distances_fit_X_ = distances
         self._lrd = self._local_reachability_density(distances, indices)
         self.negative_outlier_factor_ = -cp.mean(
@@ -366,6 +367,7 @@ class LocalOutlierFactor(NeighborsBase):
         """
         check_is_fitted(self)
         distances, indices = self.kneighbors(X, n_neighbors=self.n_neighbors_)
+        self._validate_internal_neighbor_indices(indices)
         lrd = self._local_reachability_density(distances, indices)
         return -cp.mean(self._lrd[indices] / lrd[:, None], axis=1)
 

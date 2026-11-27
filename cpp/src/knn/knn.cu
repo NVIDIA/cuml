@@ -31,6 +31,7 @@
 #include <ml_mg_utils.cuh>
 #include <selection/knn.cuh>
 
+#include <cmath>
 #include <cstddef>
 #include <sstream>
 #include <vector>
@@ -262,6 +263,12 @@ void approx_knn_build_index(raft::handle_t& handle,
   auto ivf_ft_pams = dynamic_cast<IVFFlatParam*>(params);
   auto ivf_pq_pams = dynamic_cast<IVFPQParam*>(params);
   auto stream      = raft::resource::get_cuda_stream(handle).get();
+
+  if (auto ivf_params = dynamic_cast<IVFParam*>(params)) {
+    auto fraction = ivf_params->kmeans_trainset_fraction;
+    RAFT_EXPECTS(std::isfinite(fraction) && fraction > 0.0 && fraction <= 1.0,
+                 "kmeans_trainset_fraction must be finite and in (0, 1].");
+  }
 
   // For correlation, center and normalize a copy so failed builds never
   // leave the caller's input modified.

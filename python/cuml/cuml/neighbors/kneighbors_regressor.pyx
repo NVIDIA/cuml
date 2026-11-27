@@ -263,6 +263,7 @@ class KNeighborsRegressor(RegressorMixin, FMajorInputTagMixin, NeighborsBase):
         # Get KNN results - always get distances to compute weights
         distances, indices = self.kneighbors(X, return_distance=True)
         indices = cp.ascontiguousarray(indices, dtype=cp.int64)
+        self._validate_internal_neighbor_indices(indices)
         cdef size_t n_rows = indices.shape[0]
         cdef int64_t* inds_ptr = <int64_t*><uintptr_t>indices.data.ptr
 
