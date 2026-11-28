@@ -334,8 +334,14 @@ def test_ivf_missing_neighbors_rejected_before_label_access(
         n_neighbors=n_rows,
         algo_params={"n_lists": 4, "n_probes": 1},
     ).fit(X, y)
-    _, indices = model.kneighbors(X[:1])
-    assert bool(cp.any(indices >= n_rows))
+    distances, indices = model.kneighbors(X[:1])
+    # Low probing can pad the result with either sentinel IDs or repeated IDs.
+    assert bool(
+        cp.any((indices < 0) | (indices >= n_rows))
+        or cp.any(indices[:, 1:] == indices[:, :-1])
+        or cp.any(~cp.isfinite(distances))
+        or cp.any(cp.abs(distances) >= cp.finfo(cp.float32).max)
+    )
     with pytest.raises(ValueError, match="n_probes"):
         model.predict(X[:1])
     if estimator == "classifier":

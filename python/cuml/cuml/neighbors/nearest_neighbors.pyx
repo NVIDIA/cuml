@@ -817,12 +817,25 @@ class NeighborsBase(InteropMixin, CMajorInputTagMixin, SparseInputTagMixin, Base
         """The `p` value to use, based on `effective_metric_params_` or `p`"""
         return self.effective_metric_params_.get("p", self.p)
 
-    def _validate_internal_neighbor_indices(self, indices):
+    def _validate_internal_neighbor_results(self, distances, indices):
         """Reject incomplete IVF results before indexing fitted data."""
         if self._fit_method not in ("ivfflat", "ivfpq"):
             return
         indices = cp.asarray(indices)
-        if cp.any((indices < 0) | (indices >= self.n_samples_fit_)):
+        distances = cp.asarray(distances)
+        invalid_indices = cp.any(
+            (indices < 0) | (indices >= self.n_samples_fit_)
+        )
+        # cuVS can also pad missing results with repeated, in-range IDs.
+        repeated_indices = (
+            indices.shape[1] > 1
+            and cp.any(indices[:, 1:] == indices[:, :-1])
+        )
+        invalid_distances = cp.any(
+            ~cp.isfinite(distances)
+            | (cp.abs(distances) >= cp.finfo(cp.float32).max)
+        )
+        if invalid_indices or repeated_indices or invalid_distances:
             raise ValueError(
                 "Approximate search returned missing neighbors; increase "
                 "algo_params['n_probes'] or reduce n_neighbors."
